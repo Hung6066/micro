@@ -1,69 +1,53 @@
 import { Injectable, computed, inject } from "@angular/core";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { mutationPermission } from "../authorization/mobile-mutation-permissions";
-import {
-  dashboardReadPermission,
-  readPermission,
-} from "../authorization/mobile-read-permissions";
+import { readPermission } from "../authorization/mobile-read-permissions";
+import type { OperatorMobileArea } from "../contracts/mobile.contracts";
 
-export type MobileFeatureKey =
-  | "dashboard"
-  | "clients"
-  | "users"
-  | "roles"
-  | "consents"
-  | "manageClients"
-  | "manageUsers"
-  | "manageRoles";
+export type OperatorMobileFeatureKey = OperatorMobileArea | "sync";
 
-/** Permission-derived feature flags for mobile screens and nav entries. */
+/** Permission-derived feature flags for operator mobile screens and nav. */
 @Injectable({ providedIn: "root" })
 export class MobileCapabilitiesService {
   private readonly permissions = inject(HisHopePermissionService);
 
-  readonly canViewDashboard = computed(() =>
-    this.permissions.has(dashboardReadPermission()),
+  readonly canViewProduction = computed(() =>
+    this.permissions.has(readPermission("production")),
   );
-  readonly canViewClients = computed(() =>
-    this.permissions.has(readPermission("clients")),
+  readonly canViewTraceability = computed(() =>
+    this.permissions.has(readPermission("traceability")),
   );
-  readonly canViewUsers = computed(() =>
-    this.permissions.has(readPermission("users")),
+  readonly canViewQuality = computed(() =>
+    this.permissions.has(readPermission("quality")),
   );
-  readonly canViewRoles = computed(() =>
-    this.permissions.has(readPermission("roles")),
+  readonly canViewMaintenance = computed(() =>
+    this.permissions.has(readPermission("maintenance")),
   );
-  readonly canViewConsents = computed(() =>
-    this.permissions.has(readPermission("consents")),
+  readonly canMutateProduction = computed(() =>
+    this.permissions.has(mutationPermission("production")),
   );
-  readonly canManageClients = computed(() =>
-    this.permissions.has(mutationPermission("clients", "write")),
+  readonly canMutateTraceability = computed(() =>
+    this.permissions.has(mutationPermission("traceability")),
   );
-  readonly canManageUsers = computed(() =>
-    this.permissions.has(mutationPermission("users", "write")),
+  readonly canMutateQuality = computed(() =>
+    this.permissions.has(mutationPermission("quality")),
   );
-  readonly canManageRoles = computed(() =>
-    this.permissions.has(mutationPermission("roles", "write")),
+  readonly canMutateMaintenance = computed(() =>
+    this.permissions.has(mutationPermission("maintenance")),
   );
 
-  isFeatureEnabled(key: MobileFeatureKey): boolean {
+  isFeatureEnabled(key: OperatorMobileFeatureKey): boolean {
     switch (key) {
-      case "dashboard":
-        return this.canViewDashboard();
-      case "clients":
-        return this.canViewClients();
-      case "users":
-        return this.canViewUsers();
-      case "roles":
-        return this.canViewRoles();
-      case "consents":
-        return this.canViewConsents();
-      case "manageClients":
-        return this.canManageClients();
-      case "manageUsers":
-        return this.canManageUsers();
-      case "manageRoles":
-        return this.canManageRoles();
+      case "sync":
+        return true;
+      case "production":
+        return this.canViewProduction();
+      case "traceability":
+        return this.canViewTraceability();
+      case "quality":
+        return this.canViewQuality();
+      case "maintenance":
+        return this.canViewMaintenance();
     }
   }
 }

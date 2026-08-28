@@ -103,6 +103,13 @@ export type MobileBulkActionResponse = HisHopeBulkActionResult;
 export type MobileResource = "clients" | "users" | "roles" | "consents";
 export type MobileTableResource = Exclude<MobileResource, "consents">;
 
+/** Operator field-work areas guarded by manufacturing permissions. */
+export type OperatorMobileArea =
+  | "production"
+  | "traceability"
+  | "quality"
+  | "maintenance";
+
 /** @deprecated Use OidcClient */
 export type MobileClient = OidcClient;
 /** @deprecated Use User */

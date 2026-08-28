@@ -7,6 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CommerceService.Application\CommerceService.Application.csproj" />
     <ProjectReference Include="..\..\..\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
     <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />

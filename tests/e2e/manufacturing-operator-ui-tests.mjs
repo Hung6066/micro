@@ -41,7 +41,9 @@ test.describe('manufacturing operator localization, theme and route contract @op
 
     for (const route of routes) {
       await page.goto(`${operatorUrl}/${route}`);
-      await expect(page.locator('mat-toolbar')).toBeVisible();
+      // The operator app now uses the shared shell toolbar slot instead of
+      // Angular Material's legacy mat-toolbar element.
+      await expect(page.locator('.hh-shell-toolbar-slot')).toBeVisible();
     }
 
     const themeToggle = page.getByRole('button', { name: /toggle theme|đổi giao diện|đổi chế độ tối/i });

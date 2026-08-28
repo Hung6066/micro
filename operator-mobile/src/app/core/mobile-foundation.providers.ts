@@ -2,11 +2,13 @@ import {
   HIS_HOPE_APP_PIN,
   HIS_HOPE_BIOMETRIC,
   HIS_HOPE_MOBILE_AUTH,
+  HIS_HOPE_MOBILE_NATIVE,
   HIS_HOPE_OFFLINE_SYNC_CONFIG,
   HIS_HOPE_SECURE_STORAGE,
   HIS_HOPE_TABLE_API_BASE_URL,
   provideHisHopeMobilePlatformAdapters,
 } from "@his-hope/mobile-foundation/angular";
+import { Capacitor } from "@capacitor/core";
 import { MobileAuthService } from "./auth.service";
 import { NativeCapabilityService } from "./native-capability.service";
 import { MobilePlatformService } from "./mobile-platform.service";
@@ -25,7 +27,11 @@ export function provideMobileFoundation() {
       },
     },
     { provide: HIS_HOPE_TABLE_API_BASE_URL, useValue: environment.adminApiUrl },
-    { provide: HIS_HOPE_MOBILE_AUTH, useExisting: MobileAuthService },
+    { provide: HIS_HOPE_MOBILE_NATIVE, useValue: Capacitor.isNativePlatform() },
+    {
+      provide: HIS_HOPE_MOBILE_AUTH,
+      useExisting: MobileAuthService,
+    },
     {
       provide: HIS_HOPE_SECURE_STORAGE,
       useFactory: (native: NativeCapabilityService) => ({

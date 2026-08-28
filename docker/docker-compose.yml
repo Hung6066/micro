@@ -1081,6 +1081,9 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5050
       ConnectionStrings__ManufacturingDb: ${DATABASE_MANUFACTURING_URL:-Host=postgres;Database=manufacturingdb;Username=postgres;Password=postgres}
+      ConnectionStrings__ManufacturingDb_customer_acme: ${DATABASE_MANUFACTURING_CUSTOMER_ACME_URL:-}
+      TenantPlacement__Enabled: ${TENANT_PLACEMENT_ENABLED:-false}
+      TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
       ConnectionStrings__Redis: ${REDIS_URL:-redis:6379}
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
@@ -1093,6 +1096,9 @@ services:
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Outbox__Enabled: "true"
+      Manufacturing__Automation__Enabled: "true"
+      Manufacturing__Automation__IntervalSeconds: "300"
+      Manufacturing__Automation__BatchSize: "100"
       Consumers__AnalyticsEnabled: "true"
       Consumers__CommerceOrdersEnabled: "true"
       # Local/demo only. Production deployments must set this to false.
@@ -1103,6 +1109,7 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
@@ -1126,6 +1133,9 @@ services:
       ASPNETCORE_URLS: http://+:5015
       REDIS_URL: redis://redis:6379
       ConnectionStrings__CommerceDb: ${DATABASE_COMMERCE_URL:-Host=postgres;Database=commercedb;Username=postgres;Password=postgres}
+      TenantPlacement__Enabled: ${TENANT_PLACEMENT_ENABLED:-false}
+      TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
+      DataProtection__KeysPath: /var/lib/his-hope/commerce-data-protection-keys
       Outbox__Enabled: "true"
       EventBus__HostName: rabbitmq
       EventBus__Port: "5672"
@@ -1146,6 +1156,8 @@ services:
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
+      - commerce_dataprotection:/var/lib/his-hope/commerce-data-protection-keys
     restart: unless-stopped
     depends_on:
       identityservice: { condition: service_healthy }
@@ -1170,6 +1182,11 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5016
       ConnectionStrings__ContentDb: ${DATABASE_CONTENT_URL:-Host=postgres;Database=contentdb;Username=postgres;Password=postgres}
+      TenantPlacement__Enabled: ${TENANT_PLACEMENT_ENABLED:-false}
+      TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
+      DataProtection__KeysPath: /var/lib/his-hope/content-data-protection-keys
+      DataProtection__CertificatePath: ${DATAPROTECTION_CERTIFICATE_PATH:-}
+      DataProtection__CertificatePassword: ${DATAPROTECTION_CERTIFICATE_PASSWORD:-}
       REDIS_URL: redis://redis:6379
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
@@ -1186,6 +1203,8 @@ services:
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
+      - content_dataprotection:/var/lib/his-hope/content-data-protection-keys
     restart: unless-stopped
     depends_on:
       identityservice: { condition: service_healthy }
@@ -1375,7 +1394,7 @@ services:
         aliases:
           - admin
     ports:
-      - "8083:8080"
+      - "${ADMIN_APP_PORT:-8083}:8080"
     depends_on:
       identityservice: { condition: service_healthy }
     restart: unless-stopped
@@ -1525,3 +1544,5 @@ volumes:
   database_continuity_backups:
   postgres_wal_archive:
   postgres_restore_drill_data:
+  commerce_dataprotection:
+  content_dataprotection:

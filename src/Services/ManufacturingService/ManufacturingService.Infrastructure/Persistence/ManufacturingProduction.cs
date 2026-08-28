@@ -119,6 +119,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                 Id = Guid.NewGuid(), ProductionBatchId = entity.Id, LotId = input.LotId, ReservationId = input.ReservationId, Quantity = input.Quantity
             }));
         }
+        EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, "", "Created", "system", entity.CreatedAt);
         db.SaveChanges();
         return (ToDto(entity, [], request.Inputs?.Select(x => new ManufacturingProductionBatchInputEntity { LotId = x.LotId, ReservationId = x.ReservationId, Quantity = x.Quantity }) ?? []), null);
     }
@@ -170,6 +171,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             operations.Where(x => x.Required).All(x => x.Status == "Completed" && x.QcStatus == "Pass"),
             machineAvailable));
         if (transitionError is not null) return (null, transitionError);
+        var previousStatus = entity.Status;
         entity.Status = targetStatus;
         if (targetStatus == "Started") order.Status = "InProgress";
         if (targetStatus == "Completed") order.Status = "Completed";
@@ -248,6 +250,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = DateTimeOffset.UtcNow, correlationId = entity.Id, facilityId = "default", productionBatchId = entity.Id, tenantKey, status = targetStatus }),
             OccurredOn = DateTime.UtcNow, Status = "Pending"
         });
+        EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, previousStatus, targetStatus, "system", DateTimeOffset.UtcNow);
         db.SaveChanges();
         return (ToDto(entity, db.OperationExecutions.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToList(), db.ProductionBatchInputs.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToList()), null);
     }
@@ -257,7 +260,10 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         using var db = dbFactory.CreateDbContext(); var entity = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId && x.TenantKey == tenantKey);
         if (entity is null) return (null, "production_batch_not_found");
         if (entity.Status is "Completed" or "Cancelled") return (null, "production_batch_not_cancellable");
-        entity.Status = "Cancelled"; db.SaveChanges(); var operations = db.OperationExecutions.Where(x => x.ProductionBatchId == entity.Id).ToList(); var inputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList(); return (ToDto(entity, operations, inputs), null);
+        var previousStatus = entity.Status;
+        entity.Status = "Cancelled";
+        EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, previousStatus, "Cancelled", "system", DateTimeOffset.UtcNow);
+        db.SaveChanges(); var operations = db.OperationExecutions.Where(x => x.ProductionBatchId == entity.Id).ToList(); var inputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList(); return (ToDto(entity, operations, inputs), null);
     }
 
     public (OperationExecutionDto? Operation, string? Error) RecordOperation(string tenantKey, Guid batchId, RecordOperationRequest request)
@@ -300,6 +306,26 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         }
         db.SaveChanges();
         return (ToDto(entity), null);
+    }
+
+    public IReadOnlyList<EntityStatusHistoryDto> GetBatchStatusHistory(string tenantKey, Guid batchId)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var entity = db.ProductionBatches.AsNoTracking().SingleOrDefault(x => x.Id == batchId);
+        if (entity is null || !entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        var persisted = EntityStatusHistoryStore.Get(db, tenantKey, "production-batch", batchId);
+        if (persisted.Count > 0)
+            return persisted;
+
+        return ManufacturingStatusHistoryBuilder.ForProductionBatch(
+            entity.Id,
+            entity.TenantKey,
+            entity.Status,
+            entity.CreatedAt,
+            entity.StartedAt,
+            entity.CompletedAt);
     }
 
     private static ProductionOrderDto ToDto(ManufacturingProductionOrderEntity x, ManufacturingRecipeEntity recipe) => new(x.Id, x.TenantKey, x.OrderNumber, x.ProductSku, x.RecipeId, x.RecipeVersion, x.TargetQuantity, x.OutputUom, x.Status, x.CreatedAt, x.ReleasedAt);

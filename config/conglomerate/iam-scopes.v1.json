@@ -10,7 +10,7 @@
       "displayName": "Manufacturing Co",
       "accountKey": "manufacturing-account",
       "accountDisplayName": "Manufacturing operations",
-      "environmentKey": "staging",
+      "environmentKey": "manufacturing-staging",
       "environmentDisplayName": "Azure staging"
     },
     {
@@ -18,7 +18,7 @@
       "displayName": "Technology Co",
       "accountKey": "tech-vendor-account",
       "accountDisplayName": "Software vendor console",
-      "environmentKey": "staging",
+      "environmentKey": "tech-vendor-staging",
       "environmentDisplayName": "Azure staging"
     },
     {
@@ -26,7 +26,7 @@
       "displayName": "Group HQ",
       "accountKey": "group-hq-account",
       "accountDisplayName": "Group administration",
-      "environmentKey": "staging",
+      "environmentKey": "group-hq-staging",
       "environmentDisplayName": "Azure staging"
     }
   ],

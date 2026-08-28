@@ -3,7 +3,7 @@ import { FormsModule } from "@angular/forms";
 import { OperatorMobileQrScannerService } from "../../core/services/operator-mobile-qr-scanner.service";
 import { HisHopeTranslatePipe, HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
-import { OperatorMobileApiService, type FefoLot, type InventoryTransaction, type LotGenealogy, type LotStatusHistory, type LotSummary, type ManufacturingAvailability, type QualityInspection } from "../../core/services/operator-mobile-api.service";
+import { OperatorMobileApiService, type FefoLot, type InventoryTransaction, type LotGenealogy, type LotStatusHistory, type LotSummary, type ManufacturingAvailability, type QualityInspection, type RecallImpact } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
 
@@ -24,6 +24,7 @@ export class LotScanPageComponent {
   inventoryHistory: InventoryTransaction[] = [];
   availability: ManufacturingAvailability | null = null;
   fefoLots: FefoLot[] = [];
+  recallImpact: RecallImpact | null = null;
 
   dispositionLabel(disposition: string): string { return manufacturingEnumLabel(this.i18n, "disposition", disposition); }
   genealogyRoleLabel(role: string): string { return manufacturingEnumLabel(this.i18n, "genealogyRole", role); }
@@ -32,6 +33,7 @@ export class LotScanPageComponent {
   inspectionDateLabel(value: string): string { return this.i18n.formatDateTime(value); }
   transactionTypeLabel(type: string): string { return manufacturingEnumLabel(this.i18n, "inventoryTransactionTypes", type); }
   stockStatusLabel(status: string): string { return manufacturingEnumLabel(this.i18n, "stockStatus", status); }
+  recallRelationLabel(relation: string): string { return manufacturingEnumLabel(this.i18n, "recallRelation", relation); }
   lotOptionLabel(lot: LotSummary): string {
     const expiry = lot.bestBefore ? ` · ${this.i18n.t("mobile.operatorBestBefore", "Best before")}: ${this.i18n.formatDate(lot.bestBefore)}` : "";
     return `${lot.lotCode || lot.sku} · ${this.dispositionLabel(lot.disposition)}${expiry}`;
@@ -76,6 +78,7 @@ export class LotScanPageComponent {
     this.inventoryHistory = [];
     this.availability = null;
     this.fefoLots = [];
+    this.recallImpact = null;
     this.message = "";
     this.cdr.markForCheck();
     this.api.getLotQualityInspections(selected.id).pipe(catchError(() => of([]))).subscribe((history) => {
@@ -100,6 +103,9 @@ export class LotScanPageComponent {
     });
     this.api.getFefoLots(selected.sku).pipe(catchError(() => of([]))).subscribe((fefoLots) => {
       setTimeout(() => { this.fefoLots = fefoLots; this.cdr.markForCheck(); });
+    });
+    this.api.getRecallImpact(selected.id).pipe(catchError(() => of(null))).subscribe((recallImpact) => {
+      setTimeout(() => { this.recallImpact = recallImpact; this.cdr.markForCheck(); });
     });
   }
 }

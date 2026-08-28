@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Domain;
+using His.Hope.Infrastructure.DataLifecycle;
 using System.Text.Json;
 using System.Data;
 
@@ -8,6 +9,7 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
 {
     public DbSet<ManufacturingLotEntity> Lots => Set<ManufacturingLotEntity>();
     public DbSet<ManufacturingLotStatusHistoryEntity> LotStatusHistory => Set<ManufacturingLotStatusHistoryEntity>();
+    public DbSet<ManufacturingEntityStatusHistoryEntity> EntityStatusHistory => Set<ManufacturingEntityStatusHistoryEntity>();
     public DbSet<ManufacturingTransformationEntity> Transformations => Set<ManufacturingTransformationEntity>();
     public DbSet<ManufacturingTransformationInputEntity> TransformationInputs => Set<ManufacturingTransformationInputEntity>();
     public DbSet<ManufacturingOutboxMessageEntity> OutboxMessages => Set<ManufacturingOutboxMessageEntity>();
@@ -54,6 +56,9 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
     public DbSet<ManufacturingSupplierEvaluationEntity> SupplierEvaluations => Set<ManufacturingSupplierEvaluationEntity>();
     public DbSet<ManufacturingAuditEventEntity> AuditEvents => Set<ManufacturingAuditEventEntity>();
     public DbSet<ManufacturingMobileOperationReplayEntity> MobileOperationReplays => Set<ManufacturingMobileOperationReplayEntity>();
+    public DbSet<ManufacturingOperationMeasurementEntity> OperationMeasurements => Set<ManufacturingOperationMeasurementEntity>();
+    public DbSet<ManufacturingSalesActualEntity> SalesActuals => Set<ManufacturingSalesActualEntity>();
+    public DbSet<ManufacturingMlFeatureSnapshotEntity> MlFeatureSnapshots => Set<ManufacturingMlFeatureSnapshotEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +72,55 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.Property(x => x.Path).HasMaxLength(500).IsRequired();
             entity.Property(x => x.OperationId).HasMaxLength(200).IsRequired();
             entity.HasIndex(x => new { x.TenantKey, x.SubjectId, x.Method, x.Path, x.OperationId }).IsUnique();
+        });
+
+        modelBuilder.Entity<ManufacturingOperationMeasurementEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_operation_measurements");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.MeasurementType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Uom).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Value).HasPrecision(18, 6);
+            entity.Property(x => x.RecordedBy).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Source).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.HasIndex(x => new { x.TenantKey, x.ProductionBatchId, x.MeasuredAt });
+            entity.HasIndex(x => new { x.TenantKey, x.OperationExecutionId, x.MeasurementType, x.Sequence }).IsUnique();
+            entity.HasOne<ManufacturingProductionBatchEntity>().WithMany().HasForeignKey(x => x.ProductionBatchId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ManufacturingSalesActualEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_sales_actuals");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ProductSku).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Quantity).HasPrecision(18, 3);
+            entity.Property(x => x.Uom).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Channel).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Region).HasMaxLength(100);
+            entity.Property(x => x.Source).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PeriodStart).HasColumnType("date");
+            entity.Property(x => x.PeriodEnd).HasColumnType("date");
+            entity.HasIndex(x => new { x.TenantKey, x.ProductSku, x.PeriodStart, x.Channel });
+        });
+
+        modelBuilder.Entity<ManufacturingMlFeatureSnapshotEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_ml_feature_snapshots");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.DatasetKey).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.EntityType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.FeaturesJson).IsRequired();
+            entity.Property(x => x.LabelJson);
+            entity.Property(x => x.SourceEventIdsJson);
+            entity.Property(x => x.Split).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => new { x.TenantKey, x.DatasetKey, x.AsOf });
+            entity.HasIndex(x => new { x.TenantKey, x.DatasetKey, x.EntityType, x.EntityId, x.AsOf, x.SchemaVersion }).IsUnique();
         });
 
         modelBuilder.Entity<ManufacturingLotEntity>(entity =>
@@ -83,6 +137,8 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.Property(x => x.CertificateOfAnalysisReference).HasMaxLength(1000);
             entity.Property(x => x.SourceLotCode).HasMaxLength(100);
             entity.Property(x => x.QualityStatus).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.BestBefore).HasColumnType("date");
+            entity.Property(x => x.ManufacturedOn).HasColumnType("date");
             entity.Property(x => x.CreatedBy).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Quantity).HasPrecision(18, 3);
             entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_lots_lot_type", "\"LotType\" IN ('RawMaterial', 'WorkInProgress', 'FinishedGood', 'Packaging', 'Unspecified')"));
@@ -100,6 +156,18 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.Property(x => x.EvidenceReference).HasMaxLength(1000);
             entity.HasIndex(x => new { x.TenantKey, x.LotId, x.OccurredAt });
             entity.HasOne<ManufacturingLotEntity>().WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ManufacturingEntityStatusHistoryEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_entity_status_history");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.EntityType).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.FromStatus).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.ToStatus).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Actor).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => new { x.TenantKey, x.EntityType, x.EntityId, x.OccurredAt });
         });
 
         modelBuilder.Entity<ManufacturingTransformationEntity>(entity =>
@@ -559,6 +627,8 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.Property(x => x.Uom).HasMaxLength(30).IsRequired();
             entity.Property(x => x.Source).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PeriodStart).HasColumnType("date");
+            entity.Property(x => x.PeriodEnd).HasColumnType("date");
             entity.HasIndex(x => new { x.TenantKey, x.ProductSku, x.PeriodStart, x.PeriodEnd, x.Version }).IsUnique();
         });
 
@@ -676,6 +746,15 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.HasOne<ManufacturingLotEntity>().WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<ManufacturingLotReservationEntity>().WithMany().HasForeignKey(x => x.ReservationId).OnDelete(DeleteBehavior.Restrict);
         });
+
+        HisHopeDataConventions.Apply(
+            modelBuilder,
+            typeof(ManufacturingLotEntity), typeof(ManufacturingRecipeEntity),
+            typeof(ManufacturingMachineEntity), typeof(ManufacturingProductionOrderEntity),
+            typeof(ManufacturingProductionBatchEntity), typeof(ManufacturingOperationExecutionEntity),
+            typeof(ManufacturingQualityInspectionEntity), typeof(ManufacturingSupplierEntity),
+            typeof(ManufacturingPurchaseOrderEntity), typeof(ManufacturingProductEntity),
+            typeof(ManufacturingMaterialEntity));
     }
 }
 
@@ -740,7 +819,11 @@ public sealed class ManufacturingTransformationInputEntity
     public decimal Quantity { get; set; }
 }
 
-public sealed partial class PostgresManufacturingStore(IDbContextFactory<ManufacturingDbContext> dbFactory) : IManufacturingProductionStore, IManufacturingMaintenanceStore, IManufacturingDashboardStore, IManufacturingLegacyStore
+public sealed partial class PostgresManufacturingStore(IDbContextFactory<ManufacturingDbContext> dbFactory) :
+    IManufacturingProductionStore, IManufacturingMaintenanceStore, IManufacturingDashboardStore,
+    IManufacturingTraceabilityStore, IManufacturingQualityWorkflowStore,
+    IManufacturingRecipeWorkflowStore, IManufacturingPlanningWorkflowStore,
+    IManufacturingIntegrationStore, IManufacturingWorkflowStore
 {
     public void Initialize()
     {

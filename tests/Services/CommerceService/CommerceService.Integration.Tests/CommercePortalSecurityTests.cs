@@ -106,9 +106,12 @@ public sealed class CommercePortalSecurityTests : IClassFixture<WebApplicationFa
             "source-tenant",
             ["commerce.read", "commerce.orders.view", "commerce.orders.update"]);
 
-        var response = await client.PatchAsJsonAsync(
-            "/api/v1/commerce/orders/00000000-0000-0000-0000-000000000001/status?tenantKey=target-tenant",
-            new { status = "confirmed" });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Patch,
+            "/api/v1/commerce/orders/00000000-0000-0000-0000-000000000001/status");
+        request.Headers.Add("X-HisHope-Tenant", "target-tenant");
+        request.Content = JsonContent.Create(new { status = "confirmed" });
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);

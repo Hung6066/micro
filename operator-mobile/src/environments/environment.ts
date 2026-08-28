@@ -4,6 +4,7 @@ const runtime = createMobileRuntimeConfig(false);
 
 export const environment = {
   production: false,
+  homeTenantKey: "manufacturing",
   adminApiUrl: runtime.adminApiUrl,
   oidc: {
     authority: runtime.oidcAuthority,

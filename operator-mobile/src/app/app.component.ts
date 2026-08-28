@@ -23,7 +23,7 @@ import { environment } from "../environments/environment";
     @if (platform.maintenance()) { <hh-mobile-maintenance-screen [retrying]="maintenanceRetrying()" (retry)="retryMaintenance()" /> }
     @if (deviceBlocked()) { <hh-mobile-device-blocked-screen [reasons]="deviceBlockReasons()" (signOut)="signOut()" /> }
     <hh-toast-outlet />`,
-  styles: [` .mobile-upgrade { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; gap: var(--space-inset); padding: var(--space-2xl); text-align: center; background: var(--bg-warm); color: var(--text-primary); } .mobile-upgrade p { max-width: 32ch; color: var(--text-secondary); } .mobile-upgrade__action { justify-self: center; padding: var(--space-md) var(--font-size-icon-sm); border-radius: var(--radius-chip); background: var(--accent); color: white; text-decoration: none; font-weight: 600; } `],
+  styles: [` .mobile-upgrade { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; gap: var(--space-inset); padding: var(--space-2xl); text-align: center; background: var(--bg-warm); color: var(--text-primary); } .mobile-upgrade p { max-width: 32ch; color: var(--text-secondary); } .mobile-upgrade__action { justify-self: center; padding: var(--space-md) var(--font-size-icon-sm); border-radius: var(--radius-chip); background: var(--button-primary-bg, var(--color-primary)); color: var(--color-on-primary); text-decoration: none; font-weight: 600; } `],
 })
 export class AppComponent {
   private readonly auth = inject(MobileAuthService);

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -59,19 +60,17 @@ public sealed class ManufacturingAnalyticsConsumer(
                 if (string.IsNullOrWhiteSpace(aggregateId))
                     throw new ManufacturingEventValidationException("event_empty_aggregate_id");
 
+                var tenantKey = document.RootElement.TryGetProperty("tenantKey", out var tenantElement) &&
+                                tenantElement.ValueKind == JsonValueKind.String
+                    ? tenantElement.GetString()
+                    : null;
+
                 using var scope = scopeFactory.CreateScope();
-                using var db = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>().CreateDbContext();
+                var dbFactory = scope.ServiceProvider.GetRequiredService<IManufacturingDbContextFactory>();
                 var eventType = args.BasicProperties.Type ?? "Manufacturing.Unknown";
-                if (!db.EventReceipts.Any(x => x.EventType == eventType && x.AggregateId == aggregateId))
-                {
-                    db.EventReceipts.Add(new ManufacturingEventReceiptEntity
-                    {
-                        Id = Guid.NewGuid(), EventType = eventType, AggregateId = aggregateId,
-                        Content = content, ReceivedAt = DateTime.UtcNow
-                    });
-                    db.SaveChanges();
+                var persisted = PersistReceipt(dbFactory, tenantKey, eventType, aggregateId, content);
+                if (persisted)
                     logger.LogInformation("Manufacturing event receipt persisted: {EventType}/{AggregateId}", eventType, aggregateId);
-                }
 
                 channel.BasicAck(args.DeliveryTag, multiple: false);
             }
@@ -100,6 +99,46 @@ public sealed class ManufacturingAnalyticsConsumer(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+        }
+    }
+
+    private static bool PersistReceipt(
+        IManufacturingDbContextFactory dbFactory,
+        string? tenantKey,
+        string eventType,
+        string aggregateId,
+        string content)
+    {
+        if (!string.IsNullOrWhiteSpace(tenantKey))
+            return PersistReceiptForConnection(dbFactory.CreateDbContext(tenantKey), eventType, aggregateId, content);
+
+        foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
+        {
+            if (PersistReceiptForConnection(dbFactory.CreateDbContextForConnection(connectionName), eventType, aggregateId, content))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool PersistReceiptForConnection(
+        ManufacturingDbContext db,
+        string eventType,
+        string aggregateId,
+        string content)
+    {
+        using (db)
+        {
+            if (db.EventReceipts.Any(x => x.EventType == eventType && x.AggregateId == aggregateId))
+                return false;
+
+            db.EventReceipts.Add(new ManufacturingEventReceiptEntity
+            {
+                Id = Guid.NewGuid(), EventType = eventType, AggregateId = aggregateId,
+                Content = content, ReceivedAt = DateTime.UtcNow
+            });
+            db.SaveChanges();
+            return true;
         }
     }
 }

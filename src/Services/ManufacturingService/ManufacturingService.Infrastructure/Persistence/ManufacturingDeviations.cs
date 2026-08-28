@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
+using His.Hope.ManufacturingService.Application;
 using System.Text.Json;
 
-public sealed partial class PostgresManufacturingStore : IManufacturingLegacyStore
+public sealed partial class PostgresManufacturingStore : IManufacturingQualityWorkflowStore
 {
     public (ManufacturingDeviationDto? Deviation, string? Error) CreateDeviation(
         Guid productionBatchId, string tenantKey, CreateDeviationRequest request)
@@ -25,6 +26,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingLegacySto
             Status = "Requested", RequestedBy = request.RequestedBy.Trim(), CreatedAt = now
         };
         db.Deviations.Add(entity);
+        EntityStatusHistoryStore.Append(db, "deviation", entity.Id, tenantKey, "", "Requested", entity.RequestedBy, now);
         AddDeviationEvent(db, entity, "Raised", entity.RequestedBy, now);
         db.SaveChanges();
         return (ToDto(entity), null);
@@ -63,6 +65,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingLegacySto
                 : "invalid_deviation_transition");
 
         var now = DateTimeOffset.UtcNow;
+        var previousStatus = entity.Status;
         entity.Status = targetStatus;
         entity.ResolutionNotes = request.Notes?.Trim();
         if (targetStatus is "Approved" or "Rejected")
@@ -71,9 +74,32 @@ public sealed partial class PostgresManufacturingStore : IManufacturingLegacySto
             entity.ApprovedAt = now;
         }
         if (targetStatus == "Closed") entity.ClosedAt = now;
+        EntityStatusHistoryStore.Append(db, "deviation", entity.Id, tenantKey, previousStatus, targetStatus, actor, now);
         AddDeviationEvent(db, entity, targetStatus, actor, now);
         db.SaveChanges();
         return (ToDto(entity), null);
+    }
+
+    public IReadOnlyList<EntityStatusHistoryDto> GetDeviationStatusHistory(string tenantKey, Guid deviationId)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var entity = db.Deviations.AsNoTracking().SingleOrDefault(x => x.Id == deviationId);
+        if (entity is null || !entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        var persisted = EntityStatusHistoryStore.Get(db, tenantKey, "deviation", deviationId);
+        if (persisted.Count > 0)
+            return persisted;
+
+        return ManufacturingStatusHistoryBuilder.ForDeviation(
+            entity.Id,
+            entity.TenantKey,
+            entity.Status,
+            entity.RequestedBy,
+            entity.CreatedAt,
+            entity.ApprovedBy,
+            entity.ApprovedAt,
+            entity.ClosedAt);
     }
 
     private static void AddDeviationEvent(ManufacturingDbContext db, ManufacturingDeviationEntity entity, string action, string actor, DateTimeOffset occurredAt)

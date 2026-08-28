@@ -283,6 +283,7 @@ account, environment children) via `SeedConglomerateScopesAsync`.
 - Patient-as-subject vs patient-as-tenant (B2B2C identity linking).
 - Cross-customer federation and data sharing agreements.
 - Per-customer database/schema isolation (tenant row-level isolation remains default).
+- Dedicated tenant placement tier — see [ADR 018](./018-tenant-placement-tier.md) (opt-in, disabled by default).
 - Billing/marketplace provisioning webhooks.
 
 ## Alternatives considered

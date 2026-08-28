@@ -48,6 +48,17 @@ public static class HisHopeDatabaseOptions
             ConnectionIdleLifetime = database.GetValue("ConnectionIdleLifetimeSeconds", 30)
         };
 
+        var environmentName = configuration["HIS_HOPE_ENVIRONMENT"]
+            ?? configuration["ASPNETCORE_ENVIRONMENT"];
+        if (string.Equals(environmentName, "production", StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(builder.Password) ||
+             builder.Password.Equals("postgres", StringComparison.OrdinalIgnoreCase) ||
+             builder.Password.Equals("password", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                $"Production database connection '{connectionName}' must use a non-default credential supplied by a secret provider.");
+        }
+
         options.UseNpgsql(builder.ConnectionString, npgsql =>
         {
             npgsql.EnableRetryOnFailure(
@@ -122,6 +133,19 @@ public static class HisHopeDatabaseOptions
         var parsed = new DbConnectionStringBuilder { ConnectionString = suffix };
         foreach (var entry in parsed.Cast<KeyValuePair<string, object>>())
             yield return new KeyValuePair<string, string>(entry.Key, Convert.ToString(entry.Value)!);
+    }
+
+    public static DbContextOptionsBuilder UseHisHopeNpgsql(
+        this DbContextOptionsBuilder options,
+        IServiceProvider serviceProvider,
+        IConfiguration configuration,
+        string connectionString,
+        string connectionName,
+        Action<NpgsqlDbContextOptionsBuilder>? configure = null)
+    {
+        var resolver = serviceProvider.GetService<His.Hope.Secrets.IVaultDatabaseConnectionStringResolver>();
+        var resolved = resolver?.Resolve(connectionString, connectionName) ?? connectionString;
+        return UseHisHopeNpgsql(options, resolved, connectionName, configuration, configure);
     }
 
     public static DbContextOptionsBuilder UseHisHopeNpgsql(

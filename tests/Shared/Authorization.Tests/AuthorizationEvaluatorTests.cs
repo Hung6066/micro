@@ -148,6 +148,78 @@ public sealed class AuthorizationEvaluatorTests
     }
 
     [Fact]
+    public async Task Ignores_resource_policy_when_string_equals_condition_does_not_match()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("tenant_id", "tenant-a"),
+            new Claim("permissions", "patients.view"),
+            new Claim("resource_policies", "[{\"ServiceKey\":\"patients\",\"ResourcePattern\":\"patient/*\",\"Effect\":\"allow\",\"Actions\":[\"patients.view\"],\"Condition\":{\"StringEquals\":{\"tenant_id\":\"tenant-b\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Allows_resource_policy_when_string_equals_condition_matches()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("tenant_id", "tenant-a"),
+            new Claim("permissions", "patients.view"),
+            new Claim("resource_policies", "[{\"ServiceKey\":\"patients\",\"ResourcePattern\":\"patient/*\",\"Effect\":\"allow\",\"Actions\":[\"patients.view\"],\"Condition\":{\"StringEquals\":{\"tenant_id\":\"tenant-a\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Supports_case_insensitive_string_like_condition()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("tenant_id", "tenant-a"),
+            new Claim("permissions", "patients.view"),
+            new Claim("resource_policies", "[{\"serviceKey\":\"patients\",\"resourcePattern\":\"patient/*\",\"effect\":\"allow\",\"actions\":[\"patients.view\"],\"condition\":{\"StringLike\":{\"tenant_id\":\"tenant-*\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Supports_numeric_condition_operator()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("permissions", "patients.view"),
+            new Claim("risk_score", "7"),
+            new Claim("resource_policies", "[{\"ServiceKey\":\"patients\",\"ResourcePattern\":\"patient/*\",\"Effect\":\"allow\",\"Actions\":[\"patients.view\"],\"Condition\":{\"NumericGreaterThanEquals\":{\"risk_score\":\"5\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Emits_redacted_decision_metadata_to_sink()
     {
         var sink = new RecordingSink();

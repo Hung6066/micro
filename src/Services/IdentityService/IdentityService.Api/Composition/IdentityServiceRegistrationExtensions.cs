@@ -58,6 +58,7 @@ using ITfoxtec.Identity.Saml2.MvcCore.Configuration;
 using ITfoxtec.Identity.Saml2.MvcCore;
 using ITfoxtec.Identity.Saml2.Schemas.Metadata;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.Infrastructure.DataLifecycle;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using StackExchange.Redis;
@@ -95,6 +96,8 @@ public static class IdentityServiceRegistrationExtensions
             Origins = new HashSet<string>(builder.Configuration.GetSection("Passkeys:Origins").Get<string[]>() ?? new[] { builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost" })
         }));
         builder.Services.AddHttpClient();
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<SoftDeleteInterceptor>();
         builder.Services.AddHttpClient("vault")
             .ConfigurePrimaryHttpMessageHandler(() =>
             {
@@ -166,7 +169,8 @@ public static class IdentityServiceRegistrationExtensions
 
         builder.Services.AddDbContext<IdentityDbContext>((serviceProvider, options) =>
             options.UseHisHopeNpgsql(serviceProvider, builder.Configuration, "IdentityDb")
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .AddInterceptors(serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
         builder.Services.AddHisHopeMigrationRunner<IdentityDbContext>();
         builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
 

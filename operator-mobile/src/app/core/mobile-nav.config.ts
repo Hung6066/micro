@@ -1,44 +1,48 @@
-import { HisHopeMobileNavItem } from "@his-hope/frontend-foundation/ui";
-import {
-  dashboardReadPermission,
-  readPermission,
-} from "./authorization/mobile-read-permissions";
+import type { OperatorMobileArea } from "./contracts/mobile.contracts";
+import { readPermission } from "./authorization/mobile-read-permissions";
 
-/** Bottom navigation entries, ordered as they appear in the shell. */
-export const MOBILE_NAV_ITEMS: readonly HisHopeMobileNavItem[] = [
+export interface OperatorMobileNavItem {
+  readonly route: OperatorMobileArea | "sync";
+  readonly icon: string;
+  readonly labelKey: string;
+  readonly labelFallback: string;
+  readonly permission?: string;
+}
+
+/** Bottom navigation entries for the operator shell. */
+export const OPERATOR_MOBILE_NAV_ITEMS: readonly OperatorMobileNavItem[] = [
   {
-    route: "/operations",
-    icon: "home",
-    labelKey: "admin.dashboard",
-    labelFallback: "Dashboard",
-    permission: dashboardReadPermission(),
+    route: "production",
+    icon: "precision_manufacturing",
+    labelKey: "mobile.operatorProduction",
+    labelFallback: "Production",
+    permission: readPermission("production"),
   },
   {
-    route: "/admin/clients",
-    icon: "clients",
-    labelKey: "admin.clients",
-    labelFallback: "Clients",
-    permission: readPermission("clients"),
+    route: "traceability",
+    icon: "qr_code_scanner",
+    labelKey: "mobile.operatorTraceability",
+    labelFallback: "Traceability",
+    permission: readPermission("traceability"),
   },
   {
-    route: "/admin/users",
-    icon: "users",
-    labelKey: "admin.users",
-    labelFallback: "Users",
-    permission: readPermission("users"),
+    route: "quality",
+    icon: "fact_check",
+    labelKey: "mobile.operatorQuality",
+    labelFallback: "Quality",
+    permission: readPermission("quality"),
   },
   {
-    route: "/admin/roles",
-    icon: "roles",
-    labelKey: "admin.roles",
-    labelFallback: "Roles",
-    permission: readPermission("roles"),
+    route: "maintenance",
+    icon: "build",
+    labelKey: "mobile.operatorMaintenance",
+    labelFallback: "Maintenance",
+    permission: readPermission("maintenance"),
   },
   {
-    route: "/admin/consents",
-    icon: "consents",
-    labelKey: "admin.consents",
-    labelFallback: "Consents",
-    permission: readPermission("consents"),
+    route: "sync",
+    icon: "sync",
+    labelKey: "mobile.operatorSync",
+    labelFallback: "Sync",
   },
 ];

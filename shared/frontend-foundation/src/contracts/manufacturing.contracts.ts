@@ -1,4 +1,5 @@
 /** Mirrors `His.Hope.Contracts.Manufacturing` (camelCase JSON). */
+import type { HisHopeWorkflowStepState } from "./workflow.contracts";
 
 export interface HisHopeLotDto {
   id: string;
@@ -99,6 +100,34 @@ export interface HisHopeLotStatusHistoryDto {
   occurredAt: string;
 }
 
+export interface HisHopeEntityStatusHistoryDto {
+  id: string;
+  entityType: string;
+  entityId: string;
+  tenantKey: string;
+  fromStatus: string;
+  toStatus: string;
+  actor: string;
+  occurredAt: string;
+}
+
+export interface HisHopeCrossEntityWorkflowStepDto {
+  key: string;
+  entityType: string;
+  entityId: string;
+  title: string;
+  status: string;
+  route: string;
+  state: HisHopeWorkflowStepState;
+  occurredAt?: string | null;
+}
+
+export interface HisHopeCrossEntityWorkflowTraceDto {
+  anchorEntityType: string;
+  anchorEntityId: string;
+  steps: HisHopeCrossEntityWorkflowStepDto[];
+}
+
 export interface HisHopeInventoryTransactionDto {
   id: string;
   tenantKey: string;
@@ -117,6 +146,64 @@ export interface HisHopeEventReceiptDto {
   eventType: string;
   aggregateId: string;
   receivedAt: string;
+}
+
+export interface HisHopeOperationMeasurementDto {
+  id: string;
+  tenantKey: string;
+  productionBatchId: string;
+  operationExecutionId: string | null;
+  machineId: string | null;
+  lotId: string | null;
+  measurementType: string;
+  value: number;
+  uom: string;
+  measuredAt: string;
+  recordedBy: string;
+  source: string;
+  sequence: number | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface HisHopeSalesActualDto {
+  id: string;
+  tenantKey: string;
+  productSku: string;
+  periodStart: string;
+  periodEnd: string;
+  quantity: number;
+  uom: string;
+  channel: string;
+  region: string | null;
+  source: string;
+  actor: string;
+  createdAt: string;
+}
+
+export interface HisHopeMlFeatureSnapshotDto {
+  id: string;
+  tenantKey: string;
+  datasetKey: string;
+  entityType: string;
+  entityId: string;
+  asOf: string;
+  featuresJson: string;
+  labelJson: string | null;
+  sourceEventIdsJson: string | null;
+  split: string;
+  schemaVersion: number;
+  createdAt: string;
+}
+
+export interface HisHopeMlDatasetQualityDto {
+  tenantKey: string;
+  datasetKey: string;
+  rowCount: number;
+  labeledRowCount: number;
+  featureSchemaVersion: number;
+  asOf: string;
+  warnings: string[];
 }
 
 export interface HisHopeCostProjectionComponentDto {

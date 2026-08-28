@@ -1,23 +1,41 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Configuration;
 using His.Hope.ManufacturingService.Application.Ports;
+using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Infrastructure.DataLifecycle;
+using His.Hope.Persistence.Tenancy;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 public static class ManufacturingInfrastructureServiceCollectionExtensions
 {
     public static IServiceCollection AddManufacturingInfrastructure(
         this IServiceCollection services,
-        string connectionString)
+        IConfiguration configuration)
     {
-        services.AddDbContextFactory<ManufacturingDbContext>(options =>
-            options.UseNpgsql(connectionString));
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SoftDeleteInterceptor>();
+        services.AddSingleton<ManufacturingAuditSaveChangesInterceptor>();
+        services.AddHisHopeTenantAwareDbContextFactory<ManufacturingDbContext>(
+                "manufacturing",
+            (sp, builder, connectionString, _) =>
+                builder.UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(typeof(ManufacturingDbContext).Assembly.GetName().Name))
+                    .AddInterceptors(
+                        sp.GetRequiredService<SoftDeleteInterceptor>(),
+                        sp.GetRequiredService<ManufacturingAuditSaveChangesInterceptor>()));
+        services.AddSingleton<IManufacturingDbContextFactory>(sp =>
+            new ManufacturingDbContextFactoryBridge(sp.GetRequiredService<IHisHopeDbContextFactory<ManufacturingDbContext>>()));
         services.AddSingleton<PostgresManufacturingStore>();
         services.AddSingleton<ManufacturingMobileOperationReplayStore>();
         services.AddSingleton<IManufacturingProductionStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingCapaStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingMaintenanceStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingDashboardStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
-        services.AddSingleton<IManufacturingLegacyStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingTraceabilityStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingQualityWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingRecipeWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingPlanningWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingIntegrationStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<ManufacturingProcurementStore>();
         services.AddSingleton<IManufacturingProcurementStore>(sp => sp.GetRequiredService<ManufacturingProcurementStore>());
         services.AddSingleton<ManufacturingMasterDataStore>();
@@ -26,9 +44,13 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         services.AddSingleton<IManufacturingReservationStore>(sp => sp.GetRequiredService<ManufacturingReservationStore>());
         services.AddSingleton<ManufacturingProductionStore>();
         services.AddSingleton<IManufacturingProductionOrderStore>(sp => sp.GetRequiredService<ManufacturingProductionStore>());
+        services.AddSingleton<ManufacturingMlDataStore>();
+        services.AddSingleton<IManufacturingMlDataStore>(sp => sp.GetRequiredService<ManufacturingMlDataStore>());
+        services.AddSingleton<ManufacturingLifecycleAutomation>();
         services.AddHostedService<ManufacturingAnalyticsConsumer>();
         services.AddHostedService<CommerceOrderConsumer>();
         services.AddHostedService<ManufacturingOutboxDispatcher>();
+        services.AddHostedService<ManufacturingLifecycleAutomationWorker>();
 
         return services;
     }
@@ -36,11 +58,15 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
     public static void MigrateManufacturingDatabase(this IServiceProvider services)
     {
         using var scope = services.CreateScope();
-        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
-        using var db = dbFactory.CreateDbContext();
-        db.Database.Migrate();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IManufacturingDbContextFactory>();
+        foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
+        {
+            using var db = dbFactory.CreateDbContextForConnection(connectionName);
+            db.Database.Migrate();
+        }
+
         scope.ServiceProvider.GetRequiredService<PostgresManufacturingStore>().Initialize();
         if (scope.ServiceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Manufacturing:SeedDemoData"))
-            ManufacturingDemoSeeder.Seed(dbFactory);
+            ManufacturingDemoSeeder.Seed(scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>());
     }
 }

@@ -1,5 +1,7 @@
 using FluentAssertions;
 using His.Hope.Contracts.Manufacturing;
+using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Persistence.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -71,7 +73,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task OeeReportsInsufficientDataInsteadOfInventingRate()
+    public void OeeReportsInsufficientDataInsteadOfInventingRate()
     {
         var oee = new PostgresManufacturingStore(dbFactory).GetOee("tenant-oee-empty", null);
 
@@ -130,6 +132,163 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         await using var verify = await dbFactory.CreateDbContextAsync();
         (await verify.Deviations.SingleAsync(x => x.Id == created.Deviation.Id)).Status.Should().Be("Closed");
         (await verify.OutboxMessages.CountAsync(x => x.Content.Contains(created.Deviation.Id.ToString()) && x.Type.StartsWith("Manufacturing.Deviation"))).Should().Be(3);
+
+        var history = store.GetDeviationStatusHistory(tenant, created.Deviation.Id);
+        history.Should().HaveCount(3);
+        history[0].ToStatus.Should().Be("Requested");
+        history[0].Actor.Should().Be("operator-1");
+        history[1].ToStatus.Should().Be("Approved");
+        history[1].Actor.Should().Be("qa-1");
+        history[2].ToStatus.Should().Be("Closed");
+        history[2].Actor.Should().Be("supervisor-1");
+    }
+
+    [Fact]
+    public async Task ProductionBatchStatusHistory_is_persisted_on_create_and_transition()
+    {
+        const string tenant = "tenant-batch-history";
+        var recipeId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        await using (var db = await dbFactory.CreateDbContextAsync())
+        {
+            db.Recipes.Add(new ManufacturingRecipeEntity
+            {
+                Id = recipeId, TenantKey = tenant, ProductSku = "FG-HIST", Version = 1,
+                ProcessStep = "mixing", OutputUom = "kg", TargetYieldPercent = 85, Active = true,
+                Status = "Approved", CreatedAt = DateTimeOffset.UtcNow
+            });
+            db.ProductionOrders.Add(new ManufacturingProductionOrderEntity
+            {
+                Id = orderId, TenantKey = tenant, OrderNumber = "PO-HIST-001", ProductSku = "FG-HIST",
+                RecipeId = recipeId, RecipeVersion = 1, TargetQuantity = 100, OutputUom = "kg",
+                Status = "Released", CreatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var productionStore = new ManufacturingProductionStore(dbFactory);
+        var created = productionStore.CreateBatch(tenant, new CreateProductionBatchRequest(orderId, "B-HIST-001", 100, null, null));
+        created.Error.Should().BeNull();
+
+        var started = productionStore.ChangeBatchStatus(tenant, created.Batch!.Id, "Started");
+        started.Error.Should().BeNull();
+
+        var history = productionStore.GetBatchStatusHistory(tenant, created.Batch.Id);
+        history.Should().HaveCount(2);
+        history[0].FromStatus.Should().Be("");
+        history[0].ToStatus.Should().Be("Created");
+        history[1].FromStatus.Should().Be("Created");
+        history[1].ToStatus.Should().Be("Started");
+    }
+
+    [Fact]
+    public async Task PurchaseOrderStatusHistory_is_persisted_on_create_and_approval()
+    {
+        const string tenant = "tenant-po-history";
+        var supplierId = Guid.NewGuid();
+        await using (var db = await dbFactory.CreateDbContextAsync())
+        {
+            db.Uoms.Add(new ManufacturingUomEntity { Code = "kg", Name = "Kilogram", CreatedAt = DateTimeOffset.UtcNow });
+            db.Suppliers.Add(new ManufacturingSupplierEntity
+            {
+                Id = supplierId, TenantKey = tenant, Code = "SUP-HIST", Name = "History Supplier", Active = true,
+                ApprovalStatus = "Approved", RiskLevel = "Low", CreatedAt = DateTimeOffset.UtcNow
+            });
+            db.Materials.Add(new ManufacturingMaterialEntity
+            {
+                Id = Guid.NewGuid(), TenantKey = tenant, Sku = "RM-HIST", Name = "History Material",
+                BaseUomCode = "kg", Active = true, CreatedAt = DateTimeOffset.UtcNow
+            });
+            db.SupplierMaterialApprovals.Add(new ManufacturingSupplierMaterialApprovalEntity
+            {
+                Id = Guid.NewGuid(), TenantKey = tenant, SupplierId = supplierId, MaterialSku = "RM-HIST",
+                ApprovedUom = "kg", EffectiveFrom = DateTimeOffset.UtcNow, Status = "Approved",
+                CreatedAt = DateTimeOffset.UtcNow, CreatedBy = "system"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var procurementStore = new ManufacturingProcurementStore(dbFactory);
+        var created = procurementStore.CreatePurchaseOrder(new CreatePurchaseOrderRequest(
+            tenant, supplierId, "PO-HIST-001", "VND",
+            [new PurchaseOrderLineRequest("RM-HIST", 10, "kg", 1000)],
+            "Draft"));
+        created.Error.Should().BeNull();
+
+        var approved = procurementStore.UpdatePurchaseOrderStatus(tenant, created.Order!.Id, "Approved");
+        approved.Error.Should().BeNull();
+
+        var history = procurementStore.GetPurchaseOrderStatusHistory(tenant, created.Order.Id);
+        history.Should().HaveCount(2);
+        history[0].ToStatus.Should().Be("Draft");
+        history[1].FromStatus.Should().Be("Draft");
+        history[1].ToStatus.Should().Be("Approved");
+    }
+
+    [Fact]
+    public async Task CrossEntityWorkflow_links_purchase_order_to_inbound_lot_and_batch()
+    {
+        const string tenant = "tenant-cross-workflow";
+        var supplierId = Guid.NewGuid();
+        await using (var db = await dbFactory.CreateDbContextAsync())
+        {
+            db.Uoms.Add(new ManufacturingUomEntity { Code = "kg", Name = "Kilogram", CreatedAt = DateTimeOffset.UtcNow });
+            db.Suppliers.Add(new ManufacturingSupplierEntity
+            {
+                Id = supplierId, TenantKey = tenant, Code = "SUP-XWF", Name = "Cross Workflow Supplier", Active = true,
+                ApprovalStatus = "Approved", RiskLevel = "Low", CreatedAt = DateTimeOffset.UtcNow
+            });
+            db.Materials.Add(new ManufacturingMaterialEntity
+            {
+                Id = Guid.NewGuid(), TenantKey = tenant, Sku = "RM-XWF", Name = "Cross Workflow Material",
+                BaseUomCode = "kg", Active = true, CreatedAt = DateTimeOffset.UtcNow
+            });
+            db.SupplierMaterialApprovals.Add(new ManufacturingSupplierMaterialApprovalEntity
+            {
+                Id = Guid.NewGuid(), TenantKey = tenant, SupplierId = supplierId, MaterialSku = "RM-XWF",
+                ApprovedUom = "kg", EffectiveFrom = DateTimeOffset.UtcNow, Status = "Approved",
+                CreatedAt = DateTimeOffset.UtcNow, CreatedBy = "system"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var procurementStore = new ManufacturingProcurementStore(dbFactory);
+        var legacyStore = new PostgresManufacturingStore(dbFactory);
+
+        var created = procurementStore.CreatePurchaseOrder(new CreatePurchaseOrderRequest(
+            tenant, supplierId, "PO-XWF-001", "VND",
+            [new PurchaseOrderLineRequest("RM-XWF", 10, "kg", 1000)],
+            "Draft"));
+        created.Error.Should().BeNull();
+        procurementStore.UpdatePurchaseOrderStatus(tenant, created.Order!.Id, "Approved").Error.Should().BeNull();
+
+        var receipt = procurementStore.ReceiveInboundLot(tenant, new ReceiveInboundLotRequest(
+            created.Order.Id,
+            created.Order.Lines[0].Id,
+            "RM-XWF",
+            "RCPT-XWF-001",
+            "SUP-LOT-XWF",
+            "default",
+            10,
+            ReceivedBy: "receiver"));
+        receipt.Error.Should().BeNull();
+
+        var lotId = receipt.Receipt!.LotId;
+        await using (var db = await dbFactory.CreateDbContextAsync())
+        {
+            db.QualityInspections.Add(new ManufacturingQualityInspectionEntity
+            {
+                Id = Guid.NewGuid(), LotId = lotId, TenantKey = tenant, Status = "Pass",
+                MoisturePercent = 10, Inspector = "qa-1", InspectedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var trace = legacyStore.GetCrossEntityWorkflow(tenant, "purchase-order", created.Order.Id);
+        trace.Should().NotBeNull();
+        trace!.Steps.Should().Contain(x => x.EntityType == "purchase-order");
+        trace.Steps.Should().Contain(x => x.EntityType == "lot");
+        trace.Steps.Should().Contain(x => x.EntityType == "quality-inspection");
     }
 
     [Fact]
@@ -514,6 +673,132 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         shortage.Allocation.ShortageQuantity.Should().Be(100);
         await using var verify = await dbFactory.CreateDbContextAsync();
         (await verify.LotReservations.CountAsync(x => x.TenantKey == tenant && x.Status == "Reserved")).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task LifecycleAutomationExpiresAndHoldsRecordsIdempotently()
+    {
+        const string tenant = "tenant-lifecycle-automation";
+        var now = DateTimeOffset.UtcNow;
+        var supplierId = Guid.NewGuid();
+        var expiredLotId = Guid.NewGuid();
+        var activeLotId = Guid.NewGuid();
+        var machineId = Guid.NewGuid();
+        var machineDueId = Guid.NewGuid();
+        var expiredRecipeId = Guid.NewGuid();
+        var expiredInspectionPlanId = Guid.NewGuid();
+
+        await using (var setup = await dbFactory.CreateDbContextAsync())
+        {
+            setup.Suppliers.Add(new ManufacturingSupplierEntity { Id = supplierId, TenantKey = tenant, Code = "SUP-AUTO", Name = "Automation supplier", LegalName = "Automation supplier", Active = true, CreatedAt = now });
+            setup.SupplierCertificates.Add(new ManufacturingSupplierCertificateEntity { Id = Guid.NewGuid(), TenantKey = tenant, SupplierId = supplierId, CertificateType = "HACCP", CertificateNumber = "CERT-AUTO", Issuer = "QA", IssuedAt = now.AddYears(-1), ExpiresAt = now.AddMinutes(-1), Status = "Active", CreatedAt = now.AddYears(-1) });
+            setup.SupplierMaterialApprovals.Add(new ManufacturingSupplierMaterialApprovalEntity { Id = Guid.NewGuid(), TenantKey = tenant, SupplierId = supplierId, MaterialSku = "RM-AUTO", ApprovedUom = "kg", EffectiveFrom = now.AddYears(-1), EffectiveTo = now.AddMinutes(-1), Status = "Approved", CreatedAt = now.AddYears(-1) });
+            setup.Recipes.Add(new ManufacturingRecipeEntity { Id = expiredRecipeId, TenantKey = tenant, ProductSku = "FG-AUTO-EXPIRED", Version = 1, ProcessStep = "drying", OutputUom = "kg", TargetYieldPercent = 80, Active = true, Status = "Approved", EffectiveFrom = now.AddYears(-1), EffectiveTo = now.AddMinutes(-1), CreatedAt = now.AddYears(-1) });
+            setup.InspectionPlanVersions.Add(new ManufacturingInspectionPlanVersionEntity { Id = expiredInspectionPlanId, TenantKey = tenant, PlanCode = "IP-AUTO", ProductSku = "FG-AUTO-EXPIRED", Version = 1, SamplingMethod = "Per lot", SamplingFrequency = "Every lot", AcceptanceCriteria = "Pass", Status = "Approved", EffectiveFrom = now.AddYears(-1), EffectiveTo = now.AddMinutes(-1), CreatedAt = now.AddYears(-1) });
+            setup.Lots.AddRange(
+                new ManufacturingLotEntity { Id = expiredLotId, TenantKey = tenant, Sku = "FG-AUTO-EXPIRED", Quantity = 10, Uom = "kg", Disposition = "Released", BestBefore = DateOnly.FromDateTime(now.UtcDateTime.AddDays(-1)), LotCode = "LOT-AUTO-EXPIRED", LotType = "FinishedGood", QualityStatus = "Passed", CreatedAt = now },
+                new ManufacturingLotEntity { Id = activeLotId, TenantKey = tenant, Sku = "FG-AUTO-ACTIVE", Quantity = 10, Uom = "kg", Disposition = "Released", LotCode = "LOT-AUTO-ACTIVE", LotType = "FinishedGood", QualityStatus = "Passed", CreatedAt = now });
+            setup.LotReservations.AddRange(
+                new ManufacturingLotReservationEntity { Id = Guid.NewGuid(), TenantKey = tenant, LotId = expiredLotId, ReferenceType = "SalesOrder", ReferenceId = Guid.NewGuid(), Quantity = 2, Uom = "kg", Status = "Reserved", CreatedAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) },
+                new ManufacturingLotReservationEntity { Id = Guid.NewGuid(), TenantKey = tenant, LotId = activeLotId, ReferenceType = "SalesOrder", ReferenceId = Guid.NewGuid(), Quantity = 2, Uom = "kg", Status = "Reserved", CreatedAt = now.AddDays(-1), ExpiresAt = now.AddMinutes(-1) });
+            setup.Machines.Add(new ManufacturingMachineEntity { Id = machineId, TenantKey = tenant, Code = "M-AUTO", Name = "Automation machine", Status = "Available", Active = true, CreatedAt = now });
+            setup.Machines.Add(new ManufacturingMachineEntity { Id = machineDueId, TenantKey = tenant, Code = "M-DUE", Name = "Due machine", Status = "Available", Active = true, NextMaintenanceAt = now.AddMinutes(-1), CreatedAt = now });
+            setup.MaintenancePlans.Add(new ManufacturingMaintenancePlanEntity { Id = Guid.NewGuid(), TenantKey = tenant, MachineId = machineId, PlanCode = "MP-AUTO", MaintenanceType = "Preventive", FrequencyDays = 30, NextDueAt = now.AddMinutes(-1), Active = true, CreatedAt = now });
+            await setup.SaveChangesAsync();
+        }
+
+        var automation = new ManufacturingLifecycleAutomation(new SingleConnectionDbContextFactory<ManufacturingDbContext>(dbFactory, "ManufacturingDb"));
+        var first = await automation.RunOnceAsync(now, 100);
+        first.Should().Be(new ManufacturingAutomationRunSummary(1, 1, 1, 1, 1, 1, 2));
+        var second = await automation.RunOnceAsync(now.AddMinutes(1), 100);
+        second.Should().Be(new ManufacturingAutomationRunSummary(0, 0, 0, 0, 0, 0, 0));
+
+        await using var verify = await dbFactory.CreateDbContextAsync();
+        (await verify.Lots.SingleAsync(x => x.Id == expiredLotId)).Disposition.Should().Be("Hold");
+        (await verify.Lots.SingleAsync(x => x.Id == expiredLotId)).QualityStatus.Should().Be("Expired");
+        (await verify.LotReservations.Where(x => x.TenantKey == tenant).Select(x => x.Status).ToListAsync()).Should().BeEquivalentTo(["Cancelled", "Expired"]);
+        (await verify.SupplierCertificates.SingleAsync(x => x.TenantKey == tenant)).Status.Should().Be("Expired");
+        (await verify.SupplierMaterialApprovals.SingleAsync(x => x.TenantKey == tenant)).Status.Should().Be("Expired");
+        (await verify.Recipes.SingleAsync(x => x.Id == expiredRecipeId)).Status.Should().Be("Retired");
+        (await verify.Recipes.SingleAsync(x => x.Id == expiredRecipeId)).Active.Should().BeFalse();
+        (await verify.InspectionPlanVersions.SingleAsync(x => x.Id == expiredInspectionPlanId)).Status.Should().Be("Retired");
+        (await verify.MaintenanceWorkOrders.CountAsync(x => x.TenantKey == tenant && x.Status == "Open")).Should().Be(2);
+        (await verify.OutboxMessages.Where(x => x.Content.Contains(tenant)).Select(x => x.Type).ToListAsync()).Should().Contain(new[]
+        {
+            "Manufacturing.InventoryReservationExpired.v1", "Manufacturing.LotDispositionChanged.v1",
+            "Manufacturing.SupplierCertificateExpired.v1", "Manufacturing.SupplierMaterialApprovalExpired.v1",
+            "Manufacturing.RecipeVersionRetired.v1", "Manufacturing.InspectionPlanVersionRetired.v1",
+            "Manufacturing.MaintenanceWorkOrderCreated.v1"
+        });
+    }
+
+    [Fact]
+    public async Task LifecycleAutomationProcessesConcurrentRunsOnce()
+    {
+        const string tenant = "tenant-lifecycle-concurrent";
+        var certificateId = Guid.NewGuid();
+        var concurrentSupplierId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        await using (var setup = await dbFactory.CreateDbContextAsync())
+        {
+            setup.Suppliers.Add(new ManufacturingSupplierEntity
+            {
+                Id = concurrentSupplierId, TenantKey = tenant, Code = "SUP-CONCURRENT", Name = "Concurrent supplier",
+                LegalName = "Concurrent supplier", Active = true, CreatedAt = now
+            });
+            setup.SupplierCertificates.Add(new ManufacturingSupplierCertificateEntity
+            {
+                Id = certificateId, TenantKey = tenant, SupplierId = concurrentSupplierId, CertificateType = "HACCP",
+                CertificateNumber = "CERT-CONCURRENT", Issuer = "QA", IssuedAt = now.AddYears(-1),
+                ExpiresAt = now.AddMinutes(-1), Status = "Active", CreatedAt = now.AddYears(-1)
+            });
+            await setup.SaveChangesAsync();
+        }
+
+        var manufacturingDbFactory = new SingleConnectionDbContextFactory<ManufacturingDbContext>(dbFactory, "ManufacturingDb");
+        var first = new ManufacturingLifecycleAutomation(manufacturingDbFactory).RunOnceAsync(now, 100);
+        var second = new ManufacturingLifecycleAutomation(manufacturingDbFactory).RunOnceAsync(now, 100);
+        var results = await Task.WhenAll(first, second);
+
+        results.Sum(x => x.ExpiredSupplierCertificates).Should().Be(1);
+        await using var verify = await dbFactory.CreateDbContextAsync();
+        (await verify.SupplierCertificates.SingleAsync(x => x.Id == certificateId)).Status.Should().Be("Expired");
+    }
+
+    [Fact]
+    public async Task MlTrainingDataCaptureAndDatasetQualityIsTenantScoped()
+    {
+        const string tenant = "tenant-ml-training";
+        var recipeId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var batchId = Guid.NewGuid();
+        await using (var setup = await dbFactory.CreateDbContextAsync())
+        {
+            setup.Recipes.Add(new ManufacturingRecipeEntity { Id = recipeId, TenantKey = tenant, ProductSku = "FG-ML", Version = 1, ProcessStep = "drying", OutputUom = "kg", TargetYieldPercent = 80, Active = true, Status = "Approved", CreatedAt = DateTimeOffset.UtcNow });
+            setup.ProductionOrders.Add(new ManufacturingProductionOrderEntity { Id = orderId, TenantKey = tenant, OrderNumber = "PO-ML-001", ProductSku = "FG-ML", RecipeId = recipeId, RecipeVersion = 1, TargetQuantity = 100, OutputUom = "kg", Status = "InProgress", CreatedAt = DateTimeOffset.UtcNow });
+            setup.ProductionBatches.Add(new ManufacturingProductionBatchEntity { Id = batchId, TenantKey = tenant, ProductionOrderId = orderId, BatchNumber = "B-ML-001", Status = "Started", PlannedQuantity = 100, CreatedAt = DateTimeOffset.UtcNow });
+            await setup.SaveChangesAsync();
+        }
+
+        var store = new ManufacturingMlDataStore(dbFactory);
+        var measurement = store.RecordOperationMeasurement(tenant, "operator-ml", new RecordOperationMeasurementRequest(batchId, null, null, null, "temperature", 62.5m, "C", DateTimeOffset.UtcNow));
+        measurement.Error.Should().BeNull();
+        store.GetOperationMeasurements(tenant, batchId, 10).Should().ContainSingle();
+
+        var actual = store.RecordSalesActual(tenant, "sales-ml", new RecordSalesActualRequest("FG-ML", new DateOnly(2026, 1, 1), new DateOnly(2026, 1, 31), 42, "kg", "online", "VN"));
+        actual.Error.Should().BeNull();
+        store.GetSalesActuals(tenant, "FG-ML", 10).Should().ContainSingle();
+
+        var snapshotRequest = new MlFeatureSnapshotRequest("yield-v1", "production_batch", batchId, DateTimeOffset.UtcNow, "{\"input_kg\":100,\"temperature_c\":62.5}", "{\"yield_percent\":80}", "[\"measurement-1\"]");
+        var snapshot = store.CreateFeatureSnapshot(tenant, "ml-pipeline", snapshotRequest);
+        snapshot.Error.Should().BeNull();
+        store.CreateFeatureSnapshot(tenant, "ml-pipeline", snapshotRequest).Error.Should().Be("ml_feature_snapshot_exists");
+        store.CreateFeatureSnapshot(tenant, "ml-pipeline", snapshotRequest with { EntityId = Guid.NewGuid(), FeaturesJson = "not-json" }).Error.Should().Be("invalid_ml_json");
+
+        var quality = store.GetDatasetQuality(tenant, "yield-v1");
+        quality.RowCount.Should().Be(1);
+        quality.LabeledRowCount.Should().Be(1);
+        quality.Warnings.Should().Contain("split_unassigned");
     }
 
     private sealed class TestDbContextFactory(DbContextOptions<ManufacturingDbContext> options) : IDbContextFactory<ManufacturingDbContext>

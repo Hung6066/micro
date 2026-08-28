@@ -111,6 +111,24 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
         return result;
     }
 
+    public IReadOnlyList<SalesAllocationDto> GetSalesAllocations(string tenantKey, string? sku, Guid? salesOrderId, int limit)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var query = db.LotReservations.AsNoTracking().Where(x => x.TenantKey == tenantKey && x.ReferenceType == "SalesOrder");
+        if (!string.IsNullOrWhiteSpace(sku))
+        {
+            var lotIds = db.Lots.AsNoTracking().Where(x => x.TenantKey == tenantKey && x.Sku == sku.Trim()).Select(x => x.Id).ToArray();
+            query = query.Where(x => lotIds.Contains(x.LotId));
+        }
+        if (salesOrderId is { } orderId && orderId != Guid.Empty) query = query.Where(x => x.ReferenceId == orderId);
+        var rows = query.OrderByDescending(x => x.CreatedAt).Take(Math.Clamp(limit, 1, 200)).ToList();
+        var lotsById = db.Lots.AsNoTracking().Where(x => rows.Select(r => r.LotId).Contains(x.Id)).ToDictionary(x => x.Id);
+        return rows.GroupBy(x => new { x.ReferenceId, Sku = lotsById.GetValueOrDefault(x.LotId)?.Sku })
+            .Where(g => g.Key.Sku is not null)
+            .Select(g => new SalesAllocationDto(tenantKey, g.Key.Sku!, g.Key.ReferenceId, g.Sum(x => x.Quantity), g.Where(x => x.Status == "Reserved").Sum(x => x.Quantity), 0, g.Select(ToDto).ToList(), g.Max(x => x.CreatedAt)))
+            .Take(Math.Clamp(limit, 1, 200)).ToList();
+    }
+
     public (IReadOnlyList<SalesAllocationDto> Allocations, string? Error) AllocateCommerceOrder(CommerceOrderPlacedV1 order)
     {
         using var db = dbFactory.CreateDbContext();

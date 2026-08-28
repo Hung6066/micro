@@ -3,6 +3,7 @@ using His.Hope.Authorization;
 using His.Hope.BillingService.Domain.Aggregates;
 using His.Hope.BillingService.Domain.ValueObjects;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -35,8 +36,9 @@ public class BillingDbContext : DbContext, IUnitOfWork
         modelBuilder.HasDefaultSchema("billing");
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         modelBuilder.Entity<Invoice>().HasQueryFilter(invoice =>
-            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
-            _facilityScope.FacilityIds.Contains(invoice.FacilityId!));
+            EF.Property<bool?>(invoice, "IsDeleted") != true &&
+            (!_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(invoice.FacilityId!)));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("OutboxMessages");
@@ -59,6 +61,7 @@ public class BillingDbContext : DbContext, IUnitOfWork
             entity.HasIndex(e => new { e.Status, e.OccurredOn });
         });
         base.OnModelCreating(modelBuilder);
+        HisHopeDataConventions.Apply(modelBuilder, typeof(Invoice));
     }
 
     public override async Task<int> SaveChangesAsync(

@@ -1,7 +1,7 @@
 import { DatePipe, DecimalPipe } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import {
-  AfterViewInit, ChangeDetectionStrategy,
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   DestroyRef,
@@ -15,11 +15,17 @@ import {
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
   HisHopeTabsComponent,
+  HisHopeWorkflowStepperComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import {
+  buildManufacturingWorkflowRenderModel,
+  buildManufacturingWorkflowSteps,
+} from "@his-hope/frontend-foundation/domain";
+import type { HisHopeWorkflowStepRenderModel } from "@his-hope/frontend-foundation/contracts";
 import {
   HisHopeProductionBatchDto,
   HisHopeOperationExecutionDto,
@@ -29,6 +35,8 @@ import {
   HisHopeManufacturingMachineDto,
   HisHopeProductionBatchCostDto,
 } from "@his-hope/frontend-foundation/contracts";
+import { EntityStatusHistoryPanelComponent } from "../../core/components/entity-status-history-panel.component";
+import { EntityCrossWorkflowPanelComponent } from "../../core/components/entity-cross-workflow-panel.component";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
@@ -47,6 +55,9 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     HisHopeStateComponent,
     HisHopeTabsComponent,
     HisHopeTranslatePipe,
+    HisHopeWorkflowStepperComponent,
+    EntityStatusHistoryPanelComponent,
+    EntityCrossWorkflowPanelComponent,
   ],
   template: `
     <hh-page-layout>
@@ -55,6 +66,23 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         [title]="'customerPortal.productionTitle' | hhTranslate: 'Production'"
         [subtitle]="pageSubtitle"
       />
+      <section class="workflow-reference" [attr.data-testid]="'production-workflow-reference'">
+        <h2 class="workflow-reference__title">
+          {{
+            activeTab === "batches"
+              ? ("customerPortal.workflowProductionBatch" | hhTranslate: "Production batch lifecycle")
+              : ("customerPortal.workflowProductionOrder" | hhTranslate: "Production order lifecycle")
+          }}
+        </h2>
+        <hh-workflow-stepper
+          [ariaLabel]="
+            activeTab === 'batches'
+              ? ('customerPortal.workflowProductionBatch' | hhTranslate: 'Production batch lifecycle')
+              : ('customerPortal.workflowProductionOrder' | hhTranslate: 'Production order lifecycle')
+          "
+          [steps]="referenceWorkflowSteps"
+        />
+      </section>
       <hh-tabs label="Production sections"><button role="tab" type="button" [attr.aria-selected]="activeTab === 'orders'" [class.active]="activeTab === 'orders'" (click)="selectTab('orders')">{{ 'customerPortal.productionOrders' | hhTranslate: 'Production orders' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'batches'" [class.active]="activeTab === 'batches'" (click)="selectTab('batches')">{{ 'customerPortal.productionBatches' | hhTranslate: 'Production batches' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'operations'" [class.active]="activeTab === 'operations'" (click)="selectTab('operations')">{{ 'customerPortal.operations' | hhTranslate: 'Operations' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'recipes'" [class.active]="activeTab === 'recipes'" (click)="selectTab('recipes')">{{ 'customerPortal.recipes' | hhTranslate: 'Recipes' }}</button></hh-tabs>
       @if (loading) {
         <hh-state
@@ -64,7 +92,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
       } @else if (error) {
         <hh-state kind="error" [message]="error" />
       } @else {
-        <section class="section create-order-panel">
+        <section class="section create-order-panel" [hidden]="activeTab !== 'orders'">
           <h2>{{ "customerPortal.createProductionOrder" | hhTranslate: "Create production order" }}</h2>
           <form class="order-entry" (ngSubmit)="createProductionOrder()">
             <label>{{ "customerPortal.orderNumber" | hhTranslate: "Order number" }}<input name="orderNumber" [(ngModel)]="productionOrderDraft.orderNumber" required /></label>
@@ -81,7 +109,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           </form>
           @if (productionOrderError) { <p class="review-error" role="alert">{{ productionOrderError }}</p> }
         </section>
-        <section class="section create-order-panel">
+        <section class="section create-order-panel" [hidden]="activeTab !== 'batches'">
           <h2>{{ "customerPortal.createProductionBatch" | hhTranslate: "Create production batch" }}</h2>
           <form class="order-entry" (ngSubmit)="createProductionBatch()">
             <label>{{ "customerPortal.productionOrder" | hhTranslate: "Production order" }}
@@ -109,7 +137,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           </form>
           @if (productionBatchError) { <p class="review-error" role="alert">{{ productionBatchError }}</p> }
         </section>
-        <section class="section">
+        <section class="section" [hidden]="activeTab !== 'orders'">
           <h2>{{ "customerPortal.productionOrders" | hhTranslate: "Production orders" }}</h2>
           @if (!orders.length) {
             <p class="empty">{{ "customerPortal.noProductionOrders" | hhTranslate: "No production orders." }}</p>
@@ -121,6 +149,12 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                     <strong>{{ order.orderNumber }}</strong>
                     <span class="status">{{ productionOrderStatusLabel(order.status) }}</span>
                   </header>
+                  <hh-workflow-stepper
+                    class="entity-workflow"
+                    [attr.data-testid]="'production-order-workflow-' + order.id"
+                    [ariaLabel]="'customerPortal.workflowProductionOrder' | hhTranslate: 'Production order lifecycle'"
+                    [steps]="orderWorkflowSteps(order.status)"
+                  />
                   <p>
                     {{ order.productSku }} ·
                     {{ order.targetQuantity | number: "1.0-2" }}
@@ -149,7 +183,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           }
         </section>
 
-        <section class="section">
+        <section class="section" [hidden]="activeTab !== 'batches' && activeTab !== 'operations'">
           <h2>{{ "customerPortal.productionBatches" | hhTranslate: "Production batches" }}</h2>
           @if (!batches.length) {
             <p class="empty">{{ "customerPortal.noProductionBatches" | hhTranslate: "No production batches." }}</p>
@@ -161,6 +195,22 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                     <strong>{{ batch.batchNumber }}</strong>
                     <span class="status">{{ productionBatchStatusLabel(batch.status) }}</span>
                   </header>
+                  <hh-workflow-stepper
+                    class="entity-workflow"
+                    [attr.data-testid]="'production-batch-workflow-' + batch.id"
+                    [ariaLabel]="'customerPortal.workflowProductionBatch' | hhTranslate: 'Production batch lifecycle'"
+                    [steps]="batchWorkflowSteps(batch.status)"
+                  />
+                  <app-entity-status-history-panel
+                    [entityId]="batch.id"
+                    [loadHistory]="loadBatchStatusHistory"
+                    [statusLabel]="batchStatusLabelFn"
+                  />
+                  <app-entity-cross-workflow-panel
+                    entityType="production-batch"
+                    [entityId]="batch.id"
+                    [loadTrace]="loadCrossEntityWorkflow"
+                  />
                   <p>
                     {{
                       "customerPortal.productionPlannedActual"
@@ -405,14 +455,32 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
       .order-entry label { display: grid; gap: var(--space-2xs); color: var(--text-secondary); font-size: var(--font-size-caption); }
       .order-entry input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: var(--space-xs); color: var(--text-primary); background: var(--surface-white); font: inherit; }
       .order-entry select { width: 100%; box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: var(--space-xs); color: var(--text-primary); background: var(--surface-white); font: inherit; }
+      .workflow-reference {
+        margin-bottom: var(--space-lg);
+        padding: var(--space-md);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        background: var(--surface-subtle);
+      }
+      .workflow-reference__title {
+        margin: 0 0 var(--space-sm);
+        font-size: var(--font-size-caption);
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-secondary);
+      }
+      .entity-workflow {
+        margin: var(--space-sm) 0;
+        overflow-x: auto;
+      }
     `,
   ],
 })
-export class ProductionPageComponent implements OnInit, AfterViewInit {
+export class ProductionPageComponent implements OnInit {
   activeTab = "orders";
-  selectTab(tab: string): void { this.activeTab = tab; this.applyTabVisibility(); this.cdr.markForCheck(); }
-  ngAfterViewInit(): void { const observer = new MutationObserver(() => { if (document.querySelectorAll("section.section").length) { this.applyTabVisibility(); observer.disconnect(); } }); observer.observe(document.body, { childList: true, subtree: true }); this.applyTabVisibility(); }
-  private applyTabVisibility(): void { const sections = Array.from(document.querySelectorAll<HTMLElement>("section.section")); const index = this.activeTab === "orders" ? 0 : this.activeTab === "batches" ? 1 : this.activeTab === "operations" ? 2 : 3; sections.forEach((section, i) => section.hidden = i !== index); }
+  selectTab(tab: string): void {
+    this.activeTab = tab;
+    this.cdr.markForCheck();
+  }
   private readonly manufacturingApi = inject(ManufacturingApiService);
   private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -463,6 +531,33 @@ export class ProductionPageComponent implements OnInit, AfterViewInit {
 
   productionBatchStatusLabel(status: string): string {
     return portalEnumLabel(this.i18n, "productionBatchStatus", status);
+  }
+
+  readonly loadBatchStatusHistory = (batchId: string) => this.manufacturingApi.getBatchStatusHistory(batchId);
+  readonly batchStatusLabelFn = (status: string) => this.productionBatchStatusLabel(status);
+  readonly loadCrossEntityWorkflow = (entityType: string, entityId: string) =>
+    this.manufacturingApi.getCrossEntityWorkflow(entityType, entityId);
+
+  get referenceWorkflowSteps(): HisHopeWorkflowStepRenderModel[] {
+    this.i18n.locale();
+    const entityType = this.activeTab === "batches" ? "production-batch" : "production-order";
+    return buildManufacturingWorkflowSteps(entityType, (group, key) =>
+      portalEnumLabel(this.i18n, group as "productionOrderStatus" | "productionBatchStatus", key),
+    ).map((step) => ({ ...step, state: "upcoming" as const }));
+  }
+
+  orderWorkflowSteps(status: string): HisHopeWorkflowStepRenderModel[] {
+    this.i18n.locale();
+    return buildManufacturingWorkflowRenderModel("production-order", status, (group, key) =>
+      portalEnumLabel(this.i18n, group as "productionOrderStatus", key),
+    );
+  }
+
+  batchWorkflowSteps(status: string): HisHopeWorkflowStepRenderModel[] {
+    this.i18n.locale();
+    return buildManufacturingWorkflowRenderModel("production-batch", status, (group, key) =>
+      portalEnumLabel(this.i18n, group as "productionBatchStatus", key),
+    );
   }
 
   createProductionOrder(): void {

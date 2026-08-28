@@ -1,4 +1,6 @@
+using System.Security.Cryptography.X509Certificates;
 using His.Hope.Authorization;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.CommerceService.Application;
 using His.Hope.CommerceService.Application.Orders;
 using His.Hope.CommerceService.Api;
@@ -8,10 +10,12 @@ using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Security;
 using His.Hope.ServiceDefaults;
 using His.Hope.SharedKernel.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
 builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "CommerceService");
 builder.Services.AddCommerceApplication();
 builder.Services.AddCommerceInfrastructure(builder.Configuration);
@@ -26,6 +30,21 @@ var redis = RedisConnectionFactory.Connect(
         ?? "localhost:6379",
     builder.Configuration);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+// Persist the service's ASP.NET Core key ring so rolling restarts do not
+// invalidate antiforgery/session-protected payloads. The directory is backed
+// by a dedicated deployment volume (or an encrypted host mount in production).
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("His.Hope.CommerceService")
+    .PersistKeysToFileSystem(new DirectoryInfo(
+        builder.Configuration["DataProtection:KeysPath"]
+            ?? "/var/lib/his-hope/commerce-data-protection-keys"));
+var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath) && File.Exists(dataProtectionCertificatePath))
+{
+    dataProtection.ProtectKeysWithCertificate(new X509Certificate2(
+        dataProtectionCertificatePath,
+        builder.Configuration["DataProtection:CertificatePassword"]));
+}
 builder.Services.AddHisHopeDpopValidation();
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 builder.Services.AddHisHopeAuthorization();
@@ -38,6 +57,9 @@ app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 app.UseCommerceSecurity();
+app.UseHisHopeTenantScope();
+
+app.ValidateHisHopeTenantPlacement();
 
 await app.Services.MigrateCommerceDatabaseAsync();
 

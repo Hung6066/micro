@@ -14,7 +14,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeContentArticleDto } from "@his-hope/frontend-foundation/contracts";
 import { AuthService } from "../../core/services/auth.service";
-import { ContentApiService } from "../../core/services/content-api.service";
+import { BUYER_TENANT_KEY, ContentApiService } from "../../core/services/content-api.service";
 import {
   BLOG_POSTS,
   FEATURED_PRODUCTS,
@@ -235,7 +235,7 @@ export class HomePageComponent implements OnInit {
   private fallbackArticles(): HisHopeContentArticleDto[] {
     return BLOG_POSTS.map((post, index) => ({
       id: `fallback-${index}`,
-      tenantKey: "customer-factory-x",
+      tenantKey: BUYER_TENANT_KEY,
       slug: post.title.toLowerCase().replace(/\s+/g, "-"),
       title: post.title,
       excerpt: post.excerpt,

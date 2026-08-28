@@ -17,20 +17,30 @@ using His.Hope.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "ApiGateway");
+var pluginRegistry = new ServicePluginRegistry(builder.Configuration);
 
 builder.Services.AddHisHopeRuntimeConfiguration(builder.Configuration, "ApiGateway");
+builder.Services.AddSingleton<IServicePluginRegistry>(pluginRegistry);
+
+Uri? GetPluginEndpoint(string pluginKey, string endpointKey) =>
+    (pluginRegistry.Get(pluginKey)?.Enabled ?? true)
+        ? runtimeEndpoints.GetOptional(endpointKey)
+        : null;
+
+void AddOptionalCluster(Dictionary<string, string?> clusters, string pluginKey, string endpointKey, string clusterKey, string routePath)
+{
+    var endpoint = GetPluginEndpoint(pluginKey, endpointKey);
+    if (endpoint is null)
+        return;
+
+    clusters[$"ReverseProxy:Clusters:{clusterKey}:Destinations:dest:Address"] = endpoint.ToString();
+    clusters[$"ReverseProxy:Routes:{clusterKey}:ClusterId"] = clusterKey;
+    clusters[$"ReverseProxy:Routes:{clusterKey}:Match:Path"] = routePath;
+}
 
 var reverseProxyClusters = new Dictionary<string, string?>
 {
     ["ReverseProxy:Clusters:identity:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("identity-api").ToString(),
-    ["ReverseProxy:Clusters:patients:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("patient-api").ToString(),
-    ["ReverseProxy:Clusters:appointments:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("appointment-api").ToString(),
-    ["ReverseProxy:Clusters:clinical:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("clinical-api").ToString(),
-    ["ReverseProxy:Clusters:lab:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("lab-api").ToString(),
-    ["ReverseProxy:Clusters:billing:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("billing-api").ToString(),
-    ["ReverseProxy:Clusters:pharmacy:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("pharmacy-api").ToString(),
-    ["ReverseProxy:Clusters:lab-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("lab-bff").ToString(),
-    ["ReverseProxy:Clusters:billing-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("billing-bff").ToString(),
     ["ReverseProxy:Clusters:dashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("dashboard-bff").ToString(),
     ["ReverseProxy:Clusters:systemdashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("systemdashboard-bff").ToString(),
     // The runtime contract exposes SERVICE_DATABASE_CONTINUITY_URL. Keep the
@@ -39,11 +49,54 @@ var reverseProxyClusters = new Dictionary<string, string?>
     ["ReverseProxy:Clusters:database-continuity:Destinations:database-continuity/dest:Address"] = runtimeEndpoints.GetRequired("database-continuity").ToString()
 };
 
+AddOptionalCluster(reverseProxyClusters, "patient", "patient-api", "patients", "/api/v1/patients/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "appointment", "appointment-api", "appointments", "/api/v1/appointments/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "clinical", "clinical-api", "clinical", "/api/v1/encounters/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "lab", "lab-api", "lab", "/api/v1/lab-orders/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "billing", "billing-api", "billing", "/api/v1/invoices/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "pharmacy", "pharmacy-api", "pharmacy", "/api/v1/medications/{**catch-all}");
+
+var pluginRouteKeys = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+{
+    ["patient"] = ["patient-encounters", "patient-appointments", "patient-lab-orders", "patient-prescriptions", "patient-invoices"],
+    ["appointment"] = ["appointments", "patient-appointments"],
+    ["clinical"] = ["patient-encounters"],
+    ["lab"] = ["patient-lab-orders", "lab-orders", "lab-critical-alerts-hub-root", "lab-critical-alerts-hub", "lab-critical-alerts", "lab-critical-alert-rules"],
+    ["billing"] = ["patient-invoices"],
+    ["pharmacy"] = ["patient-prescriptions", "pharmacy-prescriptions"],
+    ["manufacturing"] = ["manufacturing"],
+    ["commerce"] = ["commerce"],
+    ["content"] = ["content"]
+};
+
+foreach (var (pluginKey, routeKeys) in pluginRouteKeys)
+{
+    var endpointKey = pluginKey switch
+    {
+        "patient" => "patient-api",
+        "appointment" => "appointment-api",
+        "clinical" => "clinical-api",
+        "lab" => "lab-api",
+        "billing" => "billing-api",
+        "pharmacy" => "pharmacy-api",
+        "manufacturing" => "manufacturing",
+        "commerce" => "commerce",
+        "content" => "content",
+        _ => pluginKey
+    };
+
+    if (GetPluginEndpoint(pluginKey, endpointKey) is not null)
+        continue;
+
+    foreach (var routeKey in routeKeys)
+        reverseProxyClusters[$"ReverseProxy:Routes:{routeKey}:Match:Path"] = "/__disabled__/{**catch-all}";
+}
+
 // Manufacturing is an optional vertical slice during the rollout. Keep the
 // gateway bootable in environments that have not deployed it yet, while
 // enabling the buyer app route whenever SERVICE_MANUFACTURING_URL is present.
 var manufacturingEndpoint = runtimeEndpoints.GetOptional("manufacturing");
-if (manufacturingEndpoint is not null)
+if (manufacturingEndpoint is not null && (pluginRegistry.Get("manufacturing")?.Enabled ?? true))
 {
     reverseProxyClusters["ReverseProxy:Clusters:manufacturing:Destinations:dest:Address"] = manufacturingEndpoint.ToString();
     reverseProxyClusters["ReverseProxy:Routes:manufacturing:ClusterId"] = "manufacturing";
@@ -51,7 +104,7 @@ if (manufacturingEndpoint is not null)
 }
 
 var commerceEndpoint = runtimeEndpoints.GetOptional("commerce");
-if (commerceEndpoint is not null)
+if (commerceEndpoint is not null && (pluginRegistry.Get("commerce")?.Enabled ?? true))
 {
     reverseProxyClusters["ReverseProxy:Clusters:commerce:Destinations:dest:Address"] = commerceEndpoint.ToString();
     reverseProxyClusters["ReverseProxy:Routes:commerce:ClusterId"] = "commerce";
@@ -59,7 +112,7 @@ if (commerceEndpoint is not null)
 }
 
 var contentEndpoint = runtimeEndpoints.GetOptional("content");
-if (contentEndpoint is not null)
+if (contentEndpoint is not null && (pluginRegistry.Get("content")?.Enabled ?? true))
 {
     reverseProxyClusters["ReverseProxy:Clusters:content:Destinations:dest:Address"] = contentEndpoint.ToString();
     reverseProxyClusters["ReverseProxy:Routes:content:ClusterId"] = "content";
@@ -380,12 +433,20 @@ app.Use(async (context, next) =>
 
 app.MapGet("/diag/patients", async (HttpContext ctx) =>
 {
+    var patientEndpoint = GetPluginEndpoint("patient", "patient-api");
+    if (patientEndpoint is null)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        await ctx.Response.WriteAsync("Patient plugin is disabled or unavailable.");
+        return;
+    }
+
     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
     var sw = System.Diagnostics.Stopwatch.StartNew();
     try
     {
         var resp = await http.GetAsync(new Uri(
-            runtimeEndpoints.GetRequired("patient-api"),
+            patientEndpoint,
             "api/v1/patients/search?q=&page=1&pageSize=1"));
         sw.Stop();
         await ctx.Response.WriteAsync($"OK: {resp.StatusCode} in {sw.ElapsedMilliseconds}ms");
@@ -503,6 +564,17 @@ void MapDirectProxy(
     });
 }
 
+void MapOptionalDirectProxy(
+    string pluginKey,
+    string endpointKey,
+    string pathPrefix,
+    Func<HttpContext, bool>? additionalMatch = null)
+{
+    var endpoint = GetPluginEndpoint(pluginKey, endpointKey);
+    if (endpoint is not null)
+        MapDirectProxy(pathPrefix, endpoint, additionalMatch);
+}
+
 static bool MatchesPatientAggregate(HttpContext ctx, string resource)
 {
     var segments = ctx.Request.Path.Value?
@@ -518,22 +590,22 @@ static bool MatchesPatientAggregate(HttpContext ctx, string resource)
 
 // Patient aggregate routes must be registered before the broad patient proxy;
 // otherwise /api/v1/patients/{id}/... is incorrectly sent to PatientService.
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("clinical-api"),
+MapOptionalDirectProxy("clinical", "clinical-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "encounters"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("appointment-api"),
+MapOptionalDirectProxy("appointment", "appointment-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "appointments"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("lab-api"),
+MapOptionalDirectProxy("lab", "lab-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "lab-orders"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("pharmacy-api"),
+MapOptionalDirectProxy("pharmacy", "pharmacy-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "prescriptions"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("billing-api"),
+MapOptionalDirectProxy("billing", "billing-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "invoices"));
 
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("patient-api"));
-MapDirectProxy("/api/v1/encounters", runtimeEndpoints.GetRequired("clinical-api"));
-MapDirectProxy("/api/v1/medications", runtimeEndpoints.GetRequired("pharmacy-api"));
-MapDirectProxy("/api/v1/lab-orders", runtimeEndpoints.GetRequired("lab-api"));
-MapDirectProxy("/api/v1/invoices", runtimeEndpoints.GetRequired("billing-api"));
+MapOptionalDirectProxy("patient", "patient-api", "/api/v1/patients");
+MapOptionalDirectProxy("clinical", "clinical-api", "/api/v1/encounters");
+MapOptionalDirectProxy("pharmacy", "pharmacy-api", "/api/v1/medications");
+MapOptionalDirectProxy("lab", "lab-api", "/api/v1/lab-orders");
+MapOptionalDirectProxy("billing", "billing-api", "/api/v1/invoices");
 
 app.MapReverseProxy();
 

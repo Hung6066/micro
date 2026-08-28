@@ -39,6 +39,8 @@ export type HisHopeActionMode = "label" | "icon-only";
       :host {
         display: inline-flex;
         vertical-align: middle;
+        margin-inline-end: var(--space-xs);
+        margin-block-end: var(--space-2xs);
       }
       button {
         display: inline-flex;
@@ -85,12 +87,22 @@ export type HisHopeActionMode = "label" | "icon-only";
         padding: 0;
       }
       .hh-action--row {
+        background: transparent;
+        color: var(--text-secondary);
+      }
+      .hh-action--row:not(.hh-action--icon-only) {
+        width: auto;
+        min-width: 0;
+        min-height: var(--control-height);
+        padding: 0 var(--space-sm);
+        border-color: transparent;
+        white-space: nowrap;
+      }
+      .hh-action--row.hh-action--icon-only {
         width: var(--touch-target);
         min-width: var(--touch-target);
         min-height: var(--touch-target);
         padding: 0;
-        background: transparent;
-        color: var(--text-secondary);
       }
       button:hover:not(:disabled) {
         border-color: var(--border-strong);

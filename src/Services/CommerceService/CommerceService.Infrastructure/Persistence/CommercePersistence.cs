@@ -2,6 +2,7 @@ using System.Text.Json;
 using His.Hope.CommerceService.Application.Orders;
 using His.Hope.Contracts.Commerce;
 using His.Hope.Persistence;
+using His.Hope.Persistence.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -617,11 +618,18 @@ public static class CommerceInfrastructureServiceCollectionExtensions
         if (string.IsNullOrWhiteSpace(connection))
             return services;
 
-        services.AddDbContextFactory<CommerceDbContext>(options =>
-            options.UseHisHopeNpgsql(
-                configuration,
-                "CommerceDb",
-                b => b.MigrationsAssembly(typeof(CommerceDbContext).Assembly.GetName().Name)));
+        services.AddHttpContextAccessor();
+        services.AddHisHopeTenantAwareDbContextFactory<CommerceDbContext>(
+            "commerce",
+            (sp, builder, connectionString, connectionName) =>
+                builder.UseHisHopeNpgsql(
+                    sp,
+                    sp.GetRequiredService<IConfiguration>(),
+                    connectionString,
+                    connectionName,
+                    b => b.MigrationsAssembly(typeof(CommerceDbContext).Assembly.GetName().Name)));
+        services.AddSingleton<ICommerceDbContextFactory>(sp =>
+            new CommerceDbContextFactoryBridge(sp.GetRequiredService<IHisHopeDbContextFactory<CommerceDbContext>>()));
         services.AddSingleton<ICommerceOrderPersistence, PostgresCommerceOrderPersistence>();
         services.AddSingleton<ICommerceCatalogPersistence, PostgresCommerceCatalogPersistence>();
         services.AddSingleton<ICommerceCartPersistence, PostgresCommerceCartPersistence>();
@@ -635,11 +643,14 @@ public static class CommerceInfrastructureServiceCollectionExtensions
     public static async Task MigrateCommerceDatabaseAsync(this IServiceProvider services)
     {
         using var scope = services.CreateScope();
-        var factory = scope.ServiceProvider.GetService<IDbContextFactory<CommerceDbContext>>();
+        var factory = scope.ServiceProvider.GetService<ICommerceDbContextFactory>();
         if (factory is null)
             return;
 
-        await using var db = await factory.CreateDbContextAsync();
-        await db.Database.MigrateAsync();
+        foreach (var connectionName in factory.GetRegisteredConnectionNames())
+        {
+            await using var db = await factory.CreateDbContextForConnectionAsync(connectionName);
+            await db.Database.MigrateAsync();
+        }
     }
 }

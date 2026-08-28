@@ -14,7 +14,8 @@
     "./angular": {
       "types": "./dist/angular/types/his-hope-mobile-foundation-angular.d.ts",
       "default": "./dist/angular/fesm2022/his-hope-mobile-foundation-angular.mjs"
-    }
+    },
+    "./angular/styles/mobile-layout.scss": "./angular/src/styles/mobile-layout.scss"
   },
   "peerDependencies": {
     "@angular/common": "^21.0.0",

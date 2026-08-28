@@ -154,6 +154,7 @@ public static class IamControlPlaneEndpoints
                 return Results.Conflict("scope_key_exists");
             var item = new IamScope { Key = normalizedKey, DisplayName = request.DisplayName.Trim(), Kind = request.Kind, ParentId = request.ParentId };
             db.IamScopes.Add(item); await db.SaveChangesAsync(ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "IAM_SCOPE_CREATE", "IamScope", item.Id.ToString(), "IAM scope created.", null, JsonSerializer.Serialize(new { item.Key, item.DisplayName, item.Kind, item.ParentId }), ct);
             return Results.Created(IdentityApiRoutes.IamScope(item.Id), item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
@@ -169,16 +170,23 @@ public static class IamControlPlaneEndpoints
             var item = await db.IamScopes.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (item is null) return Results.NotFound("scope_not_found");
             if (request.ParentId == id) return Results.ValidationProblem(new Dictionary<string, string[]> { ["parentId"] = ["A scope cannot be its own parent."] });
+            if (request.ParentId is Guid cycleParentId && await IsScopeWithinAsync(db, cycleParentId, id, ct))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["parentId"] = ["A scope cannot be moved below one of its descendants."] });
+            var before = JsonSerializer.Serialize(new { item.Key, item.DisplayName, item.Kind, item.ParentId });
             if (request.ParentId.HasValue)
             {
                 var parent = await db.IamScopes.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ParentId.Value && x.IsActive, ct);
                 if (parent is null) return Results.NotFound("parent_scope_not_found");
                 if (!IsValidParentKind(parent.Kind, request.Kind)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["parentId"] = ["Scope hierarchy must be organization -> tenant -> account -> environment."] });
             }
+            var children = await db.IamScopes.AsNoTracking().Where(x => x.ParentId == id && x.IsActive).Select(x => x.Kind).ToListAsync(ct);
+            if (children.Any(childKind => !IsValidParentKind(request.Kind, childKind)))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["kind"] = ["The scope kind cannot change while active children would violate the hierarchy."] });
             var normalizedKey = request.Key.Trim().ToLowerInvariant();
             if (await db.IamScopes.AnyAsync(x => x.Id != id && x.Key == normalizedKey && x.Kind == request.Kind, ct)) return Results.Conflict("scope_key_exists");
             item.Key = normalizedKey; item.DisplayName = request.DisplayName.Trim(); item.Kind = request.Kind; item.ParentId = request.ParentId;
             await db.SaveChangesAsync(ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "IAM_SCOPE_UPDATE", "IamScope", item.Id.ToString(), "IAM scope updated.", before, JsonSerializer.Serialize(new { item.Key, item.DisplayName, item.Kind, item.ParentId }), ct);
             return Results.Ok(item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
@@ -326,7 +334,11 @@ public static class IamControlPlaneEndpoints
             var filter = IamTenantHttpContext.RequireFilter(http);
 
             var query = db.IamPermissionSets.AsNoTracking();
-            if (filter.AllowedScopeIds is not null)
+            // Permission-set definitions are environment-scoped for writes and
+            // assignments, but the catalog itself must be discoverable by HQ
+            // super-admins so they can administer customer environments. The
+            // mutation and assignment endpoints below still enforce scope access.
+            if (filter.AllowedScopeIds is not null && !filter.IsGroupHqOperator)
                 query = query.Where(x => filter.AllowedScopeIds.Contains(x.ScopeId));
             return Results.Ok(await query.OrderBy(x => x.Key).ToListAsync(ct));
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
@@ -337,7 +349,10 @@ public static class IamControlPlaneEndpoints
             var filter = IamTenantHttpContext.RequireFilter(http);
 
             var query = db.IamPermissionSetAssignments.AsNoTracking();
-            if (filter.AllowedScopeIds is not null)
+            // HQ administrators need a cross-tenant view to audit and manage
+            // assignments. Creating, changing, and revoking assignments still
+            // goes through the mutation scope guard below.
+            if (filter.AllowedScopeIds is not null && !filter.IsGroupHqOperator)
                 query = query.Where(x => filter.AllowedScopeIds.Contains(x.ScopeId));
             if (principalId.HasValue) query = query.Where(x => x.PrincipalId == principalId.Value);
             return Results.Ok(await query.OrderByDescending(x => x.CreatedAt).Take(500).ToListAsync(ct));
@@ -905,6 +920,8 @@ public static class IamControlPlaneEndpoints
             var item = await db.IamResourcePolicies.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (item is null) return Results.NotFound("resource_policy_not_found");
             if (IamTenantAccessGuard.EnsureScopeAccess(item.ScopeId, filter) is { } scopeError) return scopeError;
+            if (!TryValidateResourcePolicy(item.StatementsJson, out var policyError))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["statementsJson"] = [policyError!] });
             item.Version++; item.LifecycleStatus = AuthorizationConstants.LifecycleStatuses.Published; item.PublishedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct); return Results.Ok(item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
@@ -1002,6 +1019,57 @@ public static class IamControlPlaneEndpoints
     {
         try { document = JsonDocument.Parse(json); return document.RootElement.ValueKind == JsonValueKind.Array; }
         catch (JsonException) { document = null; return false; }
+    }
+
+    private static bool TryValidateResourcePolicy(string json, out string? error)
+    {
+        error = null;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Array || document.RootElement.GetArrayLength() == 0)
+            { error = "Policy statements must be a non-empty JSON array."; return false; }
+
+            foreach (var statement in document.RootElement.EnumerateArray())
+            {
+                if (statement.ValueKind != JsonValueKind.Object)
+                { error = "Each policy statement must be a JSON object."; return false; }
+                if (!statement.TryGetProperty("principal", out var principal) || !HasStringValue(principal))
+                { error = "Each policy statement requires a principal."; return false; }
+                if (!statement.TryGetProperty("actions", out var actions) || !HasStringValue(actions))
+                { error = "Each policy statement requires at least one action."; return false; }
+                if (statement.TryGetProperty("effect", out var effect) &&
+                    (effect.ValueKind != JsonValueKind.String || !string.Equals(effect.GetString(), "allow", StringComparison.OrdinalIgnoreCase) && !string.Equals(effect.GetString(), "deny", StringComparison.OrdinalIgnoreCase)))
+                { error = "Policy effect must be allow or deny."; return false; }
+                if (statement.TryGetProperty("condition", out var condition) && !TryValidateCondition(condition))
+                { error = "Condition must contain supported operator objects with scalar string values."; return false; }
+            }
+            return true;
+        }
+        catch (JsonException) { error = "Policy statements are not valid JSON."; return false; }
+    }
+
+    private static bool HasStringValue(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.String) return !string.IsNullOrWhiteSpace(value.GetString());
+        return value.ValueKind == JsonValueKind.Array && value.EnumerateArray().Any(item => item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()));
+    }
+
+    private static bool TryValidateCondition(JsonElement condition)
+    {
+        var supportedOperators = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "StringEquals", "StringNotEquals", "StringLike", "StringNotLike",
+            "ArnEquals", "ArnNotEquals", "ArnLike", "ArnNotLike", "Bool",
+            "NumericEquals", "NumericLessThan", "NumericLessThanEquals",
+            "NumericGreaterThan", "NumericGreaterThanEquals", "DateEquals",
+            "DateLessThan", "DateLessThanEquals", "DateGreaterThan", "DateGreaterThanEquals"
+        };
+        if (condition.ValueKind != JsonValueKind.Object || condition.EnumerateObject().Any(item =>
+                !supportedOperators.Contains(item.Name) || item.Value.ValueKind != JsonValueKind.Object ||
+                !item.Value.EnumerateObject().Any() || item.Value.EnumerateObject().Any(property => !HasStringValue(property.Value))))
+            return false;
+        return condition.EnumerateObject().Any();
     }
 
     private static async Task<int> CountGovernanceSubjectsAsync<T>(

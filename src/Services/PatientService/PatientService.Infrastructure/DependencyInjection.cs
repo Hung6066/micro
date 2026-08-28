@@ -1,4 +1,5 @@
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Infrastructure.Events;
 using His.Hope.IntegrationEvents.Patient;
 using His.Hope.PatientService.Domain.Events;
@@ -20,6 +21,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SoftDeleteInterceptor>();
         // Write-side DbContext
         services.AddDbContext<PatientDbContext>((serviceProvider, options) =>
             options.UseHisHopeNpgsql(
@@ -31,7 +34,7 @@ public static class DependencyInjection
                     b.MigrationsAssembly(typeof(PatientDbContext).Assembly.FullName);
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 })
-            .AddInterceptors(new OutboxDomainEventInterceptor()));
+            .AddInterceptors(new OutboxDomainEventInterceptor(), serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
 
         // Read-side DbContext (no tracking by default, optimized for queries)
         services.AddDbContext<PatientReadDbContext>((serviceProvider, options) =>
@@ -42,7 +45,8 @@ public static class DependencyInjection
                 b =>
                 {
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-                }));
+                })
+            .AddInterceptors(serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
 
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<DomainEventDispatcher>();

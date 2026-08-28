@@ -6,6 +6,9 @@
     <OutputType>Library</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
     <ProjectReference Include="..\ContentService.Domain\ContentService.Domain.csproj" />
     <ProjectReference Include="..\ContentService.Application\ContentService.Application.csproj" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />

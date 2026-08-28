@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
 using System.Text.Json;
 
-public sealed partial class PostgresManufacturingStore : IManufacturingLegacyStore
+public sealed partial class PostgresManufacturingStore : IManufacturingQualityWorkflowStore
 {
     public (ProductSpecificationDto? Specification, string? Error) CreateProductSpecification(CreateProductSpecificationRequest request)
     {

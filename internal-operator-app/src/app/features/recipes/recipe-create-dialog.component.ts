@@ -81,7 +81,7 @@ export class RecipeCreateDialogComponent {
       return;
     }
     this.saving = true; this.error = "";
-    this.api.createRecipe({ productSku: form.productSku.trim(), version: form.version, processStep: form.processStep.trim(), outputUom: form.outputUom.trim(), targetYieldPercent: form.targetYieldPercent, tenantKey, components, active: false, status: "Draft" }).subscribe({
+    this.api.createRecipe({ productSku: form.productSku.trim(), version: form.version, processStep: form.processStep.trim(), outputUom: form.outputUom.trim(), targetYieldPercent: form.targetYieldPercent, components, active: false, status: "Draft" }).subscribe({
       next: () => this.dialogRef.close(true),
       error: () => { this.error = this.i18n.t("customerPortal.recipeSaveFailed", "Unable to save recipe."); this.saving = false; },
     });

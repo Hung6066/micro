@@ -11,6 +11,12 @@
         "localPort": 4200
       },
       {
+        "userName": "manufacturing.pilot",
+        "email": "manufacturing.pilot@abc-group.example",
+        "clientId": "his-hope-operator-mobile",
+        "localPort": 4310
+      },
+      {
         "userName": "tech.pilot",
         "email": "tech.pilot@abc-group.example",
         "clientId": "tech-console",
@@ -49,6 +55,30 @@
         {
           "key": "manufacturing-operators",
           "displayName": "Manufacturing operators"
+        },
+        {
+          "key": "manufacturing-planners",
+          "displayName": "Manufacturing planners"
+        },
+        {
+          "key": "manufacturing-quality",
+          "displayName": "Quality assurance"
+        },
+        {
+          "key": "manufacturing-maintenance",
+          "displayName": "Maintenance technicians"
+        },
+        {
+          "key": "manufacturing-procurement",
+          "displayName": "Procurement team"
+        },
+        {
+          "key": "manufacturing-warehouse",
+          "displayName": "Warehouse team"
+        },
+        {
+          "key": "manufacturing-executives",
+          "displayName": "Manufacturing leadership"
         }
       ],
       "permissionSets": [
@@ -56,6 +86,16 @@
           "key": "manufacturing-readonly",
           "displayName": "Manufacturing read-only",
           "permissions": ["patients.view", "appointments.view", "dashboard.view", "admin.users.read", "manufacturing.quality.inspect"]
+        },
+        {
+          "key": "manufacturing-field-operator",
+          "displayName": "Manufacturing field operator (mobile)",
+          "permissions": [
+            "dashboard.view",
+            "manufacturing.production.execute",
+            "manufacturing.quality.inspect",
+            "manufacturing.maintenance.complete"
+          ]
         },
         {
           "key": "manufacturing-administrator",
@@ -80,6 +120,71 @@
             "content.inquiries.view",
             "dashboard.view"
           ]
+        },
+        {
+          "key": "manufacturing-planning",
+          "displayName": "Production planning",
+          "permissions": [
+            "dashboard.view",
+            "manufacturing.forecast.manage",
+            "manufacturing.material-plan.manage",
+            "manufacturing.production.plan",
+            "manufacturing.inventory.view"
+          ]
+        },
+        {
+          "key": "manufacturing-quality-manager",
+          "displayName": "Quality management",
+          "permissions": [
+            "dashboard.view",
+            "manufacturing.quality.inspect",
+            "manufacturing.quality.release",
+            "manufacturing.deviation.manage",
+            "manufacturing.capa.manage"
+          ]
+        },
+        {
+          "key": "manufacturing-maintenance-manager",
+          "displayName": "Maintenance management",
+          "permissions": [
+            "dashboard.view",
+            "manufacturing.maintenance.schedule",
+            "manufacturing.maintenance.complete",
+            "manufacturing.machine.manage"
+          ]
+        },
+        {
+          "key": "manufacturing-procurement-manager",
+          "displayName": "Procurement management",
+          "permissions": [
+            "dashboard.view",
+            "manufacturing.suppliers.manage",
+            "manufacturing.purchase-orders.manage",
+            "manufacturing.goods-receipts.manage",
+            "manufacturing.inventory.view"
+          ]
+        },
+        {
+          "key": "manufacturing-warehouse-manager",
+          "displayName": "Warehouse management",
+          "permissions": [
+            "dashboard.view",
+            "manufacturing.inventory.view",
+            "manufacturing.inventory.adjust",
+            "manufacturing.traceability.view",
+            "manufacturing.receipts.manage"
+          ]
+        },
+        {
+          "key": "manufacturing-executive-readonly",
+          "displayName": "Manufacturing executive read-only",
+          "permissions": [
+            "dashboard.view",
+            "manufacturing.analytics.view",
+            "manufacturing.production.view",
+            "manufacturing.inventory.view",
+            "manufacturing.quality.view"
+          ]
         }
       ],
       "assignments": [
@@ -89,7 +194,7 @@
           "groupKey": "manufacturing-operators"
         },
         {
-          "permissionSetKey": "manufacturing-readonly",
+          "permissionSetKey": "manufacturing-field-operator",
           "principalType": "human",
           "userName": "manufacturing.pilot"
         },
@@ -97,10 +202,44 @@
           "permissionSetKey": "manufacturing-commerce-ops",
           "principalType": "group",
           "groupKey": "manufacturing-operators"
+        },
+        {
+          "permissionSetKey": "manufacturing-planning",
+          "principalType": "group",
+          "groupKey": "manufacturing-planners"
+        },
+        {
+          "permissionSetKey": "manufacturing-quality-manager",
+          "principalType": "group",
+          "groupKey": "manufacturing-quality"
+        },
+        {
+          "permissionSetKey": "manufacturing-maintenance-manager",
+          "principalType": "group",
+          "groupKey": "manufacturing-maintenance"
+        },
+        {
+          "permissionSetKey": "manufacturing-procurement-manager",
+          "principalType": "group",
+          "groupKey": "manufacturing-procurement"
+        },
+        {
+          "permissionSetKey": "manufacturing-warehouse-manager",
+          "principalType": "group",
+          "groupKey": "manufacturing-warehouse"
+        },
+        {
+          "permissionSetKey": "manufacturing-executive-readonly",
+          "principalType": "group",
+          "groupKey": "manufacturing-executives"
         }
       ],
       "groupMemberships": [
-        { "groupKey": "manufacturing-operators", "userName": "manufacturing.pilot" }
+        { "groupKey": "manufacturing-operators", "userName": "manufacturing.pilot" },
+        { "groupKey": "manufacturing-planners", "userName": "manufacturing.planner" },
+        { "groupKey": "manufacturing-quality", "userName": "manufacturing.quality" },
+        { "groupKey": "manufacturing-procurement", "userName": "manufacturing.procurement" },
+        { "groupKey": "manufacturing-executives", "userName": "manufacturing.executive" }
       ],
       "boundaries": [
         {
@@ -118,10 +257,43 @@
             "commerce.rfq.respond",
             "content.manage",
             "content.inquiries.view",
-            "manufacturing.quality.inspect"
+            "manufacturing.production.execute",
+            "manufacturing.quality.inspect",
+            "manufacturing.maintenance.complete"
           ],
           "tenantKey": "manufacturing"
+        },
+        {
+          "userName": "manufacturing.planner",
+          "allowedPermissions": ["dashboard.view", "manufacturing.forecast.manage", "manufacturing.material-plan.manage", "manufacturing.production.plan", "manufacturing.inventory.view"],
+          "tenantKey": "manufacturing"
+        },
+        {
+          "userName": "manufacturing.quality",
+          "allowedPermissions": ["dashboard.view", "manufacturing.quality.inspect", "manufacturing.quality.release", "manufacturing.deviation.manage", "manufacturing.capa.manage"],
+          "tenantKey": "manufacturing"
+        },
+        {
+          "userName": "manufacturing.procurement",
+          "allowedPermissions": ["dashboard.view", "manufacturing.suppliers.manage", "manufacturing.purchase-orders.manage", "manufacturing.goods-receipts.manage", "manufacturing.inventory.view"],
+          "tenantKey": "manufacturing"
+        },
+        {
+          "userName": "manufacturing.executive",
+          "allowedPermissions": ["dashboard.view", "manufacturing.analytics.view", "manufacturing.production.view", "manufacturing.inventory.view", "manufacturing.quality.view"],
+          "tenantKey": "manufacturing"
         }
+      ],
+      "workloadRoles": [
+        { "key": "manufacturing-api", "displayName": "Manufacturing service workload", "audience": "manufacturing-service", "permissions": ["manufacturing.*"] },
+        { "key": "manufacturing-analytics", "displayName": "Manufacturing analytics workload", "audience": "manufacturing-analytics", "permissions": ["manufacturing.analytics.view", "manufacturing.production.view", "manufacturing.inventory.view"] }
+      ],
+      "resourcePolicies": [
+        { "serviceKey": "manufacturing", "resourcePattern": "manufacturing/*", "statements": [{ "effect": "allow", "actions": ["manufacturing.*"], "principal": "manufacturing-api" }] },
+        { "serviceKey": "manufacturing", "resourcePattern": "manufacturing/analytics/*", "statements": [{ "effect": "allow", "actions": ["manufacturing.analytics.view", "manufacturing.production.view", "manufacturing.inventory.view"], "principal": "manufacturing-analytics" }] }
+      ],
+      "policies": [
+        { "key": "manufacturing-segregation-of-duties", "description": "Production, quality and procurement duties are independently assignable.", "owner": "manufacturing", "rules": { "all": [{ "attribute": "tenant", "equals": "manufacturing" }] } }
       ]
     },
     {
@@ -397,7 +569,40 @@
       "email": "manufacturing.pilot@abc-group.example",
       "firstName": "Manufacturing",
       "lastName": "Pilot",
-      "tenantKey": "manufacturing"
+      "tenantKey": "manufacturing",
+      "role": "ManufacturingFieldOperator"
+    },
+    {
+      "userName": "manufacturing.planner",
+      "email": "manufacturing.planner@abc-group.example",
+      "firstName": "Manufacturing",
+      "lastName": "Planner",
+      "tenantKey": "manufacturing",
+      "role": "ManufacturingPlanner"
+    },
+    {
+      "userName": "manufacturing.quality",
+      "email": "manufacturing.quality@abc-group.example",
+      "firstName": "Manufacturing",
+      "lastName": "Quality",
+      "tenantKey": "manufacturing",
+      "role": "ManufacturingQualityManager"
+    },
+    {
+      "userName": "manufacturing.procurement",
+      "email": "manufacturing.procurement@abc-group.example",
+      "firstName": "Manufacturing",
+      "lastName": "Procurement",
+      "tenantKey": "manufacturing",
+      "role": "ManufacturingProcurementManager"
+    },
+    {
+      "userName": "manufacturing.executive",
+      "email": "manufacturing.executive@abc-group.example",
+      "firstName": "Manufacturing",
+      "lastName": "Executive",
+      "tenantKey": "manufacturing",
+      "role": "ManufacturingExecutive"
     },
     {
       "userName": "tech.pilot",

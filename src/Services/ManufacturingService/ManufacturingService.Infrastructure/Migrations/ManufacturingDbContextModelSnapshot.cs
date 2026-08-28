@@ -37,6 +37,26 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Details")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -50,6 +70,12 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<DateTimeOffset>("OccurredAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -58,11 +84,45 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "EntityType", "EntityId", "OccurredAt");
 
-                    b.ToTable("manufacturing_audit_events", (string)null);
+                    b.ToTable("manufacturing_audit_events", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Action")
+                                .HasColumnName("action");
+
+                            t.Property("Actor")
+                                .HasColumnName("actor");
+
+                            t.Property("Details")
+                                .HasColumnName("details");
+
+                            t.Property("EntityId")
+                                .HasColumnName("entity_id");
+
+                            t.Property("EntityType")
+                                .HasColumnName("entity_type");
+
+                            t.Property("OccurredAt")
+                                .HasColumnName("occurred_at");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingCapaEntity", b =>
@@ -80,13 +140,36 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(4000)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<Guid?>("DeviationId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("DueAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Owner")
                         .IsRequired()
@@ -126,6 +209,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DeviationId");
@@ -134,7 +226,50 @@ namespace ManufacturingService.Api.Migrations
 
                     b.HasIndex("TenantKey", "Status");
 
-                    b.ToTable("manufacturing_capas", (string)null);
+                    b.ToTable("manufacturing_capas", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("ClosedAt")
+                                .HasColumnName("closed_at");
+
+                            t.Property("CorrectiveAction")
+                                .HasColumnName("corrective_action");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("DeviationId")
+                                .HasColumnName("deviation_id");
+
+                            t.Property("DueAt")
+                                .HasColumnName("due_at");
+
+                            t.Property("Owner")
+                                .HasColumnName("owner");
+
+                            t.Property("PreventiveAction")
+                                .HasColumnName("preventive_action");
+
+                            t.Property("ProblemDescription")
+                                .HasColumnName("problem_description");
+
+                            t.Property("RootCause")
+                                .HasColumnName("root_cause");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("SupplierId")
+                                .HasColumnName("supplier_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Title")
+                                .HasColumnName("title");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingDeviationEntity", b =>
@@ -154,7 +289,24 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -165,6 +317,12 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("ProductionBatchId")
                         .HasColumnType("uuid");
@@ -193,13 +351,166 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductionBatchId");
 
                     b.HasIndex("TenantKey", "ProductionBatchId", "Status");
 
-                    b.ToTable("manufacturing_deviations", (string)null);
+                    b.ToTable("manufacturing_deviations", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("ApprovedAt")
+                                .HasColumnName("approved_at");
+
+                            t.Property("ApprovedBy")
+                                .HasColumnName("approved_by");
+
+                            t.Property("ClosedAt")
+                                .HasColumnName("closed_at");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Description")
+                                .HasColumnName("description");
+
+                            t.Property("Impact")
+                                .HasColumnName("impact");
+
+                            t.Property("ProductionBatchId")
+                                .HasColumnName("production_batch_id");
+
+                            t.Property("RequestedBy")
+                                .HasColumnName("requested_by");
+
+                            t.Property("ResolutionNotes")
+                                .HasColumnName("resolution_notes");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Type")
+                                .HasColumnName("type");
+                        });
+                });
+
+            modelBuilder.Entity("ManufacturingEntityStatusHistoryEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("FromStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantKey", "EntityType", "EntityId", "OccurredAt");
+
+                    b.ToTable("manufacturing_entity_status_history", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Actor")
+                                .HasColumnName("actor");
+
+                            t.Property("EntityId")
+                                .HasColumnName("entity_id");
+
+                            t.Property("EntityType")
+                                .HasColumnName("entity_type");
+
+                            t.Property("FromStatus")
+                                .HasColumnName("from_status");
+
+                            t.Property("OccurredAt")
+                                .HasColumnName("occurred_at");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("ToStatus")
+                                .HasColumnName("to_status");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingEventReceiptEntity", b =>
@@ -217,20 +528,71 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<DateTime>("ReceivedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
                     b.HasIndex("EventType", "AggregateId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_event_receipts", (string)null);
+                    b.ToTable("manufacturing_event_receipts", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("AggregateId")
+                                .HasColumnName("aggregate_id");
+
+                            t.Property("Content")
+                                .HasColumnName("content");
+
+                            t.Property("EventType")
+                                .HasColumnName("event_type");
+
+                            t.Property("ReceivedAt")
+                                .HasColumnName("received_at");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingFacilityEntity", b =>
@@ -248,7 +610,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -260,12 +645,40 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "Code")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_facilities", (string)null);
+                    b.ToTable("manufacturing_facilities", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("Code")
+                                .HasColumnName("code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingInboundReceiptEntity", b =>
@@ -286,6 +699,26 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("DeliveryNoteNumber")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -294,6 +727,12 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
@@ -349,6 +788,15 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<string>("VehicleReference")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -372,6 +820,69 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_inbound_receipts", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_inbound_receipts_quantity_balance", "\"AcceptedQuantity\" + \"RejectedQuantity\" = \"Quantity\"");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("AcceptedQuantity")
+                                .HasColumnName("accepted_quantity");
+
+                            t.Property("CarrierName")
+                                .HasColumnName("carrier_name");
+
+                            t.Property("CertificateOfAnalysisReference")
+                                .HasColumnName("certificate_of_analysis_reference");
+
+                            t.Property("DeliveryNoteNumber")
+                                .HasColumnName("delivery_note_number");
+
+                            t.Property("FacilityId")
+                                .HasColumnName("facility_id");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("PurchaseOrderId")
+                                .HasColumnName("purchase_order_id");
+
+                            t.Property("PurchaseOrderLineId")
+                                .HasColumnName("purchase_order_line_id");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("ReceiptNumber")
+                                .HasColumnName("receipt_number");
+
+                            t.Property("ReceivedAt")
+                                .HasColumnName("received_at");
+
+                            t.Property("ReceivedBy")
+                                .HasColumnName("received_by");
+
+                            t.Property("RejectedQuantity")
+                                .HasColumnName("rejected_quantity");
+
+                            t.Property("StorageLocationCode")
+                                .HasColumnName("storage_location_code");
+
+                            t.Property("SupplierId")
+                                .HasColumnName("supplier_id");
+
+                            t.Property("SupplierLotCode")
+                                .HasColumnName("supplier_lot_code");
+
+                            t.Property("TemperatureOnReceiptC")
+                                .HasColumnName("temperature_on_receipt_c");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+
+                            t.Property("VehicleReference")
+                                .HasColumnName("vehicle_reference");
                         });
                 });
 
@@ -394,17 +905,36 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset?>("EffectiveFrom")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("EffectiveTo")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("PlanCode")
                         .IsRequired()
@@ -436,6 +966,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
@@ -449,6 +988,51 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_inspection_plan_versions", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_inspection_plan_version_dates", "\"EffectiveTo\" IS NULL OR \"EffectiveFrom\" IS NULL OR \"EffectiveTo\" > \"EffectiveFrom\"");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("AcceptanceCriteria")
+                                .HasColumnName("acceptance_criteria");
+
+                            t.Property("ApprovedAt")
+                                .HasColumnName("approved_at");
+
+                            t.Property("ApprovedBy")
+                                .HasColumnName("approved_by");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("EffectiveFrom")
+                                .HasColumnName("effective_from");
+
+                            t.Property("EffectiveTo")
+                                .HasColumnName("effective_to");
+
+                            t.Property("PlanCode")
+                                .HasColumnName("plan_code");
+
+                            t.Property("ProductSku")
+                                .HasColumnName("product_sku");
+
+                            t.Property("SamplingFrequency")
+                                .HasColumnName("sampling_frequency");
+
+                            t.Property("SamplingMethod")
+                                .HasColumnName("sampling_method");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Version")
+                                .HasColumnName("version");
                         });
                 });
 
@@ -461,10 +1045,36 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("CorrelationId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("FacilityId")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
@@ -496,6 +1106,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LotId");
@@ -505,7 +1124,38 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TransactionType", "CorrelationId", "LotId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_inventory_transactions", (string)null);
+                    b.ToTable("manufacturing_inventory_transactions", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CorrelationId")
+                                .HasColumnName("correlation_id");
+
+                            t.Property("FacilityId")
+                                .HasColumnName("facility_id");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("OccurredAt")
+                                .HasColumnName("occurred_at");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("StockStatus")
+                                .HasColumnName("stock_status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("TransactionType")
+                                .HasColumnName("transaction_type");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingLossReviewEntity", b =>
@@ -514,10 +1164,36 @@ namespace ManufacturingService.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<string>("Decision")
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
@@ -542,6 +1218,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OperationExecutionId");
@@ -551,7 +1236,32 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "OperationExecutionId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_loss_reviews", (string)null);
+                    b.ToTable("manufacturing_loss_reviews", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Decision")
+                                .HasColumnName("decision");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("OperationExecutionId")
+                                .HasColumnName("operation_execution_id");
+
+                            t.Property("ProductionBatchId")
+                                .HasColumnName("production_batch_id");
+
+                            t.Property("ReviewedAt")
+                                .HasColumnName("reviewed_at");
+
+                            t.Property("Reviewer")
+                                .HasColumnName("reviewer");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingLotEntity", b =>
@@ -568,12 +1278,25 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Disposition")
                         .IsRequired()
@@ -582,6 +1305,12 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<string>("FacilityCode")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("LotCode")
                         .IsRequired()
@@ -633,7 +1362,13 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -645,7 +1380,69 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_lots", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_lots_lot_type", "\"LotType\" IN ('RawMaterial', 'WorkInProgress', 'FinishedGood', 'Packaging', 'Unspecified')");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("BestBefore")
+                                .HasColumnName("best_before");
+
+                            t.Property("CertificateOfAnalysisReference")
+                                .HasColumnName("certificate_of_analysis_reference");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("Disposition")
+                                .HasColumnName("disposition");
+
+                            t.Property("FacilityCode")
+                                .HasColumnName("facility_code");
+
+                            t.Property("LotCode")
+                                .HasColumnName("lot_code");
+
+                            t.Property("LotType")
+                                .HasColumnName("lot_type");
+
+                            t.Property("ManufacturedOn")
+                                .HasColumnName("manufactured_on");
+
+                            t.Property("OriginCountryCode")
+                                .HasColumnName("origin_country_code");
+
+                            t.Property("QualityStatus")
+                                .HasColumnName("quality_status");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("ReceivedAt")
+                                .HasColumnName("received_at");
+
+                            t.Property("Sku")
+                                .HasColumnName("sku");
+
+                            t.Property("SourceLotCode")
+                                .HasColumnName("source_lot_code");
+
+                            t.Property("StorageLocationCode")
+                                .HasColumnName("storage_location_code");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
                         });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingLotReservationEntity", b =>
@@ -655,10 +1452,33 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
@@ -690,6 +1510,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LotId");
@@ -699,7 +1528,38 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "ReferenceType", "ReferenceId", "LotId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_lot_reservations", (string)null);
+                    b.ToTable("manufacturing_lot_reservations", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("ExpiresAt")
+                                .HasColumnName("expires_at");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("ReferenceId")
+                                .HasColumnName("reference_id");
+
+                            t.Property("ReferenceType")
+                                .HasColumnName("reference_type");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingLotStatusHistoryEntity", b =>
@@ -716,6 +1576,26 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("CorrelationId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("EvidenceReference")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -724,6 +1604,12 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
@@ -745,13 +1631,53 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LotId");
 
                     b.HasIndex("TenantKey", "LotId", "OccurredAt");
 
-                    b.ToTable("manufacturing_lot_status_history", (string)null);
+                    b.ToTable("manufacturing_lot_status_history", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Actor")
+                                .HasColumnName("actor");
+
+                            t.Property("CorrelationId")
+                                .HasColumnName("correlation_id");
+
+                            t.Property("EvidenceReference")
+                                .HasColumnName("evidence_reference");
+
+                            t.Property("FromDisposition")
+                                .HasColumnName("from_disposition");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("OccurredAt")
+                                .HasColumnName("occurred_at");
+
+                            t.Property("ReasonCode")
+                                .HasColumnName("reason_code");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("ToDisposition")
+                                .HasColumnName("to_disposition");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingMachineCalibrationEntity", b =>
@@ -774,15 +1700,34 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("EvidenceReference")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("MachineId")
                         .HasColumnType("uuid");
@@ -808,6 +1753,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MachineId");
@@ -820,6 +1774,45 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_machine_calibrations", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_machine_calibration_dates", "\"NextDueAt\" > \"CalibratedAt\"");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CalibratedAt")
+                                .HasColumnName("calibrated_at");
+
+                            t.Property("CalibrationType")
+                                .HasColumnName("calibration_type");
+
+                            t.Property("CertificateNumber")
+                                .HasColumnName("certificate_number");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("EvidenceReference")
+                                .HasColumnName("evidence_reference");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("NextDueAt")
+                                .HasColumnName("next_due_at");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("Provider")
+                                .HasColumnName("provider");
+
+                            t.Property("Result")
+                                .HasColumnName("result");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
                         });
                 });
 
@@ -830,10 +1823,33 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset?>("EndedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("MachineId")
                         .HasColumnType("uuid");
@@ -866,13 +1882,56 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("StartedAt");
 
                     b.HasIndex("TenantKey", "MachineId", "Status");
 
-                    b.ToTable("manufacturing_machine_downtimes", (string)null);
+                    b.ToTable("manufacturing_machine_downtimes", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("EndedAt")
+                                .HasColumnName("ended_at");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("OperationExecutionId")
+                                .HasColumnName("operation_execution_id");
+
+                            t.Property("ProductionBatchId")
+                                .HasColumnName("production_batch_id");
+
+                            t.Property("Reason")
+                                .HasColumnName("reason");
+
+                            t.Property("StartedAt")
+                                .HasColumnName("started_at");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingMachineEntity", b =>
@@ -890,7 +1949,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTimeOffset?>("LastMaintenanceAt")
                         .HasColumnType("timestamp with time zone");
@@ -913,12 +1995,51 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "Code")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_machines", (string)null);
+                    b.ToTable("manufacturing_machines", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("Code")
+                                .HasColumnName("code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("LastMaintenanceAt")
+                                .HasColumnName("last_maintenance_at");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+
+                            t.Property("NextMaintenanceAt")
+                                .HasColumnName("next_maintenance_at");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingMachineTelemetryEntity", b =>
@@ -927,8 +2048,34 @@ namespace ManufacturingService.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<Guid>("EventId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("MachineId")
                         .HasColumnType("uuid");
@@ -964,6 +2111,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MachineId");
@@ -973,7 +2129,41 @@ namespace ManufacturingService.Api.Migrations
 
                     b.HasIndex("TenantKey", "MachineId", "ObservedAt");
 
-                    b.ToTable("manufacturing_machine_telemetry", (string)null);
+                    b.ToTable("manufacturing_machine_telemetry", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("EventId")
+                                .HasColumnName("event_id");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("MeterName")
+                                .HasColumnName("meter_name");
+
+                            t.Property("MeterValue")
+                                .HasColumnName("meter_value");
+
+                            t.Property("ObservedAt")
+                                .HasColumnName("observed_at");
+
+                            t.Property("ReceivedAt")
+                                .HasColumnName("received_at");
+
+                            t.Property("Sequence")
+                                .HasColumnName("sequence");
+
+                            t.Property("Source")
+                                .HasColumnName("source");
+
+                            t.Property("State")
+                                .HasColumnName("state");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingMaintenancePlanEntity", b =>
@@ -994,14 +2184,33 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(4000)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<int>("FrequencyDays")
                         .HasColumnType("integer");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTimeOffset?>("LastGeneratedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1027,6 +2236,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MachineId");
@@ -1039,6 +2257,45 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_maintenance_plans", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_maintenance_plan_frequency", "\"FrequencyDays\" > 0");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("AssignedTo")
+                                .HasColumnName("assigned_to");
+
+                            t.Property("Checklist")
+                                .HasColumnName("checklist");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("FrequencyDays")
+                                .HasColumnName("frequency_days");
+
+                            t.Property("LastGeneratedAt")
+                                .HasColumnName("last_generated_at");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("MaintenanceType")
+                                .HasColumnName("maintenance_type");
+
+                            t.Property("NextDueAt")
+                                .HasColumnName("next_due_at");
+
+                            t.Property("PlanCode")
+                                .HasColumnName("plan_code");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
                         });
                 });
 
@@ -1056,7 +2313,24 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset>("DueAt")
                         .HasColumnType("timestamp with time zone");
@@ -1064,6 +2338,12 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<string>("Evidence")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("MachineId")
                         .HasColumnType("uuid");
@@ -1091,6 +2371,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DueAt");
@@ -1099,7 +2388,44 @@ namespace ManufacturingService.Api.Migrations
 
                     b.HasIndex("TenantKey", "MachineId", "Status");
 
-                    b.ToTable("manufacturing_maintenance_work_orders", (string)null);
+                    b.ToTable("manufacturing_maintenance_work_orders", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("AssignedTo")
+                                .HasColumnName("assigned_to");
+
+                            t.Property("CompletedAt")
+                                .HasColumnName("completed_at");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("DueAt")
+                                .HasColumnName("due_at");
+
+                            t.Property("Evidence")
+                                .HasColumnName("evidence");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("MaintenanceType")
+                                .HasColumnName("maintenance_type");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("Technician")
+                                .HasColumnName("technician");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingMaterialEntity", b =>
@@ -1117,7 +2443,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("MaterialType")
                         .IsRequired()
@@ -1139,6 +2488,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BaseUomCode");
@@ -1146,7 +2504,165 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "Sku")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_materials", (string)null);
+                    b.ToTable("manufacturing_materials", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("BaseUomCode")
+                                .HasColumnName("base_uom_code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("MaterialType")
+                                .HasColumnName("material_type");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+
+                            t.Property("Sku")
+                                .HasColumnName("sku");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
+                });
+
+            modelBuilder.Entity("ManufacturingMlFeatureSnapshotEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AsOf")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DatasetKey")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FeaturesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("LabelJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceEventIdsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Split")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantKey", "DatasetKey", "AsOf");
+
+                    b.HasIndex("TenantKey", "DatasetKey", "EntityType", "EntityId", "AsOf", "SchemaVersion")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_ml_feature_snapshots", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("AsOf")
+                                .HasColumnName("as_of");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("DatasetKey")
+                                .HasColumnName("dataset_key");
+
+                            t.Property("EntityId")
+                                .HasColumnName("entity_id");
+
+                            t.Property("EntityType")
+                                .HasColumnName("entity_type");
+
+                            t.Property("FeaturesJson")
+                                .HasColumnName("features_json");
+
+                            t.Property("LabelJson")
+                                .HasColumnName("label_json");
+
+                            t.Property("SchemaVersion")
+                                .HasColumnName("schema_version");
+
+                            t.Property("SourceEventIdsJson")
+                                .HasColumnName("source_event_ids_json");
+
+                            t.Property("Split")
+                                .HasColumnName("split");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingMobileOperationReplayEntity", b =>
@@ -1156,7 +2672,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Method")
                         .IsRequired()
@@ -1183,12 +2722,43 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "SubjectId", "Method", "Path", "OperationId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_mobile_operation_replays", (string)null);
+                    b.ToTable("manufacturing_mobile_operation_replays", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Method")
+                                .HasColumnName("method");
+
+                            t.Property("OperationId")
+                                .HasColumnName("operation_id");
+
+                            t.Property("Path")
+                                .HasColumnName("path");
+
+                            t.Property("SubjectId")
+                                .HasColumnName("subject_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingOperationExecutionEntity", b =>
@@ -1200,9 +2770,35 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<decimal>("InputQuantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<decimal>("LossQuantity")
                         .HasPrecision(18, 3)
@@ -1244,12 +2840,213 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductionBatchId", "Sequence")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_operation_executions", (string)null);
+                    b.ToTable("manufacturing_operation_executions", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CompletedAt")
+                                .HasColumnName("completed_at");
+
+                            t.Property("InputQuantity")
+                                .HasColumnName("input_quantity");
+
+                            t.Property("LossQuantity")
+                                .HasColumnName("loss_quantity");
+
+                            t.Property("Operator")
+                                .HasColumnName("operator");
+
+                            t.Property("OutputQuantity")
+                                .HasColumnName("output_quantity");
+
+                            t.Property("ProcessStep")
+                                .HasColumnName("process_step");
+
+                            t.Property("ProductionBatchId")
+                                .HasColumnName("production_batch_id");
+
+                            t.Property("QcStatus")
+                                .HasColumnName("qc_status");
+
+                            t.Property("Required")
+                                .HasColumnName("required");
+
+                            t.Property("Sequence")
+                                .HasColumnName("sequence");
+
+                            t.Property("StartedAt")
+                                .HasColumnName("started_at");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
+                });
+
+            modelBuilder.Entity("ManufacturingOperationMeasurementEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<Guid?>("LotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("MeasuredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MeasurementType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("OperationExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductionBatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RecordedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long?>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Uom")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductionBatchId");
+
+                    b.HasIndex("TenantKey", "ProductionBatchId", "MeasuredAt");
+
+                    b.HasIndex("TenantKey", "OperationExecutionId", "MeasurementType", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_operation_measurements", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("MeasuredAt")
+                                .HasColumnName("measured_at");
+
+                            t.Property("MeasurementType")
+                                .HasColumnName("measurement_type");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("OperationExecutionId")
+                                .HasColumnName("operation_execution_id");
+
+                            t.Property("ProductionBatchId")
+                                .HasColumnName("production_batch_id");
+
+                            t.Property("RecordedBy")
+                                .HasColumnName("recorded_by");
+
+                            t.Property("Sequence")
+                                .HasColumnName("sequence");
+
+                            t.Property("Source")
+                                .HasColumnName("source");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+
+                            t.Property("Value")
+                                .HasColumnName("value");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingOutboxMessageEntity", b =>
@@ -1262,8 +3059,34 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Error")
                         .HasColumnType("text");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime>("OccurredOn")
                         .HasColumnType("timestamp with time zone");
@@ -1284,11 +3107,45 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Status", "OccurredOn");
 
-                    b.ToTable("manufacturing_outbox_messages", (string)null);
+                    b.ToTable("manufacturing_outbox_messages", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Content")
+                                .HasColumnName("content");
+
+                            t.Property("Error")
+                                .HasColumnName("error");
+
+                            t.Property("OccurredOn")
+                                .HasColumnName("occurred_on");
+
+                            t.Property("ProcessedOn")
+                                .HasColumnName("processed_on");
+
+                            t.Property("RetryCount")
+                                .HasColumnName("retry_count");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("Type")
+                                .HasColumnName("type");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingProductEntity", b =>
@@ -1306,7 +3163,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1323,6 +3203,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BaseUomCode");
@@ -1330,7 +3219,31 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "Sku")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_products", (string)null);
+                    b.ToTable("manufacturing_products", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("BaseUomCode")
+                                .HasColumnName("base_uom_code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+
+                            t.Property("Sku")
+                                .HasColumnName("sku");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingProductSpecificationEntity", b =>
@@ -1347,7 +3260,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Packaging")
                         .IsRequired()
@@ -1381,11 +3317,54 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "ProductSku", "Status");
 
-                    b.ToTable("manufacturing_product_specifications", (string)null);
+                    b.ToTable("manufacturing_product_specifications", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("ApprovedAt")
+                                .HasColumnName("approved_at");
+
+                            t.Property("ApprovedBy")
+                                .HasColumnName("approved_by");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Packaging")
+                                .HasColumnName("packaging");
+
+                            t.Property("ProductSku")
+                                .HasColumnName("product_sku");
+
+                            t.Property("QcSpec")
+                                .HasColumnName("qc_spec");
+
+                            t.Property("ShelfLifeDays")
+                                .HasColumnName("shelf_life_days");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TargetMoisturePercent")
+                                .HasColumnName("target_moisture_percent");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingProductionBatchCostEntity", b =>
@@ -1405,10 +3384,36 @@ namespace ManufacturingService.Api.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("character varying(3)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<decimal>("LaborCost")
                         .HasPrecision(18, 2)
@@ -1438,6 +3443,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductionBatchId");
@@ -1445,7 +3459,44 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "ProductionBatchId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_production_batch_costs", (string)null);
+                    b.ToTable("manufacturing_production_batch_costs", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CalculatedAt")
+                                .HasColumnName("calculated_at");
+
+                            t.Property("CalculatedBy")
+                                .HasColumnName("calculated_by");
+
+                            t.Property("CostPerOutputUnit")
+                                .HasColumnName("cost_per_output_unit");
+
+                            t.Property("Currency")
+                                .HasColumnName("currency");
+
+                            t.Property("LaborCost")
+                                .HasColumnName("labor_cost");
+
+                            t.Property("LossCost")
+                                .HasColumnName("loss_cost");
+
+                            t.Property("MaterialCost")
+                                .HasColumnName("material_cost");
+
+                            t.Property("OverheadCost")
+                                .HasColumnName("overhead_cost");
+
+                            t.Property("ProductionBatchId")
+                                .HasColumnName("production_batch_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("TotalCost")
+                                .HasColumnName("total_cost");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingProductionBatchEntity", b =>
@@ -1467,7 +3518,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid?>("MachineId")
                         .HasColumnType("uuid");
@@ -1495,6 +3569,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MachineId");
@@ -1504,7 +3587,46 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "BatchNumber")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_production_batches", (string)null);
+                    b.ToTable("manufacturing_production_batches", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("ActualOutputQuantity")
+                                .HasColumnName("actual_output_quantity");
+
+                            t.Property("BatchNumber")
+                                .HasColumnName("batch_number");
+
+                            t.Property("CompletedAt")
+                                .HasColumnName("completed_at");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("OutputLotId")
+                                .HasColumnName("output_lot_id");
+
+                            t.Property("PlannedQuantity")
+                                .HasColumnName("planned_quantity");
+
+                            t.Property("ProductionOrderId")
+                                .HasColumnName("production_order_id");
+
+                            t.Property("StartedAt")
+                                .HasColumnName("started_at");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingProductionBatchInputEntity", b =>
@@ -1512,6 +3634,32 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
@@ -1526,6 +3674,15 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("ReservationId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LotId");
@@ -1535,7 +3692,23 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("ProductionBatchId", "LotId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_production_batch_inputs", (string)null);
+                    b.ToTable("manufacturing_production_batch_inputs", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("ProductionBatchId")
+                                .HasColumnName("production_batch_id");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("ReservationId")
+                                .HasColumnName("reservation_id");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingProductionOrderEntity", b =>
@@ -1545,7 +3718,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("OrderNumber")
                         .IsRequired()
@@ -1585,6 +3781,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("RecipeId");
@@ -1592,7 +3797,43 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "OrderNumber")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_production_orders", (string)null);
+                    b.ToTable("manufacturing_production_orders", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("OrderNumber")
+                                .HasColumnName("order_number");
+
+                            t.Property("OutputUom")
+                                .HasColumnName("output_uom");
+
+                            t.Property("ProductSku")
+                                .HasColumnName("product_sku");
+
+                            t.Property("RecipeId")
+                                .HasColumnName("recipe_id");
+
+                            t.Property("RecipeVersion")
+                                .HasColumnName("recipe_version");
+
+                            t.Property("ReleasedAt")
+                                .HasColumnName("released_at");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TargetQuantity")
+                                .HasColumnName("target_quantity");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingPurchaseOrderEntity", b =>
@@ -1601,13 +3842,39 @@ namespace ManufacturingService.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<DateTimeOffset?>("ExpectedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("OrderNumber")
                         .IsRequired()
@@ -1630,6 +3897,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SupplierId");
@@ -1637,7 +3913,34 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "OrderNumber")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_purchase_orders", (string)null);
+                    b.ToTable("manufacturing_purchase_orders", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Currency")
+                                .HasColumnName("currency");
+
+                            t.Property("ExpectedAt")
+                                .HasColumnName("expected_at");
+
+                            t.Property("OrderNumber")
+                                .HasColumnName("order_number");
+
+                            t.Property("OrderedAt")
+                                .HasColumnName("ordered_at");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("SupplierId")
+                                .HasColumnName("supplier_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingPurchaseOrderLineEntity", b =>
@@ -1645,6 +3948,32 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("MaterialSku")
                         .IsRequired()
@@ -1671,6 +4000,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PurchaseOrderId");
@@ -1678,6 +4016,27 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_purchase_order_lines", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_po_lines_quantity_positive", "\"OrderedQuantity\" > 0 AND \"ReceivedQuantity\" >= 0 AND \"ReceivedQuantity\" <= \"OrderedQuantity\"");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("MaterialSku")
+                                .HasColumnName("material_sku");
+
+                            t.Property("OrderedQuantity")
+                                .HasColumnName("ordered_quantity");
+
+                            t.Property("PurchaseOrderId")
+                                .HasColumnName("purchase_order_id");
+
+                            t.Property("ReceivedQuantity")
+                                .HasColumnName("received_quantity");
+
+                            t.Property("UnitPrice")
+                                .HasColumnName("unit_price");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
                         });
                 });
 
@@ -1686,6 +4045,26 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset>("InspectedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1697,6 +4076,12 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
@@ -1723,6 +4108,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InspectionPlanVersionId");
@@ -1734,7 +4128,39 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_quality_inspections", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_quality_moisture_range", "\"MoisturePercent\" >= 0 AND \"MoisturePercent\" <= 100");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("InspectedAt")
+                                .HasColumnName("inspected_at");
+
+                            t.Property("InspectionPlanVersionId")
+                                .HasColumnName("inspection_plan_version_id");
+
+                            t.Property("Inspector")
+                                .HasColumnName("inspector");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("MoisturePercent")
+                                .HasColumnName("moisture_percent");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("SpecificationReference")
+                                .HasColumnName("specification_reference");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
                         });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingQualitySampleEntity", b =>
@@ -1752,7 +4178,24 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset?>("DisposedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1772,6 +4215,12 @@ namespace ManufacturingService.Api.Migrations
 
                     b.Property<Guid>("InspectionId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Location")
                         .HasMaxLength(200)
@@ -1794,6 +4243,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("InspectionId");
@@ -1805,7 +4263,50 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "InspectionId", "SampleCode")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_quality_samples", (string)null);
+                    b.ToTable("manufacturing_quality_samples", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CollectedAt")
+                                .HasColumnName("collected_at");
+
+                            t.Property("CollectedBy")
+                                .HasColumnName("collected_by");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("DisposedAt")
+                                .HasColumnName("disposed_at");
+
+                            t.Property("DisposedBy")
+                                .HasColumnName("disposed_by");
+
+                            t.Property("Disposition")
+                                .HasColumnName("disposition");
+
+                            t.Property("DispositionReason")
+                                .HasColumnName("disposition_reason");
+
+                            t.Property("InspectionId")
+                                .HasColumnName("inspection_id");
+
+                            t.Property("Location")
+                                .HasColumnName("location");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("SampleCode")
+                                .HasColumnName("sample_code");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingQualityTestResultEntity", b =>
@@ -1814,9 +4315,35 @@ namespace ManufacturingService.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("EvidenceReference")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<decimal?>("LowerLimit")
                         .HasPrecision(18, 6)
@@ -1853,6 +4380,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<decimal?>("UpperLimit")
                         .HasPrecision(18, 6)
                         .HasColumnType("numeric(18,6)");
@@ -1865,6 +4401,39 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_quality_test_results", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_quality_test_result_status", "\"Result\" IN ('Pass', 'Fail', 'NotApplicable')");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("EvidenceReference")
+                                .HasColumnName("evidence_reference");
+
+                            t.Property("LowerLimit")
+                                .HasColumnName("lower_limit");
+
+                            t.Property("MeasuredValue")
+                                .HasColumnName("measured_value");
+
+                            t.Property("Method")
+                                .HasColumnName("method");
+
+                            t.Property("QualityInspectionId")
+                                .HasColumnName("quality_inspection_id");
+
+                            t.Property("Result")
+                                .HasColumnName("result");
+
+                            t.Property("TestCode")
+                                .HasColumnName("test_code");
+
+                            t.Property("TestName")
+                                .HasColumnName("test_name");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+
+                            t.Property("UpperLimit")
+                                .HasColumnName("upper_limit");
                         });
                 });
 
@@ -1877,6 +4446,32 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
@@ -1886,11 +4481,32 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("RecipeId", "IngredientSku");
 
                     b.ToTable("manufacturing_recipe_components", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_recipe_components_quantity_positive", "\"Quantity\" > 0");
+
+                            t.Property("RecipeId")
+                                .HasColumnName("recipe_id");
+
+                            t.Property("IngredientSku")
+                                .HasColumnName("ingredient_sku");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
                         });
                 });
 
@@ -1911,13 +4527,36 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset?>("EffectiveFrom")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("EffectiveTo")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("OutputUom")
                         .IsRequired()
@@ -1951,6 +4590,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
@@ -1966,6 +4614,182 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_recipes", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_recipes_yield_range", "\"TargetYieldPercent\" > 0 AND \"TargetYieldPercent\" <= 100");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("ApprovedAt")
+                                .HasColumnName("approved_at");
+
+                            t.Property("ApprovedBy")
+                                .HasColumnName("approved_by");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("EffectiveFrom")
+                                .HasColumnName("effective_from");
+
+                            t.Property("EffectiveTo")
+                                .HasColumnName("effective_to");
+
+                            t.Property("OutputUom")
+                                .HasColumnName("output_uom");
+
+                            t.Property("ProcessStep")
+                                .HasColumnName("process_step");
+
+                            t.Property("ProductSku")
+                                .HasColumnName("product_sku");
+
+                            t.Property("ProductSpecificationId")
+                                .HasColumnName("product_specification_id");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TargetYieldPercent")
+                                .HasColumnName("target_yield_percent");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Version")
+                                .HasColumnName("version");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
+                });
+
+            modelBuilder.Entity("ManufacturingSalesActualEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateOnly>("PeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ProductSku")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Region")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Uom")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantKey", "ProductSku", "PeriodStart", "Channel");
+
+                    b.ToTable("manufacturing_sales_actuals", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Actor")
+                                .HasColumnName("actor");
+
+                            t.Property("Channel")
+                                .HasColumnName("channel");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("PeriodEnd")
+                                .HasColumnName("period_end");
+
+                            t.Property("PeriodStart")
+                                .HasColumnName("period_start");
+
+                            t.Property("ProductSku")
+                                .HasColumnName("product_sku");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("Region")
+                                .HasColumnName("region");
+
+                            t.Property("Source")
+                                .HasColumnName("source");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
                         });
                 });
 
@@ -1981,7 +4805,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateOnly>("PeriodEnd")
                         .HasColumnType("date");
@@ -2013,6 +4860,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer");
 
@@ -2021,7 +4877,41 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "ProductSku", "PeriodStart", "PeriodEnd", "Version")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_sales_forecasts", (string)null);
+                    b.ToTable("manufacturing_sales_forecasts", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Actor")
+                                .HasColumnName("actor");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("PeriodEnd")
+                                .HasColumnName("period_end");
+
+                            t.Property("PeriodStart")
+                                .HasColumnName("period_start");
+
+                            t.Property("ProductSku")
+                                .HasColumnName("product_sku");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("Source")
+                                .HasColumnName("source");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+
+                            t.Property("Version")
+                                .HasColumnName("version");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingStorageLocationEntity", b =>
@@ -2039,7 +4929,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2051,6 +4964,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<Guid>("WarehouseId")
                         .HasColumnType("uuid");
 
@@ -2061,7 +4983,29 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "WarehouseId", "Code")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_storage_locations", (string)null);
+                    b.ToTable("manufacturing_storage_locations", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("Code")
+                                .HasColumnName("code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("WarehouseId")
+                                .HasColumnName("warehouse_id");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingSupplierCertificateEntity", b =>
@@ -2081,12 +5025,25 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("EvidenceReference")
                         .HasMaxLength(1000)
@@ -2094,6 +5051,12 @@ namespace ManufacturingService.Api.Migrations
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTimeOffset>("IssuedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2116,6 +5079,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SupplierId");
@@ -2126,6 +5098,42 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_supplier_certificates", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_supplier_certificate_dates", "\"ExpiresAt\" > \"IssuedAt\"");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CertificateNumber")
+                                .HasColumnName("certificate_number");
+
+                            t.Property("CertificateType")
+                                .HasColumnName("certificate_type");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("EvidenceReference")
+                                .HasColumnName("evidence_reference");
+
+                            t.Property("ExpiresAt")
+                                .HasColumnName("expires_at");
+
+                            t.Property("IssuedAt")
+                                .HasColumnName("issued_at");
+
+                            t.Property("Issuer")
+                                .HasColumnName("issuer");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("SupplierId")
+                                .HasColumnName("supplier_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
                         });
                 });
 
@@ -2176,12 +5184,31 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(2)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTimeOffset?>("LastReviewedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2211,7 +5238,13 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -2223,7 +5256,69 @@ namespace ManufacturingService.Api.Migrations
                             t.HasCheckConstraint("CK_manufacturing_supplier_approval_status", "\"ApprovalStatus\" IN ('Draft', 'PendingApproval', 'Approved', 'Suspended', 'Rejected')");
 
                             t.HasCheckConstraint("CK_manufacturing_supplier_risk_level", "\"RiskLevel\" IN ('Low', 'Standard', 'High', 'Critical')");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("Address")
+                                .HasColumnName("address");
+
+                            t.Property("ApprovalStatus")
+                                .HasColumnName("approval_status");
+
+                            t.Property("ApprovedAt")
+                                .HasColumnName("approved_at");
+
+                            t.Property("ApprovedBy")
+                                .HasColumnName("approved_by");
+
+                            t.Property("Code")
+                                .HasColumnName("code");
+
+                            t.Property("ContactEmail")
+                                .HasColumnName("contact_email");
+
+                            t.Property("ContactName")
+                                .HasColumnName("contact_name");
+
+                            t.Property("ContactPhone")
+                                .HasColumnName("contact_phone");
+
+                            t.Property("CountryCode")
+                                .HasColumnName("country_code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("LastReviewedAt")
+                                .HasColumnName("last_reviewed_at");
+
+                            t.Property("LegalName")
+                                .HasColumnName("legal_name");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+
+                            t.Property("RiskLevel")
+                                .HasColumnName("risk_level");
+
+                            t.Property("TaxIdentificationNumber")
+                                .HasColumnName("tax_identification_number");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
                         });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("ManufacturingSupplierEvaluationEntity", b =>
@@ -2231,6 +5326,26 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DeliveryNotes")
                         .HasMaxLength(2000)
@@ -2243,6 +5358,12 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
@@ -2263,6 +5384,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SupplierId");
@@ -2272,6 +5402,33 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_supplier_evaluations", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_supplier_evaluations_score", "\"Score\" >= 1 AND \"Score\" <= 5");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("DeliveryNotes")
+                                .HasColumnName("delivery_notes");
+
+                            t.Property("EvaluatedAt")
+                                .HasColumnName("evaluated_at");
+
+                            t.Property("EvaluatedBy")
+                                .HasColumnName("evaluated_by");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("QualityNotes")
+                                .HasColumnName("quality_notes");
+
+                            t.Property("Score")
+                                .HasColumnName("score");
+
+                            t.Property("SupplierId")
+                                .HasColumnName("supplier_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
                         });
                 });
 
@@ -2287,18 +5444,37 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTimeOffset>("EffectiveFrom")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("EffectiveTo")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("MaterialSku")
                         .IsRequired()
@@ -2322,6 +5498,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SupplierId");
@@ -2332,6 +5517,39 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_supplier_material_approvals", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_supplier_material_approval_dates", "\"EffectiveTo\" IS NULL OR \"EffectiveTo\" > \"EffectiveFrom\"");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("ApprovedUom")
+                                .HasColumnName("approved_uom");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedBy")
+                                .HasColumnName("created_by");
+
+                            t.Property("EffectiveFrom")
+                                .HasColumnName("effective_from");
+
+                            t.Property("EffectiveTo")
+                                .HasColumnName("effective_to");
+
+                            t.Property("MaterialSku")
+                                .HasColumnName("material_sku");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("SupplierId")
+                                .HasColumnName("supplier_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
                         });
                 });
 
@@ -2342,12 +5560,35 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<int>("LeadTimeDays")
                         .HasColumnType("integer");
@@ -2376,6 +5617,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("SupplierId");
@@ -2385,7 +5635,38 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "SupplierRfqId", "SupplierId")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_supplier_quotations", (string)null);
+                    b.ToTable("manufacturing_supplier_quotations", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Currency")
+                                .HasColumnName("currency");
+
+                            t.Property("LeadTimeDays")
+                                .HasColumnName("lead_time_days");
+
+                            t.Property("Notes")
+                                .HasColumnName("notes");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("SupplierId")
+                                .HasColumnName("supplier_id");
+
+                            t.Property("SupplierRfqId")
+                                .HasColumnName("supplier_rfq_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("UnitPrice")
+                                .HasColumnName("unit_price");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingSupplierRfqEntity", b =>
@@ -2395,7 +5676,30 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("MaterialSku")
                         .IsRequired()
@@ -2429,12 +5733,49 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "RfqNumber")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_supplier_rfqs", (string)null);
+                    b.ToTable("manufacturing_supplier_rfqs", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("MaterialSku")
+                                .HasColumnName("material_sku");
+
+                            t.Property("NeededBy")
+                                .HasColumnName("needed_by");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+
+                            t.Property("RfqNumber")
+                                .HasColumnName("rfq_number");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Uom")
+                                .HasColumnName("uom");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingTransformationEntity", b =>
@@ -2444,11 +5785,34 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<decimal>("InputQuantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<decimal>("LossQuantity")
                         .HasPrecision(18, 3)
@@ -2475,6 +5839,15 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<decimal>("YieldPercent")
                         .HasPrecision(8, 2)
                         .HasColumnType("numeric(8,2)");
@@ -2494,6 +5867,39 @@ namespace ManufacturingService.Api.Migrations
                             t.HasCheckConstraint("CK_manufacturing_transformations_output_le_input", "\"OutputQuantity\" <= \"InputQuantity\"");
 
                             t.HasCheckConstraint("CK_manufacturing_transformations_yield_range", "\"YieldPercent\" >= 0 AND \"YieldPercent\" <= 100");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("InputQuantity")
+                                .HasColumnName("input_quantity");
+
+                            t.Property("LossQuantity")
+                                .HasColumnName("loss_quantity");
+
+                            t.Property("MachineId")
+                                .HasColumnName("machine_id");
+
+                            t.Property("OutputLotId")
+                                .HasColumnName("output_lot_id");
+
+                            t.Property("OutputQuantity")
+                                .HasColumnName("output_quantity");
+
+                            t.Property("ProcessStep")
+                                .HasColumnName("process_step");
+
+                            t.Property("RecipeId")
+                                .HasColumnName("recipe_id");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("YieldPercent")
+                                .HasColumnName("yield_percent");
                         });
                 });
 
@@ -2505,15 +5911,60 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<Guid>("LotId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("TransformationId", "LotId");
 
                     b.HasIndex("LotId");
 
-                    b.ToTable("manufacturing_transformation_inputs", (string)null);
+                    b.ToTable("manufacturing_transformation_inputs", null, t =>
+                        {
+                            t.Property("TransformationId")
+                                .HasColumnName("transformation_id");
+
+                            t.Property("LotId")
+                                .HasColumnName("lot_id");
+
+                            t.Property("Quantity")
+                                .HasColumnName("quantity");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingUomConversionEntity", b =>
@@ -2526,7 +5977,24 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<decimal>("Factor")
                         .HasPrecision(18, 8)
@@ -2537,10 +6005,25 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("ToCode")
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -2550,6 +6033,24 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_uom_conversions", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_uom_conversion_factor_positive", "\"Factor\" > 0");
+
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Factor")
+                                .HasColumnName("factor");
+
+                            t.Property("FromCode")
+                                .HasColumnName("from_code");
+
+                            t.Property("ToCode")
+                                .HasColumnName("to_code");
                         });
                 });
 
@@ -2568,24 +6069,75 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Dimension")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_uoms", (string)null);
+                    b.ToTable("manufacturing_uoms", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("Code")
+                                .HasColumnName("code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Dimension")
+                                .HasColumnName("dimension");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingWarehouseEntity", b =>
@@ -2603,10 +6155,33 @@ namespace ManufacturingService.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<Guid>("FacilityId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2618,6 +6193,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("FacilityId");
@@ -2625,7 +6209,29 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "Code")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_warehouses", (string)null);
+                    b.ToTable("manufacturing_warehouses", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Active")
+                                .HasColumnName("active");
+
+                            t.Property("Code")
+                                .HasColumnName("code");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("FacilityId")
+                                .HasColumnName("facility_id");
+
+                            t.Property("Name")
+                                .HasColumnName("name");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingCapaEntity", b =>
@@ -2772,6 +6378,15 @@ namespace ManufacturingService.Api.Migrations
                         .WithMany()
                         .HasForeignKey("ProductionBatchId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ManufacturingOperationMeasurementEntity", b =>
+                {
+                    b.HasOne("ManufacturingProductionBatchEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ProductionBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

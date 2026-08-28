@@ -1,4 +1,4 @@
-using System.Text;
+using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
 
@@ -21,27 +21,43 @@ public sealed class ManufacturingOutboxDispatcher(
         {
             try
             {
-                await DispatchPendingAsync(stoppingToken);
+                var dispatched = await DispatchPendingAsync(stoppingToken);
+                if (!dispatched)
+                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Manufacturing outbox dispatch cycle failed; retrying.");
+                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
         }
     }
 
-    private async Task DispatchPendingAsync(CancellationToken cancellationToken)
+    private async Task<bool> DispatchPendingAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IManufacturingDbContextFactory>();
+        var dispatchedAny = false;
+        foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
+        {
+            if (await DispatchPendingForConnectionAsync(dbFactory, connectionName, cancellationToken))
+                dispatchedAny = true;
+        }
+
+        return dispatchedAny;
+    }
+
+    private async Task<bool> DispatchPendingForConnectionAsync(
+        IManufacturingDbContextFactory dbFactory,
+        string connectionName,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbFactory.CreateDbContextForConnectionAsync(connectionName, cancellationToken);
         var message = await db.OutboxMessages
             .Where(x => x.Status == "Pending")
             .OrderBy(x => x.OccurredOn)
             .FirstOrDefaultAsync(cancellationToken);
-        if (message is null) return;
+        if (message is null) return false;
 
         message.Status = "Processing";
         message.RetryCount++;
@@ -64,20 +80,30 @@ public sealed class ManufacturingOutboxDispatcher(
             properties.Persistent = true;
             properties.ContentType = "application/json";
             properties.Type = message.Type;
-            channel.BasicPublish(Exchange, message.Type, properties, Encoding.UTF8.GetBytes(message.Content));
+            channel.BasicPublish(Exchange, message.Type, properties, System.Text.Encoding.UTF8.GetBytes(message.Content));
 
             message.Status = "Completed";
             message.ProcessedOn = DateTime.UtcNow;
             message.Error = null;
             await db.SaveChangesAsync(cancellationToken);
-            logger.LogInformation("Published manufacturing outbox message {MessageId} as {Type}.", message.Id, message.Type);
+            logger.LogInformation(
+                "Published manufacturing outbox message {MessageId} as {Type} from {ConnectionName}.",
+                message.Id,
+                message.Type,
+                connectionName);
         }
         catch (Exception ex)
         {
             message.Status = "Pending";
             message.Error = ex.Message[..Math.Min(ex.Message.Length, 1000)];
             await db.SaveChangesAsync(cancellationToken);
-            logger.LogWarning(ex, "Could not publish manufacturing outbox message {MessageId}; it remains pending.", message.Id);
+            logger.LogWarning(
+                ex,
+                "Could not publish manufacturing outbox message {MessageId} from {ConnectionName}; it remains pending.",
+                message.Id,
+                connectionName);
         }
+
+        return true;
     }
 }

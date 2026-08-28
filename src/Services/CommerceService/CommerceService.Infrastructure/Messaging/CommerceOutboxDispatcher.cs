@@ -1,4 +1,3 @@
-using System.Text;
 using His.Hope.CommerceService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -28,7 +27,9 @@ public sealed class CommerceOutboxDispatcher(
         {
             try
             {
-                await DispatchPendingAsync(stoppingToken);
+                var dispatched = await DispatchPendingAsync(stoppingToken);
+                if (!dispatched)
+                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -37,24 +38,38 @@ public sealed class CommerceOutboxDispatcher(
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Commerce outbox dispatch cycle failed; retrying.");
+                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
         }
     }
 
-    private async Task DispatchPendingAsync(CancellationToken cancellationToken)
+    private async Task<bool> DispatchPendingAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<CommerceDbContext>>();
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        var dbFactory = scope.ServiceProvider.GetRequiredService<ICommerceDbContextFactory>();
+        var dispatchedAny = false;
+        foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
+        {
+            if (await DispatchPendingForConnectionAsync(dbFactory, connectionName, cancellationToken))
+                dispatchedAny = true;
+        }
+
+        return dispatchedAny;
+    }
+
+    private async Task<bool> DispatchPendingForConnectionAsync(
+        ICommerceDbContextFactory dbFactory,
+        string connectionName,
+        CancellationToken cancellationToken)
+    {
+        await using var db = await dbFactory.CreateDbContextForConnectionAsync(connectionName, cancellationToken);
         var staleProcessingBefore = DateTimeOffset.UtcNow.AddMinutes(-5);
         var message = await db.OutboxMessages
             .Where(x => x.Status == "Pending" ||
                 (x.Status == "Processing" && x.ProcessedOn == null && x.OccurredAt < staleProcessingBefore))
             .OrderBy(x => x.OccurredAt)
             .FirstOrDefaultAsync(cancellationToken);
-        if (message is null) return;
+        if (message is null) return false;
 
         if (message.Status == "Processing")
             logger.LogWarning("Recovering stale Commerce outbox message {MessageId} after an interrupted publish.", message.Id);
@@ -80,13 +95,14 @@ public sealed class CommerceOutboxDispatcher(
             properties.ContentType = "application/json";
             properties.Type = message.Type;
             properties.MessageId = message.Id.ToString();
-            channel.BasicPublish(Exchange, message.Type, properties, Encoding.UTF8.GetBytes(message.Content));
+            channel.BasicPublish(Exchange, message.Type, properties, System.Text.Encoding.UTF8.GetBytes(message.Content));
 
             message.Status = "Completed";
             message.ProcessedOn = DateTimeOffset.UtcNow;
             message.Error = null;
             await db.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Published Commerce outbox message {MessageId} as {Type}.", message.Id, message.Type);
+            return true;
         }
         catch (Exception ex)
         {
@@ -94,6 +110,7 @@ public sealed class CommerceOutboxDispatcher(
             message.Error = ex.Message[..Math.Min(ex.Message.Length, 1000)];
             await db.SaveChangesAsync(cancellationToken);
             logger.LogWarning(ex, "Could not publish Commerce outbox message {MessageId}; it remains pending.", message.Id);
+            return true;
         }
     }
 }

@@ -1,24 +1,18 @@
-import { MobileResource } from "../contracts/mobile.contracts";
+import type { OperatorMobileArea } from "../contracts/mobile.contracts";
+import { operatorMobilePermissions } from "./operator-mobile-permissions";
 
-export type MobileMutationSurface = MobileResource | "mfa" | "notifications";
+export type OperatorMobileMutationSurface = OperatorMobileArea;
 
-/** Single source of truth for the permission each mobile mutation requires. */
-export function mutationPermission(
-  surface: MobileMutationSurface,
-  _action: string,
-): string {
-  switch (surface) {
-    case "clients":
-      return "admin.clients.write";
-    case "users":
-      return "admin.users.write";
-    case "roles":
-      return "admin.roles.write";
-    case "consents":
-      return "admin.consents.write";
-    case "mfa":
-      return "admin.credentials.reset";
-    case "notifications":
-      return "admin.users.write";
+/** Permission required for field mutations in each operator area. */
+export function mutationPermission(area: OperatorMobileMutationSurface): string {
+  switch (area) {
+    case "production":
+      return operatorMobilePermissions.production.access;
+    case "traceability":
+      return operatorMobilePermissions.traceability.access;
+    case "quality":
+      return operatorMobilePermissions.quality.access;
+    case "maintenance":
+      return operatorMobilePermissions.maintenance.access;
   }
 }

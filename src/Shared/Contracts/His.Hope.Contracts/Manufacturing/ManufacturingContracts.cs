@@ -40,6 +40,11 @@ public sealed record LotDto(
     string? CreatedBy = null,
     DateTimeOffset? UpdatedAt = null);
 public sealed record LotStatusHistoryDto(Guid Id, Guid LotId, string TenantKey, string FromDisposition, string ToDisposition, string Actor, string? ReasonCode, string? EvidenceReference, Guid CorrelationId, DateTimeOffset OccurredAt);
+public sealed record EntityStatusHistoryDto(Guid Id, string EntityType, Guid EntityId, string TenantKey, string FromStatus, string ToStatus, string Actor, DateTimeOffset OccurredAt);
+public sealed record WorkflowStepDefinitionDto(string Key, string I18nGroup);
+public sealed record ManufacturingWorkflowDefinitionDto(string EntityType, IReadOnlyList<WorkflowStepDefinitionDto> Steps, IReadOnlyDictionary<string, string>? StatusAliases, IReadOnlyList<string>? TerminalStatuses);
+public sealed record CrossEntityWorkflowStepDto(string Key, string EntityType, Guid EntityId, string Title, string Status, string Route, string State, DateTimeOffset? OccurredAt);
+public sealed record CrossEntityWorkflowTraceDto(string AnchorEntityType, Guid AnchorEntityId, IReadOnlyList<CrossEntityWorkflowStepDto> Steps);
 public sealed record TransformationDto(Guid Id, string TenantKey, string ProcessStep, Guid? RecipeId, Guid? MachineId, IReadOnlyList<TransformationInput> Inputs, LotDto Output, decimal InputQuantity, decimal YieldPercent, decimal LossQuantity, DateTimeOffset CreatedAt);
 public sealed record GenealogyDto(LotDto Lot, IReadOnlyList<LotRelationDto> Relations);
 public sealed record LotRelationDto(Guid TransformationId, Guid LotId, string Sku, string Role, decimal Quantity);
@@ -103,6 +108,13 @@ public sealed record MaintenancePlanDto(Guid Id, Guid MachineId, string TenantKe
 public sealed record GenerateMaintenanceWorkOrdersRequest(DateTimeOffset? AsOf = null);
 public sealed record RecordMachineTelemetryRequest(Guid EventId, DateTimeOffset ObservedAt, string Source, string? State = null, string? MeterName = null, decimal? MeterValue = null, long? Sequence = null);
 public sealed record MachineTelemetryDto(Guid Id, Guid EventId, Guid MachineId, string TenantKey, string Source, string? State, string? MeterName, decimal? MeterValue, long? Sequence, DateTimeOffset ObservedAt, DateTimeOffset ReceivedAt);
+public sealed record RecordOperationMeasurementRequest(Guid ProductionBatchId, Guid? OperationExecutionId, Guid? MachineId, Guid? LotId, string MeasurementType, decimal Value, string Uom, DateTimeOffset MeasuredAt, string? Source = null, long? Sequence = null, string? Notes = null);
+public sealed record OperationMeasurementDto(Guid Id, string TenantKey, Guid ProductionBatchId, Guid? OperationExecutionId, Guid? MachineId, Guid? LotId, string MeasurementType, decimal Value, string Uom, DateTimeOffset MeasuredAt, string RecordedBy, string Source, long? Sequence, string? Notes, DateTimeOffset CreatedAt);
+public sealed record RecordSalesActualRequest(string ProductSku, DateOnly PeriodStart, DateOnly PeriodEnd, decimal Quantity, string Uom, string Channel = "unknown", string? Region = null, string Source = "sales", string Actor = "system");
+public sealed record SalesActualDto(Guid Id, string TenantKey, string ProductSku, DateOnly PeriodStart, DateOnly PeriodEnd, decimal Quantity, string Uom, string Channel, string? Region, string Source, string Actor, DateTimeOffset CreatedAt);
+public sealed record MlFeatureSnapshotRequest(string DatasetKey, string EntityType, Guid EntityId, DateTimeOffset AsOf, string FeaturesJson, string? LabelJson = null, string? SourceEventIdsJson = null, string? Split = null, int SchemaVersion = 1);
+public sealed record MlFeatureSnapshotDto(Guid Id, string TenantKey, string DatasetKey, string EntityType, Guid EntityId, DateTimeOffset AsOf, string FeaturesJson, string? LabelJson, string? SourceEventIdsJson, string Split, int SchemaVersion, DateTimeOffset CreatedAt);
+public sealed record MlDatasetQualityDto(string TenantKey, string DatasetKey, int RowCount, int LabeledRowCount, int FeatureSchemaVersion, DateTimeOffset AsOf, IReadOnlyList<string> Warnings);
 public sealed record CreateDowntimeRequest(string Reason, DateTimeOffset StartedAt, Guid? ProductionBatchId = null, Guid? OperationExecutionId = null, string? Notes = null);
 public sealed record ResolveDowntimeRequest(DateTimeOffset EndedAt, string? Notes = null);
 public sealed record DowntimeDto(Guid Id, Guid MachineId, string TenantKey, string Reason, string Status, Guid? ProductionBatchId, Guid? OperationExecutionId, DateTimeOffset StartedAt, DateTimeOffset? EndedAt, string? Notes, DateTimeOffset CreatedAt);

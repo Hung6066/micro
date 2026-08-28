@@ -362,7 +362,7 @@ public sealed class IamControlPlaneEndpointTests
         var policy = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/resource-policies", new { scopeId, serviceKey = "billing", resourcePattern = $"invoice/{suffix}/*", statementsJson = "[]" });
         Assert.Equal(HttpStatusCode.Created, policy.StatusCode);
         var policyId = (await policy.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        Assert.Equal(HttpStatusCode.OK, (await session.PutWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/resource-policies/{policyId:D}", new { scopeId, serviceKey = "billing", resourcePattern = $"invoice/{suffix}/*", statementsJson = "[{\"effect\":\"allow\"}]" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await session.PutWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/resource-policies/{policyId:D}", new { scopeId, serviceKey = "billing", resourcePattern = $"invoice/{suffix}/*", statementsJson = "[{\"effect\":\"allow\",\"principal\":\"client\",\"actions\":[\"billing.view\"]}]" })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/resource-policies/{policyId:D}/publish")).StatusCode);
         var diff = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/analyzer/new-access-diff", new { before = new[] { "billing.view" }, after = new[] { "billing.view", "billing.pay" } });
         Assert.Equal(HttpStatusCode.OK, diff.StatusCode);
@@ -613,7 +613,7 @@ public sealed class IamControlPlaneEndpointTests
             })).StatusCode);
         var policy = await session.PostWithCookiesAsync($"{root}/resource-policies", new
         {
-            scopeId, serviceKey, resourcePattern = $"invoice/{suffix}/*", statementsJson = "[]"
+            scopeId, serviceKey, resourcePattern = $"invoice/{suffix}/*", statementsJson = "[{\"effect\":\"allow\",\"principal\":\"client\",\"actions\":[\"billing.view\"]}]"
         });
         Assert.Equal(HttpStatusCode.Created, policy.StatusCode);
         var policyId = (await policy.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();

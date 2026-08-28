@@ -42,6 +42,7 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("ConnectionStrings:ManufacturingDb", connection);
+            builder.UseSetting("ConnectionStrings:ManufacturingDb_customer_acme", connection);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IHostedService>();
@@ -60,9 +61,9 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
             var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
             await using var db = await dbFactory.CreateDbContextAsync();
             await db.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO manufacturing_uoms ("Id", "Code", "Name", "Dimension", "Active", "CreatedAt")
+                INSERT INTO manufacturing_uoms (id, code, name, dimension, active, created_at)
                 VALUES ({Guid.NewGuid()}, {"kg-http"}, {"Kilogram (HTTP tests)"}, {"Mass"}, {true}, {DateTimeOffset.UtcNow})
-                ON CONFLICT ("Code") DO NOTHING
+                ON CONFLICT (code) DO NOTHING
                 """);
             var skus = new[] { "RM-LIST", "RM-RECEIPT", "RM-STATUS", "RM-BATCH-A", "RM-BATCH-B" };
             var existing = await db.Materials
@@ -143,6 +144,29 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Every_tenant_scoped_mutation_creates_a_shared_audit_event()
+    {
+        var response = await client.PostAsJsonAsync("/api/v1/manufacturing/suppliers", new
+        {
+            tenantKey = "http-integration-tenant", code = "SUP-AUDIT", name = "Audited supplier", active = true
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        var supplierId = (await ReadJson(response)).GetProperty("id").GetGuid();
+
+        using var scope = factory.Services.CreateScope();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var audit = await db.AuditEvents.SingleAsync(x =>
+            x.TenantKey == "http-integration-tenant"
+            && x.EntityType == nameof(ManufacturingSupplierEntity)
+            && x.EntityId == supplierId
+            && x.Action == "Created");
+
+        audit.Actor.Should().NotBeNullOrWhiteSpace();
+        audit.Details.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public async Task PurchaseOrder_rejects_unknown_or_duplicate_material_lines()
     {
         var supplier = await client.PostAsJsonAsync("/api/v1/manufacturing/suppliers", new
@@ -214,8 +238,32 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         var selected = await client.GetAsync("/api/v1/manufacturing/production-batches?tenantKey=selector-tenant");
         selected.StatusCode.Should().Be(HttpStatusCode.OK);
 
+        using var canonical = new HttpRequestMessage(HttpMethod.Get, "/api/v1/manufacturing/production-batches");
+        canonical.Headers.Add("X-HisHope-Tenant", "selector-tenant");
+        var canonicalResponse = await client.SendAsync(canonical);
+        canonicalResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var preferred = new HttpRequestMessage(HttpMethod.Get, "/api/v1/manufacturing/production-batches?tenantKey=unclaimed-tenant");
+        preferred.Headers.Add("X-HisHope-Tenant", "selector-tenant");
+        var preferredResponse = await client.SendAsync(preferred);
+        preferredResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
         var denied = await client.GetAsync("/api/v1/manufacturing/production-batches?tenantKey=unclaimed-tenant");
         denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Command_body_can_omit_tenant_key_when_canonical_header_is_present()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/manufacturing/suppliers")
+        {
+            Content = JsonContent.Create(new { code = "SUP-CONTEXT-ONLY", name = "Context-only supplier", active = true })
+        };
+        request.Headers.Add("X-HisHope-Tenant", "http-integration-tenant");
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await ReadJson(response)).GetProperty("tenantKey").GetString().Should().Be("http-integration-tenant");
     }
 
     [Fact]
@@ -926,6 +974,52 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         items.GetArrayLength().Should().Be(1);
         items[0].GetProperty("materialSku").GetString().Should().Be("RM-FORECAST-MANGO");
         items[0].GetProperty("requiredQuantity").GetDecimal().Should().Be(125m);
+    }
+
+    [Fact]
+    public async Task Ml_training_data_routes_capture_and_export_tenant_scoped_records()
+    {
+        var recipeId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var batchId = Guid.NewGuid();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
+            await using var db = await dbFactory.CreateDbContextAsync();
+            db.Recipes.Add(new ManufacturingRecipeEntity { Id = recipeId, TenantKey = "http-integration-tenant", ProductSku = "FG-ML-HTTP", Version = 1, ProcessStep = "drying", OutputUom = "kg", TargetYieldPercent = 80, Active = true, Status = "Approved", CreatedAt = DateTimeOffset.UtcNow });
+            db.ProductionOrders.Add(new ManufacturingProductionOrderEntity { Id = orderId, TenantKey = "http-integration-tenant", OrderNumber = "PO-ML-HTTP", ProductSku = "FG-ML-HTTP", RecipeId = recipeId, RecipeVersion = 1, TargetQuantity = 100, OutputUom = "kg", Status = "InProgress", CreatedAt = DateTimeOffset.UtcNow });
+            db.ProductionBatches.Add(new ManufacturingProductionBatchEntity { Id = batchId, TenantKey = "http-integration-tenant", ProductionOrderId = orderId, BatchNumber = "B-ML-HTTP", Status = "Started", PlannedQuantity = 100, CreatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+        }
+
+        var measurement = await client.PostAsJsonAsync($"/api/v1/manufacturing/production-batches/{batchId}/measurements", new
+        {
+            productionBatchId = batchId, measurementType = "temperature", value = 62.5m, uom = "C", measuredAt = DateTimeOffset.UtcNow
+        });
+        measurement.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await ReadJson(measurement)).GetProperty("productionBatchId").GetGuid().Should().Be(batchId);
+
+        var actual = await client.PostAsJsonAsync("/api/v1/manufacturing/sales/actuals", new
+        {
+            productSku = "FG-ML-HTTP", periodStart = "2026-01-01", periodEnd = "2026-01-31", quantity = 42m, uom = "kg", channel = "online"
+        });
+        actual.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var snapshot = await client.PostAsJsonAsync("/api/v1/manufacturing/ml/datasets/yield-v1/snapshots", new
+        {
+            datasetKey = "yield-v1", entityType = "production_batch", entityId = batchId, asOf = DateTimeOffset.UtcNow,
+            featuresJson = "{\"input_kg\":100}", labelJson = "{\"yield_percent\":80}", split = "train", schemaVersion = 1
+        });
+        snapshot.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var quality = await client.GetAsync("/api/v1/manufacturing/ml/datasets/yield-v1/quality");
+        quality.StatusCode.Should().Be(HttpStatusCode.OK);
+        var qualityJson = await ReadJson(quality);
+        qualityJson.GetProperty("rowCount").GetInt32().Should().Be(1);
+        qualityJson.GetProperty("labeledRowCount").GetInt32().Should().Be(1);
+
+        var denied = await client.GetAsync("/api/v1/manufacturing/ml/datasets/other-tenant/quality?tenantKey=unclaimed-tenant");
+        denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private static async Task<System.Text.Json.JsonElement> ReadJson(HttpResponseMessage response) =>

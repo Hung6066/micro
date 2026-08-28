@@ -1,15 +1,7 @@
 @if (isAuthenticated$ | async) {
   <hh-app-shell [title]="localizedShellTitle" [open]="(sidenavOpened$ | async) || false" [mobile]="(isMobile$ | async) || false" [toggleLabel]="'app.dashboard.toggleNav' | hhTranslate: 'Toggle navigation'" [closeLabel]="'app.dashboard.closeNav' | hhTranslate: 'Close navigation'" (navigationToggle)="toggleSidenav()">
     <div class="hh-shell-toolbar-slot" hhShellToolbar>
-      <label class="workspace-selector">
-        <span class="workspace-selector__icon material-icons" aria-hidden="true">{{ activeWorkspaceIcon }}</span>
-        <span class="sr-only">{{ "customerPortal.selectWorkspace" | hhTranslate: "Select workspace" }}</span>
-        <select [value]="workspace()" (change)="onWorkspaceChange($any($event.target).value)" [attr.aria-label]="'customerPortal.selectWorkspace' | hhTranslate: 'Select workspace'">
-          @for (option of workspaceOptions; track option.id) {
-            <option [value]="option.id">{{ option.labelKey | hhTranslate: option.fallback }}</option>
-          }
-        </select>
-      </label>
+      <app-workspace-switcher class="workspace-selector" [options]="workspaceOptions" [activeId]="workspace()" (selectionChange)="onWorkspaceChange($event)" />
       @if (tenantOptions$ | async; as tenantOptions) { @if (tenantOptions.length > 1) { <app-tenant-switcher class="tenant-selector" [tenants]="tenantOptions" [activeKey]="activeTenantKey" (tenantChange)="onTenantChange($event)" /> } }
       <hh-language-switcher />
       <button class="shell-icon-button" type="button" (click)="paletteOpen = true" [attr.aria-label]="'customerPortal.openCommandPalette' | hhTranslate: 'Open command palette'"><span class="material-icons" aria-hidden="true">search</span></button>

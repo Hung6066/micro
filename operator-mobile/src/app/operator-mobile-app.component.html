@@ -1,4 +1,5 @@
 <main class="operator-shell">
+  <hh-mobile-shell-security (signOut)="logout()" />
   <header class="operator-shell__header">
     <div>
       <p class="operator-shell__eyebrow">HIS.HOPE OPERATIONS</p>
@@ -11,8 +12,31 @@
           <hh-mobile-icon name="more" />
         </button>
         @if (menuOpen) {
-          <div class="operator-shell__menu-panel" role="menu">
-            <button type="button" role="menuitem" (click)="menuOpen = false; toggleTheme()"><hh-mobile-icon name="theme" size="small" /><span>{{ "mobile.switchTheme" | hhTranslate: "Switch theme" }}</span></button>
+          <div class="hh-mobile-account-menu" role="menu">
+            <a class="hh-mobile-account-menu__item" role="menuitem" routerLink="sync" (click)="menuOpen = false">
+              <hh-mobile-icon name="refresh" size="small" />
+              <span>{{ "mobile.operatorSync" | hhTranslate: "Sync" }}</span>
+            </a>
+            @if (native.isNative && biometricAvailable) {
+              <button type="button" class="hh-mobile-account-menu__item" role="menuitem" (click)="menuOpen = false; unlock()">
+                <hh-mobile-icon name="biometric" size="small" />
+                <span>{{ "mobile.unlockBiometrics" | hhTranslate: "Unlock with biometrics" }}</span>
+              </button>
+            }
+            <button type="button" class="hh-mobile-account-menu__item" role="menuitem" (click)="menuOpen = false; toggleTheme()">
+              <hh-mobile-icon name="theme" size="small" />
+              <span>{{ "mobile.switchTheme" | hhTranslate: "Switch theme" }}</span>
+            </button>
+            @if (native.isNative) {
+              <div class="hh-mobile-account-menu__divider" aria-hidden="true"></div>
+              <p class="hh-mobile-account-menu__section-label">{{ "mobile.securitySection" | hhTranslate: "Security" }}</p>
+              <hh-mobile-pin />
+            }
+            <div class="hh-mobile-account-menu__divider" aria-hidden="true"></div>
+            <button type="button" class="hh-mobile-account-menu__item hh-mobile-account-menu__item--danger" role="menuitem" (click)="menuOpen = false; logout()">
+              <hh-mobile-icon name="logout" size="small" />
+              <span>{{ "admin.logout" | hhTranslate: "Log out" }}</span>
+            </button>
           </div>
         }
       </div>
@@ -21,18 +45,19 @@
   </header>
   <section class="operator-shell__context" [attr.aria-label]="'mobile.operatorTenantContext' | hhTranslate: 'Operational tenant context'">
     <label for="operator-tenant">{{ "mobile.operatorTenant" | hhTranslate: "Tenant" }}</label>
-    <select id="operator-tenant" [value]="tenant.activeTenantKey() ?? ''" (change)="selectTenant($event)" [disabled]="!tenant.availableTenants().length">
-      @if (!tenant.availableTenants().length) { <option value="">{{ "mobile.operatorNoTenantClaim" | hhTranslate: "No tenant claim" }}</option> }
-      @for (tenantKey of tenant.availableTenants(); track tenantKey) { <option [value]="tenantKey">{{ tenantKey }}</option> }
+    <select id="operator-tenant" [value]="tenant.activeTenantKey() ?? ''" (change)="selectTenant($event)" [disabled]="!tenant.tenantOptions().length">
+      @if (!tenant.tenantOptions().length) { <option value="">{{ "mobile.operatorNoTenantClaim" | hhTranslate: "No tenant claim" }}</option> }
+      @for (option of tenant.tenantOptions(); track option.key) { <option [value]="option.key">{{ option.label }}</option> }
     </select>
     <small>{{ "mobile.operatorIdentity" | hhTranslate: "Operator" }}: <span>{{ tenant.email() ?? tenant.subjectId() ?? ("mobile.operatorIdentityUnavailable" | hhTranslate: "Not resolved") }}</span></small>
   </section>
-  <section class="operator-shell__content"><router-outlet /></section>
-  <nav class="operator-shell__nav" [attr.aria-label]="'mobile.operatorOperationalAreas' | hhTranslate: 'Operational areas'">
-    <a routerLink="production" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">precision_manufacturing</span><span>{{ "mobile.operatorProduction" | hhTranslate: "Production" }}</span></a>
-    <a routerLink="traceability" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">qr_code_scanner</span><span>{{ "mobile.operatorTraceability" | hhTranslate: "Traceability" }}</span></a>
-    <a routerLink="quality" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">fact_check</span><span>{{ "mobile.operatorQuality" | hhTranslate: "Quality" }}</span></a>
-    <a routerLink="maintenance" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">build</span><span>{{ "mobile.operatorMaintenance" | hhTranslate: "Maintenance" }}</span></a>
-    <a routerLink="sync" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">sync</span><span>{{ "mobile.operatorSync" | hhTranslate: "Sync" }}</span></a>
+  <section class="operator-shell__content hh-mobile-shell-content"><router-outlet /></section>
+  <nav class="hh-mobile-bottom-nav" [attr.aria-label]="'mobile.operatorOperationalAreas' | hhTranslate: 'Operational areas'" [style.grid-template-columns]="'repeat(' + visibleNavItems().length + ', 1fr)'">
+    @for (item of visibleNavItems(); track item.route) {
+      <a [routerLink]="item.route" routerLinkActive="active">
+        <span class="material-symbols-rounded" aria-hidden="true">{{ item.icon }}</span>
+        <span>{{ item.labelKey | hhTranslate: item.labelFallback }}</span>
+      </a>
+    }
   </nav>
 </main>

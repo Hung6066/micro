@@ -9,7 +9,7 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeContentArticleDto } from "@his-hope/frontend-foundation/contracts";
-import { ContentApiService } from "../../core/services/content-api.service";
+import { BUYER_TENANT_KEY, ContentApiService } from "../../core/services/content-api.service";
 import { BLOG_POSTS } from "../../core/utils/product-media.util";
 
 @Component({
@@ -57,7 +57,7 @@ export class BlogListPageComponent implements OnInit {
   private fallbackArticles(): HisHopeContentArticleDto[] {
     return BLOG_POSTS.map((post, index) => ({
       id: `fallback-${index}`,
-      tenantKey: "customer-factory-x",
+      tenantKey: BUYER_TENANT_KEY,
       slug: post.title.toLowerCase().replace(/\s+/g, "-"),
       title: post.title,
       excerpt: post.excerpt,

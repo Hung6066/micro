@@ -26,6 +26,7 @@ import { ManufacturingApiService } from "../../core/services/manufacturing-api.s
 import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { portalEnumLabel } from "../../core/utils/portal-label.util";
+import { EntityCrossWorkflowPanelComponent } from "../../core/components/entity-cross-workflow-panel.component";
 
 @Component({
   standalone: true,
@@ -40,6 +41,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
+    EntityCrossWorkflowPanelComponent,
   ],
   template: `
     <hh-page-layout>
@@ -98,6 +100,13 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         </div>
         @if (actionError) { <p class="action-error" role="alert">{{ actionError }}</p> }
         @if (genealogy) { <div class="genealogy"><h3>{{ "customerPortal.genealogy" | hhTranslate: "Lot genealogy" }}</h3><p class="meta">{{ genealogy.lot.sku }} · {{ genealogy.relations.length }} {{ "customerPortal.relations" | hhTranslate: "relations" }}</p><ul>@for (relation of genealogy.relations; track relation.transformationId + relation.lotId + relation.role) { <li><strong>{{ relation.role }}</strong> · {{ relation.sku }} · {{ relation.quantity | number: "1.0-3" }}</li> }</ul></div> }
+        @for (lot of selectedLotForWorkflow; track lot.id) {
+          <app-entity-cross-workflow-panel
+            entityType="lot"
+            [entityId]="lot.id"
+            [loadTrace]="loadCrossEntityWorkflow"
+          />
+        }
       </section>
     </hh-page-layout>
   `,
@@ -191,6 +200,14 @@ export class LotsPageComponent implements OnInit {
   get tableRows(): Record<string, unknown>[] {
     return this.lots as unknown as Record<string, unknown>[];
   }
+
+  get selectedLotForWorkflow(): HisHopeLotDto[] {
+    const lot = this.lots.find((item) => item.id === this.selectedLotId);
+    return lot ? [lot] : [];
+  }
+
+  readonly loadCrossEntityWorkflow = (entityType: string, entityId: string) =>
+    this.manufacturingApi.getCrossEntityWorkflow(entityType, entityId);
 
   ngOnInit(): void {
     this.tenantContext.activeTenantLabel$

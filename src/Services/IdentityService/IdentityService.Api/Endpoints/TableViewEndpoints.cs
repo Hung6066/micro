@@ -67,7 +67,16 @@ public static class TableViewEndpoints
         }
         view.PayloadJson = request.PayloadJson;
         view.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException exception)
+        {
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(TableViewEndpoints))
+                .LogError(exception, "Failed to persist table view {Resource}/{Name} for user {UserId}.", normalizedResource, normalizedName, userId);
+            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = "table_view_persistence_failed" });
+        }
         return Results.Ok(new { view.Name, view.PayloadJson, view.UpdatedAt });
     }
 

@@ -128,22 +128,38 @@ public static class IdentityDbInitializer
             ("LabTechnician", "Kỹ thuật viên xét nghiệm"),
             ("Pharmacist", "Dược sĩ — cấp phát thuốc"),
             ("BillingClerk", "Nhân viên thanh toán"),
+            ("ManufacturingFieldOperator", "Vận hành hiện trường (mobile)"),
+            ("ManufacturingPlantManager", "Quản lý nhà máy — chịu trách nhiệm vận hành đầu cuối"),
+            ("ManufacturingProductionPlanner", "Điều phối kế hoạch và năng lực sản xuất"),
+            ("ManufacturingProductionOperator", "Vận hành sản xuất tại dây chuyền"),
+            ("ManufacturingQualityInspector", "Kiểm tra và ghi nhận chất lượng tại hiện trường"),
+            ("ManufacturingQualityManager", "Quản lý và phê duyệt chất lượng"),
+            ("ManufacturingRecipeManager", "Quản lý công thức và đặc tả sản phẩm"),
+            ("ManufacturingMaintenanceTechnician", "Kỹ thuật viên bảo trì máy móc"),
+            ("ManufacturingCostController", "Kiểm soát giá vốn và hao hụt"),
         };
 
         logger.LogInformation("Seeding roles...");
         foreach (var (name, description) in roleConfigs)
+            await EnsureSystemRoleAsync(roleManager, name, description);
+
+        // Manufacturing roles follow least privilege and four-eyes approval.
+        // Governance metadata is synchronized without changing authorization
+        // versions, so a restart is safe and does not create noisy revisions.
+        var manufacturingGovernance = new Dictionary<string, (string Owner, string RiskTier, int ReviewCadenceDays)>
         {
-            if (!await roleManager.RoleExistsAsync(name))
-            {
-                await roleManager.CreateAsync(new Role
-                {
-                    Name = name,
-                    Description = description,
-                    IsSystem = true,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
-        }
+            ["ManufacturingPlantManager"] = ("manufacturing-governance", "high", 90),
+            ["ManufacturingProductionPlanner"] = ("manufacturing-planning", "standard", 180),
+            ["ManufacturingProductionOperator"] = ("manufacturing-operations", "standard", 180),
+            ["ManufacturingQualityInspector"] = ("manufacturing-quality", "standard", 180),
+            ["ManufacturingQualityManager"] = ("manufacturing-quality", "high", 90),
+            ["ManufacturingRecipeManager"] = ("manufacturing-engineering", "high", 90),
+            ["ManufacturingMaintenanceTechnician"] = ("manufacturing-maintenance", "standard", 180),
+            ["ManufacturingCostController"] = ("manufacturing-finance", "high", 90),
+            ["ManufacturingFieldOperator"] = ("manufacturing-operations", "standard", 180),
+        };
+        foreach (var (roleName, governance) in manufacturingGovernance)
+            await EnsureRoleGovernanceAsync(context, roleName, governance.Owner, governance.RiskTier, governance.ReviewCadenceDays, ct);
         logger.LogInformation("Roles seeded successfully.");
 
         // ──────────────────────────────────────────────
@@ -232,12 +248,82 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Patients.View,
                 HisHopePermissions.Dashboard.View,
             },
+
+            ["ManufacturingFieldOperator"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.ProductionExecute,
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Manufacturing.MaintenanceComplete,
+                HisHopePermissions.Dashboard.View,
+            },
+
+            // Segregated manufacturing workforce roles. Approval permissions
+            // are deliberately not granted to execution/inspection roles.
+            ["ManufacturingPlantManager"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.ProductionExecute,
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Manufacturing.QualityApprove,
+                HisHopePermissions.Manufacturing.RecipeApprove,
+                HisHopePermissions.Manufacturing.SpecificationApprove,
+                HisHopePermissions.Manufacturing.MaintenanceComplete,
+                HisHopePermissions.Manufacturing.CostManage,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingProductionPlanner"] = new HashSet<string>
+            {
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingProductionOperator"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.ProductionExecute,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingQualityInspector"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingQualityManager"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Manufacturing.QualityApprove,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingRecipeManager"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.RecipeApprove,
+                HisHopePermissions.Manufacturing.SpecificationApprove,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingMaintenanceTechnician"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.MaintenanceComplete,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingCostController"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.CostManage,
+                HisHopePermissions.Dashboard.View,
+            },
         };
 
         foreach (var (roleName, permissions) in rolePermissionMap)
         {
             var role = await context.Roles.FirstOrDefaultAsync(r => r.Name == roleName, ct);
             if (role is null) continue;
+
+            // System manufacturing roles are managed templates. Remove stale
+            // grants so a previously elevated employee role cannot retain a
+            // permission after the catalog is tightened.
+            if (roleName.StartsWith("Manufacturing", StringComparison.Ordinal))
+            {
+                var staleGrants = await context.RolePermissions
+                    .Where(link => link.RoleId == role.Id && !permissions.Contains(link.PermissionCode))
+                    .ToListAsync(ct);
+                if (staleGrants.Count > 0)
+                    context.RolePermissions.RemoveRange(staleGrants);
+            }
 
             foreach (var permissionCode in permissions)
             {
@@ -611,7 +697,7 @@ public static class IdentityDbInitializer
             "hishop:permissions", "hishop:patients", "hishop:appointments",
             "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy",
             "hishop:admin", "fhir.patient.read", "fhir.encounter.read",
-            "platform.continuity.write", "scim.read", "scim.write"
+            "platform.continuity.write", "scim.read", "scim.write", "manufacturing.api"
         };
         foreach (var scopeName in scopeNames)
         {
@@ -626,6 +712,23 @@ public static class IdentityDbInitializer
             }
         }
 
+        // Manufacturing portal requests an explicit resource scope in addition
+        // to the IAM workload audience. Keep the client registration idempotent
+        // and never persist a client secret in configuration or seed data.
+        var manufacturingClient = await appManager.FindByClientIdAsync("manufacturing-app", ct);
+        if (manufacturingClient is not null)
+        {
+            var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor();
+            await appManager.PopulateAsync(descriptor, manufacturingClient, ct);
+            var manufacturingScopePermission = OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "manufacturing.api";
+            if (!descriptor.Permissions.Any(permission => string.Equals(permission, manufacturingScopePermission, StringComparison.Ordinal)))
+            {
+                descriptor.Permissions.Add(manufacturingScopePermission);
+                await appManager.UpdateAsync(manufacturingClient, descriptor, ct);
+                logger.LogInformation("Granted OIDC scope manufacturing.api to client manufacturing-app.");
+            }
+        }
+
         logger.LogInformation("OIDC scopes seeded successfully.");
         await SeedControlPlaneSampleDataAsync(context, configuration, userManager, logger, ct);
         if (configuration?.GetValue("Conglomerate:Enabled", false) == true)
@@ -634,8 +737,20 @@ public static class IdentityDbInitializer
             {
                 await SeedConglomeratePilotUsersAsync(
                     userManager,
+                    roleManager,
                     configuration,
                     hostEnvironment,
+                    logger,
+                    ct);
+                await EnsureRolePermissionsAsync(
+                    context,
+                    "ManufacturingFieldOperator",
+                    [
+                        HisHopePermissions.Manufacturing.ProductionExecute,
+                        HisHopePermissions.Manufacturing.QualityInspect,
+                        HisHopePermissions.Manufacturing.MaintenanceComplete,
+                        HisHopePermissions.Dashboard.View,
+                    ],
                     logger,
                     ct);
             }
@@ -651,6 +766,101 @@ public static class IdentityDbInitializer
             }
         }
         logger.LogInformation("Database seeding completed successfully.");
+    }
+
+    private static async Task EnsureSystemRoleAsync(
+        RoleManager<Role> roleManager,
+        string name,
+        string description)
+    {
+        if (await roleManager.RoleExistsAsync(name))
+            return;
+
+        var created = await roleManager.CreateAsync(new Role
+        {
+            Name = name,
+            Description = description,
+            IsSystem = true,
+            CreatedAt = DateTime.UtcNow
+        });
+        if (created.Succeeded)
+            return;
+
+        if (await roleManager.RoleExistsAsync(name))
+            return;
+
+        throw new InvalidOperationException(
+            $"Unable to create system role '{name}': {string.Join(", ", created.Errors.Select(error => error.Description))}");
+    }
+
+    private static async Task EnsureRolePermissionsAsync(
+        IdentityDbContext context,
+        string roleName,
+        IReadOnlyCollection<string> permissionCodes,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var role = await context.Roles.FirstOrDefaultAsync(
+            item => item.Name == roleName,
+            ct);
+        if (role is null)
+            return;
+
+        foreach (var permissionCode in permissionCodes)
+        {
+            if (!await context.Permissions.AnyAsync(permission => permission.Code == permissionCode, ct))
+            {
+                logger.LogWarning("Permission {PermissionCode} not found in database, creating it.", permissionCode);
+                context.Permissions.Add(new Permission
+                {
+                    Code = permissionCode,
+                    Name = permissionCode,
+                    Group = "Auto-created",
+                    IsSystem = true,
+                    CreatedAt = DateTime.UtcNow
+                });
+                await context.SaveChangesAsync(ct);
+            }
+
+            if (!await context.RolePermissions.AnyAsync(
+                    item => item.RoleId == role.Id && item.PermissionCode == permissionCode,
+                    ct))
+            {
+                context.RolePermissions.Add(new RolePermission
+                {
+                    RoleId = role.Id,
+                    PermissionCode = permissionCode
+                });
+            }
+        }
+
+        await context.SaveChangesAsync(ct);
+    }
+
+    private static async Task EnsureRoleGovernanceAsync(
+        IdentityDbContext context,
+        string roleName,
+        string owner,
+        string riskTier,
+        int reviewCadenceDays,
+        CancellationToken ct)
+    {
+        var role = await context.Roles.FirstOrDefaultAsync(item => item.Name == roleName, ct);
+        if (role is null || !role.IsSystem)
+            return;
+
+        var changed = !string.Equals(role.Owner, owner, StringComparison.Ordinal)
+            || !string.Equals(role.RiskTier, riskTier, StringComparison.Ordinal)
+            || role.ReviewCadenceDays != reviewCadenceDays;
+        if (!changed)
+            return;
+
+        role.Owner = owner;
+        role.RiskTier = riskTier;
+        role.ReviewCadenceDays = reviewCadenceDays;
+        role.PublishedAt ??= DateTime.UtcNow;
+        role.LifecycleStatus = "active";
+        await context.SaveChangesAsync(ct);
     }
 
     private static async Task SeedConglomeratePilotMembershipsAsync(
@@ -715,7 +925,8 @@ public static class IdentityDbInitializer
             ("external-integration", "External Integration Service", "external"),
             ("database-continuity", "Database Continuity Service", "admin"),
             ("remediation", "Remediation Operator", "admin"),
-            ("mobile", "Mobile Platform", "admin")
+            ("mobile", "Mobile Platform", "admin"),
+            ("manufacturing", "Manufacturing Service", "manufacturing")
         };
         foreach (var definition in serviceDefinitions)
         {
@@ -747,9 +958,12 @@ public static class IdentityDbInitializer
             }
 
             var accountScope = scopes.FirstOrDefault(x => x.Kind == "account" && x.ParentId == tenantScope.Id);
+            var configuredTenant = configuration.GetSection("Conglomerate:Tenants").GetChildren()
+                .FirstOrDefault(section => string.Equals(section["Key"], tenantKey, StringComparison.OrdinalIgnoreCase));
+            var expectedEnvironmentKey = configuredTenant?["EnvironmentKey"] ?? $"{tenantKey}-staging";
             var environmentScope = accountScope is null
                 ? null
-                : scopes.FirstOrDefault(x => x.Kind == "environment" && x.ParentId == accountScope.Id);
+                : scopes.FirstOrDefault(x => x.Kind == "environment" && x.ParentId == accountScope.Id && x.Key == expectedEnvironmentKey);
             if (environmentScope is null)
             {
                 logger.LogWarning("Skipping conglomerate seed graph for tenant '{TenantKey}' without environment scope.", tenantKey);
@@ -953,6 +1167,87 @@ public static class IdentityDbInitializer
                     }
                 }
             }
+
+            // Optional service-principal/workload graph. Workload roles are the
+            // persisted service-principal and API-audience model; OAuth client
+            // registrations and trusted issuers remain configuration-backed.
+            if (tenantSeed.TryGetProperty("workloadRoles", out var workloadSeeds) && workloadSeeds.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var roleSeed in workloadSeeds.EnumerateArray())
+                {
+                    var key = roleSeed.GetProperty("key").GetString();
+                    var displayName = roleSeed.GetProperty("displayName").GetString();
+                    var audience = roleSeed.GetProperty("audience").GetString();
+                    if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(audience)) continue;
+                    var permissions = roleSeed.TryGetProperty("permissions", out var permissionElement)
+                        ? permissionElement.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray()
+                        : [];
+                    var role = await db.IamWorkloadRoles.FirstOrDefaultAsync(x => x.Key == key && x.ScopeId == environmentScope.Id, ct);
+                    if (role is null)
+                    {
+                        db.IamWorkloadRoles.Add(new IamWorkloadRole { Key = key, DisplayName = displayName, ScopeId = environmentScope.Id, Audience = audience, PermissionsJson = JsonSerializer.Serialize(permissions), TrustPolicyJson = JsonSerializer.Serialize(new { principals = new[] { audience }, conditions = new { tenant = tenantKey } }), MaxSessionSeconds = 900 });
+                    }
+                    else
+                    {
+                        role.DisplayName = displayName;
+                        role.Audience = audience;
+                        role.PermissionsJson = JsonSerializer.Serialize(permissions);
+                        role.TrustPolicyJson = JsonSerializer.Serialize(new { principals = new[] { audience }, conditions = new { tenant = tenantKey } });
+                        role.IsActive = true;
+                    }
+                }
+                await db.SaveChangesAsync(ct);
+                foreach (var role in await db.IamWorkloadRoles.Where(x => x.ScopeId == environmentScope.Id).ToListAsync(ct))
+                {
+                    var permissions = role.PermissionsJson;
+                    var runtimeSetKey = $"{role.Key}-permissions";
+                    var runtimeSet = await db.IamPermissionSets.FirstOrDefaultAsync(x => x.Key == runtimeSetKey && x.ScopeId == environmentScope.Id, ct);
+                    if (runtimeSet is null)
+                    {
+                        runtimeSet = new IamPermissionSet { Key = runtimeSetKey, DisplayName = $"{role.DisplayName} permissions", ScopeId = environmentScope.Id, PermissionsJson = permissions, LifecycleStatus = "published", CreatedBy = actorId.ToString(), PublishedAt = DateTime.UtcNow };
+                        db.IamPermissionSets.Add(runtimeSet);
+                        await db.SaveChangesAsync(ct);
+                    }
+                    else if (!string.Equals(runtimeSet.PermissionsJson, permissions, StringComparison.Ordinal))
+                    {
+                        runtimeSet.PermissionsJson = permissions;
+                        runtimeSet.Version++;
+                        runtimeSet.LifecycleStatus = "published";
+                        runtimeSet.PublishedAt = DateTime.UtcNow;
+                    }
+                    if (!await db.IamPermissionSetAssignments.AnyAsync(x => x.PermissionSetId == runtimeSet.Id && x.PrincipalId == role.Id && x.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload && x.ScopeId == environmentScope.Id, ct))
+                        db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment { PermissionSetId = runtimeSet.Id, PrincipalId = role.Id, PrincipalType = AuthorizationConstants.PrincipalTypes.Workload, ScopeId = environmentScope.Id, CreatedBy = actorId.ToString() });
+                    if (!await db.IamPermissionBoundaries.AnyAsync(x => x.PrincipalId == role.Id && x.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload && x.ScopeId == environmentScope.Id, ct))
+                        db.IamPermissionBoundaries.Add(new IamPermissionBoundary { PrincipalId = role.Id, PrincipalType = AuthorizationConstants.PrincipalTypes.Workload, ScopeId = environmentScope.Id, AllowedPermissionsJson = permissions, ResourceConstraintsJson = JsonSerializer.Serialize(new { tenant = tenantKey }), CreatedBy = actorId.ToString() });
+                }
+            }
+
+            if (tenantSeed.TryGetProperty("resourcePolicies", out var resourceSeeds) && resourceSeeds.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var policySeed in resourceSeeds.EnumerateArray())
+                {
+                    var serviceKey = policySeed.GetProperty("serviceKey").GetString();
+                    var pattern = policySeed.GetProperty("resourcePattern").GetString();
+                    if (string.IsNullOrWhiteSpace(serviceKey) || string.IsNullOrWhiteSpace(pattern)) continue;
+                    var statements = policySeed.TryGetProperty("statements", out var statementElement) ? statementElement.GetRawText() : "[]";
+                    var existing = await db.IamResourcePolicies.FirstOrDefaultAsync(x => x.ScopeId == environmentScope.Id && x.ServiceKey == serviceKey && x.ResourcePattern == pattern, ct);
+                    if (existing is null) db.IamResourcePolicies.Add(new IamResourcePolicy { ScopeId = environmentScope.Id, ServiceKey = serviceKey, ResourcePattern = pattern, StatementsJson = statements, LifecycleStatus = "published", PublishedAt = DateTime.UtcNow, CreatedBy = actorId.ToString() });
+                    else { existing.StatementsJson = statements; existing.LifecycleStatus = "published"; existing.PublishedAt ??= DateTime.UtcNow; }
+                }
+            }
+
+            if (tenantSeed.TryGetProperty("policies", out var policySeeds) && policySeeds.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var policySeed in policySeeds.EnumerateArray())
+                {
+                    var key = policySeed.GetProperty("key").GetString();
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    var existing = await db.AuthorizationPolicies.FirstOrDefaultAsync(x => x.Key == key, ct);
+                    var rules = policySeed.TryGetProperty("rules", out var rulesElement) ? rulesElement.GetRawText() : "{}";
+                    if (existing is null) db.AuthorizationPolicies.Add(new AuthorizationPolicyDefinition { Key = key, Description = policySeed.TryGetProperty("description", out var d) ? d.GetString() ?? key : key, Owner = policySeed.TryGetProperty("owner", out var o) ? o.GetString() ?? "manufacturing" : "manufacturing", RulesJson = rules, LifecycleStatus = "published", PublishedAt = DateTime.UtcNow, PublishedBy = actorId.ToString(), CreatedBy = actorId.ToString() });
+                    else { existing.Description = policySeed.TryGetProperty("description", out var d) ? d.GetString() ?? existing.Description : existing.Description; existing.RulesJson = rules; existing.LifecycleStatus = "published"; existing.PublishedAt ??= DateTime.UtcNow; }
+                }
+            }
         }
 
         await db.SaveChangesAsync(ct);
@@ -961,6 +1256,7 @@ public static class IdentityDbInitializer
 
     private static async Task SeedConglomeratePilotUsersAsync(
         UserManager<User> userManager,
+        RoleManager<Role> roleManager,
         IConfiguration configuration,
         IHostEnvironment? hostEnvironment,
         ILogger logger,
@@ -1063,8 +1359,16 @@ public static class IdentityDbInitializer
 
             if (!string.IsNullOrWhiteSpace(roleName))
             {
+                await EnsureSystemRoleAsync(roleManager, roleName, roleName);
                 if (!await userManager.IsInRoleAsync(user, roleName))
-                    await userManager.AddToRoleAsync(user, roleName);
+                {
+                    var addRole = await userManager.AddToRoleAsync(user, roleName);
+                    if (!addRole.Succeeded)
+                    {
+                        throw new InvalidOperationException(
+                            $"Unable to assign role '{roleName}' to conglomerate pilot '{userName}': {string.Join(", ", addRole.Errors.Select(error => error.Description))}");
+                    }
+                }
             }
             else if (await userManager.IsInRoleAsync(user, "Admin"))
             {
@@ -1246,7 +1550,8 @@ public static class IdentityDbInitializer
             ("external-integration", "External Integration Service", "external"),
             ("database-continuity", "Database Continuity Service", "admin"),
             ("remediation", "Remediation Operator", "admin"),
-            ("mobile", "Mobile Platform", "admin")
+            ("mobile", "Mobile Platform", "admin"),
+            ("manufacturing", "Manufacturing Service", "manufacturing")
         };
         foreach (var definition in serviceDefinitions)
         {

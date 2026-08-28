@@ -91,7 +91,7 @@ export class MaintenanceWorkPageComponent {
       return;
     }
     const operation = await this.queue.submit(
-      { ...scope, endpoint: `/machines/${this.machineId}/maintenance-work-orders/${this.workOrderId}/complete`, payload: { technician: this.technician.trim(), completedAt: new Date().toISOString(), evidence: this.evidence.trim() || undefined, tenantKey: scope.tenantKey } },
+      { ...scope, endpoint: `/machines/${this.machineId}/maintenance-work-orders/${this.workOrderId}/complete`, payload: { technician: this.technician.trim(), completedAt: new Date().toISOString(), evidence: this.evidence.trim() || undefined } },
       (queued) => this.api.completeMaintenanceWorkOrder(queued),
     );
     this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorMaintenanceCompleted", "Work order completed.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");

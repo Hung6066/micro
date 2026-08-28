@@ -41,6 +41,36 @@ public sealed class ContentPublicApiTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    public async Task Public_home_accepts_canonical_tenant_header()
+    {
+        var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/content/public/home");
+        request.Headers.Add("X-HisHope-Tenant", "customer-factory-x");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var home = await response.Content.ReadFromJsonAsync<HomeContentDto>();
+        Assert.NotNull(home);
+        Assert.True(home!.Articles.Count >= 1);
+    }
+
+    [Fact]
+    public async Task Public_home_does_not_expose_an_unallowlisted_tenant()
+    {
+        var client = _factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/content/public/home");
+        request.Headers.Add("X-HisHope-Tenant", "customer-acme");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var home = await response.Content.ReadFromJsonAsync<HomeContentDto>();
+        Assert.NotNull(home);
+        Assert.All(home!.Banners, banner => Assert.Equal("customer-factory-x", banner.TenantKey));
+    }
+
+    [Fact]
     public async Task Public_article_by_slug_returns_published_article()
     {
         var client = _factory.CreateClient();

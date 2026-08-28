@@ -5,6 +5,7 @@ import { BehaviorSubject, Observable, filter, switchMap } from "rxjs";
 import { AuthService } from "./core/services/auth.service";
 import { TenantContextService } from "./core/services/tenant-context.service";
 import { TenantSwitcherComponent } from "./core/components/tenant-switcher.component";
+import { WorkspaceSwitcherComponent } from "./core/components/workspace-switcher.component";
 import {
   HisHopeBrandComponent,
   HisHopeAppShellComponent,
@@ -235,6 +236,7 @@ const WORKSPACE_OPTIONS: readonly WorkspaceOption[] = [
     HisHopeToastComponent,
     HisHopeTranslatePipe,
     TenantSwitcherComponent,
+    WorkspaceSwitcherComponent,
   ],
   templateUrl: "./app.component.html",
   styleUrls: ["./app.component.scss"],
@@ -339,13 +341,11 @@ export class AppComponent implements OnInit {
     void this.router.navigateByUrl(item?.route ?? "/dashboard");
   }
 
-  get activeWorkspaceIcon(): string {
-    return this.workspaceOptions.find((option) => option.id === this.workspace())?.icon ?? "dashboard";
-  }
-
-  onWorkspaceChange(workspace: OperatorWorkspace): void {
-    this.workspace.set(workspace);
-    localStorage.setItem(WORKSPACE_STORAGE_KEY, workspace);
+  onWorkspaceChange(workspaceId: string): void {
+    const selected = this.workspaceOptions.find((candidate) => candidate.id === workspaceId);
+    if (!selected) return;
+    this.workspace.set(selected.id);
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, selected.id);
     if (!this.navItems().some((item) => this.router.url.startsWith(item.route))) {
       void this.router.navigateByUrl("/dashboard");
     }

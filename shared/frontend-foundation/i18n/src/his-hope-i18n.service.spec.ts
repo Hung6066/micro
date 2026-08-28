@@ -32,6 +32,16 @@ describe("HisHopeI18nService", () => {
     expect(service.t("common.search")).toBe("Tìm kiếm");
   });
 
+  it("keeps operator shell and traceability labels localized in Vietnamese", () => {
+    expect(service.t("customerPortal.selectWorkspace")).toBe(
+      "Chọn không gian làm việc",
+    );
+    expect(service.t("customerPortal.eventReceipts")).toBe("Sự kiện nhập kho");
+    expect(service.t("customerPortal.traceabilitySections")).toBe(
+      "Các phân hệ truy xuất nguồn gốc",
+    );
+  });
+
   it("falls back to the provided fallback text for unknown keys", () => {
     expect(service.t("nope.missing", "Default text")).toBe("Default text");
   });

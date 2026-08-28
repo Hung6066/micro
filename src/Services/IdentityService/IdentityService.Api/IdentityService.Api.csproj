@@ -35,9 +35,6 @@
     <ProjectReference Include="..\..\..\Shared\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Protobuf Include="..\..\..\Shared\Protos\identity.proto" GrpcServices="Both" Link="Protos\identity.proto" />
-  </ItemGroup>
-  <ItemGroup>
     <Content Update="config\assurance-policy.v1.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('config\assurance-policy.v1.json')" />
     <Content Include="..\..\..\..\config\assurance-policy.v1.json" Link="config\assurance-policy.v1.json" CopyToOutputDirectory="PreserveNewest" Condition="!Exists('config\assurance-policy.v1.json')" />
     <Content Update="config\conglomerate\**\*" CopyToOutputDirectory="PreserveNewest" Condition="Exists('config\conglomerate')" />

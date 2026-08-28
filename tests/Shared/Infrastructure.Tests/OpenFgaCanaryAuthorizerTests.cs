@@ -16,7 +16,7 @@ public sealed class OpenFgaCanaryAuthorizerTests
             .AddInMemoryCollection(new Dictionary<string, string?> { ["AUTHZ_PDP_MODE"] = "shadow" })
             .Build();
         var openFga = new Mock<IOpenFgaClient>();
-        var authorizer = new OpenFgaCanaryAuthorizer(configuration, openFga.Object, NullLogger<OpenFgaCanaryAuthorizer>.Instance);
+        var authorizer = new OpenFgaCanaryAuthorizer(openFga.Object, NullLogger<OpenFgaCanaryAuthorizer>.Instance, configuration);
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "user-1")], "Bearer"));
 
         var allowed = await authorizer.AllowsAsync(principal, "identity.admin.read");
@@ -34,7 +34,7 @@ public sealed class OpenFgaCanaryAuthorizerTests
         var openFga = new Mock<IOpenFgaClient>();
         openFga.Setup(x => x.CheckAsync("user:user-1", "identity_admin_read", "permission:identity.admin.read", It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
-        var authorizer = new OpenFgaCanaryAuthorizer(configuration, openFga.Object, NullLogger<OpenFgaCanaryAuthorizer>.Instance);
+        var authorizer = new OpenFgaCanaryAuthorizer(openFga.Object, NullLogger<OpenFgaCanaryAuthorizer>.Instance, configuration);
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "user-1")], "Bearer"));
 
         var allowed = await authorizer.AllowsAsync(principal, "identity.admin.read");

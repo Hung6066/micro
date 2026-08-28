@@ -1,0 +1,30 @@
+{
+  "version": "1",
+  "enabled": true,
+  "defaultTier": "shared",
+  "services": {
+    "manufacturing": {
+      "defaultConnectionName": "ManufacturingDb"
+    },
+    "commerce": {
+      "defaultConnectionName": "CommerceDb"
+    },
+    "content": {
+      "defaultConnectionName": "ContentDb"
+    }
+  },
+   "placements": [
+    {
+      "tenantKey": "customer-acme",
+      "tier": "dedicated",
+      "dataRegion": "ap-southeast-1",
+      "active": true,
+      "reason": "enterprise-contract-2026-ticket-XXXX",
+      "services": {
+        "manufacturing": {
+          "connectionName": "ManufacturingDb_customer_acme"
+        }
+      }
+    }
+  ]
+}

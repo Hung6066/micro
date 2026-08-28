@@ -150,6 +150,70 @@ public static class AuditLogEndpoints
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
             .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
+        // GET /api/v1/audit-logs/export - bounded CSV export for compliance tooling.
+        // Keep this server-side and tenant-scoped; callers must not be able to
+        // turn an export into an unbounded table scan or CSV formula injection.
+        group.MapGet("/audit-logs/export", async (
+            int? limit,
+            string? userId,
+            string? action,
+            string? resourceType,
+            string? resourceId,
+            DateTime? dateFrom,
+            DateTime? dateTo,
+            IdentityDbContext db,
+            HttpContext http,
+            CancellationToken ct) =>
+        {
+            var exportLimit = Math.Clamp(limit ?? 1000, 1, 10_000);
+            if (dateFrom.HasValue && dateTo.HasValue && dateFrom > dateTo)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["dateRange"] = ["dateFrom must be earlier than or equal to dateTo."] });
+            if (new[] { userId, action, resourceType, resourceId }.Any(value => value?.Length > 100))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["filter"] = ["Audit filters must be 100 characters or fewer."] });
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            var query = db.AuditLogs.AsNoTracking();
+            if (tenantFilter.AllowedTenantKeys is not null)
+                query = query.WhereTenantActor(db, tenantFilter.AllowedTenantKeys);
+            if (!string.IsNullOrWhiteSpace(userId)) query = query.Where(x => x.UserId == userId);
+            if (!string.IsNullOrWhiteSpace(action)) query = query.Where(x => x.Action == action);
+            if (!string.IsNullOrWhiteSpace(resourceType)) query = query.Where(x => x.ResourceType == resourceType);
+            if (!string.IsNullOrWhiteSpace(resourceId)) query = query.Where(x => x.ResourceId == resourceId);
+            if (dateFrom.HasValue) query = query.Where(x => x.Timestamp >= dateFrom.Value.ToUniversalTime());
+            if (dateTo.HasValue) query = query.Where(x => x.Timestamp <= dateTo.Value.ToUniversalTime());
+
+            var rows = await query.OrderByDescending(x => x.Timestamp).Take(exportLimit).ToListAsync(ct);
+            var csv = new StringBuilder("id,timestamp,userId,userName,action,resourceType,resourceId,outcome,source,correlationId\r\n");
+            foreach (var row in rows)
+            {
+                csv.AppendJoin(',',
+                    Csv(row.Id.ToString()), Csv(row.Timestamp.ToString("O")), Csv(row.UserId),
+                    Csv(row.UserName), Csv(row.Action), Csv(row.ResourceType), Csv(row.ResourceId),
+                    Csv(row.Outcome), Csv(row.Source), Csv(row.CorrelationId));
+                csv.Append("\r\n");
+            }
+
+            db.AuditLogs.Add(new AuditLog
+            {
+                UserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? string.Empty,
+                UserName = http.User.Identity?.Name,
+                Action = "export",
+                ResourceType = "AuditLog",
+                Details = JsonSerializer.Serialize(new { count = rows.Count, limit = exportLimit }),
+                IpAddress = http.Connection.RemoteIpAddress?.ToString(),
+                UserAgent = http.Request.Headers.UserAgent.ToString(),
+                CorrelationId = http.TraceIdentifier,
+                Outcome = "accepted",
+                Source = "audit-export",
+                Timestamp = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+
+            return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", $"audit-export-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
+
         // GET /api/v1/audit-logs/{id} - Audit log detail
         group.MapGet("/audit-logs/{id:guid}", async (
             Guid id,
@@ -225,6 +289,14 @@ public static class AuditLogEndpoints
         return details.Value.TryGetProperty(propertyName, out var property)
             ? property.ToString()
             : null;
+    }
+
+    private static string Csv(string? value)
+    {
+        var text = value ?? string.Empty;
+        // Prefix formula-like values so spreadsheet viewers cannot execute them.
+        if (text.Length > 0 && "=+-@".Contains(text[0])) text = "'" + text;
+        return $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
     }
 
     private static string Truncate(string? value, int maxLength)

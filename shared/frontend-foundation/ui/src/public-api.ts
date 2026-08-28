@@ -55,3 +55,4 @@ export * from "./his-hope-multi-select.component";
 export * from "./his-hope-date-range.component";
 export * from "./his-hope-file-upload.component";
 export * from "./his-hope-phi-mask.directive";
+export * from "./his-hope-workflow-stepper.component";

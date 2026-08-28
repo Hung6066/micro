@@ -1,6 +1,8 @@
+/** Manufacturing permissions enforced by ManufacturingService and Identity. */
 export const operatorMobilePermissions = {
-  production: { execute: "manufacturing.production.execute", read: "manufacturing.production.view" },
-  quality: { inspect: "manufacturing.quality.inspect", read: "manufacturing.quality.view" },
-  maintenance: { complete: "manufacturing.maintenance.complete", read: "manufacturing.maintenance.view" },
-  traceability: { read: "manufacturing.traceability.view" },
+  production: { access: "manufacturing.production.execute" },
+  quality: { access: "manufacturing.quality.inspect" },
+  maintenance: { access: "manufacturing.maintenance.complete" },
+  /** Lot scan / genealogy — production-floor access. */
+  traceability: { access: "manufacturing.production.execute" },
 } as const;

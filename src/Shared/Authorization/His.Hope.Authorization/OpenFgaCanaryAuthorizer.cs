@@ -9,11 +9,11 @@ namespace His.Hope.Authorization;
 /// Shadow mode remains telemetry-only via <see cref="LoggingAuthorizationShadowProbe"/>.
 /// </summary>
 public sealed class OpenFgaCanaryAuthorizer(
-    IConfiguration configuration,
     IOpenFgaClient openFga,
-    ILogger<OpenFgaCanaryAuthorizer> logger)
+    ILogger<OpenFgaCanaryAuthorizer> logger,
+    IConfiguration? configuration = null)
 {
-    private readonly string _mode = (configuration["AUTHZ_PDP_MODE"] ?? "disabled").Trim().ToLowerInvariant();
+    private readonly string _mode = (configuration?["AUTHZ_PDP_MODE"] ?? "disabled").Trim().ToLowerInvariant();
 
     public async Task<bool> AllowsAsync(ClaimsPrincipal principal, string permissionCode, CancellationToken cancellationToken = default)
     {

@@ -13,7 +13,7 @@ public static class AuthorizationPoliciesExtensions
         services.AddHttpContextAccessor();
         services.AddHttpClient<OpenFgaClient>((serviceProvider, client) =>
         {
-            var url = serviceProvider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()["AUTHZ_OPENFGA_URL"];
+            var url = serviceProvider.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["AUTHZ_OPENFGA_URL"];
             if (Uri.TryCreate(url, UriKind.Absolute, out var baseAddress)) client.BaseAddress = new Uri(baseAddress.ToString().TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromMilliseconds(500);
         });

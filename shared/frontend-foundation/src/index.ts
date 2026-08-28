@@ -5,6 +5,7 @@ export * from "./http/his-hope-error-reporting.service";
 export * from "./http/his-hope-error.interceptor";
 export * from "./http/his-hope-bearer-token.interceptor";
 export * from "./http/his-hope-cookie-session.interceptor";
+export * from "./http/his-hope-operator-tenant.interceptor";
 export * from "./errors/his-hope-global-error-handler";
 export * from "./theme/his-hope-theme.service";
 export * from "./theme/his-hope-preset-switcher.component";

@@ -1,6 +1,25 @@
 # Trạng thái triển khai blueprint Identity Control Plane
 
-Cập nhật: 2026-08-14
+Cập nhật: 2026-08-28
+
+## Xác thực mới nhất (2026-08-28)
+
+Các gate sau đã được chạy lại trên source hiện tại và có exit code thành công:
+
+| Gate | Kết quả | Ghi chú |
+|---|---:|---|
+| Identity integration Docker runner | **459/459** | 0 failed, 0 skipped; dùng PostgreSQL/Redis cô lập trên network Docker |
+| Manufacturing external tenant routing | **2/2** | `customer-acme` route tới dedicated database và schema Manufacturing tồn tại |
+| Cross-service API contracts | **121/121** | 8 service contract projects |
+| Reliability platform | **24/24** | Testcontainers PostgreSQL/Redis |
+| API security / authorization / database-platform contracts | **PASS** | Không có route API thiếu security bootstrap |
+| Full solution build | **PASS** | 0 errors; compiler reports existing warnings (primarily generated gRPC type conflicts and nullable contracts) |
+| Docker Compose config | **PASS** | Template không chứa credential external |
+
+Runtime smoke hiện tại: Identity `5001/health/ready`, Manufacturing `/health`,
+admin-app và operator-app đều trả HTTP 200; protected API khi anonymous trả
+401. Authenticated live tenant-switch smoke vẫn cần credential runtime hợp lệ,
+không dùng mật khẩu đoán hoặc tự ý reset để làm xanh gate.
 
 Tài liệu này đối chiếu implementation hiện tại với blueprint
 `docs/research/2026-08-14-bigtech-identity-control-plane-standardization.vi.md`.
@@ -777,3 +796,31 @@ that evidence.
 - IAM table actions now use shared foundation icon-button tokens with i18n `aria-label`/tooltip: edit, activate/deactivate, publish, lint, revoke and rollback. Missing `admin.edit`/`admin.activate`/`admin.deactivate` dictionary entries were added to both Vietnamese and English dictionaries, removing raw translation keys from the UI.
 - Shared foundation now owns the `.hh-form-card`/`.hh-form-grid` contract used by IAM CRUD forms: labels are block/grid fields, controls inherit theme tokens, focus/disabled states are accessible, and the grid collapses on narrow screens. This removes browser-default inline textbox rendering from Groups and the other IAM forms.
 - Analyzer pages now also use the shared `.hh-field` contract; direct action buttons inside page content no longer stretch to full width, and native select controls inherit the same themed dimensions and focus state.
+
+### Verification update — 2026-08-27 enterprise audit and scope safeguards
+
+- Identity Service now exposes bounded `GET /api/v1/audit-logs/export` CSV
+  export with tenant filtering, date/action/resource filters, a 10,000-row
+  ceiling, CSV formula-injection protection and an audit record for each export.
+- IAM scope create/update operations now write authorization audit records and
+  reject hierarchy cycles or kind changes that would invalidate active child
+  scopes. Existing activate/deactivate lifecycle checks remain enforced.
+- Identity API build passed with zero errors and infrastructure tests passed
+  `251/251`. External SIEM/WORM, HA/DR, FAPI, vendor-conformance and device-lab
+  gates remain operational prerequisites and are not claimed by local tests.
+
+### Verification update — 2026-08-27 runtime refresh and integration status
+
+- Rebuilt and recreated the `identityservice` Docker image after the session
+  guard change. Container health is `healthy`; `GET /health` returns `200` and
+  unauthenticated audit export returns `401` as required.
+- `InternalRefresh_WithoutSession_Returns401` passes in the Docker integration
+  runner. The local host build remains unavailable because the machine NuGet
+  cache is missing `Microsoft.CodeAnalysis.Analyzers`; Docker restore/build is
+  the authoritative build evidence.
+- The full Docker integration suite now passes `459/459`. Table-view CRUD is
+  covered on a fresh migrated PostgreSQL database; the shared lifecycle
+  interceptor now converts `DateTime` values to `DateTimeOffset` when required.
+  SAML coverage cleanup uses a test-only hard delete for global settings so
+  soft-delete cannot retain a stale primary key, and the BFF guard contract is
+  consistently asserted as `401` for a missing session.

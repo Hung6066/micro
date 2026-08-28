@@ -10,10 +10,12 @@ import { CommonModule } from "@angular/common";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   HisHopeActionButtonComponent,
+  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,
   HisHopeResourceRowActionsDirective,
   HisHopeDialogService,
+  HisHopeWorkflowStepperComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeApiErrorMessageService as ApiErrorMessageService,
@@ -23,12 +25,14 @@ import {
 import { HisHopeRecipeDto } from "@his-hope/frontend-foundation/contracts";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
+import { buildEntityWorkflowSteps, buildReferenceWorkflowSteps } from "../../core/utils/manufacturing-workflow.util";
+import { portalEnumLabel } from "../../core/utils/portal-label.util";
 import { RecipeCreateDialogComponent } from "./recipe-create-dialog.component";
 
 @Component({
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, HisHopeActionButtonComponent, HisHopeResourceListPageComponent, HisHopeResourceRowActionsDirective, HisHopeTranslatePipe],
+  imports: [CommonModule, HisHopeActionButtonComponent, HisHopeDataTableCellDirective, HisHopeResourceListPageComponent, HisHopeResourceRowActionsDirective, HisHopeTranslatePipe, HisHopeWorkflowStepperComponent],
   template: `
     <hh-resource-list-page
       title="customerPortal.recipesTitle"
@@ -47,6 +51,18 @@ import { RecipeCreateDialogComponent } from "./recipe-create-dialog.component";
       (create)="openCreate()"
       (refresh)="load()"
     >
+      <section hhResourceListPrefix class="workflow-reference" data-testid="recipe-workflow-reference">
+        <h2 class="workflow-reference__title">{{ "customerPortal.workflowRecipe" | hhTranslate: "Recipe lifecycle" }}</h2>
+        <hh-workflow-stepper [ariaLabel]="'customerPortal.workflowRecipe' | hhTranslate: 'Recipe lifecycle'" [steps]="referenceWorkflowSteps" />
+      </section>
+      <ng-template hhDataTableCell="workflow" let-row>
+        <hh-workflow-stepper
+          class="entity-workflow"
+          [attr.data-testid]="'recipe-workflow-' + row['id']"
+          [ariaLabel]="'customerPortal.workflowRecipe' | hhTranslate: 'Recipe lifecycle'"
+          [steps]="recipeWorkflowSteps(recipeStatusFromRow(row))"
+        />
+      </ng-template>
       <ng-template hhResourceRowActions let-row>
         @if (row['status'] === 'Draft') {
           <hh-action-button kind="row" mode="icon-only" icon="send" [label]="'customerPortal.submitRecipe' | hhTranslate: 'Submit'" [disabled]="saving" (pressed)="transition(row, 'submit')" />
@@ -61,7 +77,7 @@ import { RecipeCreateDialogComponent } from "./recipe-create-dialog.component";
     </hh-resource-list-page>
     @if (actionError) { <p class="action-error" role="alert">{{ actionError }}</p> }
   `,
-  styles: [`:host { display: block; font-family: var(--font-sans); } .action-error { margin: var(--space-md) 0 0; color: var(--color-danger); }`],
+  styles: [`:host { display: block; font-family: var(--font-sans); } .workflow-reference { margin-bottom: var(--space-lg); padding: var(--space-md); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); } .workflow-reference__title { margin: 0 0 var(--space-sm); font-size: var(--font-size-caption); font-weight: var(--font-weight-semibold); color: var(--text-secondary); } .entity-workflow { overflow-x: auto; } .action-error { margin: var(--space-md) 0 0; color: var(--color-danger); }`],
 })
 export class RecipesPageComponent implements OnInit {
   private readonly api = inject(ManufacturingApiService);
@@ -81,6 +97,12 @@ export class RecipesPageComponent implements OnInit {
   tenantLabel: string | null = null;
 
   get pageSubtitle(): string { this.i18n.locale(); return this.i18n.t("customerPortal.tenantScope", "Tenant: {{tenant}}", { tenant: this.tenantLabel ?? "—" }); }
+  get referenceWorkflowSteps() { return buildReferenceWorkflowSteps(this.i18n, "recipe"); }
+  recipeWorkflowSteps(status: string) { return buildEntityWorkflowSteps(this.i18n, "recipe", status); }
+  recipeStatusFromRow(row: Record<string, unknown>): string {
+    return String(row["rawStatus"] ?? row["status"] ?? "");
+  }
+  recipeStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "governanceLifecycleStatus", status); }
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
@@ -90,6 +112,7 @@ export class RecipesPageComponent implements OnInit {
       { key: "targetYieldPercent", label: this.i18n.t("customerPortal.targetYield", "Target yield %"), sortable: true },
       { key: "componentSummary", label: this.i18n.t("customerPortal.recipeComponents", "Components") },
       { key: "status", label: this.i18n.t("common.status", "Status"), sortable: true },
+      { key: "workflow", label: this.i18n.t("customerPortal.columnWorkflow", "Workflow"), sortable: false },
       { key: "createdAt", label: this.i18n.t("common.createdAt", "Created"), sortable: true },
       { key: "actions", label: this.i18n.t("common.actions", "Actions"), sortable: false, hideable: false },
     ];
@@ -110,7 +133,8 @@ export class RecipesPageComponent implements OnInit {
           processStep: recipe.processStep,
           targetYieldPercent: `${recipe.targetYieldPercent}%`,
           componentSummary: recipe.components.map((component) => `${component.ingredientSku} · ${component.quantity} ${component.uom}`).join("; "),
-          status: recipe.status,
+          status: this.recipeStatusLabel(recipe.status),
+          rawStatus: recipe.status,
           createdAt: new Date(recipe.createdAt).toLocaleString(),
         }));
         this.loading = false; this.cdr.markForCheck();

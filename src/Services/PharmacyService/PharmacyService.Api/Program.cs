@@ -127,13 +127,13 @@ if (app.Environment.IsDevelopment())
     // Keep this idempotent compatibility step until all environments have
     // applied the equivalent EF migration.
     db.Database.ExecuteSqlRaw("""
-        ALTER TABLE "OutboxMessages"
+        ALTER TABLE outbox_messages
             ADD COLUMN IF NOT EXISTS claimed_by character varying(200),
             ADD COLUMN IF NOT EXISTS next_attempt_at timestamp with time zone,
             ADD COLUMN IF NOT EXISTS dead_lettered_on timestamp with time zone;
-        ALTER TABLE "Prescriptions" DROP CONSTRAINT IF EXISTS chk_prescriptions_status;
-        UPDATE "Prescriptions" SET status = 'PRESCRIBED' WHERE status = 'ACTIVE';
-        ALTER TABLE "Prescriptions"
+        ALTER TABLE prescriptions DROP CONSTRAINT IF EXISTS chk_prescriptions_status;
+        UPDATE prescriptions SET status = 'PRESCRIBED' WHERE status = 'ACTIVE';
+        ALTER TABLE prescriptions
             ADD CONSTRAINT chk_prescriptions_status
             CHECK (status IN ('PRESCRIBED', 'FILLED', 'CANCELLED', 'EXPIRED'));
         """);

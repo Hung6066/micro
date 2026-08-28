@@ -1,3 +1,4 @@
+using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class ManufacturingMobileOperationReplayEntity
@@ -11,16 +12,13 @@ public sealed class ManufacturingMobileOperationReplayEntity
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public sealed class ManufacturingMobileOperationReplayStore(IDbContextFactory<ManufacturingDbContext> dbFactory)
+public sealed class ManufacturingMobileOperationReplayStore(IManufacturingDbContextFactory dbFactory)
 {
     private static readonly TimeSpan Retention = TimeSpan.FromDays(7);
 
     public async Task<bool> TryReserveAsync(string tenantKey, string subjectId, string method, string path, string operationId, CancellationToken cancellationToken)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        // Keep the replay table bounded without requiring a separate scheduler.
-        // Seven days covers mobile retry/offline windows while preventing
-        // unbounded growth in long-running tenants.
+        await using var db = await dbFactory.CreateDbContextAsync(tenantKey, cancellationToken);
         var retentionCutoff = DateTimeOffset.UtcNow.Subtract(Retention);
         await db.MobileOperationReplays
             .Where(x => x.CreatedAt < retentionCutoff)
@@ -36,7 +34,7 @@ public sealed class ManufacturingMobileOperationReplayStore(IDbContextFactory<Ma
 
     public async Task ReleaseAsync(string tenantKey, string subjectId, string method, string path, string operationId, CancellationToken cancellationToken)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(tenantKey, cancellationToken);
         await db.MobileOperationReplays
             .Where(x => x.TenantKey == tenantKey && x.SubjectId == subjectId && x.Method == method && x.Path == path && x.OperationId == operationId)
             .ExecuteDeleteAsync(cancellationToken);

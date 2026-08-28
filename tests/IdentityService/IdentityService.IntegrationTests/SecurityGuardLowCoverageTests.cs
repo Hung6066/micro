@@ -31,7 +31,7 @@ public sealed class SecurityGuardLowCoverageTests
 
         var result = await InvokeBffGuardAsync(context, Mock.Of<IConnectionMultiplexer>(), CreateProtector());
 
-        result.Should().BeOfType<ProblemHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        result.Should().BeOfType<UnauthorizedHttpResult>();
     }
 
     [Fact]

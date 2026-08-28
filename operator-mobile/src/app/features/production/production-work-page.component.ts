@@ -6,8 +6,10 @@ import { OperatorMobileApiService, type ManufacturingException, type Manufacturi
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
+import { buildManufacturingWorkflowRenderModel } from "@his-hope/frontend-foundation/domain";
+import { HisHopeWorkflowStepperComponent } from "@his-hope/frontend-foundation/ui";
 
-@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe], templateUrl: "./production-work-page.component.html", styleUrls: ["./production-work-page.component.scss"] })
+@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeWorkflowStepperComponent], templateUrl: "./production-work-page.component.html", styleUrls: ["./production-work-page.component.scss"] })
 export class ProductionWorkPageComponent {
   private readonly api = inject(OperatorMobileApiService);
   private readonly queue = inject(OperationQueueService);
@@ -39,6 +41,10 @@ export class ProductionWorkPageComponent {
   oeeMissingMetricsLabel(metrics: string[]): string { return metrics.map((metric) => this.oeeMetricLabel(metric)).join(", "); }
   exceptionSeverityLabel(severity: string): string { return manufacturingEnumLabel(this.i18n, "exceptionSeverity", severity); }
   exceptionCodeLabel(code: string): string { return manufacturingEnumLabel(this.i18n, "exceptionCode", code); }
+  batchWorkflowSteps() {
+    const batch = this.batches.find((item) => item.id === this.selectedBatchId);
+    return batch ? buildManufacturingWorkflowRenderModel("production-batch", batch.status, (group, key) => manufacturingEnumLabel(this.i18n, group, key)) : [];
+  }
 
   constructor() {
     effect(() => {
@@ -89,7 +95,7 @@ export class ProductionWorkPageComponent {
       return;
     }
     const operation = await this.queue.submit(
-      { ...scope, endpoint: `/production-batches/${selectedBatch.id}/operations`, expectedVersion: selectedBatch.version, payload: { sequence: 1, processStep: this.processStep.trim() || "operation", operator: scope.subjectId, inputQuantity: this.inputQuantity, outputQuantity: this.outputQuantity, required: true, qcStatus: this.qcStatus, tenantKey: scope.tenantKey } },
+      { ...scope, endpoint: `/production-batches/${selectedBatch.id}/operations`, expectedVersion: selectedBatch.version, payload: { sequence: 1, processStep: this.processStep.trim() || "operation", operator: scope.subjectId, inputQuantity: this.inputQuantity, outputQuantity: this.outputQuantity, required: true, qcStatus: this.qcStatus } },
       (queued) => this.api.recordProductionOperation(queued),
     );
     this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorOperationRecorded", "Operation recorded.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");

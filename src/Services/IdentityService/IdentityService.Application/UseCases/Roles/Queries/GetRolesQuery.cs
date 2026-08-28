@@ -40,6 +40,10 @@ public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<R
                 .Distinct()
                 .ToArray();
             query = query.Where(role =>
+                // System roles are global catalog templates. Administrators
+                // must be able to discover and assign them even when the
+                // current tenant filter has no member assigned yet.
+                role.IsSystem ||
                 _context.UserRoles.Any(userRole =>
                     userRole.RoleId == role.Id &&
                     _context.UserClaims.Any(claim =>

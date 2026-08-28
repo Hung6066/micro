@@ -15,11 +15,17 @@ import {
   HisHopeStateComponent,
   HisHopeActionButtonComponent,
   HisHopeTabsComponent,
+  HisHopeWorkflowStepperComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import {
+  buildManufacturingWorkflowRenderModel,
+  buildManufacturingWorkflowSteps,
+} from "@his-hope/frontend-foundation/domain";
+import type { HisHopeWorkflowStepRenderModel } from "@his-hope/frontend-foundation/contracts";
 import {
   HisHopePurchaseOrderDto,
   HisHopeSupplierDto,
@@ -34,6 +40,8 @@ import {
   HisHopeSupplierCertificateDto,
   HisHopeSupplierMaterialApprovalDto,
 } from "@his-hope/frontend-foundation/contracts";
+import { EntityStatusHistoryPanelComponent } from "../../core/components/entity-status-history-panel.component";
+import { EntityCrossWorkflowPanelComponent } from "../../core/components/entity-cross-workflow-panel.component";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
@@ -53,6 +61,9 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     HisHopeActionButtonComponent,
     HisHopeTabsComponent,
     HisHopeTranslatePipe,
+    HisHopeWorkflowStepperComponent,
+    EntityStatusHistoryPanelComponent,
+    EntityCrossWorkflowPanelComponent,
   ],
   template: `
     <hh-page-layout>
@@ -61,6 +72,17 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         [title]="'customerPortal.procurementTitle' | hhTranslate: 'Procurement'"
         [subtitle]="pageSubtitle"
       />
+      @if (activeTab === "purchase-orders") {
+        <section class="workflow-reference" [attr.data-testid]="'procurement-workflow-reference'">
+          <h2 class="workflow-reference__title">
+            {{ "customerPortal.workflowPurchaseOrder" | hhTranslate: "Purchase order lifecycle" }}
+          </h2>
+          <hh-workflow-stepper
+            [ariaLabel]="'customerPortal.workflowPurchaseOrder' | hhTranslate: 'Purchase order lifecycle'"
+            [steps]="referencePurchaseOrderWorkflowSteps"
+          />
+        </section>
+      }
       <hh-tabs
         class="procurement-nav"
         [attr.data-active-tab]="activeTab"
@@ -241,6 +263,22 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                     <strong>{{ po.orderNumber }}</strong>
                     <span class="status">{{ purchaseOrderStatusLabel(po.status) }}</span>
                   </header>
+                  <hh-workflow-stepper
+                    class="entity-workflow"
+                    [attr.data-testid]="'purchase-order-workflow-' + po.id"
+                    [ariaLabel]="'customerPortal.workflowPurchaseOrder' | hhTranslate: 'Purchase order lifecycle'"
+                    [steps]="purchaseOrderWorkflowSteps(po.status)"
+                  />
+                  <app-entity-status-history-panel
+                    [entityId]="po.id"
+                    [loadHistory]="loadPurchaseOrderStatusHistory"
+                    [statusLabel]="purchaseOrderStatusLabelFn"
+                  />
+                  <app-entity-cross-workflow-panel
+                    entityType="purchase-order"
+                    [entityId]="po.id"
+                    [loadTrace]="loadCrossEntityWorkflow"
+                  />
                   <p>
                     {{
                       "customerPortal.procurementSupplierLine"
@@ -396,6 +434,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         padding-left: var(--space-lg);
         font-size: var(--font-size-body);
       }
+      li { display:flex; align-items:center; gap:var(--space-xs); flex-wrap:wrap; line-height:var(--line-height-relaxed); }
       .empty {
         color: var(--text-secondary);
         font-size: var(--font-size-body);
@@ -418,8 +457,28 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
       .received { color: var(--text-secondary); font-size: var(--font-size-caption); }
       .po-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
       .error { color: var(--color-danger); }
+      .workflow-reference {
+        margin-bottom: var(--space-lg);
+        padding: var(--space-md);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        background: var(--surface-subtle);
+      }
+      .workflow-reference__title {
+        margin: 0 0 var(--space-sm);
+        font-size: var(--font-size-caption);
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-secondary);
+      }
+      .entity-workflow {
+        margin: var(--space-sm) 0;
+        overflow-x: auto;
+      }
       .quotation-list { display: grid; gap: var(--space-sm); margin-top: var(--space-md); }
       .quotation-row { display: flex; gap: var(--space-md); align-items: center; flex-wrap: wrap; padding: var(--space-sm); border: 1px solid var(--border-subtle); border-radius: var(--radius-control); }
+      .receipt-history { display:grid; gap:var(--space-sm); }
+      .receipt-history-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--space-sm); align-items:center; padding:var(--space-sm); border:1px solid var(--border-subtle); border-radius:var(--radius-control); }
+      @media (max-width: 700px) { .receipt-history-row { grid-template-columns:1fr; } }
       @media (max-width: 700px) { .line-row { grid-template-columns: 1fr 1fr; } .wide { grid-column: auto; } .po-toolbar { grid-template-columns: 1fr; } .toolbar-count { padding-bottom: 0; } }
     `,
   ],
@@ -497,7 +556,7 @@ export class ProcurementPageComponent implements OnInit {
   startUom(): void { this.masterDataError = ""; this.uomDraft = { code: "", name: "", dimension: "mass" }; }
   startMaterial(): void { this.masterDataError = ""; this.materialDraft = { sku: "", name: "", baseUomCode: this.uoms[0]?.code ?? "" }; }
   saveUom(): void { const draft = this.uomDraft; if (!draft?.code.trim() || !draft.name.trim() || !draft.dimension.trim()) { this.masterDataError = this.i18n.t("customerPortal.masterDataFormInvalid", "Required master data fields are missing."); return; } this.masterDataBusy = true; this.manufacturingApi.createUom({ code: draft.code.trim(), name: draft.name.trim(), dimension: draft.dimension.trim() }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.uomDraft = null; this.masterDataBusy = false; this.load(); }, error: (error) => { this.masterDataError = this.errors.message(error, "customerPortal.masterDataSaveFailed"); this.masterDataBusy = false; this.cdr.markForCheck(); } }); }
-  saveMaterial(): void { const tenantKey = this.tenantContext.getActiveTenantKey(); const draft = this.materialDraft; if (!tenantKey || !draft?.sku.trim() || !draft.name.trim() || !draft.baseUomCode) { this.masterDataError = this.i18n.t("customerPortal.masterDataFormInvalid", "Required master data fields are missing."); return; } this.masterDataBusy = true; this.manufacturingApi.createMaterial({ tenantKey, sku: draft.sku.trim(), name: draft.name.trim(), baseUomCode: draft.baseUomCode, materialType: "RawMaterial" }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.materialDraft = null; this.masterDataBusy = false; this.load(); }, error: (error) => { this.masterDataError = this.errors.message(error, "customerPortal.masterDataSaveFailed"); this.masterDataBusy = false; this.cdr.markForCheck(); } }); }
+  saveMaterial(): void { const tenantKey = this.tenantContext.getActiveTenantKey(); const draft = this.materialDraft; if (!tenantKey || !draft?.sku.trim() || !draft.name.trim() || !draft.baseUomCode) { this.masterDataError = this.i18n.t("customerPortal.masterDataFormInvalid", "Required master data fields are missing."); return; } this.masterDataBusy = true; this.manufacturingApi.createMaterial({ sku: draft.sku.trim(), name: draft.name.trim(), baseUomCode: draft.baseUomCode, materialType: "RawMaterial" }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.materialDraft = null; this.masterDataBusy = false; this.load(); }, error: (error) => { this.masterDataError = this.errors.message(error, "customerPortal.masterDataSaveFailed"); this.masterDataBusy = false; this.cdr.markForCheck(); } }); }
 
   startFacility(): void { this.facilityError = ""; this.facilityDraft = { code: "", name: "" }; }
   saveFacility(): void {
@@ -505,12 +564,12 @@ export class ProcurementPageComponent implements OnInit {
     const draft = this.facilityDraft;
     if (!tenantKey || !draft || !draft.code.trim() || !draft.name.trim()) { this.facilityError = this.i18n.t("customerPortal.facilityFormInvalid", "Facility code and name are required."); return; }
     this.facilityBusy = true; this.facilityError = "";
-    this.manufacturingApi.createFacility({ tenantKey, code: draft.code.trim(), name: draft.name.trim(), active: true }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.facilityDraft = null; this.facilityBusy = false; this.load(); }, error: (error) => { this.facilityError = this.errors.message(error, "customerPortal.facilitySaveFailed"); this.facilityBusy = false; this.cdr.markForCheck(); } });
+    this.manufacturingApi.createFacility({ code: draft.code.trim(), name: draft.name.trim(), active: true }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.facilityDraft = null; this.facilityBusy = false; this.load(); }, error: (error) => { this.facilityError = this.errors.message(error, "customerPortal.facilitySaveFailed"); this.facilityBusy = false; this.cdr.markForCheck(); } });
   }
 
   startSupplier(): void { this.supplierError = ""; this.supplierDraft = { code: "", name: "", legalName: "", taxIdentificationNumber: "", contactName: "", contactEmail: "", contactPhone: "", countryCode: "VN", address: "", riskLevel: "Standard", active: true }; }
   startSupplierRfq(): void { this.supplierRfqError = ""; this.supplierRfqDraft = { rfqNumber: `RFQ-${Date.now()}`, materialSku: "", quantity: 0, uom: "kg" }; }
-  saveSupplierRfq(): void { const tenantKey = this.tenantContext.getActiveTenantKey(); const draft = this.supplierRfqDraft; if (!tenantKey || !draft || !draft.rfqNumber.trim() || !draft.materialSku.trim() || draft.quantity <= 0 || !draft.uom.trim()) { this.supplierRfqError = this.i18n.t("customerPortal.rfqFormInvalid", "RFQ fields are required."); return; } this.supplierRfqBusy = true; this.manufacturingApi.createSupplierRfq({ tenantKey, rfqNumber: draft.rfqNumber.trim(), materialSku: draft.materialSku.trim(), quantity: draft.quantity, uom: draft.uom.trim() }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: rfq => { this.supplierRfqs = [rfq, ...this.supplierRfqs]; this.supplierRfqDraft = null; this.supplierRfqBusy = false; this.cdr.markForCheck(); }, error: error => { this.supplierRfqError = this.errors.message(error, "customerPortal.supplierRfqSaveFailed"); this.supplierRfqBusy = false; this.cdr.markForCheck(); } }); }
+  saveSupplierRfq(): void { const tenantKey = this.tenantContext.getActiveTenantKey(); const draft = this.supplierRfqDraft; if (!tenantKey || !draft || !draft.rfqNumber.trim() || !draft.materialSku.trim() || draft.quantity <= 0 || !draft.uom.trim()) { this.supplierRfqError = this.i18n.t("customerPortal.rfqFormInvalid", "RFQ fields are required."); return; } this.supplierRfqBusy = true; this.manufacturingApi.createSupplierRfq({ rfqNumber: draft.rfqNumber.trim(), materialSku: draft.materialSku.trim(), quantity: draft.quantity, uom: draft.uom.trim() }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: rfq => { this.supplierRfqs = [rfq, ...this.supplierRfqs]; this.supplierRfqDraft = null; this.supplierRfqBusy = false; this.cdr.markForCheck(); }, error: error => { this.supplierRfqError = this.errors.message(error, "customerPortal.supplierRfqSaveFailed"); this.supplierRfqBusy = false; this.cdr.markForCheck(); } }); }
   startSupplierQuotation(rfqId: string): void { this.supplierQuotationDraft = { rfqId, supplierId: "", unitPrice: 0, leadTimeDays: 0 }; }
   loadQuotations(rfqId: string): void { this.quotationRfqId = rfqId; this.manufacturingApi.getSupplierQuotations(rfqId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (items) => { this.quotations = items ?? []; this.cdr.markForCheck(); }, error: (error) => { this.supplierRfqError = this.errors.message(error, "customerPortal.supplierQuotationLoadFailed"); this.cdr.markForCheck(); } }); }
   setQuotationStatus(quotation: HisHopeSupplierQuotationDto, status: string): void { this.supplierQuotationBusy = true; this.manufacturingApi.updateSupplierQuotationStatus(quotation.id, status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.supplierQuotationBusy = false; if (this.quotationRfqId) this.loadQuotations(this.quotationRfqId); }, error: (error) => { this.supplierRfqError = this.errors.message(error, "customerPortal.supplierQuotationSaveFailed"); this.supplierQuotationBusy = false; this.cdr.markForCheck(); } }); }
@@ -523,7 +582,7 @@ export class ProcurementPageComponent implements OnInit {
     if (!tenantKey || !draft || !draft.code.trim() || !draft.name.trim()) { this.supplierError = this.i18n.t("customerPortal.supplierFormInvalid", "Supplier code and name are required."); return; }
     this.supplierBusy = true; this.supplierError = "";
     const profile = { code: draft.code.trim(), name: draft.name.trim(), active: draft.active, legalName: draft.legalName.trim(), taxIdentificationNumber: draft.taxIdentificationNumber.trim(), contactName: draft.contactName.trim(), contactEmail: draft.contactEmail.trim(), contactPhone: draft.contactPhone.trim(), countryCode: draft.countryCode.trim(), address: draft.address.trim(), riskLevel: draft.riskLevel };
-    const request = draft.id ? this.manufacturingApi.updateSupplier(draft.id, profile) : this.manufacturingApi.createSupplier({ tenantKey, ...profile });
+    const request = draft.id ? this.manufacturingApi.updateSupplier(draft.id, profile) : this.manufacturingApi.createSupplier(profile);
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.supplierDraft = null; this.supplierBusy = false; this.load(); }, error: (error) => { this.supplierError = this.errors.message(error, "customerPortal.supplierSaveFailed"); this.supplierBusy = false; this.cdr.markForCheck(); } });
   }
   updateSupplierApproval(supplier: HisHopeSupplierDto, status: string): void { this.supplierBusy = true; this.supplierError = ""; this.manufacturingApi.updateSupplierApproval(supplier.id, status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.supplierBusy = false; this.load(); }, error: (error) => { this.supplierError = this.errors.message(error, "customerPortal.supplierApprovalSaveFailed"); this.supplierBusy = false; this.cdr.markForCheck(); } }); }
@@ -543,6 +602,27 @@ export class ProcurementPageComponent implements OnInit {
   purchaseOrderStatusLabel(status: string): string {
     return portalEnumLabel(this.i18n, "purchaseOrderStatus", status);
   }
+
+  readonly loadPurchaseOrderStatusHistory = (purchaseOrderId: string) =>
+    this.manufacturingApi.getPurchaseOrderStatusHistory(purchaseOrderId);
+  readonly purchaseOrderStatusLabelFn = (status: string) => this.purchaseOrderStatusLabel(status);
+  readonly loadCrossEntityWorkflow = (entityType: string, entityId: string) =>
+    this.manufacturingApi.getCrossEntityWorkflow(entityType, entityId);
+
+  get referencePurchaseOrderWorkflowSteps(): HisHopeWorkflowStepRenderModel[] {
+    this.i18n.locale();
+    return buildManufacturingWorkflowSteps("purchase-order", (group, key) =>
+      portalEnumLabel(this.i18n, group as "purchaseOrderStatus", key),
+    ).map((step) => ({ ...step, state: "upcoming" as const }));
+  }
+
+  purchaseOrderWorkflowSteps(status: string): HisHopeWorkflowStepRenderModel[] {
+    this.i18n.locale();
+    return buildManufacturingWorkflowRenderModel("purchase-order", status, (group, key) =>
+      portalEnumLabel(this.i18n, group as "purchaseOrderStatus", key),
+    );
+  }
+
   supplierApprovalStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "supplierApprovalStatus", status); }
   quotationStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "quotationStatus", status); }
   receiptDispositionLabel(disposition: string): string { return portalEnumLabel(this.i18n, "disposition", disposition); }
@@ -560,7 +640,6 @@ export class ProcurementPageComponent implements OnInit {
     this.purchaseOrderBusy = true;
     this.purchaseOrderError = "";
     this.manufacturingApi.createPurchaseOrder({
-      tenantKey,
       supplierId: draft.supplierId,
       orderNumber: draft.orderNumber.trim(),
       currency: draft.currency.trim().toUpperCase(),

@@ -46,7 +46,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
 })
 export class ForecastPageComponent implements OnInit, AfterViewInit {
   activeTab = "create";
-  selectTab(tab: string): void { this.activeTab = tab; this.applyTabVisibility(); this.cdr.markForCheck(); }
+  selectTab(tab: string): void { this.activeTab = tab; if (tab === "requirements" && !this.selectedForecast && this.forecasts[0]) this.calculate(this.forecasts[0]); this.applyTabVisibility(); this.cdr.markForCheck(); }
   ngAfterViewInit(): void { const observer = new MutationObserver(() => { if (document.querySelectorAll("section.section").length) { this.applyTabVisibility(); observer.disconnect(); } }); observer.observe(document.body, { childList: true, subtree: true }); this.applyTabVisibility(); }
   private applyTabVisibility(): void { const sections = Array.from(document.querySelectorAll<HTMLElement>("section.section")); const index = this.activeTab === "create" ? 0 : this.activeTab === "list" ? 1 : 2; sections.forEach((section, i) => section.hidden = i !== index); }
   private readonly api = inject(ManufacturingApiService); private readonly tenantContext = inject(TenantContextService); private readonly i18n = inject(HisHopeI18nService); private readonly errors = inject(ApiErrorMessageService); private readonly cdr = inject(ChangeDetectorRef); private readonly destroyRef = inject(DestroyRef);

@@ -1,6 +1,8 @@
+using System.Security.Cryptography.X509Certificates;
 using His.Hope.ContentService.Domain;
 using System.Text;
 using His.Hope.Authorization;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.ContentService.Api;
 using His.Hope.ContentService.Application;
 using His.Hope.ContentService.Infrastructure;
@@ -8,14 +10,13 @@ using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Security;
 using His.Hope.ServiceDefaults;
 using His.Hope.SharedKernel.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
-var contentConnection = builder.Configuration.GetConnectionString("ContentDb")
-    ?? "Host=localhost;Database=contentdb;Username=postgres;Password=postgres";
-
-builder.Services.AddContentInfrastructure(contentConnection);
+builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
+builder.Services.AddContentInfrastructure(builder.Configuration);
 builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ContentService");
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ContentDbContext>("content-db");
@@ -25,6 +26,21 @@ var redis = RedisConnectionFactory.Connect(
         ?? "localhost:6379",
     builder.Configuration);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+// Keep the Content key ring stable across container replacement. The
+// directory is backed by a dedicated deployment volume (or an encrypted host
+// mount in production).
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("His.Hope.ContentService")
+    .PersistKeysToFileSystem(new DirectoryInfo(
+        builder.Configuration["DataProtection:KeysPath"]
+            ?? "/var/lib/his-hope/content-data-protection-keys"));
+var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath) && File.Exists(dataProtectionCertificatePath))
+{
+    dataProtection.ProtectKeysWithCertificate(new X509Certificate2(
+        dataProtectionCertificatePath,
+        builder.Configuration["DataProtection:CertificatePassword"]));
+}
 builder.Services.AddHisHopeDpopValidation();
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 builder.Services.AddHisHopeAuthorization();
@@ -37,6 +53,9 @@ app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
+
+app.ValidateHisHopeTenantPlacement();
 
 app.Services.MigrateContentDatabase();
 

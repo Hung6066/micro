@@ -1,5 +1,6 @@
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.Infrastructure.DataLifecycle;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -387,6 +388,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         // ──────────────────────────────────────────────
         builder.Entity<Permission>(entity =>
         {
+            entity.ToTable(IdentityWorkbenchTableNames.Permissions);
             entity.HasKey(p => p.Code);
             entity.Property(p => p.Code).HasMaxLength(100).IsRequired();
             entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
@@ -467,6 +469,10 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(al => al.Action);
             entity.HasIndex(al => al.Timestamp);
             entity.HasIndex(al => al.CorrelationId);
+            entity.HasIndex(al => new { al.ResourceType, al.ResourceId, al.Timestamp })
+                .HasDatabaseName("ix_audit_logs_resource_lookup");
+            entity.HasIndex(al => new { al.UserId, al.Timestamp })
+                .HasDatabaseName("ix_audit_logs_user_timeline");
         });
 
         // ──────────────────────────────────────────────
@@ -523,7 +529,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         // ──────────────────────────────────────────────
         builder.Entity<ClientConsent>(entity =>
         {
-            entity.ToTable("openiddict_consents");
+            entity.ToTable("client_consents");
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(c => c.ClientId).HasMaxLength(256).IsRequired();
@@ -535,7 +541,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
 
         builder.Entity<TableView>(entity =>
         {
-            entity.ToTable("admin_table_views");
+            entity.ToTable("user_table_views");
             entity.HasKey(view => view.Id);
             entity.Property(view => view.Resource).HasMaxLength(80).IsRequired();
             entity.Property(view => view.Name).HasMaxLength(80).IsRequired();
@@ -713,12 +719,41 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
 
         // Configure OpenIddict tables (snake_case naming)
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>(entity =>
-            entity.ToTable("openiddict_applications"));
+        {
+            entity.ToTable("openiddict_applications");
+            entity.HasIndex(item => item.ClientId)
+                .IsUnique()
+                .HasDatabaseName("ix_openiddict_applications_client_id");
+        });
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>(entity =>
-            entity.ToTable("openiddict_authorizations"));
+        {
+            entity.ToTable("openiddict_authorizations");
+            entity.HasIndex(item => new { item.Subject, item.Status })
+                .HasDatabaseName("ix_openiddict_authorizations_subject_status");
+        });
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>(entity =>
-            entity.ToTable("openiddict_scopes"));
+        {
+            entity.ToTable("openiddict_scopes");
+            entity.HasIndex(item => item.Name)
+                .HasDatabaseName("ix_openiddict_scopes_name");
+        });
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>(entity =>
-            entity.ToTable("openiddict_tokens"));
+        {
+            entity.ToTable("openiddict_tokens");
+            entity.HasIndex(item => new { item.Subject, item.Status, item.ExpirationDate })
+                .HasDatabaseName("ix_openiddict_tokens_subject_status_expiration");
+            entity.HasIndex(item => new { item.Status, item.ExpirationDate })
+                .HasDatabaseName("ix_openiddict_tokens_status_expiration");
+        });
+
+        HisHopeDataConventions.Apply(
+            builder,
+            typeof(User), typeof(Role), typeof(Permission), typeof(RolePermission),
+            typeof(SystemSetting), typeof(UserMfa), typeof(ClientConsent), typeof(TableView),
+            typeof(UserFacility), typeof(RoleTemplateVersion), typeof(AuthorizationPolicyDefinition),
+            typeof(IamScope), typeof(IamServiceDefinition), typeof(IamPermissionSet),
+            typeof(IamPermissionSetAssignment), typeof(IamWorkloadRole),
+            typeof(IamPermissionBoundary), typeof(IamResourcePolicy), typeof(IamGroup),
+            typeof(IamGroupMembership));
     }
 }

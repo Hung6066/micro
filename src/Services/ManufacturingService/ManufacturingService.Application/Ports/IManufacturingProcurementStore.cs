@@ -19,4 +19,5 @@ public interface IManufacturingProcurementStore
     (InboundReceiptDto? Receipt, string? Error) ReceiveInboundLot(string tenantKey, ReceiveInboundLotRequest request);
     IReadOnlyList<InboundReceiptDto> GetInboundReceipts(string tenantKey, Guid? purchaseOrderId, int limit);
     (IReadOnlyList<InboundReceiptDto> Receipts, string? Error) ReceiveInboundBatch(string tenantKey, Guid purchaseOrderId, ReceiveInboundBatchRequest request);
+    IReadOnlyList<EntityStatusHistoryDto> GetPurchaseOrderStatusHistory(string tenantKey, Guid purchaseOrderId);
 }

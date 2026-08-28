@@ -190,6 +190,7 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
             }).ToList()
         };
         db.PurchaseOrders.Add(entity);
+        EntityStatusHistoryStore.Append(db, "purchase-order", entity.Id, entity.TenantKey, "", entity.Status, "system", entity.OrderedAt);
         db.SaveChanges();
         return (ToDto(entity, supplier), null);
     }
@@ -205,6 +206,24 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
             .Where(x => supplierIds.Contains(x.Id))
             .ToDictionary(x => x.Id);
         return orders.Select(x => ToDto(x, suppliers[x.SupplierId])).ToList();
+    }
+
+    public IReadOnlyList<EntityStatusHistoryDto> GetPurchaseOrderStatusHistory(string tenantKey, Guid purchaseOrderId)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var entity = db.PurchaseOrders.AsNoTracking().SingleOrDefault(x => x.Id == purchaseOrderId);
+        if (entity is null || !entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase))
+            return [];
+
+        var persisted = EntityStatusHistoryStore.Get(db, tenantKey, "purchase-order", purchaseOrderId);
+        if (persisted.Count > 0)
+            return persisted;
+
+        return ManufacturingStatusHistoryBuilder.ForPurchaseOrder(
+            entity.Id,
+            entity.TenantKey,
+            entity.Status,
+            entity.OrderedAt);
     }
 
     public (PurchaseOrderDto? Order, string? Error) UpdatePurchaseOrder(string tenantKey, Guid purchaseOrderId, UpdatePurchaseOrderRequest request)
@@ -272,7 +291,9 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
             _ => false,
         };
         if (!allowed) return (null, "invalid_purchase_order_transition");
+        var previousStatus = order.Status;
         order.Status = normalized;
+        EntityStatusHistoryStore.Append(db, "purchase-order", order.Id, tenantKey, previousStatus, normalized, "operator", DateTimeOffset.UtcNow);
         db.SaveChanges();
         var supplier = db.Suppliers.AsNoTracking().Single(s => s.Id == order.SupplierId);
         return (ToDto(order, supplier), null);
@@ -326,8 +347,21 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
             ReceivedBy = request.ReceivedBy?.Trim(), AcceptedQuantity = acceptedQuantity, RejectedQuantity = rejectedQuantity
         };
         line.ReceivedQuantity += request.Quantity;
+        var previousPoStatus = order.Status;
         if (order.Lines.All(x => x.ReceivedQuantity == x.OrderedQuantity)) order.Status = "Closed";
         else if (order.Lines.Any(x => x.ReceivedQuantity > 0)) order.Status = "PartiallyReceived";
+        if (!order.Status.Equals(previousPoStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            EntityStatusHistoryStore.Append(
+                db,
+                "purchase-order",
+                order.Id,
+                tenantKey,
+                previousPoStatus,
+                order.Status,
+                request.ReceivedBy?.Trim() ?? "system",
+                receivedAt);
+        }
         db.Lots.Add(lot);
         db.InboundReceipts.Add(receipt);
         db.InventoryTransactions.Add(new ManufacturingInventoryTransactionEntity

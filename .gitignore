@@ -45,6 +45,7 @@ docker/secrets/*
 !docker/secrets/README.md
 *.secret
 secrets/
+config/conglomerate/tenant-placement.connections.local.json
 # The shared Vault client is source code, not an environment secret. Keep the
 # implementation trackable while continuing to ignore runtime secret files.
 !src/Shared/Secrets/

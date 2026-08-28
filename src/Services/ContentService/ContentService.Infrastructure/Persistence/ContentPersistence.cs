@@ -1,6 +1,9 @@
 using His.Hope.ContentService.Application;
 using His.Hope.ContentService.Domain;
+using His.Hope.Infrastructure.DataLifecycle;
+using His.Hope.Persistence.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 using System.Xml.Linq;
@@ -98,6 +101,12 @@ public sealed class ContentDbContext(DbContextOptions<ContentDbContext> options)
             entity.Property(x => x.Email).HasMaxLength(320).IsRequired();
             entity.HasIndex(x => new { x.TenantKey, x.Email }).IsUnique();
         });
+
+        HisHopeDataConventions.Apply(
+            modelBuilder,
+            typeof(ContentBannerEntity), typeof(ContentStoryBlockEntity), typeof(ContentArticleEntity),
+            typeof(ContentPartnershipInquiryEntity), typeof(ContentMediaAssetEntity),
+            typeof(ContentNewsletterSubscriptionEntity));
     }
 }
 
@@ -567,11 +576,24 @@ public sealed class PostgresContentStore(IDbContextFactory<ContentDbContext> dbF
 
 public static class ContentInfrastructureServiceCollectionExtensions
 {
-    public static IServiceCollection AddContentInfrastructure(this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddContentInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
-        services.AddDbContextFactory<ContentDbContext>(options =>
-            options.UseNpgsql(connectionString, npgsql =>
-                npgsql.MigrationsAssembly(typeof(ContentDbContext).Assembly.GetName().Name)));
+        var connection = configuration.GetConnectionString("ContentDb");
+        if (string.IsNullOrWhiteSpace(connection))
+            return services;
+
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SoftDeleteInterceptor>();
+        services.AddHisHopeTenantAwareDbContextFactory<ContentDbContext>(
+            "content",
+            (sp, builder, connectionString, connectionName) =>
+                builder.UseNpgsql(connectionString, npgsql =>
+                    npgsql.MigrationsAssembly(typeof(ContentDbContext).Assembly.GetName().Name))
+                    .AddInterceptors(sp.GetRequiredService<SoftDeleteInterceptor>()));
+        services.AddSingleton<IContentDbContextFactory>(sp =>
+            new ContentDbContextFactoryBridge(sp.GetRequiredService<IHisHopeDbContextFactory<ContentDbContext>>()));
         services.AddSingleton<PostgresContentStore>();
         return services;
     }
@@ -579,9 +601,13 @@ public static class ContentInfrastructureServiceCollectionExtensions
     public static void MigrateContentDatabase(this IServiceProvider services)
     {
         using var scope = services.CreateScope();
-        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ContentDbContext>>();
-        using var db = dbFactory.CreateDbContext();
-        db.Database.Migrate();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IContentDbContextFactory>();
+        foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
+        {
+            using var db = dbFactory.CreateDbContextForConnection(connectionName);
+            db.Database.Migrate();
+        }
+
         scope.ServiceProvider.GetRequiredService<PostgresContentStore>().Initialize();
     }
 }

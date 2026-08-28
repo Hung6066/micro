@@ -1,4 +1,4 @@
-.work-page { display: grid; gap: 1rem; }
+.work-page { display: grid; gap: 1rem; min-width: 0; } .work-page > * { min-width: 0; }
 .eyebrow { margin: 0; color: var(--text-secondary); font-size: var(--font-size-overline, .7rem); font-weight: 800; letter-spacing: .12em; }
 h2 { margin: 0; font-size: var(--font-size-headline, 1.9rem); }
 .lede { margin: 0; color: var(--text-secondary); line-height: 1.5; }
@@ -8,9 +8,10 @@ h2 { margin: 0; font-size: var(--font-size-headline, 1.9rem); }
 .work-card p { color: var(--text-secondary); line-height: 1.45; }
 button { min-height: 2.75rem; padding: 0 1rem; border: 0; border-radius: .75rem; background: var(--color-primary); color: var(--color-on-primary); font: inherit; font-weight: 700; }
 .work-card label { display: grid; gap: .4rem; color: var(--text-primary); font-weight: 700; }
-.work-card select, .work-card input { width: 100%; min-height: 2.75rem; box-sizing: border-box; padding: .55rem .65rem; border: 1px solid var(--border-default); border-radius: .6rem; background: var(--surface-white); color: var(--text-primary); font: inherit; }
+.work-card select, .work-card input { width: 100%; min-width: 0; min-height: 2.75rem; box-sizing: border-box; padding: .55rem .65rem; border: 1px solid var(--border-default); border-radius: .6rem; background: var(--surface-white); color: var(--text-primary); font: inherit; }
 .work-card { display: grid; gap: .85rem; }
 .summary-card { display: grid; gap: .7rem; padding: .85rem 1rem; border: 1px solid var(--border-default); border-radius: 1rem; background: var(--surface-muted); }
+.workflow-card { display: grid; gap: .7rem; min-width: 0; padding: .85rem 1rem; border: 1px solid var(--border-default); border-radius: 1rem; background: var(--surface-muted); } .workflow-card h3 { margin: 0; font-size: var(--font-size-subhead, .95rem); }
 .summary-card h3 { margin: 0; font-size: 1rem; }
 .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .summary-grid span { display: grid; gap: .15rem; color: var(--text-secondary); font-size: .75rem; }

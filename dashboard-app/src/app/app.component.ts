@@ -10,6 +10,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { AuthService } from './core/services/auth.service';
+import { ServicePlugin } from './core/models/service-plugin.model';
+import { ServicePluginService } from './core/services/service-plugin.service';
 import { AlertPanelComponent } from './shared/alert-panel/alert-panel.component';
 import { AlertToastService } from './shared/alert-toast/alert-toast.service';
 import { HisHopeThemeService } from '@his-hope/frontend-foundation';
@@ -53,6 +55,7 @@ export class AppComponent {
   readonly isAuthenticated$: Observable<boolean>;
 
   readonly isMobile$: Observable<boolean>;
+  readonly plugins$: Observable<ServicePlugin[]>;
   readonly sidenavOpened$ = new BehaviorSubject<boolean>(true);
 
   private readonly isMobileSubject = new BehaviorSubject<boolean>(
@@ -86,8 +89,12 @@ export class AppComponent {
     ];
   }
 
-  constructor(private readonly authService: AuthService) {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly pluginService: ServicePluginService,
+  ) {
     this.isAuthenticated$ = this.authService.isAuthenticated$;
+    this.plugins$ = this.pluginService.plugins$;
     this.isMobile$ = this.isMobileSubject.asObservable();
     // Listen for viewport width changes
     const mediaQuery = window.matchMedia('(max-width: 768px)');

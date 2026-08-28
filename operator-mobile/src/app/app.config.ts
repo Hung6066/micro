@@ -27,6 +27,7 @@ import {
 import { HisHopeGlobalErrorHandler } from "@his-hope/frontend-foundation";
 import { routes } from "./app.routes";
 import { authInterceptor } from "./core/auth.interceptor";
+import { operatorMobileManufacturingTenantInterceptor } from "./core/interceptors/operator-mobile-manufacturing-tenant.interceptor";
 import { mobileNativeHttpInterceptor } from "./core/mobile-native-http.interceptor";
 import { mobileSessionInterceptor } from "./core/mobile-session.interceptor";
 import { MobileSecureOidcStorage } from "./core/secure-oidc-storage.service";
@@ -63,6 +64,7 @@ export const appConfig: ApplicationConfig = {
         hisHopeCorrelationIdInterceptor,
         hisHopeInternationalizationInterceptor,
         authInterceptor,
+        operatorMobileManufacturingTenantInterceptor,
         mobileNativeHttpInterceptor,
         mobileSessionInterceptor,
         hisHopeErrorInterceptor,

@@ -354,7 +354,10 @@ internal static class ResourcePolicyClaimBuilder
                         statement.TryGetProperty("effect", out var effect) && effect.ValueKind == JsonValueKind.String
                             ? effect.GetString()!.Trim().ToLowerInvariant()
                             : "allow",
-                        actions));
+                        actions,
+                        statement.TryGetProperty("condition", out var condition)
+                            ? condition.Clone()
+                            : null));
                 }
             }
             catch (JsonException)
@@ -384,7 +387,8 @@ internal sealed record ResourcePolicyClaim(
     string ServiceKey,
     string ResourcePattern,
     string Effect,
-    IReadOnlyList<string> Actions);
+    IReadOnlyList<string> Actions,
+    JsonElement? Condition = null);
 
 public class CustomValidateAuthorizationRequest :
     IOpenIddictServerHandler<OpenIddictServerEvents.ValidateAuthorizationRequestContext>

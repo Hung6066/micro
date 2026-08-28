@@ -31,6 +31,7 @@ builder.WebHost.ConfigureKestrel(options => options.Listen(System.Net.IPAddress.
 
 builder.Services.AddHisHopeAspNetCore();
 builder.Services.AddHisHopeRuntimeConfiguration(builder.Configuration, "SystemDashboard.Bff");
+builder.Services.AddHisHopeServicePlugins(builder.Configuration);
 builder.Services.AddObservability(options => options.ServiceName = "SystemDashboard.Bff");
 builder.Services.AddHisHopeResilience(builder.Configuration);
 var redis = RedisConnectionFactory.Connect(

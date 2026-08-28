@@ -78,6 +78,9 @@ public static class IamTenantAccessGuard
         var visible = await db.Roles.AsNoTracking()
             .Where(role => role.Id == roleId)
             .Where(role =>
+                // System roles are global catalog templates and remain
+                // visible to authorized IAM administrators across tenants.
+                role.IsSystem ||
                 db.Set<Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>>()
                     .Any(userRole =>
                         userRole.RoleId == role.Id &&

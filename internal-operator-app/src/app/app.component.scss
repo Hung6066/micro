@@ -53,21 +53,7 @@ hh-brand {
   margin-right: var(--space-sm);
 }
 
-.workspace-selector {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  min-height: var(--touch-target);
-  margin-right: var(--space-sm);
-  padding: 0 var(--space-xs);
-  border: 1px solid color-mix(in srgb, var(--color-on-primary) 42%, transparent);
-  border-radius: var(--radius-button);
-  color: var(--color-on-primary);
-}
-
-.workspace-selector__icon { font-size: 18px; }
-.workspace-selector select { max-width: 190px; border: 0; background: transparent; color: inherit; font: inherit; font-weight: var(--font-weight-semibold); }
-.workspace-selector select:focus-visible { outline: var(--focus-ring-width) solid var(--color-on-primary); outline-offset: var(--focus-ring-offset); }
+.workspace-selector { margin-right: var(--space-sm); color: var(--color-on-primary); }
 
 @media (max-width: 768px) {
   .sidenav-content {

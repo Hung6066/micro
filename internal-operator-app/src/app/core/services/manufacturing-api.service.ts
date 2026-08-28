@@ -56,6 +56,13 @@ import {
   HisHopeCapaDto,
   HisHopeSupplierEvaluationDto,
   HisHopeProductionBatchCostDto,
+  HisHopeEntityStatusHistoryDto,
+  HisHopeCrossEntityWorkflowTraceDto,
+  HisHopeManufacturingWorkflowDefinitionDto,
+  HisHopeOperationMeasurementDto,
+  HisHopeSalesActualDto,
+  HisHopeMlFeatureSnapshotDto,
+  HisHopeMlDatasetQualityDto,
 } from "@his-hope/frontend-foundation/contracts";
 import { environment } from "../../../environments/environment";
 
@@ -135,12 +142,53 @@ export class ManufacturingApiService {
     return this.http.post<HisHopeSalesForecastDto>(`${this.base()}/sales/forecasts`, request);
   }
 
+  getOperationMeasurements(batchId: string, limit = 500): Observable<HisHopeOperationMeasurementDto[]> {
+    return this.http.get<HisHopeOperationMeasurementDto[]>(`${this.base()}/production-batches/${batchId}/measurements`, { params: { limit } });
+  }
+
+  recordOperationMeasurement(batchId: string, request: { productionBatchId: string; measurementType: string; value: number; uom: string; measuredAt: string; operationExecutionId?: string; machineId?: string; lotId?: string; source?: string; sequence?: number; notes?: string }): Observable<HisHopeOperationMeasurementDto> {
+    return this.http.post<HisHopeOperationMeasurementDto>(`${this.base()}/production-batches/${batchId}/measurements`, request);
+  }
+
+  getSalesActuals(productSku?: string, limit = 500): Observable<HisHopeSalesActualDto[]> {
+    let params = new HttpParams().set("limit", String(limit));
+    if (productSku) params = params.set("productSku", productSku);
+    return this.http.get<HisHopeSalesActualDto[]>(`${this.base()}/sales/actuals`, { params });
+  }
+
+  recordSalesActual(request: { productSku: string; periodStart: string; periodEnd: string; quantity: number; uom: string; channel?: string; region?: string; source?: string; actor?: string }): Observable<HisHopeSalesActualDto> {
+    return this.http.post<HisHopeSalesActualDto>(`${this.base()}/sales/actuals`, request);
+  }
+
+  getMlFeatureSnapshots(datasetKey: string, options?: { from?: string; to?: string; limit?: number }): Observable<HisHopeMlFeatureSnapshotDto[]> {
+    let params = new HttpParams();
+    if (options?.from) params = params.set("from", options.from);
+    if (options?.to) params = params.set("to", options.to);
+    if (options?.limit) params = params.set("limit", String(options.limit));
+    return this.http.get<HisHopeMlFeatureSnapshotDto[]>(`${this.base()}/ml/datasets/${encodeURIComponent(datasetKey)}/snapshots`, { params });
+  }
+
+  createMlFeatureSnapshot(datasetKey: string, request: { datasetKey: string; entityType: string; entityId: string; asOf: string; featuresJson: string; labelJson?: string; sourceEventIdsJson?: string; split?: string; schemaVersion?: number }): Observable<HisHopeMlFeatureSnapshotDto> {
+    return this.http.post<HisHopeMlFeatureSnapshotDto>(`${this.base()}/ml/datasets/${encodeURIComponent(datasetKey)}/snapshots`, request);
+  }
+
+  getMlDatasetQuality(datasetKey: string): Observable<HisHopeMlDatasetQualityDto> {
+    return this.http.get<HisHopeMlDatasetQualityDto>(`${this.base()}/ml/datasets/${encodeURIComponent(datasetKey)}/quality`);
+  }
+
   getSalesForecastMaterialRequirements(forecastId: string): Observable<HisHopeSalesForecastMaterialRequirementDto[]> {
     return this.http.get<HisHopeSalesForecastMaterialRequirementDto[]>(`${this.base()}/planning/forecast-material-requirements/${forecastId}`);
   }
 
   allocateSales(sku: string, request: { salesOrderId: string; quantity: number; facilityId?: string; expiresAt?: string }): Observable<HisHopeManufacturingSalesAllocationDto> {
     return this.http.post<HisHopeManufacturingSalesAllocationDto>(`${this.base()}/sales/allocations/${encodeURIComponent(sku)}`, request);
+  }
+
+  getSalesAllocations(options?: { sku?: string; salesOrderId?: string; limit?: number }): Observable<HisHopeManufacturingSalesAllocationDto[]> {
+    let params = new HttpParams().set("limit", String(options?.limit ?? 100));
+    if (options?.sku) params = params.set("sku", options.sku);
+    if (options?.salesOrderId) params = params.set("salesOrderId", options.salesOrderId);
+    return this.http.get<HisHopeManufacturingSalesAllocationDto[]>(`${this.base()}/sales/allocations`, { params });
   }
 
   getAvailability(sku: string): Observable<HisHopeManufacturingAvailabilityDto> {
@@ -181,7 +229,7 @@ export class ManufacturingApiService {
     return this.http.get<HisHopeRecipeDto[]>(`${this.base()}/recipes`, { params });
   }
 
-  createRecipe(request: HisHopeCreateRecipeRequest): Observable<HisHopeRecipeDto> {
+  createRecipe(request: Omit<HisHopeCreateRecipeRequest, "tenantKey">): Observable<HisHopeRecipeDto> {
     return this.http.post<HisHopeRecipeDto>(`${this.base()}/recipes`, request);
   }
 
@@ -204,7 +252,7 @@ export class ManufacturingApiService {
     return this.http.get<HisHopeProductSpecificationDto[]>(`${this.base()}/product-specifications`, { params });
   }
 
-  createProductSpecification(request: { tenantKey: string; productSku: string; targetMoisturePercent: number; packaging: string; shelfLifeDays: number; qcSpec: string }): Observable<HisHopeProductSpecificationDto> {
+  createProductSpecification(request: { productSku: string; targetMoisturePercent: number; packaging: string; shelfLifeDays: number; qcSpec: string }): Observable<HisHopeProductSpecificationDto> {
     return this.http.post<HisHopeProductSpecificationDto>(`${this.base()}/product-specifications`, request);
   }
 
@@ -237,6 +285,28 @@ export class ManufacturingApiService {
 
   closeDeviation(deviationId: string, actor: string, notes?: string): Observable<HisHopeManufacturingDeviationDto> {
     return this.http.post<HisHopeManufacturingDeviationDto>(`${this.base()}/deviations/${deviationId}/close`, { actor, notes });
+  }
+
+  getManufacturingWorkflow(entityType: string): Observable<HisHopeManufacturingWorkflowDefinitionDto> {
+    return this.http.get<HisHopeManufacturingWorkflowDefinitionDto>(`${this.base()}/workflows/${entityType}`);
+  }
+
+  getBatchStatusHistory(batchId: string): Observable<HisHopeEntityStatusHistoryDto[]> {
+    return this.http.get<HisHopeEntityStatusHistoryDto[]>(`${this.base()}/production-batches/${batchId}/status-history`);
+  }
+
+  getPurchaseOrderStatusHistory(purchaseOrderId: string): Observable<HisHopeEntityStatusHistoryDto[]> {
+    return this.http.get<HisHopeEntityStatusHistoryDto[]>(`${this.base()}/purchase-orders/${purchaseOrderId}/status-history`);
+  }
+
+  getDeviationStatusHistory(deviationId: string): Observable<HisHopeEntityStatusHistoryDto[]> {
+    return this.http.get<HisHopeEntityStatusHistoryDto[]>(`${this.base()}/deviations/${deviationId}/status-history`);
+  }
+
+  getCrossEntityWorkflow(entityType: string, entityId: string): Observable<HisHopeCrossEntityWorkflowTraceDto> {
+    return this.http.get<HisHopeCrossEntityWorkflowTraceDto>(
+      `${this.base()}/entities/${encodeURIComponent(entityType)}/${entityId}/cross-workflow`,
+    );
   }
 
   openMachineDowntime(machineId: string, request: { reason: string; startedAt: string; productionBatchId?: string; operationExecutionId?: string; notes?: string }): Observable<HisHopeManufacturingDowntimeDto> {
@@ -406,7 +476,7 @@ export class ManufacturingApiService {
     return this.http.get<HisHopeQualityInspectionDto[]>(`${this.base()}/lots/${lotId}/quality-inspections`, { params: { limit } });
   }
 
-  createQualityInspection(request: { lotId: string; tenantKey: string; status: string; moisturePercent: number; inspector: string; notes?: string; specificationReference?: string; results?: Array<{ testCode: string; testName: string; measuredValue: number; uom: string; result: string; lowerLimit?: number; upperLimit?: number; method?: string; evidenceReference?: string }> }): Observable<HisHopeQualityInspectionDto> {
+  createQualityInspection(request: { lotId: string; status: string; moisturePercent: number; inspector: string; notes?: string; specificationReference?: string; results?: Array<{ testCode: string; testName: string; measuredValue: number; uom: string; result: string; lowerLimit?: number; upperLimit?: number; method?: string; evidenceReference?: string }> }): Observable<HisHopeQualityInspectionDto> {
     return this.http.post<HisHopeQualityInspectionDto>(`${this.base()}/quality-inspections`, request);
   }
 
@@ -417,7 +487,7 @@ export class ManufacturingApiService {
     return this.http.get<HisHopeInspectionPlanVersionDto[]>(`${this.base()}/inspection-plan-versions`, { params });
   }
 
-  createInspectionPlanVersion(request: { tenantKey: string; planCode: string; productSku: string; version: number; samplingMethod: string; samplingFrequency: string; acceptanceCriteria: string; status?: string; effectiveFrom?: string; effectiveTo?: string; createdBy?: string }): Observable<HisHopeInspectionPlanVersionDto> {
+  createInspectionPlanVersion(request: { planCode: string; productSku: string; version: number; samplingMethod: string; samplingFrequency: string; acceptanceCriteria: string; status?: string; effectiveFrom?: string; effectiveTo?: string; createdBy?: string }): Observable<HisHopeInspectionPlanVersionDto> {
     return this.http.post<HisHopeInspectionPlanVersionDto>(`${this.base()}/inspection-plan-versions`, request);
   }
 
@@ -461,7 +531,7 @@ export class ManufacturingApiService {
     return this.http.get<HisHopeFacilityDto[]>(`${this.base()}/facilities`, { params: { active: String(active) } });
   }
 
-  createFacility(request: { tenantKey: string; code: string; name: string; active?: boolean }): Observable<HisHopeFacilityDto> {
+  createFacility(request: { code: string; name: string; active?: boolean }): Observable<HisHopeFacilityDto> {
     return this.http.post<HisHopeFacilityDto>(`${this.base()}/facilities`, request);
   }
 
@@ -477,10 +547,10 @@ export class ManufacturingApiService {
   }
   updateFacility(id: string, request: { code: string; name: string; active: boolean }): Observable<HisHopeFacilityDto> { return this.http.patch<HisHopeFacilityDto>(`${this.base()}/facilities/${id}`, request); }
   getWarehouses(facilityId?: string, active = true): Observable<HisHopeWarehouseDto[]> { let params = new HttpParams().set("active", String(active)); if (facilityId) params = params.set("facilityId", facilityId); return this.http.get<HisHopeWarehouseDto[]>(`${this.base()}/warehouses`, { params }); }
-  createWarehouse(request: { tenantKey: string; facilityId: string; code: string; name: string; active?: boolean }): Observable<HisHopeWarehouseDto> { return this.http.post<HisHopeWarehouseDto>(`${this.base()}/warehouses`, request); }
+  createWarehouse(request: { facilityId: string; code: string; name: string; active?: boolean }): Observable<HisHopeWarehouseDto> { return this.http.post<HisHopeWarehouseDto>(`${this.base()}/warehouses`, request); }
   updateWarehouse(id: string, request: { facilityId: string; code: string; name: string; active: boolean }): Observable<HisHopeWarehouseDto> { return this.http.patch<HisHopeWarehouseDto>(`${this.base()}/warehouses/${id}`, request); }
   getStorageLocations(warehouseId?: string, active = true): Observable<HisHopeStorageLocationDto[]> { let params = new HttpParams().set("active", String(active)); if (warehouseId) params = params.set("warehouseId", warehouseId); return this.http.get<HisHopeStorageLocationDto[]>(`${this.base()}/storage-locations`, { params }); }
-  createStorageLocation(request: { tenantKey: string; warehouseId: string; code: string; name: string; active?: boolean }): Observable<HisHopeStorageLocationDto> { return this.http.post<HisHopeStorageLocationDto>(`${this.base()}/storage-locations`, request); }
+  createStorageLocation(request: { warehouseId: string; code: string; name: string; active?: boolean }): Observable<HisHopeStorageLocationDto> { return this.http.post<HisHopeStorageLocationDto>(`${this.base()}/storage-locations`, request); }
   updateStorageLocation(id: string, request: { warehouseId: string; code: string; name: string; active: boolean }): Observable<HisHopeStorageLocationDto> { return this.http.patch<HisHopeStorageLocationDto>(`${this.base()}/storage-locations/${id}`, request); }
 
   getUoms(active = true): Observable<HisHopeUomDto[]> { return this.http.get<HisHopeUomDto[]>(`${this.base()}/uoms`, { params: { active: String(active) } }); }
@@ -490,13 +560,13 @@ export class ManufacturingApiService {
   getUomConversions(active = true): Observable<HisHopeUomConversionDto[]> { return this.http.get<HisHopeUomConversionDto[]>(`${this.base()}/uom-conversions`, { params: { active: String(active) } }); }
   createUomConversion(request: { fromCode: string; toCode: string; factor: number; active?: boolean }): Observable<HisHopeUomConversionDto> { return this.http.post<HisHopeUomConversionDto>(`${this.base()}/uom-conversions`, request); }
   updateUomConversion(id: string, request: { fromCode: string; toCode: string; factor: number; active: boolean }): Observable<HisHopeUomConversionDto> { return this.http.patch<HisHopeUomConversionDto>(`${this.base()}/uom-conversions/${id}`, request); }
-  createMaterial(request: { tenantKey: string; sku: string; name: string; baseUomCode: string; materialType?: string; active?: boolean }): Observable<HisHopeMaterialDto> { return this.http.post<HisHopeMaterialDto>(`${this.base()}/materials`, request); }
+  createMaterial(request: { sku: string; name: string; baseUomCode: string; materialType?: string; active?: boolean }): Observable<HisHopeMaterialDto> { return this.http.post<HisHopeMaterialDto>(`${this.base()}/materials`, request); }
   updateMaterial(id: string, request: { name: string; baseUomCode: string; materialType: string; active: boolean }): Observable<HisHopeMaterialDto> { return this.http.patch<HisHopeMaterialDto>(`${this.base()}/materials/${id}`, request); }
   getProducts(active = true): Observable<HisHopeProductDto[]> { return this.http.get<HisHopeProductDto[]>(`${this.base()}/products`, { params: { active: String(active) } }); }
-  createProduct(request: { tenantKey: string; sku: string; name: string; baseUomCode: string; active?: boolean }): Observable<HisHopeProductDto> { return this.http.post<HisHopeProductDto>(`${this.base()}/products`, request); }
+  createProduct(request: { sku: string; name: string; baseUomCode: string; active?: boolean }): Observable<HisHopeProductDto> { return this.http.post<HisHopeProductDto>(`${this.base()}/products`, request); }
   updateProduct(id: string, request: { name: string; baseUomCode: string; active: boolean }): Observable<HisHopeProductDto> { return this.http.patch<HisHopeProductDto>(`${this.base()}/products/${id}`, request); }
 
-  createSupplier(request: { tenantKey: string; code: string; name: string; active?: boolean; legalName?: string; taxIdentificationNumber?: string; contactName?: string; contactEmail?: string; contactPhone?: string; countryCode?: string; address?: string; riskLevel?: string }): Observable<HisHopeSupplierDto> {
+  createSupplier(request: { code: string; name: string; active?: boolean; legalName?: string; taxIdentificationNumber?: string; contactName?: string; contactEmail?: string; contactPhone?: string; countryCode?: string; address?: string; riskLevel?: string }): Observable<HisHopeSupplierDto> {
     return this.http.post<HisHopeSupplierDto>(`${this.base()}/suppliers`, request);
   }
 
@@ -525,7 +595,7 @@ export class ManufacturingApiService {
   }
 
   getSupplierRfqs(status?: string): Observable<HisHopeSupplierRfqDto[]> { let params = new HttpParams(); if (status) params = params.set("status", status); return this.http.get<HisHopeSupplierRfqDto[]>(`${this.base()}/supplier-rfqs`, { params }); }
-  createSupplierRfq(request: { tenantKey: string; rfqNumber: string; materialSku: string; quantity: number; uom: string; neededBy?: string }): Observable<HisHopeSupplierRfqDto> { return this.http.post<HisHopeSupplierRfqDto>(`${this.base()}/supplier-rfqs`, request); }
+  createSupplierRfq(request: { rfqNumber: string; materialSku: string; quantity: number; uom: string; neededBy?: string }): Observable<HisHopeSupplierRfqDto> { return this.http.post<HisHopeSupplierRfqDto>(`${this.base()}/supplier-rfqs`, request); }
   createSupplierQuotation(rfqId: string, request: { supplierRfqId: string; supplierId: string; unitPrice: number; currency: string; leadTimeDays: number; notes?: string }): Observable<HisHopeSupplierQuotationDto> { return this.http.post<HisHopeSupplierQuotationDto>(`${this.base()}/supplier-rfqs/${rfqId}/quotations`, request); }
   cancelProductionBatch(batchId: string): Observable<HisHopeProductionBatchDto> { return this.http.post<HisHopeProductionBatchDto>(`${this.base()}/production-batches/${batchId}/cancel`, {}); }
   getSupplierQuotations(rfqId: string): Observable<HisHopeSupplierQuotationDto[]> { return this.http.get<HisHopeSupplierQuotationDto[]>(`${this.base()}/supplier-rfqs/${rfqId}/quotations`); }
@@ -551,7 +621,6 @@ export class ManufacturingApiService {
   }
 
   createPurchaseOrder(request: {
-    tenantKey: string;
     supplierId: string;
     orderNumber: string;
     currency: string;

@@ -68,6 +68,46 @@ public sealed class ServiceEndpointOptionsTests
         Assert.Null(endpoints.GetOptional("elasticsearch"));
     }
 
+    [Fact]
+    public void ServicePluginRegistry_ExposesOnlyEnabledPlugins()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Plugins:Items:0:Key"] = "manufacturing",
+            ["Plugins:Items:0:DisplayName"] = "Manufacturing",
+            ["Plugins:Items:0:Enabled"] = "true",
+            ["Plugins:Items:1:Key"] = "patient",
+            ["Plugins:Items:1:DisplayName"] = "Patient",
+            ["Plugins:Items:1:Enabled"] = "false"
+        });
+
+        var registry = new ServicePluginRegistry(configuration);
+
+        Assert.True(registry.IsEnabled("manufacturing"));
+        Assert.False(registry.IsEnabled("patient"));
+        Assert.Single(registry.Enabled);
+        Assert.Equal("manufacturing", registry.Enabled[0].Key);
+    }
+
+    [Fact]
+    public void ServicePluginRegistry_LastDefinitionWinsCaseInsensitively()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Plugins:Items:0:Key"] = "Commerce",
+            ["Plugins:Items:0:DisplayName"] = "Commerce",
+            ["Plugins:Items:0:Enabled"] = "true",
+            ["Plugins:Items:1:Key"] = "commerce",
+            ["Plugins:Items:1:DisplayName"] = "Commerce disabled",
+            ["Plugins:Items:1:Enabled"] = "false"
+        });
+
+        var registry = new ServicePluginRegistry(configuration);
+
+        Assert.False(registry.IsEnabled("COMMERCE"));
+        Assert.Equal("Commerce disabled", registry.Get("commerce")!.DisplayName);
+    }
+
     private static IConfiguration CreateConfiguration(IDictionary<string, string?> values) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(values)

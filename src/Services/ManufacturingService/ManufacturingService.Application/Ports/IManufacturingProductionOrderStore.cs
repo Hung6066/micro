@@ -13,4 +13,5 @@ public interface IManufacturingProductionOrderStore
     (ProductionBatchDto? Batch, string? Error) ChangeBatchStatus(string tenantKey, Guid batchId, string targetStatus);
     (ProductionBatchDto? Batch, string? Error) CancelBatch(string tenantKey, Guid batchId);
     (OperationExecutionDto? Operation, string? Error) RecordOperation(string tenantKey, Guid batchId, RecordOperationRequest request);
+    IReadOnlyList<EntityStatusHistoryDto> GetBatchStatusHistory(string tenantKey, Guid batchId);
 }

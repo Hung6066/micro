@@ -32,7 +32,11 @@ if ($migrationFiles.Count -lt 6) {
 
 foreach ($migration in $migrationFiles) {
     $content = Get-Content -LiteralPath $migration.FullName -Raw
-    if ($content -notmatch 'CreateIndex') {
+    # EF migrations may express indexes either through the strongly typed
+    # migrationBuilder.CreateIndex API or through idempotent SQL (for legacy
+    # quoted identifiers / cross-version compatibility). Both are valid index
+    # operations and must satisfy this contract.
+    if ($content -notmatch 'CreateIndex|CREATE\s+INDEX') {
         throw "Database platform contract failed: migration has no index operation ($($migration.FullName))"
     }
 }

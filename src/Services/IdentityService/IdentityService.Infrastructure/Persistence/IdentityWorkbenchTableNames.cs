@@ -12,4 +12,5 @@ internal static class IdentityWorkbenchTableNames
     public const string ResourcePolicies = "iam_resource_policies";
     public const string Groups = "iam_groups";
     public const string GroupMemberships = "iam_group_memberships";
+    public const string Permissions = "iam_permissions";
 }

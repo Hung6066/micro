@@ -9,4 +9,5 @@ public interface IManufacturingReservationStore
     IReadOnlyList<LotReservationDto> GetReservations(string tenantKey, Guid lotId, string? status, int limit);
     IReadOnlyList<FefoLotDto> GetFefo(string tenantKey, string sku, int limit);
     (SalesAllocationDto Allocation, string? Error) AllocateSales(string tenantKey, string sku, CreateSalesAllocationRequest request);
+    IReadOnlyList<SalesAllocationDto> GetSalesAllocations(string tenantKey, string? sku, Guid? salesOrderId, int limit);
 }

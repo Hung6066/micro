@@ -9,6 +9,7 @@ using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -81,6 +82,14 @@ public sealed class SamlFederationControllerCoverageTests(IdentityServiceTestFix
     {
         var scope = fixture.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var keys = new[] { "Saml2:Enabled", "Saml2:Issuer", "Saml2:IdPMetadata" };
+        // SystemSetting participates in the shared soft-delete contract. Use a
+        // set-based hard cleanup for these test-only global keys; a soft delete
+        // would leave the primary key occupied and make the next SAML case
+        // fail before it reaches the controller.
+        await db.SystemSettings.IgnoreQueryFilters()
+            .Where(x => keys.Contains(x.Key))
+            .ExecuteDeleteAsync();
         db.SystemSettings.AddRange(
             new SystemSetting { Key = "Saml2:Enabled", Value = "true" },
             new SystemSetting { Key = "Saml2:Issuer", Value = "https://identity.example.test" },
@@ -120,8 +129,9 @@ public sealed class SamlFederationControllerCoverageTests(IdentityServiceTestFix
             // Settings are global, so remove only the values created by this
             // test class and leave the shared fixture's seed untouched.
             var keys = new[] { "Saml2:Enabled", "Saml2:Issuer", "Saml2:IdPMetadata" };
-            db.SystemSettings.RemoveRange(db.SystemSettings.Where(x => keys.Contains(x.Key)));
-            await db.SaveChangesAsync();
+            await db.SystemSettings.IgnoreQueryFilters()
+                .Where(x => keys.Contains(x.Key))
+                .ExecuteDeleteAsync();
             scope.Dispose();
         }
     }

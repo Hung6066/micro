@@ -18,7 +18,8 @@ export function portalEnumLabel(
     | "reservationStatus"
     | "salesOrderStatus"
     | "forecastSource"
-    | "severity",
+    | "severity"
+    | "governanceLifecycleStatus",
   value: string,
 ): string {
   i18n.locale();

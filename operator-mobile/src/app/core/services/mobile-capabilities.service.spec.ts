@@ -17,17 +17,19 @@ describe("MobileCapabilitiesService", () => {
     capabilities = TestBed.inject(MobileCapabilitiesService);
   });
 
-  it("maps dashboard visibility to admin.users.read", () => {
-    permissions.has.and.callFake((code: string) => code === "admin.users.read");
-    expect(capabilities.isFeatureEnabled("dashboard")).toBeTrue();
-    expect(capabilities.isFeatureEnabled("clients")).toBeFalse();
+  it("maps production visibility to manufacturing.production.execute", () => {
+    permissions.has.and.callFake(
+      (code: string) => code === "manufacturing.production.execute",
+    );
+    expect(capabilities.isFeatureEnabled("production")).toBeTrue();
+    expect(capabilities.isFeatureEnabled("quality")).toBeFalse();
   });
 
-  it("maps write surfaces to mutation permissions", () => {
+  it("maps maintenance mutations to manufacturing.maintenance.complete", () => {
     permissions.has.and.callFake(
-      (code: string) => code === "admin.roles.write",
+      (code: string) => code === "manufacturing.maintenance.complete",
     );
-    expect(capabilities.isFeatureEnabled("manageRoles")).toBeTrue();
-    expect(capabilities.isFeatureEnabled("manageUsers")).toBeFalse();
+    expect(capabilities.canMutateMaintenance()).toBeTrue();
+    expect(capabilities.canMutateQuality()).toBeFalse();
   });
 });

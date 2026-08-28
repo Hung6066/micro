@@ -5,3 +5,6 @@ export * from "./his-hope-layout.contract";
 export * from "./manufacturing.contracts";
 export * from "./commerce.contracts";
 export * from "./content.contracts";
+export * from "./manufacturing-workflow.contracts";
+export * from "./workflow.contracts";
+export * from "./workflow.contracts";
