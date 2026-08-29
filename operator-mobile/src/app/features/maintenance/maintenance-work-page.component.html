@@ -298,6 +298,50 @@
             "mobile.operatorDowntimeControl" | hhTranslate: "Downtime control"
           }}
         </legend>
+        <label for="maintenance-downtime-batch"
+          ><span>{{ "mobile.operatorBatch" | hhTranslate: "Batch" }}</span
+          ><hh-select
+            id="maintenance-downtime-batch"
+            [(ngModel)]="downtimeBatchId"
+            label="mobile.operatorBatch"
+            placeholder="mobile.operatorChooseBatch"
+            ><option value="">
+              {{ "mobile.operatorChooseBatch" | hhTranslate: "Optional batch" }}
+            </option>
+            @for (batch of productionBatches; track batch.id) {
+              <option
+                [value]="batch.id"
+                [textContent]="batch.batchNumber + ' · ' + batch.status"
+              ></option>
+            }</hh-select
+        ></label>
+        @if (downtimeBatchId) {
+          <label for="maintenance-downtime-operation"
+            ><span>{{
+              "mobile.operatorOperation" | hhTranslate: "Operation"
+            }}</span
+            ><hh-select
+              id="maintenance-downtime-operation"
+              [(ngModel)]="downtimeOperationExecutionId"
+              label="mobile.operatorOperation"
+              placeholder="mobile.operatorChooseOperation"
+              ><option value="">
+                {{
+                  "mobile.operatorChooseOperation"
+                    | hhTranslate: "Optional operation"
+                }}
+              </option>
+              @for (
+                operation of selectedDowntimeBatch()?.operations ?? [];
+                track operation.id
+              ) {
+                <option
+                  [value]="operation.id"
+                  [textContent]="operation.processStep"
+                ></option>
+              }</hh-select
+          ></label>
+        }
         <label for="maintenance-downtime-reason"
           ><span>{{
             "mobile.operatorDowntimeReason" | hhTranslate: "Reason"

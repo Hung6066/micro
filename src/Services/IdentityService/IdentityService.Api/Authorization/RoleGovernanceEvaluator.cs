@@ -41,27 +41,29 @@ public static class RoleGovernanceEvaluator
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        var requestedIds = roleNames
+            .Where(value => Guid.TryParse(value, out _))
+            .Select(Guid.Parse)
+            .ToArray();
+        var requestedNames = roleNames
+            .Where(value => !Guid.TryParse(value, out _))
+            .Select(value => value.ToUpperInvariant())
+            .ToArray();
+        var roleCandidates = await db.Roles.AsNoTracking()
+            .Where(candidate => requestedIds.Contains(candidate.Id) ||
+                (candidate.NormalizedName != null && requestedNames.Contains(candidate.NormalizedName)))
+            .Select(candidate => new { candidate.Id, candidate.Name, candidate.NormalizedName })
+            .ToListAsync(ct);
+
         var roles = new List<(Guid Id, string Name)>();
         foreach (var value in roleNames)
         {
-            if (Guid.TryParse(value, out var id))
-            {
-                var role = await db.Roles.AsNoTracking()
-                    .Where(candidate => candidate.Id == id)
-                    .Select(candidate => new { candidate.Id, candidate.Name })
-                    .FirstOrDefaultAsync(ct);
-                if (role is null) return $"ROLE_NOT_FOUND: role '{value}' was not found.";
-                roles.Add((role.Id, role.Name ?? string.Empty));
-            }
-            else
-            {
-                var role = await db.Roles.AsNoTracking()
-                    .Where(candidate => candidate.NormalizedName == value.ToUpperInvariant())
-                    .Select(candidate => new { candidate.Id, candidate.Name })
-                    .FirstOrDefaultAsync(ct);
-                if (role is null) return $"ROLE_NOT_FOUND: role '{value}' was not found.";
-                roles.Add((role.Id, role.Name ?? string.Empty));
-            }
+            var role = Guid.TryParse(value, out var id)
+                ? roleCandidates.FirstOrDefault(candidate => candidate.Id == id)
+                : roleCandidates.FirstOrDefault(candidate =>
+                    string.Equals(candidate.NormalizedName, value, StringComparison.OrdinalIgnoreCase));
+            if (role is null) return $"ROLE_NOT_FOUND: role '{value}' was not found.";
+            roles.Add((role.Id, role.Name ?? string.Empty));
         }
 
         var requestedPermissions = await db.RolePermissions.AsNoTracking()

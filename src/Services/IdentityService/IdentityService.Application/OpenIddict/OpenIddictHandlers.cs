@@ -327,14 +327,25 @@ internal static class ResourcePolicyClaimBuilder
         Guid scopeId,
         IEnumerable<string> principals,
         CancellationToken cancellationToken)
+        => await BuildManyAsync(db, [scopeId], principals, cancellationToken);
+
+    public static async Task<string?> BuildManyAsync(
+        IApplicationDbContext db,
+        IEnumerable<Guid> scopeIds,
+        IEnumerable<string> principals,
+        CancellationToken cancellationToken)
     {
+        var requestedScopeIds = scopeIds.Distinct().ToArray();
+        if (requestedScopeIds.Length == 0) return null;
+
         var principalSet = principals
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (principalSet.Count == 0) return null;
 
         var policies = await db.IamResourcePolicies.AsNoTracking()
-            .Where(policy => policy.ScopeId == scopeId &&
+            .TagWith("Identity.Oidc.ResolveResourcePolicies")
+            .Where(policy => requestedScopeIds.Contains(policy.ScopeId) &&
                 policy.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published)
             .ToListAsync(cancellationToken);
         var statements = new List<ResourcePolicyClaim>();
@@ -628,16 +639,14 @@ public class CustomPopulateTokenClaims :
             .Select(assignment => assignment.ScopeId)
             .Distinct()
             .ToListAsync(context.CancellationToken);
-        var policyClaims = new List<ResourcePolicyClaim>();
-        foreach (var policyScopeId in policyScopeIds)
-        {
-            var policyJson = await ResourcePolicyClaimBuilder.BuildAsync(
-                _dbContext, policyScopeId,
-                roles.Append(user.Id.ToString("D")).Concat(groupIds.Select(id => id.ToString("D"))),
-                context.CancellationToken);
-            if (policyJson is not null)
-                policyClaims.AddRange(JsonSerializer.Deserialize<List<ResourcePolicyClaim>>(policyJson) ?? []);
-        }
+        var policyJson = await ResourcePolicyClaimBuilder.BuildManyAsync(
+            _dbContext,
+            policyScopeIds,
+            roles.Append(user.Id.ToString("D")).Concat(groupIds.Select(id => id.ToString("D"))),
+            context.CancellationToken);
+        var policyClaims = policyJson is null
+            ? []
+            : JsonSerializer.Deserialize<List<ResourcePolicyClaim>>(policyJson) ?? [];
         if (policyClaims.Count > 0)
         {
             var policyClaim = new Claim("resource_policies", JsonSerializer.Serialize(policyClaims));

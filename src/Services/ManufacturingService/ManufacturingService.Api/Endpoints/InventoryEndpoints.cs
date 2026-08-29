@@ -19,7 +19,7 @@ internal static class InventoryEndpoints
     public static RouteGroupBuilder MapInventoryEndpoints(this RouteGroupBuilder api)
     {
                 
-                api.MapGet("/lots/{lotId:guid}/genealogy", (Guid lotId, string? direction, HttpContext context, IManufacturingTraceabilityStore store) =>
+                api.MapGet("/lots/{lotId:guid}/genealogy", (Guid lotId, string? direction, HttpContext context, IManufacturingTraceabilityReadRepository store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey) || !store.LotBelongsToTenant(lotId, tenantKey))
@@ -29,7 +29,7 @@ internal static class InventoryEndpoints
                     return Results.Ok(store.GetGenealogy(lotId, upstream, tenantKey));
                 });
 
-                api.MapGet("/lots/{lotId:guid}/recall-impact", (Guid lotId, int? maxLots, HttpContext context, IManufacturingTraceabilityStore store) =>
+                api.MapGet("/lots/{lotId:guid}/recall-impact", (Guid lotId, int? maxLots, HttpContext context, IManufacturingTraceabilityReadRepository store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey) || !store.LotBelongsToTenant(lotId, tenantKey))
@@ -37,7 +37,7 @@ internal static class InventoryEndpoints
                     return Results.Ok(store.GetRecallImpact(lotId, tenantKey, Math.Clamp(maxLots ?? 500, 1, 5000)));
                 });
 
-                api.MapGet("/traceability/epcis", async (DateTimeOffset? from, DateTimeOffset? to, int? limit, int? page, HttpContext context, IManufacturingTraceabilityStore store, CancellationToken cancellationToken) =>
+                api.MapGet("/traceability/epcis", async (DateTimeOffset? from, DateTimeOffset? to, int? limit, int? page, HttpContext context, IManufacturingTraceabilityReadRepository store, CancellationToken cancellationToken) =>
                 {
                     var tenantKey = TenantClaim(context);
                     return string.IsNullOrWhiteSpace(tenantKey)
@@ -73,7 +73,7 @@ internal static class InventoryEndpoints
                     };
                 });
 
-                api.MapGet("/lots/{lotId:guid}/inventory-transactions", async (Guid lotId, int? limit, int? page, HttpContext context, IManufacturingTraceabilityStore store, CancellationToken cancellationToken) =>
+                api.MapGet("/lots/{lotId:guid}/inventory-transactions", async (Guid lotId, int? limit, int? page, HttpContext context, IManufacturingTraceabilityReadRepository store, CancellationToken cancellationToken) =>
                 {
                     var tenantKey = TenantClaim(context);
                     return string.IsNullOrWhiteSpace(tenantKey)

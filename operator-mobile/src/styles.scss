@@ -50,10 +50,58 @@ body {
   font-family: var(--font-body);
 }
 
+:root {
+  --operator-sticky-header-offset: 6.4rem;
+}
+
 /* Feature pages use full-width action buttons; tabs must keep intrinsic widths. */
 .operator-shell__content hh-tabs button[role="tab"] {
   width: auto;
   flex: 0 0 auto;
+}
+
+/* Keep the field-page introduction compact so the active workflow starts sooner on mobile. */
+.operator-shell__content .work-page,
+.operator-shell__content .quality-page,
+.operator-shell__content .maintenance-page,
+.operator-shell__content .scan-page {
+  gap: 0.75rem;
+}
+
+.operator-shell__content .work-page > .eyebrow,
+.operator-shell__content .quality-page > .eyebrow,
+.operator-shell__content .maintenance-page > .eyebrow,
+.operator-shell__content .scan-page > .eyebrow {
+  margin-bottom: -0.35rem;
+}
+
+.operator-shell__content .work-page > h2,
+.operator-shell__content .quality-page > h2,
+.operator-shell__content .maintenance-page > h2,
+.operator-shell__content .scan-page > h2 {
+  margin-bottom: -0.25rem;
+}
+
+.operator-shell__content .work-page > .lede,
+.operator-shell__content .quality-page > p:not(.load-error),
+.operator-shell__content .maintenance-page > p:not(.load-error),
+.operator-shell__content .scan-page > p:not(.load-error) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.operator-shell__content .work-page > hh-tabs,
+.operator-shell__content .quality-page > hh-tabs,
+.operator-shell__content .maintenance-page > hh-tabs,
+.operator-shell__content .scan-page > hh-tabs {
+  position: sticky;
+  top: var(--operator-sticky-header-offset);
+  z-index: 3;
+  margin: 0.35rem 0 0.65rem;
+  padding-top: 0.35rem;
+  background: var(--surface-white, #fff);
 }
 
 /* Tab content is always visible; tabs isolate the workflow groups. */

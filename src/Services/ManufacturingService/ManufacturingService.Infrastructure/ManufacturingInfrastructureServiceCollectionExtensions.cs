@@ -31,7 +31,7 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         services.AddSingleton<IManufacturingCapaStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingMaintenanceStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingDashboardStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
-        services.AddSingleton<IManufacturingTraceabilityStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingTraceabilityReadRepository>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingQualityWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingRecipeWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingComplianceStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());

@@ -457,6 +457,76 @@
               "mobile.operatorMeasurement" | hhTranslate: "Process measurement"
             }}
           </legend>
+          <label for="production-measurement-operation"
+            ><span>{{
+              "mobile.operatorOperation" | hhTranslate: "Operation"
+            }}</span
+            ><hh-select
+              id="production-measurement-operation"
+              [(ngModel)]="measurementOperationExecutionId"
+              label="mobile.operatorOperation"
+              placeholder="mobile.operatorChooseOperation"
+              ><option value="">
+                {{
+                  "mobile.operatorChooseOperation"
+                    | hhTranslate: "Choose an operation"
+                }}
+              </option>
+              @for (
+                operation of selectedBatch()?.operations ?? [];
+                track operation.id
+              ) {
+                <option
+                  [value]="operation.id"
+                  [textContent]="operation.processStep"
+                ></option>
+              }</hh-select
+          ></label>
+          <label for="production-measurement-machine"
+            ><span>{{
+              "mobile.operatorMachineId" | hhTranslate: "Machine"
+            }}</span
+            ><hh-select
+              id="production-measurement-machine"
+              [(ngModel)]="measurementMachineId"
+              label="mobile.operatorMachineId"
+              placeholder="mobile.operatorChooseMachine"
+              ><option value="">
+                {{
+                  "mobile.operatorChooseMachine"
+                    | hhTranslate: "Choose a machine"
+                }}
+              </option>
+              @for (machine of machines; track machine.id) {
+                <option
+                  [value]="machine.id"
+                  [textContent]="machine.code + ' · ' + machine.name"
+                ></option>
+              }</hh-select
+          ></label>
+          <label for="production-measurement-lot"
+            ><span>{{ "mobile.operatorLotId" | hhTranslate: "Lot" }}</span
+            ><hh-select
+              id="production-measurement-lot"
+              [(ngModel)]="measurementLotId"
+              label="mobile.operatorLotId"
+              placeholder="mobile.operatorChooseLot"
+              ><option value="">
+                {{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}
+              </option>
+              @for (lot of lots; track lot.id) {
+                <option
+                  [value]="lot.id"
+                  [textContent]="
+                    (lot.lotCode || lot.sku) +
+                    ' · ' +
+                    lot.quantity +
+                    ' ' +
+                    (lot.uom || '')
+                  "
+                ></option>
+              }</hh-select
+          ></label>
           <label
             ><span>{{
               "mobile.operatorMeasurementType" | hhTranslate: "Measurement type"

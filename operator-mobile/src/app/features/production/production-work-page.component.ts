@@ -13,6 +13,8 @@ import {
   type ProductionOrder,
   type Recipe,
   type SopArtifact,
+  type Machine,
+  type LotSummary,
 } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import {
@@ -49,6 +51,11 @@ export class ProductionWorkPageComponent {
   private readonly cdr = inject(ChangeDetectorRef);
   batches: ProductionBatch[] = [];
   selectedBatchId = "";
+  measurementOperationExecutionId = "";
+  measurementMachineId = "";
+  measurementLotId = "";
+  machines: Machine[] = [];
+  lots: LotSummary[] = [];
   processStep = "operation";
   inputQuantity = 0;
   outputQuantity = 0;
@@ -272,9 +279,9 @@ export class ProductionWorkPageComponent {
         expectedVersion: batch.version,
         payload: {
           productionBatchId: batch.id,
-          operationExecutionId: null,
-          machineId: null,
-          lotId: null,
+          operationExecutionId: this.measurementOperationExecutionId || null,
+          machineId: this.measurementMachineId || null,
+          lotId: this.measurementLotId || null,
           measurementType: this.measurementType.trim(),
           value: this.measurementValue,
           uom: this.measurementUom.trim(),
@@ -310,6 +317,11 @@ export class ProductionWorkPageComponent {
         this.sopArtifacts = [];
         this.acknowledgedSopArtifactIds.clear();
         this.selectedBatchId = "";
+        this.measurementOperationExecutionId = "";
+        this.measurementMachineId = "";
+        this.measurementLotId = "";
+        this.machines = [];
+        this.lots = [];
         return;
       }
       this.api
@@ -338,6 +350,32 @@ export class ProductionWorkPageComponent {
         .subscribe((orders) => {
           setTimeout(() => {
             this.orders = orders;
+            this.cdr.markForCheck();
+          });
+        });
+      this.api
+        .getMachines("Available")
+        .pipe(catchError(() => of([])))
+        .subscribe((machines) => {
+          setTimeout(() => {
+            this.machines = machines;
+            if (
+              !machines.some(
+                (machine) => machine.id === this.measurementMachineId,
+              )
+            )
+              this.measurementMachineId = "";
+            this.cdr.markForCheck();
+          });
+        });
+      this.api
+        .getLots()
+        .pipe(catchError(() => of([])))
+        .subscribe((lots) => {
+          setTimeout(() => {
+            this.lots = lots;
+            if (!lots.some((lot) => lot.id === this.measurementLotId))
+              this.measurementLotId = "";
             this.cdr.markForCheck();
           });
         });

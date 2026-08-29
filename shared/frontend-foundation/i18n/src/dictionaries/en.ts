@@ -2730,6 +2730,8 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     operatorReleasedQuantity: "Released quantity",
     operatorBatch: "Batch",
     operatorChooseBatch: "Choose a started batch",
+    operatorOperation: "Operation",
+    operatorChooseOperation: "Choose an operation",
     operatorProcessStep: "Process step",
     operatorInputQuantity: "Input quantity",
     operatorQcStatus: "QC status",

@@ -2732,6 +2732,8 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     operatorReleasedQuantity: "Sản lượng đã phát hành",
     operatorBatch: "Lô sản xuất",
     operatorChooseBatch: "Chọn lô đã bắt đầu",
+    operatorOperation: "Công đoạn",
+    operatorChooseOperation: "Chọn công đoạn",
     operatorProcessStep: "Công đoạn",
     operatorInputQuantity: "Sản lượng đầu vào",
     operatorQcStatus: "Trạng thái QC",

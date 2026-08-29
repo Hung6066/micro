@@ -851,7 +851,7 @@ public sealed class ManufacturingTransformationInputEntity
 
 public sealed partial class PostgresManufacturingStore(IDbContextFactory<ManufacturingDbContext> dbFactory) :
     IManufacturingProductionStore, IManufacturingMaintenanceStore, IManufacturingDashboardStore,
-    IManufacturingTraceabilityStore, IManufacturingQualityWorkflowStore,
+    IManufacturingTraceabilityReadRepository, IManufacturingQualityWorkflowStore,
     IManufacturingRecipeWorkflowStore, IManufacturingPlanningWorkflowStore,
     IManufacturingIntegrationStore, IManufacturingWorkflowStore
 {

@@ -144,13 +144,20 @@
         <option [value]="option.key">{{ option.label }}</option>
       }
     </hh-select>
-    <small
+    <small class="operator-shell__identity"
       >{{ "mobile.operatorIdentity" | hhTranslate: "Operator" }}:
-      <span>{{
-        tenant.email() ??
+      <span
+        [title]="
+          tenant.email() ??
           tenant.subjectId() ??
-          ("mobile.operatorIdentityUnavailable" | hhTranslate: "Not resolved")
-      }}</span></small
+          ('mobile.operatorIdentityUnavailable' | hhTranslate: 'Not resolved')
+        "
+        >{{
+          tenant.email() ??
+            tenant.subjectId() ??
+            ("mobile.operatorIdentityUnavailable" | hhTranslate: "Not resolved")
+        }}</span
+      ></small
     >
     @if (readCache.stale()) {
       <small class="operator-shell__stale" role="status"

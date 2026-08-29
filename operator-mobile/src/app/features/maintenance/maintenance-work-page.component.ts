@@ -10,6 +10,7 @@ import {
   type MaintenancePlan,
   type MaintenanceWorkOrder,
   type MachineDowntime,
+  type ProductionBatch,
 } from "../../core/services/operator-mobile-api.service";
 import { catchError, of } from "rxjs";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
@@ -60,6 +61,9 @@ export class MaintenanceWorkPageComponent {
   health: MachineHealth | null = null;
   downtimes: MachineDowntime[] = [];
   downtimeReason = "";
+  downtimeBatchId = "";
+  downtimeOperationExecutionId = "";
+  productionBatches: ProductionBatch[] = [];
 
   maintenanceStatusLabel(status: string): string {
     return manufacturingEnumLabel(this.i18n, "maintenanceStatus", status);
@@ -92,6 +96,12 @@ export class MaintenanceWorkPageComponent {
   selectedMachineLabel(): string {
     const machine = this.machines.find((item) => item.id === this.machineId);
     return machine ? `${machine.code} · ${machine.name}` : this.machineId;
+  }
+
+  selectedDowntimeBatch(): ProductionBatch | undefined {
+    return this.productionBatches.find(
+      (batch) => batch.id === this.downtimeBatchId,
+    );
   }
 
   loadWorkOrderChecklist(): void {
@@ -186,6 +196,9 @@ export class MaintenanceWorkPageComponent {
         this.calibrations = [];
         this.telemetry = [];
         this.downtimes = [];
+        this.productionBatches = [];
+        this.downtimeBatchId = "";
+        this.downtimeOperationExecutionId = "";
         this.health = null;
         return;
       }
@@ -258,6 +271,19 @@ export class MaintenanceWorkPageComponent {
         .subscribe((plans) => {
           setTimeout(() => {
             this.plans = plans;
+            this.cdr.markForCheck();
+          });
+        });
+      this.api
+        .getProductionBatches("Started")
+        .pipe(catchError(() => of([])))
+        .subscribe((batches) => {
+          setTimeout(() => {
+            this.productionBatches = batches;
+            if (!batches.some((batch) => batch.id === this.downtimeBatchId)) {
+              this.downtimeBatchId = "";
+              this.downtimeOperationExecutionId = "";
+            }
             this.cdr.markForCheck();
           });
         });
@@ -335,6 +361,8 @@ export class MaintenanceWorkPageComponent {
         payload: {
           reason: this.downtimeReason.trim(),
           startedAt: new Date().toISOString(),
+          productionBatchId: this.downtimeBatchId || null,
+          operationExecutionId: this.downtimeOperationExecutionId || null,
         },
       },
       (queued) => this.api.recordMachineDowntime(queued),
