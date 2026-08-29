@@ -99,6 +99,34 @@ describe('HisHopeAuthCoordinator', () => {
     });
   });
 
+  it('does not let a transient logout suppression block BFF exchange', (done) => {
+    const oidc = { logoffLocal: jasmine.createSpy('logoffLocal') } as unknown as OidcSecurityService;
+    const http = {
+      get: jasmine.createSpy('get').and.returnValue(of({ authenticated: true })),
+      post: jasmine.createSpy('post').and.returnValue(of(void 0)),
+    } as unknown as HttpClient;
+    const router = { url: '/auth/login', navigateByUrl: jasmine.createSpy('navigateByUrl') } as unknown as Router;
+    sessionStorage.setItem('hishop_sso_suppressed_until', String(Date.now() + 60_000));
+
+    const coordinator = new HisHopeAuthCoordinator(oidc, http, router, {
+      defaultReturnUrl: '/dashboard',
+      sessionStatusUrl: '/api/v1/auth/session-status',
+      sessionExchangeUrl: '/api/v1/auth/session/exchange',
+      logoutUrl: '/api/v1/auth/logout',
+      bffOnly: true,
+    });
+
+    coordinator.trySsoLogin('/dashboard').subscribe((exchanged) => {
+      expect(exchanged).toBeTrue();
+      expect(http.post).toHaveBeenCalledWith(
+        '/api/v1/auth/session/exchange',
+        {},
+        { withCredentials: true },
+      );
+      done();
+    });
+  });
+
   it('shares concurrent BFF exchanges so session rotation cannot leave a stale cookie', (done) => {
     const oidc = { logoffLocal: jasmine.createSpy('logoffLocal') } as unknown as OidcSecurityService;
     const exchange$ = new Subject<void>();

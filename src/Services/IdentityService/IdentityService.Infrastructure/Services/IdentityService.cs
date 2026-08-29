@@ -154,7 +154,12 @@ public class IdentityService : IIdentityService
             return [];
 
         var roles = await _userManager.GetRolesAsync(user);
-        return await GetPermissionsForRolesAsync(roles, userId, cancellationToken);
+        var permissions = await GetPermissionsForRolesAsync(roles, userId, cancellationToken);
+        var configuredIds = _configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>() ?? [];
+        return _configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false) &&
+            configuredIds.Any(id => Guid.TryParse(id, out var configuredId) && configuredId == userId)
+            ? PrivilegedIdentityPermissionBoundary.Filter(permissions)
+            : permissions;
     }
 
     public async Task<TokenResponse> LoginAsync(LoginRequest request,
@@ -179,7 +184,7 @@ public class IdentityService : IIdentityService
                 $"Account temporarily locked. Try again in {remaining.TotalMinutes:F0} minutes.");
         }
 
-        if (user is null || !await _userManager.CheckPasswordAsync(user, request.Password))
+        if (user is null || !await _userManager.CheckPasswordAsync(user, request.Password ?? string.Empty))
         {
             // SECURITY: Record failed attempt, then check lockout
             if (user is not null)
@@ -277,7 +282,7 @@ public class IdentityService : IIdentityService
         if (user is null) return;
 
         user.FailedLoginAttempts++;
-        await _userManager.UpdateAsync(default);
+        await _userManager.UpdateAsync(user);
 
         await LogSecurityEventAsync(user.Id, user.UserName!, "login_failed",
             "warning", request.IpAddress, request.UserAgent, request.DeviceInfo,
@@ -307,8 +312,8 @@ public class IdentityService : IIdentityService
             Id = Guid.NewGuid(),
             UserName = username,
             Email = request.Email,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
+            FirstName = request.FirstName ?? string.Empty,
+            LastName = request.LastName ?? string.Empty,
             MiddleName = request.MiddleName,
             LicenseNumber = request.LicenseNumber,
             Specialty = request.Specialty,
@@ -316,7 +321,7 @@ public class IdentityService : IIdentityService
             CreatedAt = DateTime.UtcNow
         };
 
-        var result = await _userManager.CreateAsync(user, request.Password);
+        var result = await _userManager.CreateAsync(user, request.Password ?? string.Empty);
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));

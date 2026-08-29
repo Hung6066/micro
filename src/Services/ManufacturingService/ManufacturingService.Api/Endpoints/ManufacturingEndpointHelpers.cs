@@ -15,7 +15,8 @@ using Microsoft.AspNetCore.Builder;
 internal static class ManufacturingEndpointHelpers
 {
     internal static string? TenantClaim(HttpContext context) =>
-        ManufacturingHttpExtensions.ResolveActiveTenant(context);
+        context.RequestServices.GetService<IHisHopeTenantContext>()?.TenantKey
+        ?? ManufacturingHttpExtensions.ResolveActiveTenant(context);
 
     internal static bool TenantMatches(HttpContext context, string tenantKey) =>
         ManufacturingHttpExtensions.TenantMatches(context, tenantKey);

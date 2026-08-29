@@ -15,7 +15,7 @@ public sealed class SupportElevation
 
     public string PermissionsJson { get; set; } = "[]";
 
-    public string Status { get; set; } = "approved";
+    public string Status { get; set; } = "pending";
 
     public string? RequestedBy { get; set; }
 

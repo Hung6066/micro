@@ -88,9 +88,7 @@ test.describe('operator entity status history panels @operator-workflow', () => 
     await batchesTab.click();
     await expect(batchesTab).toHaveAttribute('aria-selected', 'true');
     const toggle = page.locator('[data-testid^="entity-status-history-toggle-"]').first();
-    if (!(await toggle.isVisible({ timeout: 20_000 }).catch(() => false))) {
-      test.skip(true, 'No production batches available for status history coverage.');
-    }
+    await expect(toggle).toBeVisible({ timeout: 20_000 });
     await toggle.click();
     const panel = page.locator('[data-testid^="entity-status-history-"]').first();
     await expect(panel.locator('hh-timeline, .meta, .error').first()).toBeVisible({ timeout: 15_000 });
@@ -100,9 +98,7 @@ test.describe('operator entity status history panels @operator-workflow', () => 
     await page.goto(`${operatorUrl}/procurement`);
     await page.getByRole('tab', { name: /Purchase orders|Đơn mua hàng/i }).click();
     const toggle = page.locator('[data-testid^="entity-cross-workflow-toggle-"]').first();
-    if (!(await toggle.isVisible({ timeout: 20_000 }).catch(() => false))) {
-      test.skip(true, 'No purchase orders available for cross-workflow coverage.');
-    }
+    await expect(toggle).toBeVisible({ timeout: 20_000 });
     await toggle.click();
     const panel = page.locator('[data-testid^="entity-cross-workflow-"]').first();
     await expect(
@@ -112,19 +108,15 @@ test.describe('operator entity status history panels @operator-workflow', () => 
 
   test('inventory lots page exposes cross-entity workflow toggle for selected lot', async ({ page }) => {
     await page.goto(`${operatorUrl}/inventory/lots`);
-    const lotSelect = page.locator('.lot-action-form select').first();
-    if (!(await lotSelect.isVisible({ timeout: 20_000 }).catch(() => false))) {
-      test.skip(true, 'Lots page lot selector unavailable.');
-    }
+    const lotSelect = page.locator('.lot-action-form hh-select#selected-lot-id');
+    await expect(lotSelect).toBeVisible({ timeout: 20_000 });
     const options = lotSelect.locator('option');
-    if ((await options.count()) <= 1) {
-      test.skip(true, 'No lots available for cross-workflow coverage.');
-    }
-    await lotSelect.selectOption({ index: 1 });
+    await expect(options.nth(1)).toBeAttached({ timeout: 20_000 });
+    const lotLabel = (await options.nth(1).textContent())?.trim() ?? '';
+    await lotSelect.click();
+    await page.getByRole('option', { name: lotLabel, exact: true }).click();
     const toggle = page.locator('[data-testid^="entity-cross-workflow-toggle-"]').first();
-    if (!(await toggle.isVisible({ timeout: 10_000 }).catch(() => false))) {
-      test.skip(true, 'Cross-workflow panel unavailable — rebuild operator app or select a linked lot.');
-    }
+    await expect(toggle).toBeVisible({ timeout: 20_000 });
     await toggle.click();
     const panel = page.locator('[data-testid^="entity-cross-workflow-"]').first();
     await expect(

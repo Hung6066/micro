@@ -18,7 +18,7 @@ public static class AdminIncidentEndpoints
     public static void MapAdminIncidentEndpoints(this WebApplication app)
     {
         MapAdminIncidentEndpoints(app.MapGroup("/api/v1/admin")
-            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin));
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin));
     }
 
     public static void MapAdminIncidentEndpoints(this RouteGroupBuilder group)

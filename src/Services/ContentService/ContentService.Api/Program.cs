@@ -150,7 +150,9 @@ app.MapGet("/api/v1/content/rss.xml", (HttpContext context, PostgresContentStore
     return Results.Content(xml, "application/rss+xml", Encoding.UTF8);
 }).AllowAnonymous();
 
-var content = app.MapGroup("/api/v1/content").RequireAuthorization();
+var content = app.MapGroup("/api/v1/content")
+    .RequireAuthorization()
+    .RequireTenantContext();
 
 content.MapGet("/banners", (HttpContext context, PostgresContentStore store) =>
 {

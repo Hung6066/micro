@@ -66,7 +66,7 @@ public class GetAuditLogsQueryHandler
                     _context.UserClaims.Any(claim =>
                         claim.UserId == user.Id &&
                         claim.ClaimType == "tenant_membership" &&
-                        normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
+                        claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

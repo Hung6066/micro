@@ -50,7 +50,7 @@ test.describe('manufacturing operator completeness @operator-app', () => {
         for (const label of ['Material requirements', 'Facilities', 'Material and UOM master data', 'Suppliers', 'Supplier RFQs', 'Purchase orders', 'Inbound receipt history']) await expect(page.locator('.procurement-nav [role="tab"]').filter({ hasText: new RegExp(label, 'i') })).toBeVisible();
       }
       if (route === 'production') {
-        await expect(page.getByRole('heading', { name: /Create production order|Production orders|Đơn sản xuất/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Create production order', exact: true })).toBeVisible();
       }
       if (route === 'quality-inspections') {
         await expect(page.getByRole('tab', { name: /Inspection history|Lịch sử kiểm tra/i })).toBeVisible();
@@ -71,9 +71,11 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     const productSku = `E2E-${suffix}`;
     await page.locator('input[name="sku"]').fill(productSku);
     await page.locator('input[name="name"]').fill(`E2E product ${suffix}`);
-    const uom = await page.locator('select[name="productUom"] option').nth(1).getAttribute('value');
+    const uomSelect = page.locator('hh-select[name="productUom"]');
+    const uom = await uomSelect.locator('option').first().getAttribute('value');
     expect(uom).toBeTruthy();
-    await page.locator('select[name="productUom"]').selectOption(uom);
+    await uomSelect.click();
+    await page.getByRole('option', { name: new RegExp(`^${uom}\\s·`, 'i') }).click();
     await page.getByRole('button', { name: /Save|Lưu/i }).last().click();
     await expect(page.getByText(productSku, { exact: true })).toBeVisible();
   });
@@ -117,8 +119,9 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
     await login(page);
     await page.goto(`${operatorUrl}/production`);
-    await expect(page.getByRole('heading', { name: /Create production order|Production orders|Đơn sản xuất/i })).toBeVisible();
-    const recipeOption = page.locator('select[name="recipeId"] option').nth(1);
+    await expect(page.getByRole('heading', { name: /^Production orders$|^Đơn sản xuất$/i })).toBeVisible();
+    const recipeSelect = page.locator('hh-select[name="recipeId"]');
+    const recipeOption = recipeSelect.locator('option').nth(1);
     const recipeId = await recipeOption.getAttribute('value');
     const recipeLabel = (await recipeOption.textContent()) ?? '';
     expect(recipeId).toBeTruthy();
@@ -127,8 +130,8 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     const orderNumber = `E2E-${suffix}`;
     await page.locator('input[name="orderNumber"]').fill(orderNumber);
     await page.locator('input[name="productSku"]').fill(recipeLabel.split(' · ')[0]);
-    await page.locator('select[name="recipeId"]').selectOption({ value: recipeId });
-    await expect(page.locator('select[name="recipeId"]')).toHaveValue(recipeId);
+    await recipeSelect.click();
+    await page.getByRole('option', { name: recipeLabel.trim(), exact: true }).click();
     await page.locator('input[name="targetQuantity"]').fill('1');
     await page.locator('input[name="outputUom"]').fill('kg');
     await page.getByRole('button', { name: /Create production order|Tạo lệnh sản xuất/i }).first().click();

@@ -16,6 +16,7 @@ import {
   HisHopeStateComponent,
   HisHopeTabsComponent,
   HisHopeWorkflowStepperComponent,
+  HisHopeSelectComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -58,6 +59,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     HisHopeWorkflowStepperComponent,
     EntityStatusHistoryPanelComponent,
     EntityCrossWorkflowPanelComponent,
+    HisHopeSelectComponent,
   ],
   template: `
     <hh-page-layout>
@@ -97,11 +99,11 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           <form class="order-entry" (ngSubmit)="createProductionOrder()">
             <label>{{ "customerPortal.orderNumber" | hhTranslate: "Order number" }}<input name="orderNumber" [(ngModel)]="productionOrderDraft.orderNumber" required /></label>
             <label>{{ "customerPortal.productSku" | hhTranslate: "Product SKU" }}<input name="productSku" [(ngModel)]="productionOrderDraft.productSku" required /></label>
-            <label>{{ "customerPortal.recipe" | hhTranslate: "Recipe" }}
-              <select name="recipeId" [(ngModel)]="productionOrderDraft.recipeId" required>
+            <label for="recipeId">{{ "customerPortal.recipe" | hhTranslate: "Recipe" }}
+              <hh-select id="recipeId" name="recipeId" [(ngModel)]="productionOrderDraft.recipeId" required>
                 <option value="">{{ "customerPortal.selectRecipe" | hhTranslate: "Select recipe" }}</option>
                 @for (recipe of recipes; track recipe.id) { <option [value]="recipe.id">{{ recipe.productSku }} · v{{ recipe.version }} · {{ recipe.processStep }}</option> }
-              </select>
+              </hh-select>
             </label>
             <label>{{ "customerPortal.targetQuantity" | hhTranslate: "Target quantity" }}<input name="targetQuantity" type="number" min="0.001" step="0.001" [(ngModel)]="productionOrderDraft.targetQuantity" required /></label>
             <label>{{ "customerPortal.outputUom" | hhTranslate: "Output UOM" }}<input name="outputUom" [(ngModel)]="productionOrderDraft.outputUom" required /></label>
@@ -112,25 +114,25 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         <section class="section create-order-panel" [hidden]="activeTab !== 'batches'">
           <h2>{{ "customerPortal.createProductionBatch" | hhTranslate: "Create production batch" }}</h2>
           <form class="order-entry" (ngSubmit)="createProductionBatch()">
-            <label>{{ "customerPortal.productionOrder" | hhTranslate: "Production order" }}
-              <select name="productionOrderId" [(ngModel)]="productionBatchDraft.productionOrderId" required>
+            <label for="productionOrderId">{{ "customerPortal.productionOrder" | hhTranslate: "Production order" }}
+              <hh-select id="productionOrderId" name="productionOrderId" [(ngModel)]="productionBatchDraft.productionOrderId" required>
                 <option value="">{{ "customerPortal.selectProductionOrder" | hhTranslate: "Select released order" }}</option>
                 @for (order of orders; track order.id) { @if (order.status === "Released") { <option [value]="order.id">{{ order.orderNumber }} · {{ order.productSku }}</option> } }
-              </select>
+              </hh-select>
             </label>
             <label>{{ "customerPortal.batchNumber" | hhTranslate: "Batch number" }}<input name="batchNumber" [(ngModel)]="productionBatchDraft.batchNumber" required /></label>
             <label>{{ "customerPortal.plannedQuantity" | hhTranslate: "Planned quantity" }}<input name="plannedQuantity" type="number" min="0.001" step="0.001" [(ngModel)]="productionBatchDraft.plannedQuantity" required /></label>
-            <label>{{ "customerPortal.machine" | hhTranslate: "Machine (optional)" }}
-              <select name="machineId" [(ngModel)]="productionBatchDraft.machineId">
+            <label for="machineId">{{ "customerPortal.machine" | hhTranslate: "Machine (optional)" }}
+              <hh-select id="machineId" name="machineId" [(ngModel)]="productionBatchDraft.machineId">
                 <option value="">{{ "customerPortal.noMachine" | hhTranslate: "No machine" }}</option>
                 @for (machine of machines; track machine.id) { <option [value]="machine.id">{{ machine.code }} · {{ machine.name }}</option> }
-              </select>
+              </hh-select>
             </label>
-            <label>{{ "customerPortal.inputLot" | hhTranslate: "Input lot" }}
-              <select name="inputLotId" [(ngModel)]="productionBatchDraft.inputLotId" required>
+            <label for="inputLotId">{{ "customerPortal.inputLot" | hhTranslate: "Input lot" }}
+              <hh-select id="inputLotId" name="inputLotId" [(ngModel)]="productionBatchDraft.inputLotId" required>
                 <option value="">{{ "customerPortal.selectInputLot" | hhTranslate: "Select released lot" }}</option>
                 @for (lot of lots; track lot.id) { <option [value]="lot.id">{{ lot.sku }} · {{ lot.quantity | number: "1.0-2" }} {{ lot.uom }}</option> }
-              </select>
+              </hh-select>
             </label>
             <label>{{ "customerPortal.inputQuantity" | hhTranslate: "Input quantity" }}<input name="inputQuantity" type="number" min="0.001" step="0.001" [(ngModel)]="productionBatchDraft.inputQuantity" required /></label>
             <div class="review-actions"><hh-action-button kind="primary" icon="precision_manufacturing" type="submit" [label]="'customerPortal.createProductionBatch' | hhTranslate: 'Create production batch'" [disabled]="productionBatchBusy" /></div>
@@ -452,9 +454,9 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
       .operation-entry label { display: grid; gap: var(--space-2xs); color: var(--text-secondary); font-size: var(--font-size-caption); }
       .operation-entry input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: var(--space-xs); color: var(--text-primary); background: var(--surface-white); font: inherit; }
       .order-entry { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--space-sm); align-items: end; }
-      .order-entry label { display: grid; gap: var(--space-2xs); color: var(--text-secondary); font-size: var(--font-size-caption); }
+      .order-entry label { display: grid; min-width: 0; gap: var(--space-2xs); color: var(--text-secondary); font-size: var(--font-size-caption); }
       .order-entry input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: var(--space-xs); color: var(--text-primary); background: var(--surface-white); font: inherit; }
-      .order-entry select { width: 100%; box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: var(--space-xs); color: var(--text-primary); background: var(--surface-white); font: inherit; }
+      .order-entry hh-select { min-width: 0; }
       .workflow-reference {
         margin-bottom: var(--space-lg);
         padding: var(--space-md);

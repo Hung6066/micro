@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Grpc.Core;
+using His.Hope.Identity.Grpc;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -376,7 +377,8 @@ public sealed class GrpcIdentityServiceTests
 
     private static async Task<object> InvokeAsync(object service, string methodName, string requestName, Action<object>? configure = null)
     {
-        var requestType = service.GetType().Assembly.GetType($"His.Hope.Identity.Grpc.{requestName}")!;
+        var requestType = typeof(IntrospectRequest).Assembly.GetType($"His.Hope.Identity.Grpc.{requestName}")
+            ?? throw new InvalidOperationException($"Unable to resolve gRPC request type '{requestName}'.");
         var request = Activator.CreateInstance(requestType)!;
         configure?.Invoke(request);
         var method = service.GetType().GetMethod(methodName)!;

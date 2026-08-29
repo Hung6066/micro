@@ -9,6 +9,8 @@ import {
 
 @Injectable({ providedIn: "root" })
 export class OperationQueueService {
+  private static readonly MAX_ENTRIES = 100;
+  private static readonly DEAD_LETTER_ATTEMPTS = 5;
   private readonly queue: QueuedOperation[] = [];
 
   // The no-argument construction path keeps the queue deterministic in unit tests.
@@ -45,6 +47,7 @@ export class OperationQueueService {
       id: crypto.randomUUID(),
       operationId: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
+      attemptCount: 0,
       status: "pending",
     };
     this.queue.push(operation);
@@ -54,11 +57,15 @@ export class OperationQueueService {
 
   async sync(transport: OperationTransport): Promise<void> {
     for (const operation of this.queue.filter((item) => item.status === "pending")) {
+      operation.attemptCount = (operation.attemptCount ?? 0) + 1;
+      operation.lastAttemptAt = new Date().toISOString();
       try {
         const result = await transport(operation);
-        this.applyResult(operation, result.kind, "message" in result ? result.message : undefined);
+        const message = "message" in result ? result.message : undefined;
+        const terminalStatus = result.kind === "pending" && (operation.attemptCount ?? 0) >= OperationQueueService.DEAD_LETTER_ATTEMPTS ? "failed" : result.kind;
+        this.applyResult(operation, terminalStatus, message);
       } catch {
-        operation.status = "pending";
+        operation.status = (operation.attemptCount ?? 0) >= OperationQueueService.DEAD_LETTER_ATTEMPTS ? "failed" : "pending";
       }
     }
     this.persist();
@@ -84,12 +91,34 @@ export class OperationQueueService {
     this.persist();
   }
 
+  async retry(id: string): Promise<void> {
+    const operation = this.queue.find((entry) => entry.id === id);
+    if (!operation || (operation.status !== "failed" && operation.status !== "conflict")) return;
+    operation.status = "pending";
+    operation.error = undefined;
+    this.persist();
+  }
+
+  async clear(): Promise<void> {
+    this.queue.splice(0, this.queue.length);
+    this.persist();
+  }
+
   private applyResult(operation: QueuedOperation, status: OperationStatus, message?: string): void {
     operation.status = status;
     operation.error = message;
   }
 
   private persist(): void {
+    this.pruneTerminalEntries();
     this.secureStorage?.write("operator-mobile.operation-queue.v1", JSON.stringify(this.queue));
+  }
+
+  private pruneTerminalEntries(): void {
+    while (this.queue.length > OperationQueueService.MAX_ENTRIES) {
+      const index = this.queue.findIndex((entry) => entry.status === "synced" || entry.status === "failed");
+      if (index < 0) return;
+      this.queue.splice(index, 1);
+    }
   }
 }

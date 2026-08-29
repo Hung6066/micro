@@ -16,7 +16,9 @@ import {
   HisHopeActionButtonComponent,
   HisHopeTabsComponent,
   HisHopeWorkflowStepperComponent,
+  HisHopeSelectComponent,
 } from "@his-hope/frontend-foundation/ui";
+import type { HisHopeSelectOption } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
@@ -64,6 +66,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     HisHopeWorkflowStepperComponent,
     EntityStatusHistoryPanelComponent,
     EntityCrossWorkflowPanelComponent,
+    HisHopeSelectComponent,
   ],
   template: `
     <hh-page-layout>
@@ -151,7 +154,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         <section class="section" id="master-data">
           <div class="section-heading"><h2>{{ "customerPortal.masterData" | hhTranslate: "Material and UOM master data" }}</h2><div class="receipt-actions"><hh-action-button kind="secondary" icon="straighten" [label]="'customerPortal.addUom' | hhTranslate: 'Add UOM'" (pressed)="startUom()" /><hh-action-button kind="secondary" icon="inventory_2" [label]="'customerPortal.addMaterial' | hhTranslate: 'Add material'" (pressed)="startMaterial()" /></div></div>
           @if (uomDraft) { <form class="supplier-form" (ngSubmit)="saveUom()"><label>{{ "customerPortal.uomCode" | hhTranslate: "UOM code" }}<input name="uomCode" [(ngModel)]="uomDraft.code" required /></label><label>{{ "customerPortal.uomName" | hhTranslate: "UOM name" }}<input name="uomName" [(ngModel)]="uomDraft.name" required /></label><label>{{ "customerPortal.uomDimension" | hhTranslate: "Dimension" }}<input name="uomDimension" [(ngModel)]="uomDraft.dimension" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="masterDataBusy" /></div></form> }
-          @if (materialDraft) { <form class="supplier-form" (ngSubmit)="saveMaterial()"><label>{{ "customerPortal.materialSku" | hhTranslate: "Material SKU" }}<input name="masterMaterialSku" [(ngModel)]="materialDraft.sku" required /></label><label>{{ "customerPortal.materialName" | hhTranslate: "Material name" }}<input name="materialName" [(ngModel)]="materialDraft.name" required /></label><label>{{ "customerPortal.baseUom" | hhTranslate: "Base UOM" }}<select name="baseUom" [(ngModel)]="materialDraft.baseUomCode" required><option value="">{{ "customerPortal.selectUom" | hhTranslate: "Select UOM" }}</option>@for (uom of uoms; track uom.code) { <option [value]="uom.code">{{ uom.code }} · {{ uom.name }}</option> }</select></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="masterDataBusy" /></div></form> }
+          @if (materialDraft) { <form class="supplier-form" (ngSubmit)="saveMaterial()"><label>{{ "customerPortal.materialSku" | hhTranslate: "Material SKU" }}<input name="masterMaterialSku" [(ngModel)]="materialDraft.sku" required /></label><label>{{ "customerPortal.materialName" | hhTranslate: "Material name" }}<input name="materialName" [(ngModel)]="materialDraft.name" required /></label><label for="baseUom">{{ "customerPortal.baseUom" | hhTranslate: "Base UOM" }}<hh-select id="baseUom" name="baseUom" [(ngModel)]="materialDraft.baseUomCode" required><option value="">{{ "customerPortal.selectUom" | hhTranslate: "Select UOM" }}</option>@for (uom of uoms; track uom.code) { <option [value]="uom.code">{{ uom.code }} · {{ uom.name }}</option> }</hh-select></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="masterDataBusy" /></div></form> }
           @if (masterDataError) { <p class="error">{{ masterDataError }}</p> } @if (!materials.length) { <p class="empty">{{ "customerPortal.noMaterials" | hhTranslate: "No materials." }}</p> } @else { <ul class="list">@for (material of materials; track material.id) { <li><strong>{{ material.sku }}</strong> — {{ material.name }} ({{ material.baseUomCode }})</li> }</ul> }
         </section>
 
@@ -166,7 +169,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
               <label>{{ "customerPortal.supplierContactName" | hhTranslate: "Contact name" }}<input name="supplierContactName" [(ngModel)]="supplierDraft.contactName" /></label>
               <label>{{ "customerPortal.supplierContactEmail" | hhTranslate: "Contact email" }}<input name="supplierContactEmail" type="email" [(ngModel)]="supplierDraft.contactEmail" /></label>
               <label>{{ "customerPortal.supplierCountry" | hhTranslate: "Country (ISO 2)" }}<input name="supplierCountry" maxlength="2" [(ngModel)]="supplierDraft.countryCode" /></label>
-              <label>{{ "customerPortal.supplierRisk" | hhTranslate: "Risk level" }}<select name="supplierRisk" [(ngModel)]="supplierDraft.riskLevel"><option value="Low">Low</option><option value="Standard">Standard</option><option value="High">High</option><option value="Critical">Critical</option></select></label>
+              <label for="supplierRisk">{{ "customerPortal.supplierRisk" | hhTranslate: "Risk level" }}<hh-select id="supplierRisk" name="supplierRisk" [(ngModel)]="supplierDraft.riskLevel"><option value="Low">Low</option><option value="Standard">Standard</option><option value="High">High</option><option value="Critical">Critical</option></hh-select></label>
               <label class="checkbox"><input name="supplierActive" type="checkbox" [(ngModel)]="supplierDraft.active" /> {{ "customerPortal.supplierActive" | hhTranslate: "Active" }}</label>
               <div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierBusy" /><hh-action-button kind="secondary" icon="close" type="button" [label]="'common.cancel' | hhTranslate: 'Cancel'" [disabled]="supplierBusy" (pressed)="supplierDraft = null" /></div>
             </form>
@@ -202,18 +205,18 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           @if (supplierRfqDraft) { <form class="supplier-form" (ngSubmit)="saveSupplierRfq()"><label>{{ "customerPortal.rfqNumber" | hhTranslate: "RFQ number" }}<input name="rfqNumber" [(ngModel)]="supplierRfqDraft.rfqNumber" required /></label><label>{{ "customerPortal.materialSku" | hhTranslate: "Material SKU" }}<input name="rfqMaterialSku" [(ngModel)]="supplierRfqDraft.materialSku" required /></label><label>{{ "customerPortal.forecastQuantity" | hhTranslate: "Quantity" }}<input name="rfqQuantity" type="number" min="0.001" [(ngModel)]="supplierRfqDraft.quantity" required /></label><label>{{ "customerPortal.forecastUom" | hhTranslate: "UOM" }}<input name="rfqUom" [(ngModel)]="supplierRfqDraft.uom" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierRfqBusy" /></div></form> }
           @if (supplierRfqError) { <p class="error">{{ supplierRfqError }}</p> }
 @if (!supplierRfqs.length) { <p class="empty">{{ "customerPortal.noSupplierRfqs" | hhTranslate: "No supplier RFQs." }}</p> } @else { <ul class="list">@for (rfq of supplierRfqs; track rfq.id) { <li><strong>{{ rfq.rfqNumber }}</strong> — {{ rfq.materialSku }} · {{ rfq.quantity }} {{ rfq.uom }} <span class="status">{{ quotationStatusLabel(rfq.status) }}</span> <hh-action-button kind="secondary" icon="add" [label]="'customerPortal.addQuotation' | hhTranslate: 'quotation'" (pressed)="startSupplierQuotation(rfq.id)" /> <hh-action-button kind="secondary" icon="visibility" [label]="'customerPortal.viewQuotations' | hhTranslate: 'View quotations'" (pressed)="loadQuotations(rfq.id)" /></li> }</ul> }
-          @if (supplierQuotationDraft) { <form class="supplier-form" (ngSubmit)="saveSupplierQuotation()"><label>{{ "customerPortal.supplier" | hhTranslate: "Supplier" }}<select name="quotationSupplier" [(ngModel)]="supplierQuotationDraft.supplierId" required><option value="">{{ "customerPortal.selectSupplier" | hhTranslate: "Select supplier" }}</option>@for (supplier of suppliers; track supplier.id) { <option [value]="supplier.id">{{ supplier.code }} · {{ supplier.name }}</option> }</select></label><label>{{ "customerPortal.unitPrice" | hhTranslate: "Unit price" }}<input name="quotationPrice" type="number" min="0" [(ngModel)]="supplierQuotationDraft.unitPrice" required /></label><label>{{ "customerPortal.leadTimeDays" | hhTranslate: "Lead time (days)" }}<input name="quotationLeadTime" type="number" min="0" [(ngModel)]="supplierQuotationDraft.leadTimeDays" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierQuotationBusy" /></div></form> }
+          @if (supplierQuotationDraft) { <form class="supplier-form" (ngSubmit)="saveSupplierQuotation()"><label for="quotationSupplier">{{ "customerPortal.supplier" | hhTranslate: "Supplier" }}<hh-select id="quotationSupplier" name="quotationSupplier" [(ngModel)]="supplierQuotationDraft.supplierId" required><option value="">{{ "customerPortal.selectSupplier" | hhTranslate: "Select supplier" }}</option>@for (supplier of suppliers; track supplier.id) { <option [value]="supplier.id">{{ supplier.code }} · {{ supplier.name }}</option> }</hh-select></label><label>{{ "customerPortal.unitPrice" | hhTranslate: "Unit price" }}<input name="quotationPrice" type="number" min="0" [(ngModel)]="supplierQuotationDraft.unitPrice" required /></label><label>{{ "customerPortal.leadTimeDays" | hhTranslate: "Lead time (days)" }}<input name="quotationLeadTime" type="number" min="0" [(ngModel)]="supplierQuotationDraft.leadTimeDays" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierQuotationBusy" /></div></form> }
           @if (quotationRfqId) { <div class="quotation-list"><h3>{{ "customerPortal.quotationHistory" | hhTranslate: "Quotation history" }}</h3>@if (!quotations.length) { <p class="empty">{{ "customerPortal.noQuotations" | hhTranslate: "No quotations." }}</p> } @else { @for (quotation of quotations; track quotation.id) { <div class="quotation-row"><strong>{{ supplierName(quotation.supplierId) }}</strong><span>{{ quotation.unitPrice | currency: quotation.currency }} · {{ quotation.leadTimeDays }}d</span><span class="status">{{ quotationStatusLabel(quotation.status) }}</span>@if (quotation.status === 'Submitted') { <hh-action-button kind="primary" icon="check" [label]="'customerPortal.selectQuotation' | hhTranslate: 'Select'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Selected')" /><hh-action-button kind="secondary" icon="close" [label]="'customerPortal.rejectQuotation' | hhTranslate: 'Reject'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Rejected')" /> } </div> } }</div> }
         </section>
 
         <section class="section create-po-panel">
           <h2>{{ "customerPortal.createPurchaseOrder" | hhTranslate: "Create purchase order" }}</h2>
           <form class="receipt-form" (ngSubmit)="createPurchaseOrder()">
-            <label>{{ "customerPortal.supplier" | hhTranslate: "Supplier" }}
-              <select name="supplierId" [(ngModel)]="purchaseOrderDraft.supplierId" required>
+            <label for="supplierId">{{ "customerPortal.supplier" | hhTranslate: "Supplier" }}
+              <hh-select id="supplierId" name="supplierId" [(ngModel)]="purchaseOrderDraft.supplierId" required>
                 <option value="">{{ "customerPortal.selectSupplier" | hhTranslate: "Select supplier" }}</option>
                 @for (supplier of suppliers; track supplier.id) { <option [value]="supplier.id">{{ supplier.code }} · {{ supplier.name }}</option> }
-              </select>
+              </hh-select>
             </label>
             <label>{{ "customerPortal.orderNumber" | hhTranslate: "Order number" }}<input name="orderNumber" [(ngModel)]="purchaseOrderDraft.orderNumber" required /></label>
             <label>{{ "customerPortal.expectedAt" | hhTranslate: "Expected delivery" }}<input name="expectedAt" type="date" [(ngModel)]="purchaseOrderDraft.expectedAt" /></label>
@@ -242,13 +245,17 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
               {{ "customerPortal.purchaseOrderSearch" | hhTranslate: "Search purchase orders" }}
               <input name="purchaseOrderSearch" type="search" [(ngModel)]="purchaseOrderSearch" [placeholder]="'customerPortal.purchaseOrderSearchPlaceholder' | hhTranslate: 'Order number, supplier code or name'" />
             </label>
-            <label>
+            <div class="field-label">
               {{ "customerPortal.purchaseOrderStatusFilter" | hhTranslate: "Filter by status" }}
-              <select name="purchaseOrderStatusFilter" [(ngModel)]="purchaseOrderStatusFilter">
-                <option value="">{{ "customerPortal.allStatuses" | hhTranslate: "All statuses" }}</option>
-                @for (status of purchaseOrderStatuses; track status) { <option [value]="status">{{ purchaseOrderStatusLabel(status) }}</option> }
-              </select>
-            </label>
+              <hh-select
+                name="purchaseOrderStatusFilter"
+                id="purchase-order-status-filter"
+                appearance="compact"
+                label="customerPortal.purchaseOrderStatusFilter"
+                [options]="purchaseOrderStatusOptions"
+                [(ngModel)]="purchaseOrderStatusFilter"
+              />
+            </div>
             <span class="toolbar-count">{{ visiblePurchaseOrders.length }} / {{ purchaseOrders.length }}</span>
           </div>
           @if (!purchaseOrders.length) {
@@ -345,11 +352,11 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
             <form class="receipt-form" (ngSubmit)="receiveInbound()">
               <label>{{ "customerPortal.receiptNumber" | hhTranslate: "Receipt number" }}<input name="receiptNumber" [(ngModel)]="receiptDraft.receiptNumber" required /></label>
               <label>{{ "customerPortal.supplierLotCode" | hhTranslate: "Supplier lot" }}<input name="supplierLotCode" [(ngModel)]="receiptDraft.supplierLotCode" required /></label>
-              <label>{{ "customerPortal.facility" | hhTranslate: "Facility" }}
-                <select name="facilityId" [(ngModel)]="receiptDraft.facilityId" required>
+              <label for="facilityId">{{ "customerPortal.facility" | hhTranslate: "Facility" }}
+                <hh-select id="facilityId" name="facilityId" [(ngModel)]="receiptDraft.facilityId" required>
                   <option value="">{{ "customerPortal.selectFacility" | hhTranslate: "Select facility" }}</option>
                   @for (facility of facilities; track facility.id) { <option [value]="facility.code">{{ facility.code }} · {{ facility.name }}</option> }
-                </select>
+                </hh-select>
               </label>
               <label>{{ "customerPortal.receiptQuantity" | hhTranslate: "Quantity" }}<input name="quantity" type="number" min="0.001" step="0.001" [(ngModel)]="receiptDraft.quantity" required /></label>
               <label>{{ "customerPortal.expiryDate" | hhTranslate: "Expiry date" }}<input name="expiryDate" type="date" [(ngModel)]="receiptDraft.expiryDate" /></label>
@@ -445,7 +452,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
       .receipt-panel { border: 1px solid var(--border-subtle); border-radius: var(--radius-card); padding: var(--space-md); }
       .meta { color: var(--text-secondary); }
       .receipt-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-md); align-items: end; }
-      label { display: grid; gap: var(--space-xs); font-size: var(--font-size-caption); color: var(--text-secondary); }
+      label, .field-label { display: grid; gap: var(--space-xs); font-size: var(--font-size-caption); color: var(--text-secondary); }
       input, select { min-height: var(--control-height); padding: 0 var(--space-sm); border: 1px solid var(--border-subtle); border-radius: var(--radius-control); background: var(--surface-raised); color: var(--text-primary); font: inherit; }
       .po-toolbar { display: grid; grid-template-columns: minmax(220px, 2fr) minmax(180px, 1fr) auto; gap: var(--space-md); align-items: end; margin-bottom: var(--space-md); padding: var(--space-md); background: var(--surface-muted); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); }
       .toolbar-count { color: var(--text-secondary); font-size: var(--font-size-caption); white-space: nowrap; padding-bottom: var(--space-sm); }
@@ -526,6 +533,12 @@ export class ProcurementPageComponent implements OnInit {
   purchaseOrderSearch = "";
   purchaseOrderStatusFilter = "";
   readonly purchaseOrderStatuses = ["Draft", "Approved", "PartiallyReceived", "Received", "Cancelled"];
+  get purchaseOrderStatusOptions(): HisHopeSelectOption<string>[] {
+    return [
+      { value: "", label: this.i18n.t("customerPortal.allStatuses", "All statuses") },
+      ...this.purchaseOrderStatuses.map((status) => ({ value: status, label: this.purchaseOrderStatusLabel(status) })),
+    ];
+  }
   receipts: HisHopeInboundReceiptDto[] = [];
   materialRequirements: HisHopeManufacturingMaterialRequirementDto[] = [];
   tenantLabel: string | null = null;

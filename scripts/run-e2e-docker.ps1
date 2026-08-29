@@ -23,8 +23,12 @@ $inner = @"
 set -e
 node support/docker-network-proxy.js >/tmp/his-hope-e2e-proxy.log 2>&1 &
 npm ci --ignore-scripts >/dev/null
-E2E_RETAIN_ARTIFACTS=$artifactMode E2E_CLINICAL_URL=http://127.0.0.1:8081 E2E_DASHBOARD_URL=http://127.0.0.1:8082 E2E_ADMIN_URL=http://127.0.0.1:8083 npx playwright test$testTarget --project=chromium --workers=$Workers --reporter=line
+E2E_RETAIN_ARTIFACTS=$artifactMode E2E_CLINICAL_URL=http://localhost:8081 E2E_DASHBOARD_URL=http://localhost:8082 E2E_ADMIN_URL=http://localhost:8083 npx playwright test$testTarget --project=chromium --workers=$Workers --reporter=line
 "@
+# PowerShell preserves the repository's CRLF line endings in here-strings.
+# Bash in the Linux Playwright container requires LF-only commands; normalize
+# before passing the script through `bash -lc`.
+$inner = $inner -replace "`r`n", "`n"
 
 $dockerEnv = @('-e', "E2E_AUTH_REQUIRED=$authRequired")
 if ($env:E2E_EMAIL) { $dockerEnv += @('-e', "E2E_EMAIL=$env:E2E_EMAIL") }

@@ -1,8 +1,16 @@
 import { expect, test } from '@playwright/test';
 import { getE2eCredentials } from './config/credentials.js';
 
-const buyerUrl = process.env.BUYER_APP_URL ?? `http://127.0.0.1:${process.env.BUYER_E2E_PORT ?? '4225'}`;
-const operatorUrl = process.env.OPERATOR_APP_URL ?? `http://127.0.0.1:${process.env.OPERATOR_E2E_PORT ?? '4220'}`;
+const buyerUrl = process.env.BUYER_APP_URL ?? `http://127.0.0.1:${process.env.BUYER_E2E_PORT ?? '4205'}`;
+const operatorUrl = process.env.OPERATOR_APP_URL ?? `http://127.0.0.1:${process.env.OPERATOR_E2E_PORT ?? '4300'}`;
+
+function credentialsFor(prefix) {
+  const defaults = getE2eCredentials();
+  return {
+    email: process.env[`${prefix}_EMAIL`] ?? defaults.email,
+    password: process.env[`${prefix}_PASSWORD`] ?? defaults.password,
+  };
+}
 
 async function loginBuyer(page, email, password) {
   await page.goto(`${buyerUrl}/auth/login`);
@@ -63,9 +71,9 @@ test.describe('buyer public content pages @buyer-content', () => {
 
 test.describe('buyer authenticated commerce RFQ @buyer-rfq', () => {
   test('RFQ page renders after login', async ({ page }) => {
-    const { email, password } = getE2eCredentials();
+    const { email, password } = credentialsFor('E2E_BUYER');
     test.skip(
-      process.env.E2E_SKIP_AUTH === 'true' || !process.env.E2E_PASSWORD,
+      process.env.E2E_SKIP_AUTH === 'true' || !password,
       'Set E2E_PASSWORD (and optionally E2E_EMAIL) for authenticated RFQ coverage.',
     );
 
@@ -84,9 +92,9 @@ test.describe('buyer authenticated commerce RFQ @buyer-rfq', () => {
 
 test.describe('operator CMS and RFQ @operator-content', () => {
   test('content and RFQ routes render for authenticated operator', async ({ page }) => {
-    const { email, password } = getE2eCredentials();
+    const { email, password } = credentialsFor('E2E_OPERATOR');
     test.skip(
-      process.env.E2E_SKIP_AUTH === 'true' || !process.env.E2E_PASSWORD,
+      process.env.E2E_SKIP_AUTH === 'true' || !password,
       'Set E2E_PASSWORD (and optionally E2E_EMAIL) for authenticated operator coverage.',
     );
 

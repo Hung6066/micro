@@ -209,6 +209,14 @@ const iamWorkbenchRoutes: Routes = [
       ),
   },
   {
+    path: "iam/authorization-change-requests",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/access-governance/authorization-change-requests-page.component").then(
+        (m) => m.AuthorizationChangeRequestsPageComponent,
+      ),
+  },
+  {
     path: "iam/access-reviews",
     canActivate: [...protectedRoute],
     loadComponent: () =>

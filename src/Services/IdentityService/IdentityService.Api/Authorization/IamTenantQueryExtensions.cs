@@ -23,7 +23,7 @@ public static class IamTenantQueryExtensions
         return query.Where(user => db.UserClaims.Any(claim =>
             claim.UserId == user.Id &&
             claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-            normalizedKeys.Contains(claim.ClaimValue.ToLower())));
+            claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower())));
     }
 
     public static IQueryable<User> WhereTenantMembership(
@@ -50,7 +50,7 @@ public static class IamTenantQueryExtensions
         return await db.UserClaims.AnyAsync(claim =>
             claim.UserId == userId &&
             claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-            normalizedKeys.Contains(claim.ClaimValue.ToLower()), ct);
+            claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()), ct);
     }
 
     public static HashSet<string>? ResolveAllowedClientIds(
@@ -115,6 +115,6 @@ public static class IamTenantQueryExtensions
                 db.UserClaims.Any(claim =>
                     claim.UserId == user.Id &&
                     claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                    normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
+                    claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
     }
 }

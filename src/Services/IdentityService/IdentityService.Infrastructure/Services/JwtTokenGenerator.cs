@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
@@ -152,6 +153,15 @@ public class JwtTokenGenerator
 
         // Add role claims for RBAC enforcement
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+
+        var configuredSuperAdminIds = _configuration.GetSection("Identity:SuperAdmin:UserIds")
+            .Get<string[]>() ?? [];
+        if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            claims.Add(new Claim("super_admin", "true"));
+            if (_configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false))
+                claims.Add(new Claim(PortalClassConstants.Claim, PortalClassConstants.PrivilegedOperator));
+        }
 
         // SECURITY: Add explicit permission claims for fine-grained authorization
         if (permissions is { Count: > 0 })

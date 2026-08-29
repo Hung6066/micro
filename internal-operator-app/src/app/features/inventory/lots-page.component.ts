@@ -16,6 +16,7 @@ import {
   HisHopeActionButtonComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeSelectComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -42,6 +43,7 @@ import { EntityCrossWorkflowPanelComponent } from "../../core/components/entity-
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
     EntityCrossWorkflowPanelComponent,
+    HisHopeSelectComponent,
   ],
   template: `
     <hh-page-layout>
@@ -51,12 +53,12 @@ import { EntityCrossWorkflowPanelComponent } from "../../core/components/entity-
         [subtitle]="pageSubtitle"
       />
       <div class="filters">
-        <select [value]="dispositionFilter" (change)="onDispositionChange($any($event.target).value)">
+        <hh-select [ngModel]="dispositionFilter" (ngModelChange)="onDispositionChange($event)">
           <option value="">{{ "customerPortal.dispositionAll" | hhTranslate: "All dispositions" }}</option>
           <option value="Released">{{ "customerPortal.dispositionReleased" | hhTranslate: "Released" }}</option>
           <option value="Quarantined">{{ "customerPortal.dispositionQuarantined" | hhTranslate: "Quarantined" }}</option>
           <option value="Consumed">{{ "customerPortal.dispositionConsumed" | hhTranslate: "Consumed" }}</option>
-        </select>
+        </hh-select>
       </div>
       <hh-data-table
         [label]="'customerPortal.inventoryLotsTitle' | hhTranslate: 'Inventory lots'"
@@ -85,16 +87,16 @@ import { EntityCrossWorkflowPanelComponent } from "../../core/components/entity-
       </hh-data-table>
       <section class="lot-actions" aria-label="Lot operations">
         <div class="lot-action-form">
-          <label>{{ "customerPortal.selectLot" | hhTranslate: "Select a lot" }}
-            <select [(ngModel)]="selectedLotId" (ngModelChange)="onLotSelected($event)">
+          <label for="selected-lot-id">{{ "customerPortal.selectLot" | hhTranslate: "Select a lot" }}
+            <hh-select id="selected-lot-id" [(ngModel)]="selectedLotId" (ngModelChange)="onLotSelected($event)">
               <option value="">{{ "customerPortal.selectLot" | hhTranslate: "Select a lot" }}</option>
               @for (lot of lots; track lot.id) { <option [value]="lot.id">{{ lot.sku }} · {{ lot.quantity | number: '1.0-3' }} {{ lot.uom }} · {{ dispositionLabel(lot.disposition) }}</option> }
-            </select>
+            </hh-select>
           </label>
-          <label>{{ "customerPortal.lotDisposition" | hhTranslate: "Disposition" }}
-            <select [(ngModel)]="nextDisposition">
+          <label for="next-disposition">{{ "customerPortal.lotDisposition" | hhTranslate: "Disposition" }}
+            <hh-select id="next-disposition" [(ngModel)]="nextDisposition">
               @for (value of dispositionOptions; track value) { <option [value]="value">{{ dispositionLabel(value) }}</option> }
-            </select>
+            </hh-select>
           </label>
           <div class="actions"><hh-action-button kind="primary" icon="published_with_changes" [label]="'customerPortal.changeDisposition' | hhTranslate: 'Change disposition'" [disabled]="!selectedLotId || actionBusy" (pressed)="changeDisposition()" /><hh-action-button kind="secondary" icon="account_tree" [label]="'customerPortal.viewGenealogy' | hhTranslate: 'View genealogy'" [disabled]="!selectedLotId || actionBusy" (pressed)="loadGenealogy()" /></div>
         </div>

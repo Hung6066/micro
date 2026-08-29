@@ -19,6 +19,8 @@ public sealed record QueryRequest(
     public QueryRequest Validate()
     {
         if (Page < 1) throw new ArgumentOutOfRangeException(nameof(Page), "Page must be at least 1.");
+        if (Page > PaginationDefaults.MaxPageNumber)
+            throw new ArgumentOutOfRangeException(nameof(Page), $"Page must be at most {PaginationDefaults.MaxPageNumber}; use cursor pagination for deep navigation.");
         if (PageSize is < 1 or > PaginationDefaults.MaxPageSize)
             throw new ArgumentOutOfRangeException(nameof(PageSize), $"PageSize must be between 1 and {PaginationDefaults.MaxPageSize}.");
         return this;

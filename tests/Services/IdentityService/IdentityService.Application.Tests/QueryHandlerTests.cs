@@ -50,6 +50,18 @@ public sealed class QueryHandlerTests
     }
 
     [Fact]
+    public async Task GetUsers_rejects_unbounded_deep_pages()
+    {
+        await using var db = TestApplicationDbContext.Create();
+
+        var act = () => new GetUsersQueryHandler(db).Handle(
+            new GetUsersQuery(Page: 10_001), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
+            .WithParameterName("page");
+    }
+
+    [Fact]
     public async Task GetRoles_filters_sorts_and_projects_permissions()
     {
         await using var db = TestApplicationDbContext.Create();
@@ -65,6 +77,18 @@ public sealed class QueryHandlerTests
         result.TotalCount.Should().Be(1);
         result.Items.Should().ContainSingle().Which.Permissions.Should().ContainSingle()
             .Which.Code.Should().Be("patients.read");
+    }
+
+    [Fact]
+    public async Task GetRoles_rejects_page_sizes_above_platform_limit()
+    {
+        await using var db = TestApplicationDbContext.Create();
+
+        var act = () => new GetRolesQueryHandler(db).Handle(
+            new GetRolesQuery(PageSize: 101), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>()
+            .WithParameterName("pageSize");
     }
 
     [Fact]
@@ -384,6 +408,8 @@ internal sealed class TestApplicationDbContext : DbContext, IApplicationDbContex
     public DbSet<AccessReview> AccessReviews => Set<AccessReview>();
     public DbSet<RoleTemplateVersion> RoleTemplateVersions => Set<RoleTemplateVersion>();
     public DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies => Set<AuthorizationPolicyDefinition>();
+    public DbSet<AuthorizationPolicyBundleArtifact> AuthorizationPolicyBundles => Set<AuthorizationPolicyBundleArtifact>();
+    public DbSet<AuthorizationChangeRequest> AuthorizationChangeRequests => Set<AuthorizationChangeRequest>();
     public DbSet<IamScope> IamScopes => Set<IamScope>();
     public DbSet<IamServiceDefinition> IamServiceDefinitions => Set<IamServiceDefinition>();
     public DbSet<IamPermissionSet> IamPermissionSets => Set<IamPermissionSet>();

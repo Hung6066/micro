@@ -2,12 +2,14 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -438,17 +440,20 @@ public class CustomPopulateTokenClaims :
     private readonly UserManager<User> _userManager;
     private readonly IApplicationDbContext _dbContext;
     private readonly IConglomerateTenantRegistry _tenantRegistry;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<CustomPopulateTokenClaims> _logger;
 
     public CustomPopulateTokenClaims(
         UserManager<User> userManager,
         IApplicationDbContext dbContext,
         IConglomerateTenantRegistry tenantRegistry,
+        IConfiguration configuration,
         ILogger<CustomPopulateTokenClaims> logger)
     {
         _userManager = userManager;
         _dbContext = dbContext;
         _tenantRegistry = tenantRegistry;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -556,6 +561,21 @@ public class CustomPopulateTokenClaims :
             var roleClaim = new Claim(OpenIddictConstants.Claims.Role, role);
             roleClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
             identity.AddClaim(roleClaim);
+        }
+
+        var configuredSuperAdminIds = _configuration.GetSection("Identity:SuperAdmin:UserIds")
+            .Get<string[]>() ?? [];
+        if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            var superAdminClaim = new Claim("super_admin", "true");
+            superAdminClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(superAdminClaim);
+            if (_configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false))
+            {
+                var portalClassClaim = new Claim(PortalClassConstants.Claim, PortalClassConstants.PrivilegedOperator);
+                portalClassClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+                identity.AddClaim(portalClassClaim);
+            }
         }
 
         identity.AddClaim(new Claim("scope", "hishop:permissions"));
@@ -678,6 +698,8 @@ public class CustomPopulateTokenClaims :
             .Where(code => PermissionCatalogRules.IsValid(code, registeredPrefixes))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
+            permissions = PrivilegedIdentityPermissionBoundary.Filter(permissions).ToList();
         if (permissions.Count > 0)
         {
             var permissionsClaim = new Claim("permissions", string.Join(",", permissions));

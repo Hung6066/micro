@@ -23,6 +23,7 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { routes } from "./app.routes";
 import { authInterceptor } from "./core/services/auth-interceptor.service";
+import { tenantContextInterceptor } from "./core/interceptors/tenant-context.interceptor";
 import { environment } from "../environments/environment";
 import { buyerTranslations } from "./core/i18n/buyer-translations";
 
@@ -94,6 +95,7 @@ export const appConfig: ApplicationConfig = {
         hisHopeCorrelationIdInterceptor,
         hisHopeInternationalizationInterceptor,
         hisHopeCookieSessionInterceptor,
+        tenantContextInterceptor,
         authInterceptor,
         hisHopeErrorInterceptor,
       ]),

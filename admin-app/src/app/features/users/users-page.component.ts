@@ -37,7 +37,6 @@ import { HisHopePageQuery } from "@his-hope/frontend-foundation";
 import { UserEditDialogComponent } from "./user-edit-dialog.component";
 import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
 import { downloadAdminTableExport } from "../../core/services/admin-query.util";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 @Component({
   selector: "app-users-page",

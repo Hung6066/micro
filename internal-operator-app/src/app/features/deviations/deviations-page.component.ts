@@ -2,7 +2,7 @@ import { DatePipe, DecimalPipe } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeWorkflowStepperComponent } from "@his-hope/frontend-foundation/ui";
+import { HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeWorkflowStepperComponent , HisHopeSelectComponent} from "@his-hope/frontend-foundation/ui";
 import { HisHopeApiErrorMessageService as ApiErrorMessageService, HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeManufacturingDeviationDto, HisHopeProductionBatchDto } from "@his-hope/frontend-foundation/contracts";
 import { EntityStatusHistoryPanelComponent } from "../../core/components/entity-status-history-panel.component";
@@ -14,7 +14,7 @@ import { buildEntityWorkflowSteps, buildReferenceWorkflowSteps } from "../../cor
 @Component({
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, DecimalPipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeTranslatePipe, HisHopeWorkflowStepperComponent, EntityStatusHistoryPanelComponent],
+  imports: [DatePipe, DecimalPipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeTranslatePipe, HisHopeWorkflowStepperComponent, EntityStatusHistoryPanelComponent, HisHopeSelectComponent],
   template: `
     <hh-page-layout>
       <hh-page-header hhPageHeader [title]="'customerPortal.deviationsTitle' | hhTranslate: 'Quality deviations'" [subtitle]="pageSubtitle" />
@@ -28,11 +28,11 @@ import { buildEntityWorkflowSteps, buildReferenceWorkflowSteps } from "../../cor
         <section class="section form-section">
           <div class="section-heading"><div><p class="eyebrow">{{ 'customerPortal.deviationGovernance' | hhTranslate: 'Deviation control' }}</p><h2>{{ 'customerPortal.raiseDeviation' | hhTranslate: 'Raise deviation' }}</h2></div><span class="count">{{ deviations.length }}</span></div>
           <form class="deviation-form" (ngSubmit)="create()">
-            <label class="wide">{{ 'customerPortal.productionBatch' | hhTranslate: 'Production batch' }}
-              <select name="batchId" [(ngModel)]="draft.batchId" required>
+            <label class="wide" for="batchId">{{ 'customerPortal.productionBatch' | hhTranslate: 'Production batch' }}
+              <hh-select id="batchId" name="batchId" [(ngModel)]="draft.batchId" required>
                 <option value="">{{ 'customerPortal.selectProductionBatch' | hhTranslate: 'Select production batch' }}</option>
                 @for (batch of batches; track batch.id) { <option [value]="batch.id">{{ batch.batchNumber }} · {{ batch.plannedQuantity | number:'1.0-2' }} · {{ batchStatusLabel(batch.status) }}</option> }
-              </select>
+              </hh-select>
             </label>
             <label>{{ 'customerPortal.deviationType' | hhTranslate: 'Type' }}<input name="type" [(ngModel)]="draft.type" required /></label>
             <label>{{ 'customerPortal.deviationImpact' | hhTranslate: 'Impact' }}<input name="impact" [(ngModel)]="draft.impact" required /></label>

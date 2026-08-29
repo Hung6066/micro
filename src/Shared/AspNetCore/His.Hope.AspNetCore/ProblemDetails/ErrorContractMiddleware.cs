@@ -15,6 +15,16 @@ internal sealed class ErrorContractMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context)
     {
+        // gRPC owns the response stream and trailers. Buffering it for the
+        // REST error-shape adapter strips the unary message body even when
+        // the HTTP status is 200. Keep both native gRPC and grpc-web on the
+        // original stream; only REST responses need normalization here.
+        if (context.Request.ContentType?.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            await next(context);
+            return;
+        }
+
         var originalBody = context.Response.Body;
         await using var capturedBody = new MemoryStream();
         context.Response.Body = capturedBody;

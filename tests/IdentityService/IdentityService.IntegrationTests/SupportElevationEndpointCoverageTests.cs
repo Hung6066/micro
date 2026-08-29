@@ -6,6 +6,7 @@ using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.Infrastructure.Audit;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -109,7 +110,8 @@ public sealed class SupportElevationEndpointCoverageTests
         HttpContext http)
     {
         var method = typeof(SupportElevationEndpoints).GetMethod("CreateElevation", BindingFlags.Static | BindingFlags.NonPublic)!;
-        var task = (Task<IResult>)method.Invoke(null, [request, db, registry, http, CancellationToken.None])!;
+        var audit = new Mock<IAuditService>().Object;
+        var task = (Task<IResult>)method.Invoke(null, [request, db, registry, http, audit, CancellationToken.None])!;
         return await task;
     }
 

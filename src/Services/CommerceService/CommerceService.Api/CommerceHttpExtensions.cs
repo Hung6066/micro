@@ -29,8 +29,9 @@ internal static class CommerceHttpExtensions
 
     public static string? ResolveCommerceTenant(HttpContext context, bool isMutation = false)
     {
-        var requested = context.GetRequestedTenant();
-        if (!context.User.TryResolveActiveTenant(requested, out var tenantKey, AllowCommerceCrossTenant))
+        var tenantKey = context.RequestServices.GetService<IHisHopeTenantContext>()?.TenantKey
+            ?? context.ResolveActiveTenant(AllowCommerceCrossTenant);
+        if (string.IsNullOrWhiteSpace(tenantKey))
             return null;
 
         if (isMutation && IsCrossTenant(context.User, tenantKey))

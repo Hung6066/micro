@@ -161,7 +161,12 @@ export class HisHopeAuthCoordinator {
     // redirect. The SPA returns to /auth/login while the in-progress marker
     // is still present, so that marker must not suppress the cookie exchange.
     // Token-based OIDC flows retain the suppression guard to avoid loops.
-    if ((!this.bffOnly && this.isSsoLoginInProgress()) || this.isSsoSuppressed()) {
+    // BFF login must keep polling after a full-document redirect. A transient
+    // local logout marker can be written while the SPA is bootstrapping; if it
+    // suppressed BFF polling, an authenticated Identity cookie would never be
+    // exchanged into the local hishop session. Suppression remains relevant
+    // only to token-based OIDC flows to prevent redirect loops.
+    if (!this.bffOnly && (this.isSsoLoginInProgress() || this.isSsoSuppressed())) {
       return of(false);
     }
 

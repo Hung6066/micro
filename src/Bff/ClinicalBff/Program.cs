@@ -27,8 +27,8 @@ builder.Services.AddGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(o 
 builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
     o.Address = runtimeEndpoints.GetRequired("patient-grpc"));
 
-builder.Services.AddScoped<IAggregationHandler, EncounterFullHandler>();
-builder.Services.AddScoped<IAggregationHandler, EncounterVitalsHandler>();
+builder.Services.AddSingleton<IAggregationHandler, EncounterFullHandler>();
+builder.Services.AddSingleton<IAggregationHandler, EncounterVitalsHandler>();
 
 var app = builder.Build();
 

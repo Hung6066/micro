@@ -48,6 +48,7 @@ import { TenantOption } from "../services/tenant-context.service";
           [id]="menuId"
           class="hh-tenant-menu"
           role="listbox"
+          tabindex="0"
           aria-label="Tenant options"
           (keydown)="onMenuKeydown($event)"
         >

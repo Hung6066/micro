@@ -13,7 +13,6 @@ import { DashboardStats } from "../../core/contracts/admin.contracts";
 import { DashboardApiService } from "../../core/services/dashboard-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   HisHopeMetricCardComponent,
   HisHopePageHeaderComponent,
@@ -21,7 +20,6 @@ import {
   HisHopeStateComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
-  HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 

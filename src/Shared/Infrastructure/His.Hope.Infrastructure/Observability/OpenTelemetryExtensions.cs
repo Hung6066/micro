@@ -81,6 +81,7 @@ public static class OpenTelemetryExtensions
             .WithMetrics(metrics => metrics
                 .AddMeter("His.Hope.Infrastructure.Caching")
                 .AddMeter("His.Hope.Outbox")
+                .AddMeter("His.Hope.AspNetCore.Tenancy")
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()

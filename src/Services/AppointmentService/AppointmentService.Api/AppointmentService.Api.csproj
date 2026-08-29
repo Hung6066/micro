@@ -4,6 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>His.Hope.AppointmentService.Api</RootNamespace>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
   </PropertyGroup>
   <ItemGroup>
     <Protobuf Include="..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />

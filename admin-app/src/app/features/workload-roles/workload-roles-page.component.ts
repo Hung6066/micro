@@ -30,7 +30,6 @@ import { IamApiService } from "../../core/services/iam-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { WorkloadRoleEditDialogComponent } from "./workload-role-edit-dialog.component";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 @Component({
   selector: "app-workload-roles-page",

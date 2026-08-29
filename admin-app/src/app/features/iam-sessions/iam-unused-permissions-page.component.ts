@@ -13,7 +13,6 @@ import {
   HisHopeResourceListPageComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { TenantContextService } from "../../core/services/tenant-context.service";

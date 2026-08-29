@@ -11,6 +11,7 @@ import {
   AccessRequest,
   AccessReview,
   AuthorizationChange,
+  AuthorizationChangeRequest,
   AuthorizationPolicy,
   AuditLogRow,
   BreakGlassRequest,
@@ -24,6 +25,7 @@ export type {
   AccessRequest,
   AccessReview,
   AuthorizationChange,
+  AuthorizationChangeRequest,
   AuthorizationPolicy,
   AuditLogRow,
   BreakGlassRequest,
@@ -152,6 +154,30 @@ export class AccessGovernanceApiService {
   getAuthorizationChanges(): Observable<AuthorizationChange[]> {
     return this.http.get<AuthorizationChange[]>(
       `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChanges)}`,
+    );
+  }
+
+  getAuthorizationChangeRequests(): Observable<AuthorizationChangeRequest[]> {
+    return this.http.get<AuthorizationChangeRequest[]>(
+      `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChangeRequests)}`,
+    );
+  }
+
+  approveAuthorizationChangeRequest(
+    id: string,
+  ): Observable<AuthorizationChangeRequest> {
+    return this.http.post<AuthorizationChangeRequest>(
+      `${this.baseUrl}${identityWorkbenchActionPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChangeRequests, id, "approve")}`,
+      {},
+    );
+  }
+
+  rejectAuthorizationChangeRequest(
+    id: string,
+  ): Observable<AuthorizationChangeRequest> {
+    return this.http.post<AuthorizationChangeRequest>(
+      `${this.baseUrl}${identityWorkbenchActionPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChangeRequests, id, "reject")}`,
+      {},
     );
   }
 

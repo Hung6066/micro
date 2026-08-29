@@ -14,6 +14,13 @@ on:
       - 'scripts/check-restricted-workloads.py'
       - 'scripts/validate-gitops-plane.ps1'
       - 'scripts/validate-storage-backup-contract.ps1'
+      - 'scripts/validate-database-storage-security-contract.ps1'
+      - 'scripts/tests/database-storage-security-contract.Tests.ps1'
+      - 'scripts/validate-production-storage-attestation.ps1'
+      - 'scripts/tests/storage-attestation.Tests.ps1'
+      - 'scripts/validate-azure-blob-retention.py'
+      - 'scripts/configure-azure-blob-immutability.ps1'
+      - 'scripts/tests/test_azure_blob_retention.py'
       - 'scripts/validate-dr-evidence.ps1'
       - 'scripts/test-cnpg-restore-drill.ps1'
       - 'scripts/verify-production-backup-restore.ps1'
@@ -241,6 +248,11 @@ jobs:
         if: matrix.environment == 'prod'
         shell: pwsh
         run: ./scripts/validate-storage-backup-contract.ps1 -StaticOnly -OutputPath artifacts/evidence/storage-backup-contract.json
+
+      - name: Validate database and storage security promotion contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-database-storage-security-contract.ps1 -OutputPath artifacts/evidence/database-storage-security-contract.json
 
       - name: Validate measured DR evidence contract
         if: matrix.environment == 'prod'

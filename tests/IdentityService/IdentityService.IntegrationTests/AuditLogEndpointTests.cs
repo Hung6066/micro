@@ -93,7 +93,7 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
         var empty = await _client!.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new { events = Array.Empty<object>() });
-        var nullBatch = await _client.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new { events = (object?)null });
+        var nullBatch = await _client!.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new { events = (object?)null });
 
         Assert.Equal(HttpStatusCode.Accepted, empty.StatusCode);
         Assert.Equal(HttpStatusCode.Accepted, nullBatch.StatusCode);
@@ -178,7 +178,7 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
 
     private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
-        public const string Scheme = "Test";
+        public new const string Scheme = "Test";
         public const string UserId = "server-user";
         public const string UserName = "Server User";
 

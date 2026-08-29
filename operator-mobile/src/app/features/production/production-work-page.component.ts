@@ -8,8 +8,10 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
 import { buildManufacturingWorkflowRenderModel } from "@his-hope/frontend-foundation/domain";
 import { HisHopeWorkflowStepperComponent } from "@his-hope/frontend-foundation/ui";
+import { HisHopeSelectComponent } from "@his-hope/frontend-foundation/ui";
+import { operatorMobileErrorMessage } from "../../core/operator-mobile-error.util";
 
-@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeWorkflowStepperComponent], templateUrl: "./production-work-page.component.html", styleUrls: ["./production-work-page.component.scss"] })
+@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeWorkflowStepperComponent, HisHopeSelectComponent], templateUrl: "./production-work-page.component.html", styleUrls: ["./production-work-page.component.scss"] })
 export class ProductionWorkPageComponent {
   private readonly api = inject(OperatorMobileApiService);
   private readonly queue = inject(OperationQueueService);
@@ -29,6 +31,13 @@ export class ProductionWorkPageComponent {
   oee: ManufacturingOee | null = null;
   exceptions: ManufacturingException[] = [];
   costs: ManufacturingProductionCost | null = null;
+  measurementType = "temperature";
+  measurementValue = 0;
+  measurementUom = "°C";
+  lossOperationId = "";
+  lossDecision = "Approved";
+  lossReviewer = "";
+  lossNotes = "";
 
   batchStatusLabel(status: string): string { return manufacturingEnumLabel(this.i18n, "productionBatchStatus", status); }
   dataCompletenessLabel(value: string | null | undefined): string { return manufacturingEnumLabel(this.i18n, "dataCompleteness", value); }
@@ -46,6 +55,67 @@ export class ProductionWorkPageComponent {
     return batch ? buildManufacturingWorkflowRenderModel("production-batch", batch.status, (group, key) => manufacturingEnumLabel(this.i18n, group, key)) : [];
   }
 
+  selectedBatch(): ProductionBatch | undefined {
+    return this.batches.find((batch) => batch.id === this.selectedBatchId);
+  }
+
+  lossOperations() {
+    return (this.selectedBatch()?.operations ?? []).filter((operation) => operation.lossQuantity > 0);
+  }
+
+  async reviewLoss(): Promise<void> {
+    const batch = this.selectedBatch();
+    const scope = this.tenant.commandScope;
+    if (!batch || !this.lossOperationId || !this.lossReviewer.trim()) {
+      this.message = this.i18n.t("mobile.operatorLossReviewValidation", "Select a loss operation and enter the reviewer.");
+      return;
+    }
+    if (!scope) {
+      this.message = this.i18n.t("mobile.operatorTenantRequired", "Sign in and select an operational tenant before continuing.");
+      return;
+    }
+    const operation = await this.queue.submit(
+      { ...scope, endpoint: `/production-batches/${batch.id}/operations/${this.lossOperationId}/loss-review`, expectedVersion: batch.version, payload: { decision: this.lossDecision, reviewer: this.lossReviewer.trim(), notes: this.lossNotes.trim() || undefined } },
+      (queued) => this.api.reviewLoss(queued),
+    );
+    this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorLossReviewed", "Loss review recorded.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
+  }
+
+  async transitionBatch(action: "pause" | "resume" | "complete" | "cancel"): Promise<void> {
+    const batch = this.selectedBatch();
+    const scope = this.tenant.commandScope;
+    if (!batch || !scope) {
+      this.message = this.i18n.t("mobile.operatorTenantRequired", "Sign in and select an operational tenant before continuing.");
+      return;
+    }
+    const operation = await this.queue.submit(
+      { ...scope, endpoint: `/production-batches/${batch.id}/${action}`, expectedVersion: batch.version, payload: {} },
+      (queued) => this.api.transitionProductionBatch(queued),
+    );
+    this.message = operation.status === "synced"
+      ? this.i18n.t("mobile.operatorBatchTransitioned", "Batch status updated.")
+      : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
+    if (operation.status === "synced") {
+      this.batches = this.batches.filter((item) => item.id !== batch.id);
+      this.selectedBatchId = "";
+      this.cdr.markForCheck();
+    }
+  }
+
+  async recordMeasurement(): Promise<void> {
+    const batch = this.selectedBatch();
+    const scope = this.tenant.commandScope;
+    if (!batch || !scope || !this.measurementType.trim() || !this.measurementUom.trim()) {
+      this.message = this.i18n.t("mobile.operatorMeasurementValidation", "Select a batch and enter measurement details.");
+      return;
+    }
+    const operation = await this.queue.submit(
+      { ...scope, endpoint: `/production-batches/${batch.id}/measurements`, expectedVersion: batch.version, payload: { productionBatchId: batch.id, operationExecutionId: null, machineId: null, lotId: null, measurementType: this.measurementType.trim(), value: this.measurementValue, uom: this.measurementUom.trim(), measuredAt: new Date().toISOString(), source: "operator-mobile" } },
+      (queued) => this.api.recordOperationMeasurement(queued),
+    );
+    this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorMeasurementRecorded", "Measurement recorded.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
+  }
+
   constructor() {
     effect(() => {
       if (!this.tenant.activeTenantKey()) {
@@ -58,26 +128,26 @@ export class ProductionWorkPageComponent {
         this.selectedBatchId = "";
         return;
       }
-      this.api.getProductionBatches("Started").pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of([]); })).subscribe((batches) => {
+      this.api.getProductionBatches("Started").pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of([]); })).subscribe((batches) => {
         setTimeout(() => {
           this.batches = batches;
           if (this.selectedBatchId && !batches.some((batch) => batch.id === this.selectedBatchId)) this.selectedBatchId = "";
           this.cdr.markForCheck();
         });
       });
-      this.api.getManufacturingSummary().pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of(null); })).subscribe((summary) => {
+      this.api.getManufacturingSummary().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of(null); })).subscribe((summary) => {
         setTimeout(() => { this.summary = summary; this.cdr.markForCheck(); });
       });
-      this.api.getProductionKpis().pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of(null); })).subscribe((kpis) => {
+      this.api.getProductionKpis().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of(null); })).subscribe((kpis) => {
         setTimeout(() => { this.kpis = kpis; this.cdr.markForCheck(); });
       });
-      this.api.getOee().pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of(null); })).subscribe((oee) => {
+      this.api.getOee().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of(null); })).subscribe((oee) => {
         setTimeout(() => { this.oee = oee; this.cdr.markForCheck(); });
       });
-      this.api.getExceptions().pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of([]); })).subscribe((exceptions) => {
+      this.api.getExceptions().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of([]); })).subscribe((exceptions) => {
         setTimeout(() => { this.exceptions = exceptions.slice(0, 5); this.cdr.markForCheck(); });
       });
-      this.api.getProductionCosts().pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of(null); })).subscribe((costs) => {
+      this.api.getProductionCosts().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of(null); })).subscribe((costs) => {
         setTimeout(() => { this.costs = costs; this.cdr.markForCheck(); });
       });
     });

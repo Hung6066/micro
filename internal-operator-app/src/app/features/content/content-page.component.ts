@@ -14,6 +14,7 @@ import {
   HisHopeActionButtonComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeSelectComponent,
   HisHopeStateComponent,
   HisHopeTabsComponent,
 } from "@his-hope/frontend-foundation/ui";
@@ -35,6 +36,7 @@ import { ContentApiService, UpsertArticleRequest } from "../../core/services/con
     HisHopeActionButtonComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
+    HisHopeSelectComponent,
     HisHopeStateComponent,
     HisHopeTabsComponent,
     HisHopeTranslatePipe,

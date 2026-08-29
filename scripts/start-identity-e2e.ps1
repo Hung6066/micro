@@ -19,6 +19,28 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "Identity E2E compose startup failed with exit code $LASTEXITCODE."
     }
+
+    # The compose healthcheck only verifies that the .NET runtime exists, so
+    # the container can report healthy before Kestrel has bound its HTTP port.
+    # Wait for the externally published readiness endpoint before returning;
+    # otherwise the browser proxy can observe a transient 502 during SSO.
+    $deadline = (Get-Date).AddMinutes(2)
+    $ready = $false
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $response = Invoke-WebRequest -Uri 'http://localhost:5001/health' -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -eq 200) {
+                $ready = $true
+                break
+            }
+        } catch {
+            # Kestrel is still starting; retry until the bounded deadline.
+        }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $ready) {
+        throw 'Identity E2E startup timed out waiting for http://localhost:5001/health.'
+    }
 }
 finally {
     Remove-Item Env:E2E_PASSWORD -ErrorAction SilentlyContinue

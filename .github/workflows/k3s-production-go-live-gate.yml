@@ -36,6 +36,7 @@ jobs:
         env:
           KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
           AZURE_PRODUCTION_ENV_B64: ${{ secrets.AZURE_PRODUCTION_ENV_B64 }}
+          PRODUCTION_STORAGE_ATTESTATION_B64: ${{ secrets.PRODUCTION_STORAGE_ATTESTATION_B64 }}
           ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -45,21 +46,35 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:AZURE_PRODUCTION_ENV_B64)) {
             throw 'AZURE_PRODUCTION_ENV_B64 is required in the protected production environment.'
           }
+          if ([string]::IsNullOrWhiteSpace($env:PRODUCTION_STORAGE_ATTESTATION_B64)) {
+            throw 'PRODUCTION_STORAGE_ATTESTATION_B64 is required in the protected production environment.'
+          }
           if ([string]::IsNullOrWhiteSpace($env:ANSIBLE_SSH_PRIVATE_KEY)) {
             throw 'ANSIBLE_SSH_PRIVATE_KEY is required for the read-only backup host audit.'
           }
           $kubeconfig = Join-Path $env:RUNNER_TEMP 'kubeconfig-production.yaml'
           $azureEnv = Join-Path $env:RUNNER_TEMP 'azure-production.env'
+          $attestation = Join-Path $env:RUNNER_TEMP 'production-storage-attestation.json'
           $sshKey = Join-Path $env:RUNNER_TEMP 'his-hope-deploy.key'
           [IO.File]::WriteAllBytes($kubeconfig, [Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
           [IO.File]::WriteAllBytes($azureEnv, [Convert]::FromBase64String($env:AZURE_PRODUCTION_ENV_B64))
+          [IO.File]::WriteAllBytes($attestation, [Convert]::FromBase64String($env:PRODUCTION_STORAGE_ATTESTATION_B64))
           [IO.File]::WriteAllText($sshKey, $env:ANSIBLE_SSH_PRIVATE_KEY, [Text.UTF8Encoding]::new($false))
           & chmod 600 $sshKey
           "kubeconfig=$kubeconfig" >> $env:GITHUB_OUTPUT
           "azure_env=$azureEnv" >> $env:GITHUB_OUTPUT
+          "attestation=$attestation" >> $env:GITHUB_OUTPUT
           "ssh_key=$sshKey" >> $env:GITHUB_OUTPUT
           $env:KUBECONFIG = $kubeconfig
           kubectl version --request-timeout=10s
+
+      - name: Validate production storage attestation
+        id: storage_attestation
+        continue-on-error: true
+        shell: pwsh
+        env:
+          ATTESTATION_PATH: ${{ steps.runtime-inputs.outputs.attestation }}
+        run: ./scripts/validate-production-storage-attestation.ps1 -AttestationPath $env:ATTESTATION_PATH -OutputPath artifacts/evidence/production-storage-attestation.json
 
       - name: Validate release invariants and live cluster
         id: release_gate
@@ -184,7 +199,14 @@ jobs:
           KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
         run: |
           python scripts/validate-azure-blob-access.py --env-file '${{ steps.runtime-inputs.outputs.azure_env }}'
+          python scripts/validate-azure-blob-retention.py --env-file '${{ steps.runtime-inputs.outputs.azure_env }}' --minimum-days 30
           ./scripts/validate-storage-backup-contract.ps1 -SecureEnvFile '${{ steps.runtime-inputs.outputs.azure_env }}' -RequireSecureEnv -OutputPath artifacts/evidence/production-storage-backup.json
+
+      - name: Validate database and storage security promotion contract
+        id: database_storage_security
+        continue-on-error: true
+        shell: pwsh
+        run: ./scripts/validate-database-storage-security-contract.ps1 -ProductionOverlay k8s/overlays/prod-shared-storage -OutputPath artifacts/evidence/production-database-storage-security.json
 
       - name: Validate CNPG backup platform contract
         id: cnpg_backup
@@ -225,6 +247,8 @@ jobs:
             [pscustomobject]@{ name = 'error-budget'; outcome = '${{ steps.error_budget.outcome }}' }
             [pscustomobject]@{ name = 'alertmanager-e2e'; outcome = '${{ steps.alertmanager_e2e.outcome }}' }
             [pscustomobject]@{ name = 'azure-backup'; outcome = '${{ steps.azure_backup.outcome }}' }
+            [pscustomobject]@{ name = 'database-storage-security'; outcome = '${{ steps.database_storage_security.outcome }}' }
+            [pscustomobject]@{ name = 'storage-attestation'; outcome = '${{ steps.storage_attestation.outcome }}' }
             [pscustomobject]@{ name = 'cnpg-backup'; outcome = '${{ steps.cnpg_backup.outcome }}' }
             [pscustomobject]@{ name = 'shared-storage'; outcome = '${{ steps.shared_storage.outcome }}' }
             [pscustomobject]@{ name = 'dr-evidence'; outcome = '${{ steps.dr_evidence.outcome }}' }
@@ -251,4 +275,5 @@ jobs:
         run: |
           Remove-Item -LiteralPath '${{ steps.runtime-inputs.outputs.kubeconfig }}' -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath '${{ steps.runtime-inputs.outputs.azure_env }}' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath '${{ steps.runtime-inputs.outputs.attestation }}' -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath '${{ steps.runtime-inputs.outputs.ssh_key }}' -Force -ErrorAction SilentlyContinue

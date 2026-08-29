@@ -10,11 +10,35 @@
   @if (costs; as snapshot) { <article class="summary-card cost-card" aria-label="{{ 'mobile.operatorProductionCosts' | hhTranslate: 'Production costs' }}"><h3>{{ "mobile.operatorProductionCosts" | hhTranslate: "Production costs" }}</h3><div class="summary-grid"><span><strong>{{ formatNumber(snapshot.completedBatchCount) }}</strong>{{ "mobile.operatorCostCompletedBatches" | hhTranslate: "Completed batches" }}</span><span><strong>{{ formatCurrency(snapshot.estimatedMaterialCost) }}</strong>{{ "mobile.operatorEstimatedMaterialCost" | hhTranslate: "Estimated material cost" }}</span><span><strong>{{ formatCurrency(snapshot.estimatedCostPerOutputUnit) }}</strong>{{ "mobile.operatorCostPerOutputUnit" | hhTranslate: "Cost per output unit" }}</span></div>@if (snapshot.missingPriceSkus.length) { <small>{{ "mobile.operatorMissingPrices" | hhTranslate: "Missing prices" }}: {{ snapshot.missingPriceSkus.join(", ") }}</small> }</article> }
   @if (batchWorkflowSteps().length) { <article class="workflow-card" aria-label="{{ 'mobile.operatorBatchWorkflow' | hhTranslate: 'Batch workflow' }}"><h3>{{ "mobile.operatorBatchWorkflow" | hhTranslate: "Batch workflow" }}</h3><hh-workflow-stepper [steps]="batchWorkflowSteps()" [ariaLabel]="'mobile.operatorBatchWorkflow' | hhTranslate: 'Batch workflow'" /></article> }
   <article class="work-card">
-    <label>{{ "mobile.operatorBatch" | hhTranslate: "Batch" }}<select [(ngModel)]="selectedBatchId"><option value="">{{ "mobile.operatorChooseBatch" | hhTranslate: "Choose a started batch" }}</option>@for (batch of batches; track batch.id) { <option [value]="batch.id" [textContent]="batch.batchNumber + ' · ' + batchStatusLabel(batch.status)"></option> }</select></label>
+    <label for="production-batch"><span>{{ "mobile.operatorBatch" | hhTranslate: "Batch" }}</span><hh-select id="production-batch" [(ngModel)]="selectedBatchId" label="mobile.operatorBatch" placeholder="mobile.operatorChooseBatch"><option value="">{{ "mobile.operatorChooseBatch" | hhTranslate: "Choose a started batch" }}</option>@for (batch of batches; track batch.id) { <option [value]="batch.id" [textContent]="batch.batchNumber + ' · ' + batchStatusLabel(batch.status)"></option> }</hh-select></label>
     <label>{{ "mobile.operatorProcessStep" | hhTranslate: "Process step" }}<input [(ngModel)]="processStep" /></label>
     <label>{{ "mobile.operatorInputQuantity" | hhTranslate: "Input quantity" }}<input type="number" min="0" step=".01" [(ngModel)]="inputQuantity" /></label>
     <label>{{ "mobile.operatorOutputQuantity" | hhTranslate: "Output quantity" }}<input type="number" min="0" step=".01" [(ngModel)]="outputQuantity" /></label>
-    <label>{{ "mobile.operatorQcStatus" | hhTranslate: "QC status" }}<select [(ngModel)]="qcStatus"><option value="Pending">{{ qcStatusLabel("Pending") }}</option><option value="Pass">{{ qcStatusLabel("Pass") }}</option><option value="Fail">{{ qcStatusLabel("Fail") }}</option></select></label>
+    <label for="production-qc-status"><span>{{ "mobile.operatorQcStatus" | hhTranslate: "QC status" }}</span><hh-select id="production-qc-status" [(ngModel)]="qcStatus" label="mobile.operatorQcStatus" placeholder="mobile.operatorQcStatus"><option value="Pending">{{ qcStatusLabel("Pending") }}</option><option value="Pass">{{ qcStatusLabel("Pass") }}</option><option value="Fail">{{ qcStatusLabel("Fail") }}</option></hh-select></label>
+    @if (selectedBatch(); as batch) {
+      <div class="batch-actions" aria-label="{{ 'mobile.operatorBatchActions' | hhTranslate: 'Batch actions' }}">
+        @if (batch.status === "Started") { <button type="button" class="secondary-action" (click)="transitionBatch('pause')">{{ "mobile.operatorPauseBatch" | hhTranslate: "Pause batch" }}</button> }
+        @if (batch.status === "Paused") { <button type="button" class="secondary-action" (click)="transitionBatch('resume')">{{ "mobile.operatorResumeBatch" | hhTranslate: "Resume batch" }}</button> }
+        @if (batch.status === "Started" || batch.status === "Paused") { <button type="button" class="secondary-action" (click)="transitionBatch('complete')">{{ "mobile.operatorCompleteBatch" | hhTranslate: "Complete batch" }}</button> }
+      </div>
+      <fieldset class="measurement-card">
+        <legend>{{ "mobile.operatorMeasurement" | hhTranslate: "Process measurement" }}</legend>
+        <label><span>{{ "mobile.operatorMeasurementType" | hhTranslate: "Measurement type" }}</span><input [(ngModel)]="measurementType" /></label>
+        <label><span>{{ "mobile.operatorMeasuredValue" | hhTranslate: "Measured value" }}</span><input type="number" [(ngModel)]="measurementValue" /></label>
+        <label><span>{{ "mobile.operatorTestUom" | hhTranslate: "Unit" }}</span><input [(ngModel)]="measurementUom" /></label>
+        <button type="button" class="secondary-action" (click)="recordMeasurement()">{{ "mobile.operatorRecordMeasurement" | hhTranslate: "Record measurement" }}</button>
+      </fieldset>
+      @if (lossOperations().length) {
+        <fieldset class="measurement-card">
+          <legend>{{ "mobile.operatorLossReview" | hhTranslate: "Loss review" }}</legend>
+          <label for="production-loss-operation"><span>{{ "mobile.operatorLossOperation" | hhTranslate: "Operation" }}</span><hh-select id="production-loss-operation" [(ngModel)]="lossOperationId" label="mobile.operatorLossOperation" placeholder="mobile.operatorChooseLossOperation"><option value="">{{ "mobile.operatorChooseLossOperation" | hhTranslate: "Choose loss operation" }}</option>@for (operation of lossOperations(); track operation.id) { <option [value]="operation.id" [textContent]="operation.processStep + ' · ' + operation.lossQuantity"></option> }</hh-select></label>
+          <label for="production-loss-decision"><span>{{ "mobile.operatorLossDecision" | hhTranslate: "Decision" }}</span><hh-select id="production-loss-decision" [(ngModel)]="lossDecision" label="mobile.operatorLossDecision" placeholder="mobile.operatorLossDecision"><option value="Approved">{{ "mobile.operatorApproveLoss" | hhTranslate: "Approve loss" }}</option><option value="Rejected">{{ "mobile.operatorRejectLoss" | hhTranslate: "Reject loss" }}</option></hh-select></label>
+          <label>{{ "mobile.operatorLossReviewer" | hhTranslate: "Reviewer" }}<input [(ngModel)]="lossReviewer" /></label>
+          <label>{{ "mobile.operatorLossReviewNotes" | hhTranslate: "Review notes" }}<input [(ngModel)]="lossNotes" /></label>
+          <button type="button" class="secondary-action" (click)="reviewLoss()">{{ "mobile.operatorSaveLossReview" | hhTranslate: "Save loss review" }}</button>
+        </fieldset>
+      }
+    }
     <button type="button" (click)="recordOperation()">{{ "mobile.operatorRecordOperation" | hhTranslate: "Record operation" }}</button>
     @if (message) { <p class="work-card__message" role="status">{{ message }}</p> }
   </article>

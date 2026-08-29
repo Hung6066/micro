@@ -31,6 +31,8 @@ public interface IApplicationDbContext
     DbSet<AccessReview> AccessReviews { get; }
     DbSet<RoleTemplateVersion> RoleTemplateVersions { get; }
     DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies { get; }
+    DbSet<AuthorizationPolicyBundleArtifact> AuthorizationPolicyBundles { get; }
+    DbSet<AuthorizationChangeRequest> AuthorizationChangeRequests { get; }
     DbSet<IamScope> IamScopes { get; }
     DbSet<IamServiceDefinition> IamServiceDefinitions { get; }
     DbSet<IamPermissionSet> IamPermissionSets { get; }

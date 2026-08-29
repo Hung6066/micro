@@ -274,6 +274,21 @@ export interface AuthorizationPolicy {
   publishedBy?: string;
 }
 
+export interface AuthorizationChangeRequest {
+  id: string;
+  resourceType: string;
+  resourceId: string;
+  action: string;
+  requestedBy: string;
+  reason: string;
+  status: string;
+  approvedBy?: string;
+  requestedAt: string;
+  decidedAt?: string;
+  executedAt?: string;
+  expiresAt: string;
+}
+
 export interface AuthorizationPolicyLintResult {
   id: string;
   key: string;

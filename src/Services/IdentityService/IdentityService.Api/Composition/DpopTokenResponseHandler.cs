@@ -20,7 +20,7 @@ public sealed class DpopTokenResponseHandler(IConfiguration configuration) :
             .GetSection("Dpop:RequiredClientIds")
             .Get<string[]>();
 
-        if (requiredClients?.Contains(context.Request.ClientId, StringComparer.Ordinal) == true &&
+        if (requiredClients?.Contains(context.Request?.ClientId, StringComparer.Ordinal) == true &&
             !string.IsNullOrWhiteSpace(context.Response.AccessToken))
         {
             context.Response.TokenType = "DPoP";

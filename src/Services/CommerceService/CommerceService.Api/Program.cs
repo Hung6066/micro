@@ -120,7 +120,9 @@ static async Task<IReadOnlyList<ProductDto>> LoadCatalogAsync(
     CancellationToken cancellationToken) =>
     (await persistence.GetProductsAsync(tenantKey, cancellationToken)).Select(ToProductDto).ToArray();
 
-var commerce = app.MapGroup("/api/v1/commerce").RequireAuthorization();
+var commerce = app.MapGroup("/api/v1/commerce")
+    .RequireAuthorization()
+    .RequireTenantContext();
 
 commerce.MapGet("/products", async (
     HttpContext context,

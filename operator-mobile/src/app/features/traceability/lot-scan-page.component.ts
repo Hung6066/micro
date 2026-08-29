@@ -6,14 +6,18 @@ import { catchError, of } from "rxjs";
 import { OperatorMobileApiService, type FefoLot, type InventoryTransaction, type LotGenealogy, type LotStatusHistory, type LotSummary, type ManufacturingAvailability, type QualityInspection, type RecallImpact } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
+import { HisHopeSelectComponent } from "@his-hope/frontend-foundation/ui";
+import { OperationQueueService } from "../../core/offline/operation-queue.service";
+import { operatorMobileErrorMessage } from "../../core/operator-mobile-error.util";
 
-@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe], templateUrl: "./lot-scan-page.component.html", styleUrls: ["./lot-scan-page.component.scss"] })
+@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeSelectComponent], templateUrl: "./lot-scan-page.component.html", styleUrls: ["./lot-scan-page.component.scss"] })
 export class LotScanPageComponent {
   private readonly scanner = inject(OperatorMobileQrScannerService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly api = inject(OperatorMobileApiService);
   private readonly tenant = inject(OperatorMobileTenantContextService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly queue = inject(OperationQueueService);
   scannedCode = "";
   message = "";
   loadError = "";
@@ -25,6 +29,10 @@ export class LotScanPageComponent {
   availability: ManufacturingAvailability | null = null;
   fefoLots: FefoLot[] = [];
   recallImpact: RecallImpact | null = null;
+  selectedLot: LotSummary | null = null;
+  newDisposition = "";
+  dispositionReason = "";
+  dispositionEvidence = "";
 
   dispositionLabel(disposition: string): string { return manufacturingEnumLabel(this.i18n, "disposition", disposition); }
   genealogyRoleLabel(role: string): string { return manufacturingEnumLabel(this.i18n, "genealogyRole", role); }
@@ -43,7 +51,7 @@ export class LotScanPageComponent {
     effect(() => {
       const tenantKey = this.tenant.activeTenantKey?.();
       if (!tenantKey) { this.lots = []; return; }
-      this.api.getLots().pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of([]); })).subscribe((lots) => {
+      this.api.getLots().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of([]); })).subscribe((lots) => {
         setTimeout(() => {
           // Keep the backend enum value intact; the template resolves it through
           // the active dictionary so switching language updates existing options.
@@ -73,6 +81,8 @@ export class LotScanPageComponent {
     const selected = this.lots.find((lot) => (lot.lotCode || lot.id) === this.scannedCode);
     if (!selected) { this.message = this.i18n.t("mobile.operatorLotNotFound", "The selected lot could not be found."); return; }
     this.genealogy = null;
+    this.selectedLot = selected;
+    this.newDisposition = selected.disposition;
     this.qualityHistory = [];
     this.statusHistory = [];
     this.inventoryHistory = [];
@@ -107,5 +117,22 @@ export class LotScanPageComponent {
     this.api.getRecallImpact(selected.id).pipe(catchError(() => of(null))).subscribe((recallImpact) => {
       setTimeout(() => { this.recallImpact = recallImpact; this.cdr.markForCheck(); });
     });
+  }
+
+  async changeDisposition(): Promise<void> {
+    const scope = this.tenant.commandScope;
+    if (!scope || !this.selectedLot || !this.newDisposition || this.newDisposition === this.selectedLot.disposition) {
+      this.message = this.i18n.t("mobile.operatorLotDispositionValidation", "Choose a new lot disposition.");
+      return;
+    }
+    const operation = await this.queue.submit(
+      { ...scope, endpoint: `/lots/${this.selectedLot.id}/disposition`, payload: { disposition: this.newDisposition, actor: scope.subjectId, reasonCode: this.dispositionReason.trim() || undefined, evidenceReference: this.dispositionEvidence.trim() || undefined, expectedUpdatedAt: this.selectedLot.updatedAt } },
+      (queued) => this.api.changeLotDisposition(queued),
+    );
+    this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorLotDispositionSaved", "Lot disposition saved.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
+    if (operation.status === "synced") {
+      this.selectedLot = { ...this.selectedLot, disposition: this.newDisposition };
+      this.cdr.markForCheck();
+    }
   }
 }

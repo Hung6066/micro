@@ -1,6 +1,5 @@
 import {
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
   DestroyRef,
   OnInit,
@@ -25,7 +24,6 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { AccessGovernanceApiService } from "../../core/services/access-governance-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { catchError, forkJoin, of, tap, timeout } from "rxjs";
 import {
   HisHopeI18nService,

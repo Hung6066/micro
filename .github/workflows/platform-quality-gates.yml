@@ -7,11 +7,26 @@ on:
 
 permissions:
   contents: read
+  id-token: write
   security-events: write
 
 jobs:
   backend-contracts:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.14
+        env:
+          POSTGRES_PASSWORD: migration-test-only
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -40,7 +55,11 @@ jobs:
           dotnet tool install --global dotnet-ef --version 8.0.10
           $env:PATH = "$env:USERPROFILE/.dotnet/tools;$env:PATH"
           ./scripts/generate-database-migration-scripts.ps1 -OutputDirectory artifacts/database-migrations-current
+          ./scripts/validate-identity-migration-safety.ps1
           ./scripts/validate-database-migration-contract.ps1 -MigrationDirectory artifacts/database-migrations-current -RenderedProductionManifest artifacts/k8s/prod.yaml -OutputPath artifacts/evidence/database-migration-contract.json
+          $env:IDENTITY_MIGRATION_TEST_PASSWORD = 'migration-test-only'
+          ./scripts/validate-identity-migration-dry-run.ps1 -HostName localhost -Port 5432 -RequireLive
+          Remove-Item Env:IDENTITY_MIGRATION_TEST_PASSWORD -ErrorAction SilentlyContinue
       - name: Upload migration evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -48,6 +67,7 @@ jobs:
           path: |
             artifacts/database-migrations-current/migration-manifest.json
             artifacts/evidence/database-migration-contract.json
+            artifacts/evidence/identity-migration-dry-run.json
           if-no-files-found: error
       - name: Contract tests
         shell: pwsh
@@ -67,6 +87,55 @@ jobs:
       - name: Authorization endpoint coverage gate
         shell: pwsh
         run: ./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json
+      - name: Authorization policy-as-code gate
+        shell: pwsh
+        run: ./scripts/validate-authorization-policy-as-code.ps1 -OutputPath artifacts/evidence/authorization-policy-as-code.json
+      - name: Install pinned Cosign for policy artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 -o "$RUNNER_TOOL_CACHE/cosign"
+          echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check
+          chmod 0755 "$RUNNER_TOOL_CACHE/cosign"
+          echo "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
+      - name: Sign and verify policy catalog artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          set -euo pipefail
+          test -s config/authorization-policies/catalog.v1.json
+          cosign sign-blob --yes \
+            --output-signature artifacts/evidence/authorization-policy-catalog.sig \
+            --output-certificate artifacts/evidence/authorization-policy-catalog.cert \
+            config/authorization-policies/catalog.v1.json
+          cosign verify-blob \
+            --signature artifacts/evidence/authorization-policy-catalog.sig \
+            --certificate artifacts/evidence/authorization-policy-catalog.cert \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/platform-quality-gates.yml@refs/heads/main$" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            config/authorization-policies/catalog.v1.json
+      - name: Upload authorization policy evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: authorization-policy-as-code
+          path: |
+            config/authorization-policies/catalog.v1.json
+            artifacts/evidence/authorization-policy-as-code.json
+          if-no-files-found: error
+      - name: Upload signed authorization policy artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: authorization-policy-as-code-signed
+          path: |
+            config/authorization-policies/catalog.v1.json
+            artifacts/evidence/authorization-policy-as-code.json
+            artifacts/evidence/authorization-policy-catalog.sig
+            artifacts/evidence/authorization-policy-catalog.cert
+          if-no-files-found: error
       - name: Upload authorization coverage evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -76,9 +145,12 @@ jobs:
       - name: DPoP resource coverage gate
         shell: pwsh
         run: ./scripts/validate-dpop-coverage.ps1
+      - name: Tenant context contract gate
+        shell: pwsh
+        run: ./scripts/verify-tenant-context-contract.ps1 -Root $PWD
       - name: Enterprise production phase gates
         shell: pwsh
-        run: ./scripts/validate-enterprise-production-phases.ps1 -SkipIntegrationTests
+        run: ./scripts/validate-enterprise-production-phases.ps1 -SkipIntegrationTests -SkipServiceIntegrationMatrix
       - name: Install Buf
         uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:

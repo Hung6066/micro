@@ -31,7 +31,7 @@ public sealed class HisHopeTenantClaimExtensionsTests
     }
 
     [Fact]
-    public void ResolveActiveTenant_prefers_canonical_header_over_legacy_query_parameter()
+    public void ResolveActiveTenant_rejects_conflicting_canonical_header_and_legacy_query_parameter()
     {
         var context = CreateContext(
             new Claim("tenant_id", "manufacturing"),
@@ -40,17 +40,27 @@ public sealed class HisHopeTenantClaimExtensionsTests
         context.Request.Headers["X-HisHope-Tenant"] = "customer-factory-x";
         context.Request.QueryString = new QueryString("?tenantKey=other-tenant");
 
-        context.ResolveActiveTenant().Should().Be("customer-factory-x");
+        context.ResolveActiveTenant().Should().BeNull();
     }
 
     [Fact]
-    public void GetRequestedTenant_prefers_canonical_header_and_trims_context()
+    public void GetRequestedTenant_prefers_canonical_header_and_trims_context_when_selectors_agree_or_query_is_absent()
     {
         var context = CreateContext(new Claim("tenant_id", "manufacturing"));
         context.Request.Headers["X-HisHope-Tenant"] = " customer-factory-x ";
-        context.Request.QueryString = new QueryString("?tenantKey=legacy-tenant");
+        context.Request.QueryString = new QueryString("?tenantKey=customer-factory-x");
 
         context.GetRequestedTenant().Should().Be("customer-factory-x");
+    }
+
+    [Fact]
+    public void HasConflictingTenantSelectors_detects_mismatched_header_and_query()
+    {
+        var context = CreateContext(new Claim("tenant_id", "manufacturing"));
+        context.Request.Headers["X-HisHope-Tenant"] = "customer-factory-x";
+        context.Request.QueryString = new QueryString("?tenantKey=other-tenant");
+
+        context.HasConflictingTenantSelectors().Should().BeTrue();
     }
 
     [Fact]

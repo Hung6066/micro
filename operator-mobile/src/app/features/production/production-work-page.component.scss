@@ -7,8 +7,12 @@ h2 { margin: 0; font-size: var(--font-size-headline, 1.9rem); }
 .work-card h3 { margin: .5rem 0; }
 .work-card p { color: var(--text-secondary); line-height: 1.45; }
 button { min-height: 2.75rem; padding: 0 1rem; border: 0; border-radius: .75rem; background: var(--color-primary); color: var(--color-on-primary); font: inherit; font-weight: 700; }
+.batch-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.secondary-action { border: 1px solid var(--border-default); background: var(--surface-muted); color: var(--text-primary); }
+.measurement-card { display: grid; gap: .65rem; min-width: 0; margin: 0; padding: .75rem; border: 1px solid var(--border-default); border-radius: .75rem; background: var(--surface-muted); }
+.measurement-card legend { padding: 0 .25rem; color: var(--text-primary); font-weight: 700; }
 .work-card label { display: grid; gap: .4rem; color: var(--text-primary); font-weight: 700; }
-.work-card select, .work-card input { width: 100%; min-width: 0; min-height: 2.75rem; box-sizing: border-box; padding: .55rem .65rem; border: 1px solid var(--border-default); border-radius: .6rem; background: var(--surface-white); color: var(--text-primary); font: inherit; }
+.work-card select, .work-card input { width: 100%; min-width: 0; min-height: 2.75rem; box-sizing: border-box; padding: .55rem .65rem; border: 1px solid var(--border-default); border-radius: .6rem; background: var(--surface-white); color: var(--text-primary); font-family: inherit; font-size: inherit; font-weight: var(--font-weight-regular, 400); line-height: inherit; }
 .work-card { display: grid; gap: .85rem; }
 .summary-card { display: grid; gap: .7rem; padding: .85rem 1rem; border: 1px solid var(--border-default); border-radius: 1rem; background: var(--surface-muted); }
 .workflow-card { display: grid; gap: .7rem; min-width: 0; padding: .85rem 1rem; border: 1px solid var(--border-default); border-radius: 1rem; background: var(--surface-muted); } .workflow-card h3 { margin: 0; font-size: var(--font-size-subhead, .95rem); }

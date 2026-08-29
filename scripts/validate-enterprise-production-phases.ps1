@@ -3,7 +3,10 @@ param(
     [ValidateSet('phase1', 'phase2', 'phase3', 'all')]
     [string]$Phase = 'all',
     [string]$RepositoryRoot,
+    [string]$IntegrationMatrixPath = 'artifacts/evidence/integration-matrix/integration-test-matrix.json',
     [switch]$SkipIntegrationTests,
+    [switch]$SkipServiceIntegrationMatrix,
+    [switch]$SkipLoadTestBaseline,
     [switch]$AllowLocalDrEvidence
 )
 
@@ -38,6 +41,29 @@ try {
         } else {
             Add-Check 'rfc9700-matrix' 'skipped' 'Integration tests skipped by flag.'
         }
+        if ($SkipIntegrationTests -or $SkipServiceIntegrationMatrix) {
+            Add-Check 'service-integration-matrix' 'skipped' 'Service integration matrix skipped by flag.'
+        } else {
+            $matrixPath = if ([IO.Path]::IsPathRooted($IntegrationMatrixPath)) {
+                $IntegrationMatrixPath
+            } else {
+                Join-Path $RepositoryRoot $IntegrationMatrixPath
+            }
+            if (-not (Test-Path -LiteralPath $matrixPath -PathType Leaf)) {
+                Add-Check 'service-integration-matrix' 'environment-blocked' "Integration matrix evidence is missing: $IntegrationMatrixPath"
+            } else {
+                $matrix = Get-Content -LiteralPath $matrixPath -Raw | ConvertFrom-Json
+                $matrixFailed = if ($null -ne $matrix.totals) { [int]$matrix.totals.failed } else { 0 }
+                $matrixSkipped = if ($null -ne $matrix.totals) { [int]$matrix.totals.skipped } else { 0 }
+                if ($matrixFailed -gt 0) {
+                    Add-Check 'service-integration-matrix' 'fail' "Integration matrix contains $matrixFailed failed tests."
+                } elseif ($matrixSkipped -gt 0 -or [string]$matrix.status -ne 'pass') {
+                    Add-Check 'service-integration-matrix' 'environment-blocked' "Integration matrix is not green: status=$($matrix.status), skipped=$matrixSkipped."
+                } else {
+                    Add-Check 'service-integration-matrix' 'pass' 'All service integration tests passed.'
+                }
+            }
+        }
         if ($AllowLocalDrEvidence) {
             Invoke-Step 'dr-evidence-local' { ./scripts/run-local-dr-evidence-drill.ps1 }
         }
@@ -49,14 +75,28 @@ try {
             }
         }
         Invoke-Step 'siem-tamper-drill' { ./scripts/run-audit-siem-tamper-drill.ps1 }
-        if (Test-Path -LiteralPath 'artifacts/security/penetration-test/report.json') {
+        $oidcEvidencePath = 'artifacts/security/oidc-conformance/report.json'
+        $pentestEvidencePath = 'artifacts/security/penetration-test/report.json'
+        $hasExternalEvidence = $false
+        if ((Test-Path -LiteralPath $oidcEvidencePath) -and (Test-Path -LiteralPath $pentestEvidencePath)) {
+            $oidcEvidence = Get-Content -LiteralPath $oidcEvidencePath -Raw | ConvertFrom-Json
+            $pentestEvidence = Get-Content -LiteralPath $pentestEvidencePath -Raw | ConvertFrom-Json
+            $oidcSource = if ($null -ne $oidcEvidence.PSObject.Properties['evidenceSource']) { [string]$oidcEvidence.evidenceSource } else { '' }
+            $pentestSource = if ($null -ne $pentestEvidence.PSObject.Properties['evidenceSource']) { [string]$pentestEvidence.evidenceSource } else { '' }
+            $hasExternalEvidence = $oidcSource -eq 'external-independent' -and
+                $pentestSource -eq 'external-independent'
+        }
+        if ($hasExternalEvidence) {
             Invoke-Step 'pentest-evidence' { ./scripts/verify-independent-security-evidence.ps1 -EvidenceRoot artifacts/security }
         } else {
-            Add-Check 'pentest-evidence' 'skipped' 'External penetration-test report not present in repository.'
+            Add-Check 'pentest-evidence' 'environment-blocked' 'Local/automated evidence is present, but signed external-independent OIDC and penetration-test reports are required.'
         }
     }
 
     if ($Phase -in @('phase2', 'all')) {
+        Invoke-Step 'tenant-context-contract' {
+            ./scripts/verify-tenant-context-contract.ps1 -Root $RepositoryRoot
+        }
         Invoke-Step 'assurance-policy-config' {
             if (-not (Test-Path -LiteralPath 'config/assurance-policy.v1.json')) { throw 'Missing assurance policy config.' }
         }
@@ -73,7 +113,9 @@ try {
             if ($staging -notmatch 'AUTHZ_PDP_MODE=canary') { throw 'Staging OpenFGA canary mode must be enabled.' }
         }
         Invoke-Step 'jwks-rotation-drill' { ./scripts/run-jwks-rotation-drill.ps1 }
-        if (Test-Path -LiteralPath 'tests/load/results/baseline-summary.json') {
+        if ($SkipLoadTestBaseline) {
+            Add-Check 'load-test-baseline' 'skipped' 'Load baseline skipped by operator request.'
+        } elseif (Test-Path -LiteralPath 'tests/load/results/baseline-summary.json') {
             Invoke-Step 'load-test-baseline' { ./scripts/validate-load-test-baseline.ps1 }
         } else {
             Add-Check 'load-test-baseline' 'skipped' 'k6 baseline summary not present; run tests/Load/baseline-load-test.js locally.'
@@ -111,8 +153,12 @@ try {
 }
 
 $failed = @($checks | Where-Object status -eq 'fail')
+$blocked = @($checks | Where-Object status -in @('environment-blocked', 'skipped'))
 $result = [pscustomobject]@{
-    status = if ($failed.Count -gt 0) { 'fail' } else { 'pass' }
+    # A production phase is not green when a required external evidence gate
+    # was skipped. Keep the individual check as `skipped` for operator clarity,
+    # but make the aggregate fail closed as `environment-blocked`.
+    status = if ($failed.Count -gt 0) { 'fail' } elseif ($blocked.Count -gt 0) { 'environment-blocked' } else { 'pass' }
     generatedAtUtc = [DateTime]::UtcNow.ToString('o')
     phase = $Phase
     checks = @($checks)
@@ -122,4 +168,5 @@ New-Item -ItemType Directory -Force -Path (Join-Path $RepositoryRoot 'artifacts/
 [IO.File]::WriteAllText((Join-Path $RepositoryRoot 'artifacts/evidence/enterprise-production-phases.json'), $json, [Text.UTF8Encoding]::new($false))
 Write-Output $json
 if ($failed.Count -gt 0) { exit 80 }
+if ($blocked.Count -gt 0) { exit 70 }
 exit 0

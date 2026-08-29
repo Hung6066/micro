@@ -4,7 +4,7 @@ import { FormsModule } from "@angular/forms";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HisHopeManufacturingSalesAllocationDto, HisHopeManufacturingAvailabilityDto, HisHopeCommerceOrderDto } from "@his-hope/frontend-foundation/contracts";
 import { HisHopeApiErrorMessageService as ApiErrorMessageService, HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
-import { HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent } from "@his-hope/frontend-foundation/ui";
+import { HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent , HisHopeSelectComponent} from "@his-hope/frontend-foundation/ui";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { CommerceApiService } from "../../core/services/commerce-api.service";
@@ -14,7 +14,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
 @Component({
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeTranslatePipe],
+  imports: [DecimalPipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeTranslatePipe, HisHopeSelectComponent],
   template: `
     <hh-page-layout>
       <hh-page-header hhPageHeader [title]="'customerPortal.salesAllocationTitle' | hhTranslate: 'Sales allocation & ATP'" [subtitle]="pageSubtitle" />
@@ -25,11 +25,11 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           <div class="section-heading"><div><p class="eyebrow">{{ 'customerPortal.salesGovernance' | hhTranslate: 'Sales fulfillment' }}</p><h2>{{ 'customerPortal.allocateSales' | hhTranslate: 'Allocate inventory' }}</h2></div></div>
           <form class="allocation-form" (ngSubmit)="allocate()">
             <label>{{ 'customerPortal.productSku' | hhTranslate: 'Product SKU' }}<input name="sku" [(ngModel)]="draft.sku" (blur)="loadAvailability()" required /></label>
-            <label>{{ 'customerPortal.salesOrder' | hhTranslate: 'Sales order' }}
-              <select name="orderId" [(ngModel)]="draft.salesOrderId" required>
+            <label for="orderId">{{ 'customerPortal.salesOrder' | hhTranslate: 'Sales order' }}
+              <hh-select id="orderId" name="orderId" [(ngModel)]="draft.salesOrderId" required>
                 <option value="">{{ 'customerPortal.selectSalesOrder' | hhTranslate: 'Select sales order' }}</option>
                 @for (order of orders; track order.id) { <option [value]="order.id">{{ order.lines[0]?.name || order.lines[0]?.sku || ('customerPortal.unnamedOrder' | hhTranslate: 'Sales order') }} · {{ buyerLabel(order.buyerUserId) }} · {{ salesOrderStatusLabel(order.status) }} · {{ order.totalAmount | number:'1.0-0' }}</option> }
-              </select>
+              </hh-select>
             </label>
             <label>{{ 'customerPortal.allocationQuantity' | hhTranslate: 'Quantity' }}<input name="quantity" type="number" min="0.001" step="0.001" [(ngModel)]="draft.quantity" required /></label>
             <div class="wide actions"><hh-action-button type="button" kind="secondary" icon="inventory" [label]="'customerPortal.checkAvailability' | hhTranslate: 'Check ATP'" [disabled]="busy || !draft.sku.trim()" (pressed)="loadAvailability()" /><hh-action-button type="submit" kind="primary" icon="shopping_cart_checkout" [label]="'customerPortal.allocateSales' | hhTranslate: 'Allocate inventory'" [disabled]="busy" /></div>

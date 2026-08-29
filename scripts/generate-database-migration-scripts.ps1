@@ -5,6 +5,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+function Get-Sha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($Path))) -replace '-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+}
 $output = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $OutputDirectory))
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 
@@ -22,9 +27,34 @@ $contexts = @(
 $manifest = [System.Collections.Generic.List[object]]::new()
 foreach ($item in $contexts) {
     $file = Join-Path $output "$($item.Name)-idempotent.sql"
-    dotnet ef migrations script --idempotent --project (Join-Path $RepositoryRoot $item.Project) --startup-project (Join-Path $RepositoryRoot $item.Project) --context $item.Context --configuration Release --no-build --no-color --output $file
+    $projectPath = Join-Path $RepositoryRoot $item.Project
+    $projectDirectory = Split-Path -Parent $projectPath
+    $projectName = [IO.Path]::GetFileNameWithoutExtension($projectPath)
+    $depsPath = Join-Path $projectDirectory "bin/Release/net8.0/$projectName.deps.json"
+    $efArguments = @(
+        'ef', 'migrations', 'script', '--idempotent',
+        '--project', $projectPath,
+        '--startup-project', $projectPath,
+        '--context', $item.Context,
+        '--configuration', 'Release',
+        '--no-color',
+        '--output', $file
+    )
+    $migrationDirectory = Join-Path $projectDirectory 'Persistence/Migrations'
+    $latestMigrationWrite = if (Test-Path -LiteralPath $migrationDirectory -PathType Container) {
+        (Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.cs' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
+    } else { [DateTime]::MinValue }
+    $assemblyPath = Join-Path $projectDirectory "bin/Release/net8.0/$projectName.dll"
+    if ((Test-Path -LiteralPath $depsPath -PathType Leaf) -and
+        (Test-Path -LiteralPath $assemblyPath -PathType Leaf) -and
+        (Get-Item -LiteralPath $assemblyPath).LastWriteTimeUtc -ge $latestMigrationWrite) {
+        $efArguments += '--no-build'
+    } else {
+        Write-Warning "Release output is missing or older than migration source for $($item.Context); rebuilding before script generation."
+    }
+    dotnet @efArguments
     if ($LASTEXITCODE -ne 0) { throw "Migration script generation failed for $($item.Context)." }
-    $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    $hash = Get-Sha256 $file
     $manifest.Add([pscustomobject]@{ name = $item.Name; context = $item.Context; script = (Split-Path -Leaf $file); sha256 = $hash })
     Write-Output "Generated $file"
 }

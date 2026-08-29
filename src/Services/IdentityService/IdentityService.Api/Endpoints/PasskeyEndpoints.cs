@@ -40,6 +40,8 @@ public static class PasskeyEndpoints
             {
                 registered = credentials.Count > 0,
                 count = credentials.Count,
+                minimumRequired = 2,
+                meetsMinimum = credentials.Count >= 2,
                 createdAt = credentials.OrderByDescending(item => item.CreatedAt).Select(item => item.CreatedAt).FirstOrDefault()
             });
         });
@@ -110,18 +112,20 @@ public static class PasskeyEndpoints
 
             if (string.IsNullOrWhiteSpace(requestedUserId))
                 return Results.UnprocessableEntity(new { errorCode = "passkey_account_required" });
-            var credential = await db.PasskeyCredentials.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.UserId == requestedUserId);
-            if (credential is null)
+            var credentials = await db.PasskeyCredentials.AsNoTracking()
+                .Where(item => item.UserId == requestedUserId)
+                .Select(item => item.CredentialId)
+                .ToListAsync();
+            if (credentials.Count == 0)
                 return Results.UnprocessableEntity(new { errorCode = "passkey_not_enrolled", message = "Passkey not enrolled." });
-            var credentialId = credential.CredentialId;
             var redisDb = redis.GetDatabase();
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
-                AllowedCredentials = new[] { new PublicKeyCredentialDescriptor(Convert.FromBase64String(credentialId!)) },
+                AllowedCredentials = credentials
+                    .Select(credentialId => new PublicKeyCredentialDescriptor(Convert.FromBase64String(credentialId)))
+                    .ToArray(),
                 UserVerification = UserVerificationRequirement.Required
             });
-            await redisDb.StringSetAsync(CredentialPointerKey(requestedUserId), credentialId, TimeSpan.FromMinutes(5));
             await redisDb.StringSetAsync(AssertionKey(requestedUserId), options.ToJson(), TimeSpan.FromMinutes(5));
             return Results.Ok(new { userId = requestedUserId, options });
         });
@@ -131,10 +135,9 @@ public static class PasskeyEndpoints
         {
             var redisDb = redis.GetDatabase();
             var rawOptions = await redisDb.StringGetDeleteAsync(AssertionKey(request.UserId));
-            var credentialId = await redisDb.StringGetAsync(CredentialPointerKey(request.UserId));
-            if (!rawOptions.HasValue || !credentialId.HasValue) return Results.Unauthorized();
+            if (!rawOptions.HasValue || string.IsNullOrWhiteSpace(request.Response.Id)) return Results.Unauthorized();
             var stored = await db.PasskeyCredentials.SingleOrDefaultAsync(
-                credential => credential.UserId == request.UserId && credential.CredentialId == credentialId.ToString());
+                credential => credential.UserId == request.UserId && credential.CredentialId == request.Response.Id);
             if (stored is null) return Results.Unauthorized();
             var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
             {
@@ -171,19 +174,22 @@ public static class PasskeyEndpoints
             if (pending is null) return Results.Unauthorized();
             var userId = pending.UserId;
 
-            var credential = await db.PasskeyCredentials.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.UserId == userId.ToString());
-            if (credential is null)
+            var credentials = await db.PasskeyCredentials.AsNoTracking()
+                .Where(item => item.UserId == userId.ToString())
+                .Select(item => item.CredentialId)
+                .ToListAsync();
+            if (credentials.Count == 0)
                 return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled", message = "MFA passkey not enrolled." });
 
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
-                AllowedCredentials = new[] { new PublicKeyCredentialDescriptor(Convert.FromBase64String(credential.CredentialId)) },
+                AllowedCredentials = credentials
+                    .Select(credentialId => new PublicKeyCredentialDescriptor(Convert.FromBase64String(credentialId)))
+                    .ToArray(),
                 UserVerification = UserVerificationRequirement.Required
             });
             var redisDb = redis.GetDatabase();
             await redisDb.StringSetAsync(MfaAssertionKey(pending), options.ToJson(), TimeSpan.FromMinutes(5));
-            await redisDb.StringSetAsync(MfaCredentialPointerKey(pending), credential.CredentialId, TimeSpan.FromMinutes(5));
             return Results.Ok(new { userId, options });
         });
 
@@ -211,12 +217,11 @@ public static class PasskeyEndpoints
             // flow works with the minimum Redis version supported by local
             // test/dev installations as well as Redis 6.2+.
             var rawOptions = await GetAndDeleteAsync(redisDb, MfaAssertionKey(pending));
-            var credentialId = await GetAndDeleteAsync(redisDb, MfaCredentialPointerKey(pending));
-            if (!rawOptions.HasValue || !credentialId.HasValue)
+            if (!rawOptions.HasValue || string.IsNullOrWhiteSpace(request.Response.Id))
                 return Results.Unauthorized();
 
             var stored = await db.PasskeyCredentials.SingleOrDefaultAsync(
-                credential => credential.UserId == userId.ToString() && credential.CredentialId == credentialId.ToString());
+                credential => credential.UserId == userId.ToString() && credential.CredentialId == request.Response.Id);
             if (stored is null) return Results.Unauthorized();
 
             var result = await fido2.MakeAssertionAsync(new MakeAssertionParams

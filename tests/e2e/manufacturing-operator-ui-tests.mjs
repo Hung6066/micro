@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const operatorUrl = process.env.OPERATOR_APP_URL ?? 'http://localhost:4200';
+const operatorUrl = process.env.OPERATOR_APP_URL ?? 'http://localhost:4300';
 const email = process.env.E2E_EMAIL;
 const password = process.env.E2E_PASSWORD;
 const routes = ['dashboard', 'inventory/lots', 'production', 'recipes', 'product-specifications', 'quality-inspections', 'deviations', 'forecast', 'sales-allocation', 'procurement', 'maintenance', 'orders', 'users', 'content', 'rfqs'];

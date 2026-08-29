@@ -24,7 +24,6 @@ import {
   PermissionDefinition,
   User,
 } from "../../core/contracts/admin.contracts";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { TenantContextService } from "../../core/services/tenant-context.service";

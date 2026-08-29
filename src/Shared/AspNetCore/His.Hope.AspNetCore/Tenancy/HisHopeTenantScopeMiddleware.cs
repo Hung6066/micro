@@ -11,9 +11,10 @@ public static class HisHopeTenantScopeMiddlewareExtensions
 
 internal sealed class HisHopeTenantScopeMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, HisHopeTenantContext tenantContext)
     {
         var tenantKey = context.ResolveActiveTenant();
+        tenantContext.Set(tenantKey);
         using (HisHopeTenantScope.Begin(tenantKey))
             await next(context);
     }

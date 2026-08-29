@@ -50,34 +50,61 @@ public static class AccessGovernanceEndpoints
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate)
             .WithTenantReadScope(HisHopePermissions.Admin.PolicySimulate);
 
-        // Consumers receive a deterministic, signed snapshot rather than
-        // reading mutable draft rows. The private signing key remains behind
-        // IVaultKeyProvider; the signature is only an integrity envelope.
+        // Consumers receive the latest durable, deterministic signed snapshot.
+        // Draft rows are never exposed as a bundle. A missing artifact is an
+        // explicit release/configuration error rather than an implicit publish.
         group.MapGet("/policies/bundle", async (
             IApplicationDbContext db,
-            IVaultKeyProvider keyProvider,
             CancellationToken ct) =>
         {
-            var policies = await db.AuthorizationPolicies.AsNoTracking()
-                .Where(item => item.LifecycleStatus == "published")
-                .OrderBy(item => item.Key).ThenBy(item => item.Version)
-                .Select(item => new { item.Key, item.Description, item.Owner, item.Version, item.RulesJson })
-                .ToListAsync(ct);
-            var canonical = JsonSerializer.Serialize(policies, new JsonSerializerOptions { WriteIndented = false });
-            var bytes = Encoding.UTF8.GetBytes(canonical);
-            var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-            var signature = await keyProvider.SignAsync(bytes, ct);
-            var key = (await keyProvider.GetJwksAsync(ct)).FirstOrDefault();
+            var artifact = await db.AuthorizationPolicyBundles.AsNoTracking()
+                .OrderByDescending(item => item.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+            if (artifact is null) return Results.NotFound(new { errorCode = "published_policy_bundle_not_found" });
+            using var policies = JsonDocument.Parse(artifact.PoliciesJson);
             return Results.Ok(new
             {
-                schemaVersion = "authorization-policy-bundle.v1",
-                hash,
-                keyId = key?.Kid,
-                signature,
-                generatedAt = DateTime.UtcNow,
-                policies
+                schemaVersion = artifact.SchemaVersion,
+                hash = artifact.Hash,
+                keyId = artifact.KeyId,
+                signature = artifact.Signature,
+                generatedAt = artifact.CreatedAt,
+                policies = policies.RootElement.Clone()
             });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate);
+
+        group.MapPost("/policies/bundle/publish", async (
+            IApplicationDbContext db,
+            IVaultKeyProvider keyProvider,
+            HttpContext http,
+            CancellationToken ct) =>
+        {
+            if (!HasMfa(http)) return Results.Forbid();
+            var artifact = await CreatePolicyBundleArtifactAsync(db, keyProvider, Actor(http), ct);
+            var existing = await db.AuthorizationPolicyBundles.AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Hash == artifact.Hash, ct);
+            if (existing is not null)
+                return Results.Ok(new
+                {
+                    existing.Id,
+                    schemaVersion = existing.SchemaVersion,
+                    existing.Hash,
+                    existing.KeyId,
+                    existing.CreatedAt,
+                    idempotent = true
+                });
+            db.AuthorizationPolicyBundles.Add(artifact);
+            await db.SaveChangesAsync(ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "POLICY_BUNDLE_PUBLISH", "AuthorizationPolicyBundle", artifact.Id.ToString(), "Published signed authorization policy bundle.", null, artifact.Hash, ct);
+            return Results.Created($"/api/v1/admin/policies/bundle/{artifact.Id}", new
+            {
+                artifact.Id,
+                schemaVersion = artifact.SchemaVersion,
+                artifact.Hash,
+                artifact.KeyId,
+                artifact.CreatedAt
+            });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         // Lint is deliberately read-only and available before publish so the
         // admin workbench can show deterministic policy errors without
@@ -219,6 +246,36 @@ public static class AccessGovernanceEndpoints
                 return Results.Conflict(new { errorCode = "maker_checker_required" });
             if (!AbacPolicyEvaluator.TryValidate(policy.RulesJson, out var errors))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["rulesJson"] = errors });
+
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "AuthorizationPolicy", id, "policy.publish",
+                    AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("version", out var version) || version.GetInt32() != policy.Version)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "AuthorizationPolicy", id, "policy.publish",
+                    JsonSerializer.Serialize(new { version = policy.Version }),
+                    "Authorization policy publish requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt
+                });
+            }
+
             var previous = await db.AuthorizationPolicies.Where(item => item.Key == policy.Key && item.LifecycleStatus == "published").ToListAsync(ct);
             foreach (var item in previous) item.LifecycleStatus = "retired";
             policy.LifecycleStatus = "published";
@@ -226,6 +283,7 @@ public static class AccessGovernanceEndpoints
             policy.PublishedBy = Actor(http);
             await db.SaveChangesAsync(ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "POLICY_PUBLISH", "AuthorizationPolicy", policy.Id.ToString(), "ABAC policy published after MFA maker-checker.", null, policy.RulesJson, ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange!, http, ct);
             return Results.Ok(ToPolicyDto(policy));
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
@@ -242,6 +300,39 @@ public static class AccessGovernanceEndpoints
                 .Where(item => item.Key == current.Key && item.LifecycleStatus == "retired" && item.Version < current.Version)
                 .OrderByDescending(item => item.Version).FirstOrDefaultAsync(ct);
             if (previous is null) return Results.Conflict(new { errorCode = "no_previous_policy" });
+
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "AuthorizationPolicy", id, "policy.rollback",
+                    AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("currentVersion", out var currentVersion) ||
+                    !snapshot.RootElement.TryGetProperty("targetVersion", out var targetVersion) ||
+                    currentVersion.GetInt32() != current.Version || targetVersion.GetInt32() != previous.Version)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "AuthorizationPolicy", id, "policy.rollback",
+                    JsonSerializer.Serialize(new { currentVersion = current.Version, targetVersion = previous.Version }),
+                    $"Authorization policy rollback to version {previous.Version} requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt,
+                    targetVersion = previous.Version
+                });
+            }
+
             var published = await db.AuthorizationPolicies.Where(item => item.Key == current.Key && item.LifecycleStatus == "published").ToListAsync(ct);
             foreach (var item in published) item.LifecycleStatus = "retired";
             var rollback = new AuthorizationPolicyDefinition
@@ -259,6 +350,7 @@ public static class AccessGovernanceEndpoints
             db.AuthorizationPolicies.Add(rollback);
             await db.SaveChangesAsync(ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "POLICY_ROLLBACK", "AuthorizationPolicy", rollback.Id.ToString(), $"ABAC policy rolled back to version {previous.Version}.", current.RulesJson, rollback.RulesJson, ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange!, http, ct);
             return Results.Ok(ToPolicyDto(rollback));
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
@@ -308,7 +400,7 @@ public static class AccessGovernanceEndpoints
                 query = query.Where(item => db.UserClaims.Any(claim =>
                     claim.UserId == item.SubjectUserId &&
                     claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                    allowedTenantKeys.Contains(claim.ClaimValue)));
+                    claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue)));
             }
 
             var requests = await query
@@ -377,7 +469,7 @@ public static class AccessGovernanceEndpoints
                 query = query.Where(item => db.UserClaims.Any(claim =>
                     claim.UserId == item.SubjectUserId &&
                     claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                    allowedTenantKeys.Contains(claim.ClaimValue)));
+                    claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue)));
             }
 
             var reviews = await query
@@ -585,7 +677,7 @@ public static class AccessGovernanceEndpoints
                 query = query.Where(item => db.UserClaims.Any(claim =>
                     claim.UserId == item.SubjectUserId &&
                     claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                    allowedTenantKeys.Contains(claim.ClaimValue)));
+                    claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue)));
             }
 
             var requests = await query
@@ -767,5 +859,25 @@ public static class AccessGovernanceEndpoints
     private static string Actor(HttpContext http) => http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "system";
     private static bool HasMfa(HttpContext http) => http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase));
     private static AuthorizationPolicyDto ToPolicyDto(AuthorizationPolicyDefinition item) => new(item.Id, item.Key, item.Description, item.Owner, item.Version, item.LifecycleStatus, item.RulesJson, item.CreatedBy, item.CreatedAt, item.PublishedAt, item.PublishedBy);
+    private static async Task<AuthorizationPolicyBundleArtifact> CreatePolicyBundleArtifactAsync(IApplicationDbContext db, IVaultKeyProvider keyProvider, string actor, CancellationToken ct)
+    {
+        var policies = await db.AuthorizationPolicies.AsNoTracking()
+            .Where(item => item.LifecycleStatus == "published")
+            .OrderBy(item => item.Key).ThenBy(item => item.Version)
+            .Select(item => new { item.Key, item.Description, item.Owner, item.Version, item.RulesJson })
+            .ToListAsync(ct);
+        var canonical = JsonSerializer.Serialize(policies, new JsonSerializerOptions { WriteIndented = false });
+        var bytes = Encoding.UTF8.GetBytes(canonical);
+        var key = (await keyProvider.GetJwksAsync(ct)).FirstOrDefault();
+        return new AuthorizationPolicyBundleArtifact
+        {
+            PoliciesJson = canonical,
+            Hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+            Signature = await keyProvider.SignAsync(bytes, ct),
+            KeyId = key?.Kid,
+            CreatedBy = actor,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
     private static string NormalizeRelation(string relation) => relation.Trim().Replace(':', '_').Replace('.', '_').Replace('/', '_');
 }

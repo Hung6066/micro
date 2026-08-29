@@ -41,6 +41,15 @@ public static class AuthorizationPoliciesExtensions
             .RequireAuthenticatedUser()
             .AddRequirements(new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human)));
 
+        // The bootstrap/platform administrator is a separate trust tier. Keep
+        // this policy role-based so ordinary tenant operators cannot reach
+        // Identity control-plane surfaces even when they are human principals.
+        builder.AddPolicy(AuthorizationConstants.Policies.HumanSuperAdmin, policy => policy
+            .RequireAuthenticatedUser()
+            .RequireRole("Admin")
+            .RequireClaim("super_admin", "true")
+            .AddRequirements(new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human)));
+
         foreach (var permissionCode in HisHopePermissions.All)
         {
             var code = permissionCode;

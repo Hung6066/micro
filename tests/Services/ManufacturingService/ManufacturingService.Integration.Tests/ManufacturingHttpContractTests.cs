@@ -243,10 +243,10 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         var canonicalResponse = await client.SendAsync(canonical);
         canonicalResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        using var preferred = new HttpRequestMessage(HttpMethod.Get, "/api/v1/manufacturing/production-batches?tenantKey=unclaimed-tenant");
-        preferred.Headers.Add("X-HisHope-Tenant", "selector-tenant");
-        var preferredResponse = await client.SendAsync(preferred);
-        preferredResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var conflicting = new HttpRequestMessage(HttpMethod.Get, "/api/v1/manufacturing/production-batches?tenantKey=unclaimed-tenant");
+        conflicting.Headers.Add("X-HisHope-Tenant", "selector-tenant");
+        var conflictingResponse = await client.SendAsync(conflicting);
+        conflictingResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         var denied = await client.GetAsync("/api/v1/manufacturing/production-batches?tenantKey=unclaimed-tenant");
         denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -264,6 +264,48 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         var response = await client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         (await ReadJson(response)).GetProperty("tenantKey").GetString().Should().Be("http-integration-tenant");
+    }
+
+    [Fact]
+    public async Task Command_body_rejects_a_tenant_key_that_conflicts_with_canonical_context()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/manufacturing/suppliers")
+        {
+            Content = JsonContent.Create(new
+            {
+                tenantKey = "selector-tenant",
+                code = "SUP-CONFLICTING-CONTEXT",
+                name = "Conflicting context supplier",
+                active = true
+            })
+        };
+        request.Headers.Add("X-HisHope-Tenant", "http-integration-tenant");
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var problem = await ReadJson(response);
+        problem.GetProperty("errorCode").GetString().Should().Be("tenant_context_mismatch");
+    }
+
+    [Fact]
+    public async Task Command_body_rejects_a_null_tenant_key()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/manufacturing/suppliers")
+        {
+            Content = JsonContent.Create(new
+            {
+                tenantKey = (string?)null,
+                code = "SUP-NULL-CONTEXT",
+                name = "Null context supplier",
+                active = true
+            })
+        };
+        request.Headers.Add("X-HisHope-Tenant", "http-integration-tenant");
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await ReadJson(response);
+        problem.GetProperty("errorCode").GetString().Should().Be("tenant_context_invalid");
     }
 
     [Fact]

@@ -54,8 +54,21 @@ public sealed class IdentityDataConventionsTests
         Assert.Empty(db.Users.ToList());
         var deleted = db.Users.IgnoreQueryFilters().Single();
         Assert.True(db.Entry(deleted).Property<bool?>("IsDeleted").CurrentValue);
-        Assert.NotNull(db.Entry(deleted).Property<DateTime>("CreatedAt").CurrentValue);
+        Assert.NotEqual(default, db.Entry(deleted).Property<DateTime>("CreatedAt").CurrentValue);
         Assert.NotNull(db.Entry(deleted).Property<DateTime?>("DeletedAt").CurrentValue);
         Assert.NotNull(db.Entry(deleted).Property<string>("DeletedBy").CurrentValue);
+    }
+
+    [Fact]
+    public void User_model_exposes_stable_listing_indexes()
+    {
+        using var db = new IdentityDbContext(new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseNpgsql("Host=localhost;Port=5433;Database=identitydb;Username=postgres;Password=postgres")
+            .Options);
+
+        var user = db.Model.FindEntityType(typeof(User));
+        Assert.NotNull(user);
+        Assert.Contains(user!.GetIndexes(), index => index.GetDatabaseName() == "ix_asp_net_users_created_at_id");
+        Assert.Contains(user.GetIndexes(), index => index.GetDatabaseName() == "ix_asp_net_users_active_created_at_id");
     }
 }

@@ -7,7 +7,6 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.IdentityService.Application.Interfaces;
-using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Security;
 using His.Hope.IdentityService.Application.Services;
 using Microsoft.AspNetCore.Authentication;

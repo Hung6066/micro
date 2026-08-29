@@ -202,6 +202,7 @@ public static class RoleEndpoints
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            if (!HasMfa(http)) return Results.Forbid();
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
@@ -218,6 +219,35 @@ public static class RoleEndpoints
             if (string.Equals(role.LifecycleStatus, "retired", StringComparison.OrdinalIgnoreCase))
                 return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RetiredRoleCannotBePublished });
 
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "Role", id, "role.publish", AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("authorizationVersion", out var version) ||
+                    version.GetInt32() != role.AuthorizationVersion)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "Role", id, "role.publish",
+                    JsonSerializer.Serialize(new { authorizationVersion = role.AuthorizationVersion }),
+                    "Role template publish requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt
+                });
+            }
+
             var before = JsonSerializer.Serialize(new { role.LifecycleStatus, role.AuthorizationVersion });
             role.LifecycleStatus = "active";
             role.PublishedAt = DateTime.UtcNow;
@@ -227,6 +257,7 @@ public static class RoleEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_PUBLISH", "Role", id.ToString(),
                 "Role template published through admin control plane.", before,
                 JsonSerializer.Serialize(new { role.LifecycleStatus, role.AuthorizationVersion }), ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange, http, ct);
             await AdminAudit.LogAsync(audit, http, "PUBLISH", "Role", id.ToString(), ct);
             return Results.Ok(new { role.Id, role.AuthorizationVersion, role.LifecycleStatus, role.PublishedAt });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
@@ -242,6 +273,7 @@ public static class RoleEndpoints
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            if (!HasMfa(http)) return Results.Forbid();
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
@@ -266,6 +298,38 @@ public static class RoleEndpoints
                 .Where(permission => permissions.Contains(permission.Code))
                 .Select(permission => permission.Code)
                 .ToArrayAsync(ct);
+
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "Role", id, "role.rollback", AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("currentVersion", out var currentVersion) ||
+                    !snapshot.RootElement.TryGetProperty("targetVersion", out var targetVersion) ||
+                    currentVersion.GetInt32() != role.AuthorizationVersion || targetVersion.GetInt32() != target.Version)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "Role", id, "role.rollback",
+                    JsonSerializer.Serialize(new { currentVersion = role.AuthorizationVersion, targetVersion = target.Version }),
+                    $"Role template rollback to version {target.Version} requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt,
+                    targetVersion = target.Version
+                });
+            }
+
             var before = JsonSerializer.Serialize(new { role.Name, role.AuthorizationVersion, permissions = role.RolePermissions.Select(link => link.PermissionCode) });
             db.RolePermissions.RemoveRange(role.RolePermissions);
             foreach (var permissionCode in validPermissions)
@@ -287,6 +351,7 @@ public static class RoleEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_ROLLBACK", "Role", id.ToString(),
                 $"Role template rolled back to version {target.Version}.", before,
                 JsonSerializer.Serialize(new { role.Name, role.AuthorizationVersion, permissions = validPermissions }), ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange, http, ct);
             await AdminAudit.LogAsync(audit, http, "ROLLBACK", "Role", id.ToString(), ct);
             return Results.Ok(new { role.Id, role.AuthorizationVersion, role.LifecycleStatus, restoredFromVersion = target.Version });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
@@ -409,6 +474,9 @@ public static class RoleEndpoints
         });
         await db.SaveChangesAsync(ct);
     }
+
+    private static bool HasMfa(HttpContext http) =>
+        http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase));
 
     public sealed record RoleTemplateVersionDto(
         Guid Id,

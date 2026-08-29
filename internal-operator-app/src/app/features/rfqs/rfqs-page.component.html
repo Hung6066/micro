@@ -51,13 +51,13 @@
                 [name]="'notes-' + rfq.id"
               ></textarea>
             </label>
-            <label>
+            <label for="rfq-status-{{ rfq.id }}">
               {{ "operator.rfq.statusLabel" | hhTranslate }}
-              <select [value]="draftFor(rfq).status" (change)="updateDraft(rfq.id, { status: $any($event.target).value })">
+              <hh-select [id]="'rfq-status-' + rfq.id" [ngModel]="draftFor(rfq).status" (ngModelChange)="updateDraft(rfq.id, { status: $event })">
                 <option value="quoted">{{ "operator.rfq.status.quoted" | hhTranslate }}</option>
                 <option value="accepted">{{ "operator.rfq.status.accepted" | hhTranslate }}</option>
                 <option value="declined">{{ "operator.rfq.status.declined" | hhTranslate }}</option>
-              </select>
+              </hh-select>
             </label>
             <hh-action-button kind="primary" icon="reply" type="submit" [label]="'operator.rfq.respond' | hhTranslate" />
           </form>

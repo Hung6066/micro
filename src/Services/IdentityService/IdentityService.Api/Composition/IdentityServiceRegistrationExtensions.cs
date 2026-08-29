@@ -35,7 +35,6 @@ using His.Hope.IdentityService.Application.Scim;
 using His.Hope.IdentityService.Application.Provisioning;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.IdentityService.Infrastructure.Facility;
-using His.Hope.Persistence;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
@@ -194,9 +193,17 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddIdentityCore<User>(options =>
         {
             options.Password.RequireDigit = true;
-            options.Password.RequiredLength = 8;
+            options.Password.RequiredLength = builder.Environment.IsProduction() ? 14 : 8;
             options.Password.RequireNonAlphanumeric = true;
             options.User.RequireUniqueEmail = true;
+            options.Lockout.AllowedForNewUsers = true;
+            options.Lockout.MaxFailedAccessAttempts = builder.Environment.IsProduction() ? 5 : 10;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+            if (builder.Environment.IsProduction())
+            {
+                options.SignIn.RequireConfirmedEmail = true;
+                options.SignIn.RequireConfirmedAccount = true;
+            }
         })
         .AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
         .AddEntityFrameworkStores<IdentityDbContext>()
@@ -558,7 +565,12 @@ public static class IdentityServiceRegistrationExtensions
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<LdapBackgroundService>();
         builder.Services.AddOptions<IdentityRetentionOptions>()
-            .Bind(builder.Configuration.GetSection("IdentityRetention"));
+            .Bind(builder.Configuration.GetSection("IdentityRetention"))
+            .Validate(settings => settings.MaxRowsPerRun is > 0 and <= 100_000,
+                "IdentityRetention:MaxRowsPerRun must be between 1 and 100000.")
+            .Validate(settings => settings.BatchSize is > 0 and <= 10_000,
+                "IdentityRetention:BatchSize must be between 1 and 10000.")
+            .ValidateOnStart();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<IdentityRetentionWorker>();
 

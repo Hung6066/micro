@@ -510,7 +510,7 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
     {
         var context = CreateContext(userAgent);
         var cookieHeader = string.Join("; ", source.Response.Headers["Set-Cookie"]
-            .Select(header => header.Split(';', 2)[0]));
+            .Select(header => header!.Split(';', 2)[0]));
         context.Request.Headers.Cookie = cookieHeader;
         return context;
     }

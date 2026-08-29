@@ -26,11 +26,9 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
   AdminSessionCenterResponse,
   IamRevocation,
-  User,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { IamRevocationEditDialogComponent } from "./iam-revocation-edit-dialog.component";
 

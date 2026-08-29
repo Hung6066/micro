@@ -157,6 +157,9 @@ public static class IdentityServiceEndpointExtensions
                 // BFF: Create Redis session and set cookies (dual-mode: cookie + Bearer)
                 var sessionId = Guid.NewGuid().ToString("N");
                 var csrfToken = Guid.NewGuid().ToString("N");
+                var sessionIssuedAt = DateTimeOffset.UtcNow;
+                var isPrivileged = configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>()
+                    ?.Any(id => string.Equals(id, result.User.Id.ToString(), StringComparison.OrdinalIgnoreCase)) == true;
                 var sessionData = new SessionData
                 {
                     UserId = result.User.Id.ToString(),
@@ -166,8 +169,11 @@ public static class IdentityServiceEndpointExtensions
                     PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
                     CsrfToken = csrfToken,
                     UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
-                    IssuedAt = DateTimeOffset.UtcNow,
-                    ExpiresAt = sessionExpiresAt
+                    IssuedAt = sessionIssuedAt,
+                    ExpiresAt = sessionExpiresAt,
+                    IsPrivileged = isPrivileged,
+                    IdleExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30)),
+                    AbsoluteExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromHours(4) : TimeSpan.FromHours(8))
                 };
 
                 var db = redis.GetDatabase();
@@ -207,7 +213,7 @@ public static class IdentityServiceEndpointExtensions
                 });
             }
 
-            catch (UnauthorizedAccessException ex)
+            catch (UnauthorizedAccessException)
             {
                 return Results.Problem(statusCode: 401, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.AuthenticationRejected });
             }
@@ -243,7 +249,7 @@ public static class IdentityServiceEndpointExtensions
                 var result = await identityService.RegisterAsync(request, ct);
                 return Results.Created("/api/v1/auth/me", result);
             }
-            catch (InvalidOperationException ex)
+            catch (InvalidOperationException)
             {
                 return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.AuthenticationRequestInvalid });
             }
@@ -295,7 +301,7 @@ public static class IdentityServiceEndpointExtensions
                 var result = await identityService.RefreshTokenAsync(request, ct);
                 return Results.Ok(result);
             }
-            catch (UnauthorizedAccessException ex)
+            catch (UnauthorizedAccessException)
             {
                 return Results.Problem(statusCode: 401, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.AuthenticationRejected });
             }
@@ -481,6 +487,9 @@ public static class IdentityServiceEndpointExtensions
                 additionalClaims: tenantClaims);
             var sessionId = Guid.NewGuid().ToString("N");
             var csrfToken = Guid.NewGuid().ToString("N");
+            var sessionIssuedAt = DateTimeOffset.UtcNow;
+            var isPrivileged = configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>()
+                ?.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)) == true;
             var session = new SessionData
             {
                 UserId = user.Id.ToString(),
@@ -490,8 +499,11 @@ public static class IdentityServiceEndpointExtensions
                 PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
                 CsrfToken = csrfToken,
                 UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
-                IssuedAt = DateTimeOffset.UtcNow,
-                ExpiresAt = expiresAt
+                IssuedAt = sessionIssuedAt,
+                ExpiresAt = expiresAt,
+                IsPrivileged = isPrivileged,
+                IdleExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30)),
+                AbsoluteExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromHours(4) : TimeSpan.FromHours(8))
             };
 
             await redis.GetDatabase().StringSetAsync(
@@ -590,7 +602,7 @@ public static class IdentityServiceEndpointExtensions
         // generic authorization middleware 401.
         .AllowAnonymous();
 
-        auth.MapGet("/verify", async (HttpContext httpContext) =>
+        auth.MapGet("/verify", (HttpContext httpContext) =>
         {
             if (httpContext.User.Identity?.IsAuthenticated == true)
                 return Results.Ok(new { authenticated = true });
@@ -793,9 +805,10 @@ public static class IdentityServiceEndpointExtensions
         admin.MapUserEndpoints();
         admin.MapRoleEndpoints();
         admin.MapAccessGovernanceEndpoints();
+        admin.MapAuthorizationChangeRequestEndpoints();
         admin.MapSupportElevationEndpoints();
         var iamControlPlane = app.MapGroup(IdentityApiRoutes.AdminIam)
-            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin)
             .RequireOperatorPortal()
             .BlockEndUserPortal();
         iamControlPlane.MapIamControlPlaneEndpoints();
@@ -808,10 +821,11 @@ public static class IdentityServiceEndpointExtensions
         // governance and audit resources share one route vocabulary with IAM catalog
         // resources. Endpoint-level permissions are defined by the mapped handlers.
         var iamWorkbench = app.MapGroup(IdentityApiRoutes.IdentityWorkbench.Base)
-            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin)
             .RequireOperatorPortal()
             .BlockEndUserPortal();
         iamWorkbench.MapAccessGovernanceEndpoints();
+        iamWorkbench.MapAuthorizationChangeRequestEndpoints();
         iamWorkbench.MapAuditLogEndpoints();
         iamWorkbench.MapAdminIncidentEndpoints();
         iamWorkbench.MapIdentityWorkbenchDedicatedEndpoints();
@@ -992,7 +1006,7 @@ public static class IdentityServiceEndpointExtensions
                 query = query.Where(consent => db.UserClaims.Any(claim =>
                     claim.UserId == consent.UserId &&
                     claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                    normalizedTenantKeys.Contains(claim.ClaimValue.ToLower())));
+                    claim.ClaimValue != null && normalizedTenantKeys.Contains(claim.ClaimValue.ToLower())));
             }
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -1052,7 +1066,7 @@ public static class IdentityServiceEndpointExtensions
                     db.UserClaims.Any(claim =>
                         claim.UserId == userRole.UserId &&
                         claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                        allowedTenantKeys.Contains(claim.ClaimValue))));
+                        claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue))));
             }
             var totalRoles = await rolesQuery.CountAsync(ct);
 
@@ -1070,7 +1084,7 @@ public static class IdentityServiceEndpointExtensions
                 consentsQuery = consentsQuery.Where(consent => db.UserClaims.Any(claim =>
                     claim.UserId == consent.UserId &&
                     claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                    tenantKeys.Contains(claim.ClaimValue)));
+                    claim.ClaimValue != null && tenantKeys.Contains(claim.ClaimValue)));
             }
             var activeConsents = await consentsQuery.CountAsync(ct);
 
@@ -1582,7 +1596,7 @@ public static class IdentityServiceEndpointExtensions
         .RequireRateLimiting("mfa");
 
         // Logout confirmation page
-        app.MapGet("/Account/Logout", async (HttpContext httpContext) =>
+        app.MapGet("/Account/Logout", (HttpContext httpContext) =>
         {
             var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
 

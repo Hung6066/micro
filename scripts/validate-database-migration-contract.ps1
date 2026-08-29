@@ -8,6 +8,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+function Get-Sha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($Path))) -replace '-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+}
 $checks = [System.Collections.Generic.List[object]]::new()
 function Add-Check([string]$Name, [ValidateSet('pass','fail','blocked')][string]$Status, [string]$Detail) {
     $checks.Add([pscustomobject]@{ name = $Name; status = $Status; detail = $Detail })
@@ -33,11 +38,40 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     foreach ($entry in @($manifest.contexts)) {
         $scriptPath = Join-Path $directory $entry.script
         if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) { $hashFailures.Add("missing:$($entry.script)"); continue }
-        $actual = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $actual = Get-Sha256 $scriptPath
         if ($actual -ne $entry.sha256.ToLowerInvariant()) { $hashFailures.Add("hash:$($entry.script)") }
     }
     if ($hashFailures.Count -gt 0) { Add-Check 'migration-artifact-integrity' 'fail' ($hashFailures -join ', ') }
     else { Add-Check 'migration-artifact-integrity' 'pass' 'All migration scripts match the signed-off manifest hashes.' }
+
+    # A signed hash only proves that the artifact matches its manifest. Also
+    # ensure it was generated after the migration source, otherwise a stale
+    # assembly/artifact pair can pass checksum validation.
+    $sourceRoots = @{
+        identity = 'src/Services/IdentityService/IdentityService.Infrastructure/Persistence/Migrations'
+        appointment = 'src/Services/AppointmentService/AppointmentService.Infrastructure/Persistence/Migrations'
+        clinical = 'src/Services/ClinicalService/ClinicalService.Infrastructure/Persistence/Migrations'
+        lab = 'src/Services/LabService/LabService.Infrastructure/Persistence/Migrations'
+        billing = 'src/Services/BillingService/BillingService.Infrastructure/Persistence/Migrations'
+        patient = 'src/Services/PatientService/PatientService.Infrastructure/Persistence/Migrations'
+        'patient-read' = 'src/Services/PatientService/PatientService.Infrastructure/Persistence/Migrations'
+        pharmacy = 'src/Services/PharmacyService/PharmacyService.Infrastructure/Persistence/Migrations'
+    }
+    $staleArtifacts = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in @($manifest.contexts)) {
+        if (-not $sourceRoots.ContainsKey([string]$entry.name)) { continue }
+        $artifactPath = Join-Path $directory $entry.script
+        $sourceDirectory = Join-Path $root $sourceRoots[[string]$entry.name]
+        if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $sourceDirectory -PathType Container)) { continue }
+        $latestSource = Get-ChildItem -LiteralPath $sourceDirectory -Filter '*.cs' -File |
+            Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+        if ($null -ne $latestSource -and (Get-Item -LiteralPath $artifactPath).LastWriteTimeUtc -lt $latestSource.LastWriteTimeUtc) {
+            $staleArtifacts.Add([string]$entry.script)
+        }
+    }
+    if ($staleArtifacts.Count -gt 0) { Add-Check 'migration-artifact-freshness' 'fail' "Artifacts older than migration source: $($staleArtifacts -join ', ')" }
+    else { Add-Check 'migration-artifact-freshness' 'pass' 'Migration artifacts are newer than their source migrations.' }
 }
 
 $sqlFiles = @(Get-ChildItem -LiteralPath $directory -Filter '*-idempotent.sql' -File -ErrorAction SilentlyContinue)

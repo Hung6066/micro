@@ -4,29 +4,43 @@
   <p>{{ "mobile.operatorQualityDescription" | hhTranslate: "Capture a result against a lot. Pending records remain visible until synchronised." }}</p>
   @if (loadError) { <p class="load-error" role="alert">{{ loadError }}</p> }
   <article class="hh-mobile-field-card">
-    <label>{{ "mobile.operatorLotId" | hhTranslate: "Lot" }}<select [(ngModel)]="lotId" (ngModelChange)="loadInspections()"><option value="">{{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}</option>@for (lot of lots; track lot.id) { <option [value]="lot.id" [textContent]="lotOptionLabel(lot)"></option> }</select></label>
-    <label>{{ "mobile.operatorInspectionPlan" | hhTranslate: "Inspection plan" }}<select [(ngModel)]="inspectionPlanVersionId"><option value="">{{ "mobile.operatorNoInspectionPlan" | hhTranslate: "No plan selected" }}</option>@for (plan of planVersions; track plan.id) { <option [value]="plan.id" [textContent]="plan.planCode + ' · ' + plan.productSku + ' · v' + plan.version"></option> }</select></label>
+    <label for="quality-lot"><span>{{ "mobile.operatorLotId" | hhTranslate: "Lot" }}</span><hh-select id="quality-lot" [(ngModel)]="lotId" (ngModelChange)="loadInspections()" label="mobile.operatorLotId" placeholder="mobile.operatorChooseLot"> <option value="">{{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}</option>@for (lot of lots; track lot.id) { <option [value]="lot.id" [textContent]="lotOptionLabel(lot)"></option> }</hh-select></label>
+    <label for="quality-plan"><span>{{ "mobile.operatorInspectionPlan" | hhTranslate: "Inspection plan" }}</span><hh-select id="quality-plan" [(ngModel)]="inspectionPlanVersionId" label="mobile.operatorInspectionPlan" placeholder="mobile.operatorNoInspectionPlan"><option value="">{{ "mobile.operatorNoInspectionPlan" | hhTranslate: "No plan selected" }}</option>@for (plan of planVersions; track plan.id) { <option [value]="plan.id" [textContent]="plan.planCode + ' · ' + plan.productSku + ' · v' + plan.version"></option> }</hh-select></label>
     <label>{{ "mobile.operatorInspector" | hhTranslate: "Inspector" }}<input [(ngModel)]="inspector" [placeholder]="'mobile.operatorInspectorPlaceholder' | hhTranslate: 'Your name'" /></label>
     <label>{{ "mobile.operatorMoisture" | hhTranslate: "Moisture %" }}<input type="number" [(ngModel)]="moisturePercent" /></label>
-    <label>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}<select [(ngModel)]="status"><option value="Pass">{{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}</option><option value="Fail">{{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}</option><option value="Pending">{{ "mobile.operatorStatusPending" | hhTranslate: "Pending" }}</option></select></label>
+    <label for="quality-status"><span>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}</span><hh-select id="quality-status" [(ngModel)]="status" label="mobile.operatorStatus" placeholder="mobile.operatorStatus"><option value="Pass">{{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}</option><option value="Fail">{{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}</option><option value="Pending">{{ "mobile.operatorStatusPending" | hhTranslate: "Pending" }}</option></hh-select></label>
     <fieldset>
       <legend>{{ "mobile.operatorTestResult" | hhTranslate: "Quality test (optional)" }}</legend>
       <label>{{ "mobile.operatorTestCode" | hhTranslate: "Test code" }}<input [(ngModel)]="testCode" placeholder="CCP-TEMP" /></label>
       <label>{{ "mobile.operatorTestName" | hhTranslate: "Test name" }}<input [(ngModel)]="testName" /></label>
       <label>{{ "mobile.operatorMeasuredValue" | hhTranslate: "Measured value" }}<input type="number" [(ngModel)]="measuredValue" /></label>
       <label>{{ "mobile.operatorTestUom" | hhTranslate: "Unit" }}<input [(ngModel)]="testUom" placeholder="°C" /></label>
-      <label>{{ "mobile.operatorTestResult" | hhTranslate: "Result" }}<select [(ngModel)]="testResult"><option value="Pass">{{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}</option><option value="Fail">{{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}</option><option value="NotApplicable">{{ "mobile.operatorNotApplicable" | hhTranslate: "Not applicable" }}</option></select></label>
+      <label for="quality-test-result"><span>{{ "mobile.operatorTestResult" | hhTranslate: "Result" }}</span><hh-select id="quality-test-result" [(ngModel)]="testResult" label="mobile.operatorTestResult" placeholder="mobile.operatorTestResult"><option value="Pass">{{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}</option><option value="Fail">{{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}</option><option value="NotApplicable">{{ "mobile.operatorNotApplicable" | hhTranslate: "Not applicable" }}</option></hh-select></label>
       <label>{{ "mobile.operatorTestMethod" | hhTranslate: "Method" }}<input [(ngModel)]="testMethod" /></label>
       <label>{{ "mobile.operatorEvidenceReference" | hhTranslate: "Evidence reference" }}<input [(ngModel)]="evidenceReference" /></label>
     </fieldset>
     <button type="button" (click)="submitInspection()">{{ "mobile.operatorSaveInspection" | hhTranslate: "Save inspection" }}</button>
     <fieldset>
       <legend>{{ "mobile.operatorSample" | hhTranslate: "Quality sample" }}</legend>
-      <label>{{ "mobile.operatorSampleInspection" | hhTranslate: "Inspection" }}<select [(ngModel)]="inspectionId"><option value="">{{ "mobile.operatorChooseInspection" | hhTranslate: "Choose an inspection" }}</option>@for (inspection of inspections; track inspection.id) { <option [value]="inspection.id" [textContent]="inspectionStatusLabel(inspection.status) + ' · ' + inspection.inspector + ' · ' + inspection.inspectedAt"></option> }</select></label>
+      <label for="quality-sample-inspection"><span>{{ "mobile.operatorSampleInspection" | hhTranslate: "Inspection" }}</span><hh-select id="quality-sample-inspection" [(ngModel)]="inspectionId" (ngModelChange)="loadSamples()" label="mobile.operatorSampleInspection" placeholder="mobile.operatorChooseInspection"><option value="">{{ "mobile.operatorChooseInspection" | hhTranslate: "Choose an inspection" }}</option>@for (inspection of inspections; track inspection.id) { <option [value]="inspection.id" [textContent]="inspectionStatusLabel(inspection.status) + ' · ' + inspection.inspector + ' · ' + inspection.inspectedAt"></option> }</hh-select></label>
       <label>{{ "mobile.operatorSampleCode" | hhTranslate: "Sample code" }}<input [(ngModel)]="sampleCode" /></label>
       <label>{{ "mobile.operatorSampleLocation" | hhTranslate: "Location" }}<input [(ngModel)]="sampleLocation" /></label>
       <label>{{ "mobile.operatorSampleNotes" | hhTranslate: "Notes" }}<input [(ngModel)]="sampleNotes" /></label>
       <button type="button" (click)="recordSample()">{{ "mobile.operatorSaveSample" | hhTranslate: "Save sample" }}</button>
+      @if (samples.length) {
+        <label for="quality-sample-disposition"><span>{{ "mobile.operatorSampleDisposition" | hhTranslate: "Sample" }}</span><hh-select id="quality-sample-disposition" [(ngModel)]="sampleId" (ngModelChange)="selectSample()" label="mobile.operatorSampleDisposition" placeholder="mobile.operatorChooseSample">@for (sample of samples; track sample.id) { <option [value]="sample.id" [textContent]="sample.sampleCode + ' · ' + sample.disposition"></option> }</hh-select></label>
+        <label for="quality-sample-status"><span>{{ "mobile.operatorSampleStatus" | hhTranslate: "Disposition" }}</span><hh-select id="quality-sample-status" [(ngModel)]="sampleDisposition" label="mobile.operatorSampleStatus" placeholder="mobile.operatorChooseDisposition"><option value="Pending">{{ "mobile.operatorStatusPending" | hhTranslate: "Pending" }}</option><option value="Accepted">{{ "mobile.operatorStatusAccepted" | hhTranslate: "Accepted" }}</option><option value="Rejected">{{ "mobile.operatorStatusRejected" | hhTranslate: "Rejected" }}</option><option value="Hold">{{ "mobile.operatorStatusHold" | hhTranslate: "Hold" }}</option></hh-select></label>
+        <label>{{ "mobile.operatorDispositionReason" | hhTranslate: "Reason" }}<input [(ngModel)]="sampleDispositionReason" /></label>
+        <button type="button" (click)="changeSampleDisposition()">{{ "mobile.operatorSaveDisposition" | hhTranslate: "Save disposition" }}</button>
+      }
+    </fieldset>
+    <fieldset>
+      <legend>{{ "mobile.operatorDeviation" | hhTranslate: "Production deviation" }}</legend>
+      <label for="quality-deviation-batch"><span>{{ "mobile.operatorBatch" | hhTranslate: "Batch" }}</span><hh-select id="quality-deviation-batch" [(ngModel)]="deviationBatchId" label="mobile.operatorBatch" placeholder="mobile.operatorChooseBatch"><option value="">{{ "mobile.operatorChooseBatch" | hhTranslate: "Choose a started batch" }}</option>@for (batch of batches; track batch.id) { <option [value]="batch.id" [textContent]="batch.batchNumber + ' · ' + batch.status"></option> }</hh-select></label>
+      <label>{{ "mobile.operatorDeviationType" | hhTranslate: "Type" }}<input [(ngModel)]="deviationType" /></label>
+      <label>{{ "mobile.operatorDeviationDescription" | hhTranslate: "Description" }}<input [(ngModel)]="deviationDescription" /></label>
+      <label>{{ "mobile.operatorDeviationImpact" | hhTranslate: "Impact" }}<input [(ngModel)]="deviationImpact" /></label>
+      <button type="button" (click)="createDeviation()">{{ "mobile.operatorSaveDeviation" | hhTranslate: "Submit deviation" }}</button>
     </fieldset>
     @if (message) { <p role="status">{{ message }}</p> }
   </article>

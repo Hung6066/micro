@@ -42,8 +42,9 @@ internal static class ContentHttpExtensions
         if (!user.Identity?.IsAuthenticated ?? true)
             return null;
 
-        var requested = context.GetRequestedTenant();
-        if (!user.TryResolveActiveTenant(requested, out var tenantKey, AllowContentCrossTenant))
+        var tenantKey = context.RequestServices.GetService<IHisHopeTenantContext>()?.TenantKey
+            ?? context.ResolveActiveTenant(AllowContentCrossTenant);
+        if (string.IsNullOrWhiteSpace(tenantKey))
             return null;
 
         if (isMutation && !string.Equals(tenantKey, user.GetTokenTenant(), StringComparison.OrdinalIgnoreCase))

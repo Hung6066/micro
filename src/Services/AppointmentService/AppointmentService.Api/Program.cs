@@ -1,8 +1,8 @@
 using His.Hope.AspNetCore;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
 using His.Hope.Observability;
-using System.Security.Cryptography.X509Certificates;
 using His.Hope.AppointmentGrpc;
 using His.Hope.AppointmentService.Api.GrpcServices;
 using His.Hope.AppointmentService.Application;
@@ -169,6 +169,7 @@ app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
 
 
 app.UsePhiAudit();
@@ -326,7 +327,7 @@ grp.MapGet("/patient/{patientId:guid}", async (
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsView).WithOpenApi();
 
 // Patient-specific appointments aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/appointments)
-app.MapGet("/api/v1/patients/{patientId:guid}/appointments", async (Guid patientId) =>
+app.MapGet("/api/v1/patients/{patientId:guid}/appointments", (Guid patientId) =>
 {
     return Results.Ok(new { patientId, items = new List<object>() });
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsView).WithOpenApi();
@@ -359,37 +360,4 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
 app.MapGet("/", () => Results.Redirect("/swagger"));
 app.MapHisHopeHealthEndpoints();
 app.Run();
-
-static X509Certificate2 LoadServerCertificate(IConfiguration c) =>
-    !string.IsNullOrEmpty(c["Certificates:Server:Path"])
-        ? new X509Certificate2(c["Certificates:Server:Path"]!, c["Certificates:Server:Password"]!)
-        : CreateDevCert("appointmentservice");
-
-static X509Certificate2 LoadClientCertificate(IConfiguration c) =>
-    !string.IsNullOrEmpty(c["Certificates:Client:Path"])
-        ? new X509Certificate2(c["Certificates:Client:Path"]!, c["Certificates:Client:Password"]!)
-        : CreateDevCert("his-hope-client");
-
-static X509Certificate2 CreateDevCert(string cn)
-{
-    using var rsa = System.Security.Cryptography.RSA.Create(2048);
-    var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
-        $"CN={cn}, O=His.Hope", rsa,
-        System.Security.Cryptography.HashAlgorithmName.SHA256,
-        System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, true));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509KeyUsageExtension(
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.DigitalSignature |
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.KeyEncipherment, false));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
-        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1"), new("1.3.6.1.5.5.7.3.2") }, true));
-    var san = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
-    san.AddDnsName("localhost"); san.AddDnsName(cn); san.AddDnsName("*.his-hope.internal");
-    req.CertificateExtensions.Add(san.Build());
-    var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
-    Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "Certificates"));
-    var pfx = Path.Combine(AppContext.BaseDirectory, "Certificates", "server.pfx");
-    File.WriteAllBytes(pfx, cert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, "his-hope-dev"));
-    return cert;
-}
 

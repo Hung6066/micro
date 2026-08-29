@@ -22,12 +22,18 @@ public sealed class OpenFgaCanaryAuthorizer(
 
         var subject = principal.FindFirst("sub")?.Value ?? principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrWhiteSpace(subject))
-            return true;
+        {
+            logger.LogWarning("OpenFGA canary denied permission {Permission}: subject is missing", permissionCode);
+            return false;
+        }
 
         var relation = permissionCode.Replace(':', '_').Replace('.', '_').Replace('/', '_');
         var external = await openFga.CheckAsync($"user:{subject}", relation, $"permission:{permissionCode}", cancellationToken);
         if (external is null)
-            return true;
+        {
+            logger.LogWarning("OpenFGA canary denied permission {Permission}: PDP unavailable", permissionCode);
+            return false;
+        }
 
         if (external.Value)
             return true;

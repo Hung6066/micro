@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.Infrastructure.Audit;
 using His.Hope.SharedKernel.Authorization;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,12 +15,24 @@ public static class SupportElevationEndpoints
     public static RouteGroupBuilder MapSupportElevationEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/support-elevations", CreateElevation)
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
 
         group.MapGet("/support-elevations", ListElevations)
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
             .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
+
+        group.MapPost("/support-elevations/{id:guid}/approve", ApproveElevation)
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
+
+        group.MapPost("/support-elevations/{id:guid}/revoke", RevokeElevation)
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         return group;
     }
@@ -29,6 +42,7 @@ public static class SupportElevationEndpoints
         IdentityDbContext db,
         IConglomerateTenantRegistry registry,
         HttpContext http,
+        IAuditService audit,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.TargetTenant) || request.Reason.Trim().Length < 10)
@@ -66,24 +80,68 @@ public static class SupportElevationEndpoints
             SourceTenant = sourceTenant,
             TargetTenant = request.TargetTenant.Trim(),
             PermissionsJson = JsonSerializer.Serialize(permissions),
-            Status = "approved",
+            Status = "pending",
             RequestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub"),
-            ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub"),
             Reason = request.Reason.Trim(),
             ExpiresAt = DateTime.UtcNow.AddMinutes(Math.Clamp(request.DurationMinutes, 5, 60))
         };
 
         db.SupportElevations.Add(elevation);
         await db.SaveChangesAsync(ct);
+        await AdminAudit.LogAsync(audit, http, "SUPPORT_ELEVATION_REQUEST", "SupportElevation", elevation.Id.ToString("D"), ct);
 
         return Results.Created($"/api/v1/admin/support-elevations/{elevation.Id:D}", new
         {
             elevation.Id,
             elevation.SourceTenant,
             elevation.TargetTenant,
+            elevation.Status,
             elevation.ExpiresAt,
             permissions
         });
+    }
+
+    private static async Task<IResult> ApproveElevation(
+        Guid id,
+        IdentityDbContext db,
+        IAuditService audit,
+        HttpContext http,
+        CancellationToken ct)
+    {
+        var elevation = await db.SupportElevations.FirstOrDefaultAsync(item => item.Id == id, ct);
+        if (elevation is null) return Results.NotFound();
+        if (elevation.Status != "pending" || elevation.ExpiresAt <= DateTime.UtcNow)
+            return Results.Conflict(new { errorCode = "support_elevation_not_pending" });
+
+        var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub");
+        if (string.IsNullOrWhiteSpace(approver)) return Results.Unauthorized();
+        if (string.Equals(elevation.RequestedBy, approver, StringComparison.OrdinalIgnoreCase))
+            return Results.Conflict(new { errorCode = "maker_checker_conflict" });
+
+        elevation.Status = "approved";
+        elevation.ApprovedBy = approver;
+        await db.SaveChangesAsync(ct);
+        await AdminAudit.LogAsync(audit, http, "SUPPORT_ELEVATION_APPROVE", "SupportElevation", id.ToString("D"), ct);
+        return Results.Ok(new { elevation.Id, elevation.Status, elevation.ApprovedBy, elevation.ExpiresAt });
+    }
+
+    private static async Task<IResult> RevokeElevation(
+        Guid id,
+        IdentityDbContext db,
+        IAuditService audit,
+        HttpContext http,
+        CancellationToken ct)
+    {
+        var elevation = await db.SupportElevations.FirstOrDefaultAsync(item => item.Id == id, ct);
+        if (elevation is null) return Results.NotFound();
+        if (elevation.Status != "approved")
+            return Results.Conflict(new { errorCode = "support_elevation_not_active" });
+
+        elevation.Status = "revoked";
+        elevation.ExpiresAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        await AdminAudit.LogAsync(audit, http, "SUPPORT_ELEVATION_REVOKE", "SupportElevation", id.ToString("D"), ct);
+        return Results.Ok(new { elevation.Id, elevation.Status });
     }
 
     private static async Task<IResult> ListElevations(

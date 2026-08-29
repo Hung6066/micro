@@ -23,7 +23,7 @@ public static class IamControlPlaneEndpoints
     {
         var group = app is RouteGroupBuilder routeGroup
             ? routeGroup
-            : app.MapGroup(IdentityApiRoutes.AdminIam).RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin);
+            : app.MapGroup(IdentityApiRoutes.AdminIam).RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin);
 
         // Identity Workbench owns the canonical identity/application surfaces.
         // The legacy /admin/users and /admin/clients routes remain available for
@@ -266,7 +266,7 @@ public static class IamControlPlaneEndpoints
         // Trusted issuers are deliberately configuration-backed: issuer metadata
         // and client secrets remain owned by the Identity runtime, while admin-app
         // receives only safe issuer/protocol/status fields.
-        group.MapGet("/trusted-issuers", async (
+        group.MapGet("/trusted-issuers", (
             IConfiguration configuration,
             HttpContext http,
             CancellationToken ct) =>

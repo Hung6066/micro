@@ -7,7 +7,6 @@ import {
   effect,
   inject,
 } from "@angular/core";
-import { CommonModule } from "@angular/common";
 import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
@@ -20,7 +19,6 @@ import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { AdminPageQuery, Consent } from "../../core/contracts/admin.contracts";
 import { ConsentsApiService } from "../../core/services/consents-api.service";
 import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";

@@ -18,9 +18,9 @@ public interface IConglomerateTenantRegistry : ICrossTenantTenantMetadata
 
     string GetPortalClass(string? clientId);
 
-    string GetTenantClass(string tenantKey);
+    new string GetTenantClass(string tenantKey);
 
-    string? GetOperatorHome(string tenantKey);
+    new string? GetOperatorHome(string tenantKey);
 
     IReadOnlyList<string> GetClientIdsForTenant(string tenantKey);
 

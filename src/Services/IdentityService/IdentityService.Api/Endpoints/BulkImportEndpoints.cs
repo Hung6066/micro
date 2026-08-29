@@ -95,7 +95,7 @@ public static class BulkImportEndpoints
             throw new InvalidOperationException("Import is limited to 10 MB.");
 
         var isXlsx = request.ContentType?.Contains("spreadsheetml", StringComparison.OrdinalIgnoreCase) == true ||
-                     request.Headers.ContentDisposition.Any(value => value.Contains(".xlsx", StringComparison.OrdinalIgnoreCase));
+                     request.Headers.ContentDisposition.ToString().Contains(".xlsx", StringComparison.OrdinalIgnoreCase);
         if (isXlsx)
         {
             using var buffer = new MemoryStream();

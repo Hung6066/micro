@@ -18,3 +18,4 @@ h1 { margin: 0; min-width: 0; font-size: 1.25rem; overflow-wrap: anywhere; }
 .hh-mobile-bottom-nav .material-symbols-rounded { font-size: 1.2rem; line-height: 1; }
 @media (min-width: 600px) { .operator-shell__context { padding-inline: max(1.25rem, calc((100% - 720px) / 2)); } }
 @media (max-width: 420px) { .operator-shell__header { padding-inline: .8rem; gap: .4rem; } .operator-shell__tools { gap: .25rem; } .operator-shell__status { padding-inline: .45rem; } }
+.operator-shell__stale { color: var(--color-warning, var(--text-secondary)); }

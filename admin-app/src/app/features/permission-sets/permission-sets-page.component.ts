@@ -10,7 +10,6 @@ import {
 import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { forkJoin, map } from "rxjs";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,

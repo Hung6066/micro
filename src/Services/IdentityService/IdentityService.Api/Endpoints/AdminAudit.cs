@@ -14,7 +14,7 @@ internal static class AdminAudit
             UserId = http.User.FindFirst("sub")?.Value ?? "system",
             UserRole = http.User.FindFirst("role")?.Value,
             ResourceType = resource,
-            ResourceId = resourceId,
+            ResourceId = resourceId ?? string.Empty,
             Action = action,
             ClientIp = http.Connection.RemoteIpAddress?.ToString(),
             UserAgent = http.Request.Headers.UserAgent.ToString(),

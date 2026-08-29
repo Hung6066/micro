@@ -51,7 +51,7 @@ public static class UserEndpoints
                         new HashSet<string>(["role", "isActive"], StringComparer.OrdinalIgnoreCase));
             }
             catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
-            if (normalized.Search?.Length > 100 || normalized.Filters["role"]?.Length > 100)
+            if (normalized.Search?.Length > 100 || (normalized.Filters?.TryGetValue("role", out var roleFilter) == true && roleFilter?.Length > 100))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search and role filters must be 100 characters or fewer."] });
 
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
@@ -60,7 +60,7 @@ public static class UserEndpoints
                     normalized.Page,
                     normalized.PageSize,
                     normalized.Search,
-                    normalized.Filters["role"],
+                    normalized.Filters?.GetValueOrDefault("role"),
                     isActive,
                     normalized.Sort,
                     tenantFilter.AllowedTenantKeys?.ToArray()), ct);

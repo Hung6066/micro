@@ -89,15 +89,33 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
     .getByRole('button', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i })
     .or(page.getByRole('link', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i }))
     .first();
-  await Promise.race([
-    email.waitFor({ state: 'visible', timeout: 30000 }),
-    continueWorkspace.waitFor({ state: 'visible', timeout: 30000 }),
-    page.waitForURL(
-      url => url.origin === new URL(baseUrl).origin
-        && new RegExp(`${dashboardPath.replace('/', '\\/')}(?:\\?|$)`).test(url.pathname + url.search),
-      { timeout: 30000 },
-    ),
-  ]);
+  try {
+    await Promise.any([
+      email.waitFor({ state: 'visible', timeout: 30000 }),
+      continueWorkspace.waitFor({ state: 'visible', timeout: 30000 }),
+      page.waitForURL(
+        url => url.origin === new URL(baseUrl).origin
+          && new RegExp(`${dashboardPath.replace('/', '\\/')}(?:\\?|$)`).test(url.pathname + url.search),
+        { timeout: 30000 },
+      ),
+    ]);
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      url: window.location.href,
+      title: document.title,
+      inputs: Array.from(document.querySelectorAll('input')).map((input) => ({
+        id: input.id,
+        type: input.type,
+        name: input.getAttribute('name'),
+        visible: Boolean(input.offsetWidth || input.offsetHeight || input.getClientRects().length),
+      })),
+      buttons: Array.from(document.querySelectorAll('button')).map((button) => ({
+        text: (button.textContent || '').trim().slice(0, 120),
+        visible: Boolean(button.offsetWidth || button.offsetHeight || button.getClientRects().length),
+      })).slice(0, 12),
+    })).catch(() => ({ url: page.url(), title: 'unavailable' }));
+    throw new Error(`SSO state was not reached: ${JSON.stringify(diagnostics)}`, { cause: error });
+  }
 
   if (await email.isVisible().catch(() => false)) {
     await expect(email).toBeVisible({ timeout: 15000 });
@@ -129,7 +147,7 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
         .getByRole('button', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i })
         .or(page.getByRole('link', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i }))
         .first();
-      await Promise.race([
+      await Promise.any([
         retryEmail.waitFor({ state: 'visible', timeout: 15000 }),
         retryContinue.waitFor({ state: 'visible', timeout: 15000 }),
       ]);
@@ -162,7 +180,7 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
         .getByRole('button', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i })
         .or(page.getByRole('link', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i }))
         .first();
-      await Promise.race([
+      await Promise.any([
         recoveryEmail.waitFor({ state: 'visible', timeout: 15000 }),
         recoveryContinue.waitFor({ state: 'visible', timeout: 15000 }),
       ]);

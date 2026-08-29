@@ -14,6 +14,7 @@ import {
   HisHopeActionButtonComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeSelectComponent,
   HisHopeStateComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
@@ -34,6 +35,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
     HisHopeActionButtonComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
+    HisHopeSelectComponent,
     HisHopeStateComponent,
     HisHopeTranslatePipe,
   ],

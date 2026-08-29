@@ -5,7 +5,7 @@ export default defineConfig({
   testMatch: 'manufacturing-operator-ui-tests.mjs',
   timeout: 120_000,
   use: {
-    baseURL: process.env.OPERATOR_APP_URL ?? 'http://localhost:4200',
+    baseURL: process.env.OPERATOR_APP_URL ?? 'http://localhost:4300',
     headless: true,
     viewport: { width: 1440, height: 900 },
   },

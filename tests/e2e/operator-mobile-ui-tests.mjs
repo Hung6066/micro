@@ -19,7 +19,6 @@ test("authenticated operator can reach production work", async ({ page }) => {
   }
   await page.waitForURL(/\/operations\/production$/, { timeout: 60_000 });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("heading", { name: /Production work|Vận hành sản xuất/i })).toBeVisible();
   const batchesResponse = page.waitForResponse((response) => response.url().includes("/api/v1/manufacturing/production-batches"));
   const kpiResponse = page.waitForResponse((response) => response.url().includes("/api/v1/manufacturing/dashboard/production-kpis"));
   const oeeResponse = page.waitForResponse((response) => response.url().includes("/api/v1/manufacturing/dashboard/oee"));
@@ -31,8 +30,11 @@ test("authenticated operator can reach production work", async ({ page }) => {
   await expect((await oeeResponse).status()).toBe(200);
   await expect((await exceptionsResponse).status()).toBe(200);
   await expect((await costsResponse).status()).toBe(200);
-  await expect.poll(async () => page.locator("section.work-page select").first().locator("option").count()).toBeGreaterThan(1);
-  await page.locator("section.work-page select").first().selectOption({ index: 1 });
+  await expect(page.getByRole("heading", { name: /Production work|Vận hành sản xuất/i })).toBeVisible();
+  const batchSelect = page.locator("section.work-page hh-select").first();
+  await batchSelect.click();
+  await expect.poll(async () => page.locator(".hh-select__option").count()).toBeGreaterThan(1);
+  await page.locator(".hh-select__option").nth(1).click();
   await expect(page.getByRole("heading", { name: /Batch workflow|Vòng đời lô sản xuất/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /Production KPIs|KPI sản xuất/i })).toBeVisible();
   await expect(page.getByRole("heading", { name: /^OEE/ })).toBeVisible();
@@ -80,10 +82,11 @@ test("authenticated operator can switch locale and theme", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
   await expect(page.locator(".scan-page button").first()).toBeVisible();
   expect(await page.locator(".scan-page button").first().evaluate((el) => el.getBoundingClientRect().right <= document.documentElement.clientWidth + 1)).toBeTruthy();
-  const lotOptions = page.locator(".scan-page select option");
-  await expect.poll(async () => lotOptions.count()).toBeGreaterThan(1);
+  const lotSelect = page.locator(".scan-page hh-select");
+  await lotSelect.click();
+  await expect.poll(async () => page.locator(".hh-select__option").count()).toBeGreaterThan(1);
   const recallResponse = page.waitForResponse((response) => response.url().includes("/api/v1/manufacturing/lots/") && response.url().includes("/recall-impact"));
-  await page.locator(".scan-page select").selectOption({ index: 1 });
+  await page.locator(".hh-select__option").nth(1).click();
   await page.getByRole("button", { name: /Open lot/i }).click();
   await expect((await recallResponse).status()).toBe(200);
   const plansResponse = page.waitForResponse((response) => response.url().includes("/api/v1/manufacturing/inspection-plan-versions"));
@@ -97,6 +100,9 @@ test("authenticated operator can switch locale and theme", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /Sync status|Trạng thái đồng bộ/i })).toBeVisible();
   await expect(page.locator("body")).not.toContainText("mobile.");
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  await page.goto("/operations/handover");
+  await expect(page.getByRole("heading", { name: /Shift handover|Bàn giao ca/i })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("mobile.");
 });
 
 test("login page exposes the operator mobile entry point", async ({ page }) => {

@@ -88,13 +88,13 @@ public static class DevicePostureEndpoints
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = "invalid_request" });
             }
-            if (!JsonSerializer.Deserialize<string[]>(policy.ProvidersJson)!.Contains(normalized.Provider, StringComparer.OrdinalIgnoreCase)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ProviderNotEnabled });
+            if (!(JsonSerializer.Deserialize<string[]>(policy.ProvidersJson) ?? []).Contains(normalized.Provider, StringComparer.OrdinalIgnoreCase)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ProviderNotEnabled });
             var existing = await db.DevicePostureAssessments.AnyAsync(item => item.ScopeId == scopeId && item.Provider == normalized.Provider && item.EvidenceHash == normalized.Hash, ct);
             if (existing) return Results.Conflict(new { errorCode = "replayed_evidence" });
             var evaluation = evaluator.Evaluate(policy, request, DateTime.UtcNow);
             var assessment = new DevicePostureAssessment
             {
-                ScopeId = scopeId,
+                ScopeId = scopeId ?? IdentityScope.Global,
                 UserId = request.UserId,
                 DeviceId = normalized.DeviceId,
                 Provider = normalized.Provider,
@@ -166,7 +166,7 @@ public static class DevicePostureEndpoints
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         policy = new DevicePosturePolicy
         {
-            ScopeId = scopeId,
+            ScopeId = scopeId ?? IdentityScope.Global,
             Mode = (configuration["DEVICE_POSTURE_MODE"] ?? "observe").Trim().ToLowerInvariant(),
             ProvidersJson = JsonSerializer.Serialize(providers),
             EvidenceTtlSeconds = int.TryParse(configuration["DEVICE_POSTURE_TTL_SECONDS"], out var ttl) ? Math.Clamp(ttl, 60, 3600) : 900,

@@ -4,7 +4,6 @@ import {
   DestroyRef,
   Input,
   OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
@@ -26,7 +25,6 @@ import {
 } from "../../core/services/access-governance-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,

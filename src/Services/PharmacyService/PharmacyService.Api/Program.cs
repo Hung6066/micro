@@ -1,8 +1,8 @@
 using His.Hope.AspNetCore;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
 using His.Hope.Observability;
-using System.Security.Cryptography.X509Certificates;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
@@ -172,6 +172,7 @@ app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
 
 
 app.UsePhiAudit();
@@ -229,9 +230,9 @@ medications.MapGet("/{id:guid}", async (
     ICacheService cache,
     CancellationToken ct) =>
 {
-    var medication = await cache.GetOrSetAsync(
+    var medication = await cache.GetOrSetAsync<MedicationDto>(
         $"medication:{id}",
-        async () => await mediator.Send(new GetMedicationByIdQuery(id), ct),
+        async () => (await mediator.Send(new GetMedicationByIdQuery(id), ct))!,
         TimeSpan.FromMinutes(5), ct);
     return medication is null ? Results.NotFound() : Results.Ok(medication);
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
@@ -347,9 +348,9 @@ prescriptions.MapGet("/{id:guid}", async (
         httpContext.User, HisHopePermissions.Pharmacy.View, "prescription", id.ToString("D"), ct);
     if (!decision.Allowed) return Results.NotFound();
 
-    var prescription = await cache.GetOrSetAsync(
+    var prescription = await cache.GetOrSetAsync<PrescriptionDto>(
         $"prescription:{id}",
-        async () => await mediator.Send(new GetPrescriptionByIdQuery(id), ct),
+        async () => (await mediator.Send(new GetPrescriptionByIdQuery(id), ct))!,
         TimeSpan.FromMinutes(5), ct);
     return prescription is null ? Results.NotFound() : Results.Ok(prescription);
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
@@ -427,7 +428,7 @@ prescriptions.MapPut("/{id:guid}/cancel", async (
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyCancel).WithOpenApi();
 
 // Patient-specific prescriptions aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/prescriptions)
-app.MapGet("/api/v1/patients/{patientId:guid}/prescriptions", async (Guid patientId) =>
+app.MapGet("/api/v1/patients/{patientId:guid}/prescriptions", (Guid patientId) =>
 {
     return Results.Ok(new { patientId, items = new List<object>() });
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
@@ -465,33 +466,6 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.MapHisHopeHealthEndpoints();
 app.Run();
-
-static X509Certificate2 LoadServerCertificate(IConfiguration config)
-{
-    var certPath = config["Certificates:Server:Path"];
-    var certPassword = config["Certificates:Server:Password"];
-    if (!string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword))
-        return new X509Certificate2(certPath, certPassword);
-    var pfxPath = Path.Combine(AppContext.BaseDirectory, "server.pfx");
-    if (File.Exists(pfxPath))
-        return new X509Certificate2(pfxPath, "his-hope-dev");
-    using var rsa = System.Security.Cryptography.RSA.Create(2048);
-    var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
-        "CN=his-hope-pharmacy, O=His.Hope", rsa,
-        System.Security.Cryptography.HashAlgorithmName.SHA256,
-        System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, true));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509KeyUsageExtension(
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.DigitalSignature |
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.KeyEncipherment, false));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
-        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1") }, true));
-    var san = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
-    san.AddDnsName("localhost"); san.AddDnsName("pharmacyservice");
-    req.CertificateExtensions.Add(san.Build());
-    var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
-    return cert;
-}
 
 // Request Records
 public record CreateMedicationRequest(

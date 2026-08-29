@@ -299,7 +299,7 @@ public static class AdminTableEndpoints
             db.UserClaims.Any(claim =>
                 claim.UserId == userRole.UserId &&
                 claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
+                claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
     }
 
     private static Guid[] ParseIds(IEnumerable<string> values) => values

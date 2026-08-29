@@ -13,6 +13,19 @@ public static class HisHopeTenantClaimExtensions
         context.Request.Headers["X-HisHope-Tenant"].FirstOrDefault()?.Trim()
         ?? context.Request.Query["tenantKey"].FirstOrDefault()?.Trim();
 
+    /// <summary>
+    /// Returns true when the canonical header and legacy query selector both
+    /// exist but disagree. Ambiguous tenant selectors are rejected rather than
+    /// silently resolved by precedence.
+    /// </summary>
+    public static bool HasConflictingTenantSelectors(this HttpContext context)
+    {
+        var header = context.Request.Headers["X-HisHope-Tenant"].FirstOrDefault()?.Trim();
+        var query = context.Request.Query["tenantKey"].FirstOrDefault()?.Trim();
+        return !string.IsNullOrWhiteSpace(header) && !string.IsNullOrWhiteSpace(query) &&
+               !string.Equals(header, query, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string? GetTokenTenant(this ClaimsPrincipal user) =>
         user.FindFirst("tenant_id")?.Value ?? user.FindFirst("tenant")?.Value;
 
@@ -39,6 +52,9 @@ public static class HisHopeTenantClaimExtensions
         this HttpContext context,
         Func<ClaimsPrincipal, string, string, bool>? allowCrossTenant = null)
     {
+        if (context.HasConflictingTenantSelectors())
+            return null;
+
         var requested = context.GetRequestedTenant();
         return context.User.TryResolveActiveTenant(requested, out var tenantKey, allowCrossTenant)
             ? tenantKey

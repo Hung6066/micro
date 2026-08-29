@@ -96,7 +96,7 @@ public static class ClientEndpoints
             .ToListAsync(ct);
 
         var response = clients.Select(a => new ClientResponse(
-            Id: a.Id.ToString(),
+            Id: a.Id?.ToString() ?? string.Empty,
             ClientId: a.ClientId ?? "",
             DisplayName: a.DisplayName ?? "",
             Type: a.ClientType ?? "public",
@@ -132,7 +132,7 @@ public static class ClientEndpoints
             return TypedResults.NotFound();
 
         return TypedResults.Ok(new ClientResponse(
-            Id: client.Id.ToString(),
+            Id: client.Id?.ToString() ?? string.Empty,
             ClientId: client.ClientId ?? "",
             DisplayName: client.DisplayName ?? "",
             Type: client.ClientType ?? "public",
@@ -241,7 +241,7 @@ public static class ClientEndpoints
         await AdminAudit.LogAsync(audit, http, "UPDATE", "Client", id, ct);
 
         return TypedResults.Ok(new ClientResponse(
-            Id: client.Id.ToString(),
+            Id: client.Id?.ToString() ?? string.Empty,
             ClientId: client.ClientId ?? "",
             DisplayName: client.DisplayName ?? "",
             Type: client.ClientType ?? "public",

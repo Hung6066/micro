@@ -156,10 +156,21 @@ public static class IdentityServicePipelineExtensions
                         var expiresAt = root.TryGetProperty("ExpiresAt", out var expiryElement)
                             ? expiryElement.GetDateTimeOffset()
                             : DateTimeOffset.MinValue;
+                        var idleExpiresAt = root.TryGetProperty("IdleExpiresAt", out var idleElement) &&
+                            idleElement.ValueKind != JsonValueKind.Null
+                            ? idleElement.GetDateTimeOffset()
+                            : DateTimeOffset.MaxValue;
+                        var absoluteExpiresAt = root.TryGetProperty("AbsoluteExpiresAt", out var absoluteElement) &&
+                            absoluteElement.ValueKind != JsonValueKind.Null
+                            ? absoluteElement.GetDateTimeOffset()
+                            : DateTimeOffset.MaxValue;
                         var sessionPrincipalType = root.TryGetProperty("PrincipalType", out var principalTypeElement)
                             ? principalTypeElement.GetString()
                             : null;
-                        if (!string.IsNullOrWhiteSpace(protectedJwt) && expiresAt > DateTimeOffset.UtcNow)
+                        if (!string.IsNullOrWhiteSpace(protectedJwt) &&
+                            expiresAt > DateTimeOffset.UtcNow &&
+                            idleExpiresAt > DateTimeOffset.UtcNow &&
+                            absoluteExpiresAt > DateTimeOffset.UtcNow)
                         {
                             var jwt = protector.Unprotect(protectedJwt);
 

@@ -10,7 +10,7 @@ import { ChangeDetectionStrategy, Component, input, output } from "@angular/core
       <button class="hh-shell__icon-button" type="button" [attr.aria-label]="toggleLabel()" (click)="navigationToggle.emit()">
         <span class="material-icons" aria-hidden="true">menu</span>
       </button>
-      <span class="hh-shell__brand-mark" aria-hidden="true">+</span>
+      <span class="hh-shell__brand-mark" aria-hidden="true"></span>
       <span class="hh-shell__title">{{ title() }}</span>
       <div class="hh-shell__toolbar-actions"><ng-content select="[hhShellToolbar]" /></div>
     </header>
@@ -28,7 +28,10 @@ import { ChangeDetectionStrategy, Component, input, output } from "@angular/core
     .hh-shell__icon-button { display:grid; place-items:center; width:var(--touch-target); height:var(--touch-target); border:1px solid transparent; border-radius:var(--radius-button); background:transparent; color:inherit; cursor:pointer; }
     .hh-shell__icon-button:hover { border-color:color-mix(in srgb, var(--color-on-primary) 32%, transparent); background:color-mix(in srgb, var(--color-on-primary) 16%, transparent); }
     .hh-shell__icon-button:focus-visible { border-color:var(--color-on-primary); outline:var(--focus-ring-width) solid var(--color-focus); outline-offset:var(--focus-ring-offset); }
-    .hh-shell__brand-mark { display:grid; place-items:center; width:var(--control-height-sm); height:var(--control-height-sm); border-radius:var(--radius-control); background:var(--color-primary); color:var(--color-on-primary); font-size:var(--font-size-title); font-weight:var(--font-weight-bold); }
+    .hh-shell__brand-mark { position:relative; display:grid; place-items:center; width:var(--control-height-sm); height:var(--control-height-sm); border-radius:var(--radius-brand-mark); background:var(--color-primary); color:var(--color-on-primary); }
+    .hh-shell__brand-mark::before, .hh-shell__brand-mark::after { content:""; position:absolute; display:block; border-radius:var(--radius-micro); background:var(--color-on-primary); }
+    .hh-shell__brand-mark::before { width:var(--font-size-body); height:var(--space-2xs); }
+    .hh-shell__brand-mark::after { width:var(--space-2xs); height:var(--font-size-body); }
     .hh-shell__title { min-width:0; overflow:hidden; font-size:var(--font-size-label); font-weight:var(--font-weight-semibold); text-overflow:ellipsis; white-space:nowrap; }
     .hh-shell__toolbar-actions { display:flex; align-items:center; justify-content:flex-end; gap:var(--space-xs); margin-left:auto; min-width:0; }
     :host ::ng-deep .hh-shell-toolbar-slot { display:flex; align-items:center; justify-content:flex-end; gap:var(--space-xs); min-width:0; }

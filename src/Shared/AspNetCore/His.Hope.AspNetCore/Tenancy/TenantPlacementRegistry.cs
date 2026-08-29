@@ -29,12 +29,15 @@ public sealed class TenantPlacementRegistry : ITenantPlacementRegistry
 {
     private readonly TenantPlacementOptions _options;
     private readonly Dictionary<string, TenantPlacementEntryOptions> _placements;
+    private readonly IConfiguration? _configuration;
 
     public TenantPlacementRegistry(
         IOptions<TenantPlacementOptions> options,
         IHostEnvironment environment,
-        ILogger<TenantPlacementRegistry> logger)
+        ILogger<TenantPlacementRegistry> logger,
+        IConfiguration? configuration = null)
     {
+        _configuration = configuration;
         _options = CloneOptions(options.Value);
         MergeFileConfiguration(_options, environment, logger);
         _placements = _options.Placements
@@ -108,7 +111,15 @@ public sealed class TenantPlacementRegistry : ITenantPlacementRegistry
         foreach (var placement in GetDedicatedPlacements())
         {
             if (ResolveDedicatedConnectionName(serviceName, placement) is { } dedicatedName)
-                names.Add(dedicatedName);
+            {
+                // A dedicated binding is operational only when its secret is
+                // present. Production startup validation still fails fast for
+                // a missing required secret; non-production environments can
+                // safely continue on the shared connection.
+                if (_configuration is null ||
+                    !string.IsNullOrWhiteSpace(_configuration.GetConnectionString(dedicatedName)))
+                    names.Add(dedicatedName);
+            }
         }
 
         return names.ToArray();

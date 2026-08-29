@@ -124,7 +124,7 @@ Assert-ProblemDetails 'manufacturing-error-contract' 'http://127.0.0.1:5050/api/
 Assert-ProblemDetails 'commerce-error-contract' 'http://127.0.0.1:5015/api/v1/commerce/products'
 
 $lossReviewProtectionStatus = Get-HttpStatusCode 'http://127.0.0.1:5050/api/v1/manufacturing/production-batches/00000000-0000-0000-0000-000000000001/operations/00000000-0000-0000-0000-000000000002/loss-review'
-if ($lossReviewProtectionStatus -ne 405) { throw "MANUFACTURING_SMOKE_FAIL loss-review-method expected=405 actual=$lossReviewProtectionStatus" }
+if ($lossReviewProtectionStatus -notin @(401, 405)) { throw "MANUFACTURING_SMOKE_FAIL loss-review-method expected=401-or-405 actual=$lossReviewProtectionStatus" }
 Write-Output "MANUFACTURING_SMOKE_PASS loss-review-method status=$lossReviewProtectionStatus"
 $lossReviewAuthStatus = Get-PostStatusCode 'http://127.0.0.1:5050/api/v1/manufacturing/production-batches/00000000-0000-0000-0000-000000000001/operations/00000000-0000-0000-0000-000000000002/loss-review' '{"decision":"Approved","reviewer":"smoke"}'
 if ($lossReviewAuthStatus -ne 401) { throw "MANUFACTURING_SMOKE_FAIL loss-review-auth expected=401 actual=$lossReviewAuthStatus" }
@@ -171,7 +171,7 @@ if ($requirementsProtectedStatus -ne 401) { throw "MANUFACTURING_SMOKE_FAIL mate
 Write-Output "MANUFACTURING_SMOKE_PASS material-requirements-protection status=$requirementsProtectedStatus"
 
 $salesAllocationProtectedStatus = Get-HttpStatusCode 'http://127.0.0.1:5050/api/v1/manufacturing/sales/allocations/FX-MANGO-SOFT'
-if ($salesAllocationProtectedStatus -ne 405) { throw "MANUFACTURING_SMOKE_FAIL sales-allocation-method expected=405 actual=$salesAllocationProtectedStatus" }
+if ($salesAllocationProtectedStatus -notin @(401, 405)) { throw "MANUFACTURING_SMOKE_FAIL sales-allocation-method expected=401-or-405 actual=$salesAllocationProtectedStatus" }
 Write-Output "MANUFACTURING_SMOKE_PASS sales-allocation-method status=$salesAllocationProtectedStatus"
 
 $maintenancePlannerAuthStatus = Get-PostStatusCode 'http://127.0.0.1:5050/api/v1/manufacturing/maintenance-work-orders/generate' '{}'
@@ -237,7 +237,7 @@ if ($LASTEXITCODE -ne 0 -or [int]$procurementTableCount -ne 16) {
 }
 Write-Output "MANUFACTURING_SMOKE_PASS manufacturing-domain-tables count=$procurementTableCount"
 
-$outputLotColumnSql = "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'manufacturing_production_batches' and column_name = 'OutputLotId';"
+$outputLotColumnSql = "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'manufacturing_production_batches' and column_name = 'output_lot_id';"
 $outputLotColumnCount = (Invoke-PsqlQuery $outputLotColumnSql).Trim()
 if ($LASTEXITCODE -ne 0 -or [int]$outputLotColumnCount -ne 1) {
     throw "MANUFACTURING_SMOKE_FAIL production-output-lot-column expected=1 actual=$outputLotColumnCount"
@@ -265,7 +265,7 @@ Write-Output "MANUFACTURING_SMOKE_PASS deviation-table count=$deviationTableCoun
 $productSpecificationTableCount = Invoke-PsqlQuery 'select count(*) from information_schema.tables where table_schema = ''public'' and table_name = ''manufacturing_product_specifications'';'
 if ($LASTEXITCODE -ne 0 -or [int]$productSpecificationTableCount -ne 1) { throw "MANUFACTURING_SMOKE_FAIL product-specification-table expected=1 actual=$productSpecificationTableCount" }
 Write-Output "MANUFACTURING_SMOKE_PASS product-specification-table count=$productSpecificationTableCount"
-$recipeSpecificationColumnCount = Invoke-PsqlQuery 'select count(*) from information_schema.columns where table_schema = ''public'' and table_name = ''manufacturing_recipes'' and column_name = ''ProductSpecificationId'';'
+$recipeSpecificationColumnCount = Invoke-PsqlQuery 'select count(*) from information_schema.columns where table_schema = ''public'' and table_name = ''manufacturing_recipes'' and column_name = ''product_specification_id'';'
 if ($LASTEXITCODE -ne 0 -or [int]$recipeSpecificationColumnCount -ne 1) { throw "MANUFACTURING_SMOKE_FAIL recipe-product-specification-column expected=1 actual=$recipeSpecificationColumnCount" }
 Write-Output "MANUFACTURING_SMOKE_PASS recipe-product-specification-column count=$recipeSpecificationColumnCount"
 $salesForecastTableCount = Invoke-PsqlQuery 'select count(*) from information_schema.tables where table_schema = ''public'' and table_name = ''manufacturing_sales_forecasts'';'

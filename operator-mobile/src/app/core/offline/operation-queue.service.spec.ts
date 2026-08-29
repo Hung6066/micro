@@ -45,4 +45,42 @@ describe("OperationQueueService", () => {
     expect(attempts).toBe(1);
     expect((await service.entries())[0].status).toBe("conflict");
   });
+
+  it("moves failed or conflicted records back to pending for an explicit retry", async () => {
+    const operation = await service.enqueue({
+      tenantKey: "factory-a",
+      subjectId: "operator-a",
+      endpoint: "/quality-inspections",
+      payload: { lotId: "lot-1" },
+    });
+    await service.sync(async () => ({ kind: "failed", message: "validation" }));
+    await service.retry(operation.id);
+    expect((await service.entries())[0].status).toBe("pending");
+    expect((await service.entries())[0].error).toBeUndefined();
+  });
+
+  it("clears all local records when the session is wiped", async () => {
+    await service.enqueue({ tenantKey: "factory-a", subjectId: "operator-a", endpoint: "/x", payload: {} });
+    await service.clear();
+    expect(await service.entries()).toEqual([]);
+  });
+
+  it("dead-letters a transient operation after the retry budget and retains pending work", async () => {
+    const operation = await service.enqueue({ tenantKey: "factory-a", subjectId: "operator-a", endpoint: "/x", payload: {} });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await service.sync(async () => ({ kind: "pending", message: "offline" }));
+    }
+    expect((await service.entries()).find((entry) => entry.id === operation.id)?.status).toBe("failed");
+    expect((await service.entries()).find((entry) => entry.id === operation.id)?.attemptCount).toBe(5);
+  });
+
+  it("limits retained terminal records without dropping pending work", async () => {
+    for (let index = 0; index < 105; index += 1) {
+      await service.enqueue({ tenantKey: "factory-a", subjectId: "operator-a", endpoint: `/x/${index}`, payload: {} });
+      await service.sync(async () => ({ kind: "failed", message: "invalid" }));
+    }
+    const entries = await service.entries();
+    expect(entries.length).toBe(100);
+    expect(entries.every((entry) => entry.status === "failed")).toBeTrue();
+  });
 });

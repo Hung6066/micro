@@ -13,6 +13,7 @@ import {
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,
   HisHopeResourceRowActionsDirective,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -24,7 +25,6 @@ import { IamApiService } from "../../core/services/iam-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { PolicyEditDialogComponent } from "./policy-edit-dialog.component";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -96,6 +96,7 @@ export class PoliciesPageComponent implements OnInit {
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
+  private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   get canWrite(): boolean {
     return this.permissions.has("admin.settings.write");
@@ -200,7 +201,15 @@ export class PoliciesPageComponent implements OnInit {
     if (!this.canWrite) return;
     const id = String(row["id"] ?? "");
     this.api.publishAuthorizationPolicy(id).subscribe({
-      next: () => this.load(),
+      next: (result) => {
+        if ((result as { changeRequestId?: string }).changeRequestId) {
+          this.toast.success(
+            this.i18n.t("admin.authorizationChangeCreated", "Approval request created."),
+            { duration: 4000 },
+          );
+        }
+        this.load();
+      },
       error: () =>
         (this.error = this.i18n.t(
           "admin.iamSaveFailed",
@@ -212,7 +221,15 @@ export class PoliciesPageComponent implements OnInit {
     if (!this.canWrite) return;
     const id = String(row["id"] ?? "");
     this.api.rollbackAuthorizationPolicy(id).subscribe({
-      next: () => this.load(),
+      next: (result) => {
+        if ((result as { changeRequestId?: string }).changeRequestId) {
+          this.toast.success(
+            this.i18n.t("admin.authorizationChangeCreated", "Approval request created."),
+            { duration: 4000 },
+          );
+        }
+        this.load();
+      },
       error: () =>
         (this.error = this.i18n.t(
           "admin.iamSaveFailed",

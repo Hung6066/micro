@@ -6,4 +6,5 @@ public static class PortalClassConstants
     public const string Operator = "operator";
     public const string CustomerOperator = "customer_operator";
     public const string EndUser = "end_user";
+    public const string PrivilegedOperator = "privileged_operator";
 }

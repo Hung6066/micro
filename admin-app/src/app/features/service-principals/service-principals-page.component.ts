@@ -29,7 +29,6 @@ import { TenantContextService } from "../../core/services/tenant-context.service
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { WorkloadRoleEditDialogComponent } from "../workload-roles/workload-role-edit-dialog.component";
 import { forkJoin, map } from "rxjs";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({

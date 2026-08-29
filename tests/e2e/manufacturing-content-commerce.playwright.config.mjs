@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const buyerDist = path.resolve(root, '../../manufacturing-buyer-app/dist/manufacturing-buyer-app/browser');
 const operatorDist = path.resolve(root, '../../internal-operator-app/dist/internal-operator-app/browser');
-const buyerPort = process.env.BUYER_E2E_PORT ?? '4225';
-const operatorPort = process.env.OPERATOR_E2E_PORT ?? '4220';
+const buyerPort = process.env.BUYER_E2E_PORT ?? '4205';
+const operatorPort = process.env.OPERATOR_E2E_PORT ?? '4300';
+const useStaticApps = process.env.E2E_USE_STATIC_APPS === 'true';
 
 export default defineConfig({
   testDir: '.',
@@ -18,7 +19,7 @@ export default defineConfig({
     viewport: { width: 1440, height: 900 },
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
-  webServer: [
+  webServer: useStaticApps ? [
     {
       command: `npx --yes http-server "${buyerDist}" -p ${buyerPort} -P http://127.0.0.1:${buyerPort}?`,
       url: `http://127.0.0.1:${buyerPort}/index.html`,
@@ -31,5 +32,5 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 60_000,
     },
-  ],
+  ] : undefined,
 });

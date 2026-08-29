@@ -135,6 +135,45 @@ public sealed class IdentityRetentionWorkerTests
         Assert.Equal(1, await verifyScope.ServiceProvider.GetRequiredService<IdentityDbContext>().DirectoryProvisioningOutbox.CountAsync());
     }
 
+    [Fact]
+    public async Task Worker_honours_per_run_budget_and_leaves_backlog_for_next_cycle()
+    {
+        var services = new ServiceCollection();
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        services.AddDbContext<IdentityDbContext>(options => options.UseSqlite(connection));
+        await using var provider = services.BuildServiceProvider();
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            await db.Database.EnsureCreatedAsync();
+            db.DirectoryProvisioningOutbox.AddRange(
+                Enumerable.Range(1, 3).Select(_ => new DirectoryProvisioningOutbox
+                {
+                    Id = Guid.NewGuid(), Target = "ldap", Operation = "update", CompletedAt = DateTime.UtcNow.AddDays(-30)
+                }));
+            await db.SaveChangesAsync();
+        }
+
+        var worker = new IdentityRetentionWorker(
+            provider.GetRequiredService<IServiceScopeFactory>(), CreateLock(),
+            Options.Create(new IdentityRetentionOptions
+            {
+                CompletedOutboxDays = 7, BatchSize = 10, MaxRowsPerRun = 2,
+                IntervalMinutes = 1, LockTtlMinutes = 1
+            }), NullLogger<IdentityRetentionWorker>.Instance);
+
+        await worker.StartAsync(CancellationToken.None);
+        await WaitUntilAsync(async () =>
+        {
+            using var scope = provider.CreateScope();
+            return await scope.ServiceProvider.GetRequiredService<IdentityDbContext>()
+                .DirectoryProvisioningOutbox.CountAsync() == 1;
+        });
+        await StopAsync(worker);
+        worker.Dispose();
+    }
+
     private static IdentityRedisLock CreateLock()
     {
         var database = new Mock<IDatabase>();
@@ -142,7 +181,7 @@ public sealed class IdentityRetentionWorkerTests
             It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(), When.NotExists)).ReturnsAsync(true);
         database.Setup(x => x.ScriptEvaluateAsync(
             It.IsAny<string>(), It.IsAny<RedisKey[]>(), It.IsAny<RedisValue[]>(), CommandFlags.None))
-            .ReturnsAsync(default(RedisResult));
+            .Returns(Task.FromResult(RedisResult.Create(Array.Empty<RedisValue>())));
         var redis = new Mock<IConnectionMultiplexer>();
         redis.Setup(x => x.GetDatabase(It.IsAny<int>(), It.IsAny<object?>())).Returns(database.Object);
         return new IdentityRedisLock(redis.Object);

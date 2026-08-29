@@ -1,4 +1,4 @@
-import { ErrorHandler, Injectable, inject } from "@angular/core";
+import { ErrorHandler, Injectable } from "@angular/core";
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeErrorReportingService } from "../http/his-hope-error-reporting.service";
 import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
@@ -9,9 +9,11 @@ import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
  *  screen. Register with `{ provide: ErrorHandler, useClass: HisHopeGlobalErrorHandler }`. */
 @Injectable({ providedIn: "root" })
 export class HisHopeGlobalErrorHandler implements ErrorHandler {
-  private readonly errorReporting = inject(HisHopeErrorReportingService);
-  private readonly toast = inject(HisHopeToastService);
-  private readonly i18n = inject(HisHopeI18nService);
+  constructor(
+    private readonly errorReporting: HisHopeErrorReportingService,
+    private readonly toast: HisHopeToastService,
+    private readonly i18n: HisHopeI18nService,
+  ) {}
 
   handleError(error: unknown): void {
     const message = this.describe(error);

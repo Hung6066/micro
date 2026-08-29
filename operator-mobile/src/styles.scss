@@ -16,6 +16,36 @@ body {
   margin: 0;
   background: var(--bg-warm);
 }
+
+/* Field labels carry the hierarchy; controls stay readable at regular weight. */
+input,
+textarea,
+hh-select {
+  font-weight: var(--font-weight-regular, 400);
+}
+
+hh-select {
+  display: block;
+  min-width: 0;
+}
+
+/* Operator fields keep labels emphatic while control values remain regular. */
+.operator-shell__content input,
+.operator-shell__content textarea,
+.operator-shell__content hh-select,
+.operator-shell__context hh-select {
+  font-weight: var(--font-weight-regular, 400) !important;
+}
+
+.operator-shell__content hh-select .hh-select__value,
+.operator-shell__context hh-select .hh-select__value,
+.cdk-overlay-container .hh-select__option {
+  font-weight: var(--font-weight-regular, 400) !important;
+}
+
+.cdk-overlay-container .hh-select__option.hh-select__option--selected {
+  font-weight: var(--font-weight-semibold, 600) !important;
+}
 body {
   font-family: var(--font-body);
 }

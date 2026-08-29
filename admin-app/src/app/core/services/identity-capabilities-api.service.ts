@@ -49,6 +49,7 @@ export class IdentityCapabilitiesApiService {
   getDevicePosturePolicy(facilityId?: string): Observable<DevicePosturePolicy> {
     return this.http.get<DevicePosturePolicy>(
       `${this.baseUrl}/device-posture/policy`,
+      facilityId ? { params: { facilityId } } : {},
     );
   }
 

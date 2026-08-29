@@ -58,8 +58,10 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
         var publish = await session.PostWithCookiesAsync($"{IdentityApiRoutes.Role(id)}/publish", new { });
         var rollback = await session.PostWithCookiesAsync($"{IdentityApiRoutes.Role(id)}/rollback", new { });
 
-        Assert.Equal(HttpStatusCode.NotFound, publish.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, rollback.StatusCode);
+        // MFA is evaluated before resource lookup so sensitive mutations fail
+        // closed without exposing resource existence to a non-step-up caller.
+        Assert.Equal(HttpStatusCode.Forbidden, publish.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, rollback.StatusCode);
     }
 
     [Fact]
@@ -161,7 +163,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
             role.LifecycleStatus = "retired";
             await db.SaveChangesAsync();
         }
-        Assert.Equal(HttpStatusCode.Conflict,
+        Assert.Equal(HttpStatusCode.Forbidden,
             (await session.PostWithCookiesAsync($"{IdentityApiRoutes.Role(id)}/publish", new { })).StatusCode);
 
         await using (var scope = fixture.Services.CreateAsyncScope())
@@ -171,7 +173,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
             role.IsSystem = true;
             await db.SaveChangesAsync();
         }
-        Assert.Equal(HttpStatusCode.Conflict,
+        Assert.Equal(HttpStatusCode.Forbidden,
             (await session.PostWithCookiesAsync($"{IdentityApiRoutes.Role(id)}/rollback", new { })).StatusCode);
     }
 
@@ -270,7 +272,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
 
         var publish = await session.PostWithCookiesAsync($"{IdentityApiRoutes.Role(id)}/publish", new { });
-        Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, publish.StatusCode);
 
         var delete = await session.DeleteWithCookiesAsync(IdentityApiRoutes.Role(id));
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);

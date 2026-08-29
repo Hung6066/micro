@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using His.Hope.AspNetCore.Authentication;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.ServiceDefaults;
 using His.Hope.DatabaseContinuityService;
@@ -201,6 +202,7 @@ app.Use(async (context, next) =>
 app.UseDpopAuthorizationSchemeNormalization();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
 app.MapHisHopeHealthEndpoints();
 
 // Keep continuity APIs on the same permission contract as the other admin APIs.

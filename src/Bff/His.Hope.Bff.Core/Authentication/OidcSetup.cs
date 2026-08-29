@@ -84,6 +84,8 @@ public static class OidcSetup
                     var subjectId = ctx.Principal?.FindFirst("sub")?.Value
                         ?? ctx.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
                         ?? "unknown";
+                    var issuedAt = DateTimeOffset.UtcNow;
+                    var isPrivileged = ctx.Principal?.HasClaim("super_admin", "true") == true;
 
                     var sessionData = new
                     {
@@ -94,8 +96,11 @@ public static class OidcSetup
                         CsrfToken = Guid.NewGuid().ToString("N"),
                         UserAgentHash = ComputeSha256(
                             ctx.Request.Headers.UserAgent.ToString()),
-                        IssuedAt = DateTimeOffset.UtcNow,
-                        ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
+                        IssuedAt = issuedAt,
+                        ExpiresAt = issuedAt.AddHours(1),
+                        IsPrivileged = isPrivileged,
+                        IdleExpiresAt = issuedAt.Add(isPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30)),
+                        AbsoluteExpiresAt = issuedAt.Add(isPrivileged ? TimeSpan.FromHours(4) : TimeSpan.FromHours(8))
                     };
 
                     var sessionJson = JsonSerializer.Serialize(sessionData);

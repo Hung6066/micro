@@ -165,6 +165,9 @@ public class IdentityServiceTestFixture : IAsyncLifetime
         builder.Configuration["RateLimiting:TrustForwardedKey"] = "true";
         builder.Configuration["RateLimiting:MaxRequestsPerIp"] = "10000";
         builder.Configuration["RateLimiting:MaxRequestsPerUser"] = "5000";
+        builder.Configuration["Identity:SuperAdmin:UserIds:0"] = IdentityTestData.AdminId.ToString("D");
+        builder.Configuration["Authentication:OidcClients:his-hope-test:RedirectUris:0"] = "http://localhost:4200/auth/callback";
+        builder.Configuration["Authentication:OidcClients:his-hope-test:PostLogoutRedirectUris:0"] = "http://localhost:4200/auth/login";
 
         _app = builder.Build();
 

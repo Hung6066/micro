@@ -9,6 +9,8 @@ export interface QueuedOperation {
   payload: unknown;
   expectedVersion?: string;
   createdAt: string;
+  attemptCount?: number;
+  lastAttemptAt?: string;
   status: OperationStatus;
   error?: string;
 }

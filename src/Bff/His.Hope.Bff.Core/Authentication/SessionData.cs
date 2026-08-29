@@ -12,6 +12,11 @@ public sealed record SessionData
     public required string UserAgentHash { get; init; }
     public required DateTimeOffset IssuedAt { get; init; }
     public required DateTimeOffset ExpiresAt { get; init; }
+    public DateTimeOffset? IdleExpiresAt { get; init; }
+    public DateTimeOffset? AbsoluteExpiresAt { get; init; }
+    public bool IsPrivileged { get; init; }
 
-    public bool IsExpired => DateTimeOffset.UtcNow >= ExpiresAt;
+    public bool IsExpired => DateTimeOffset.UtcNow >= ExpiresAt ||
+        (IdleExpiresAt is not null && DateTimeOffset.UtcNow >= IdleExpiresAt) ||
+        (AbsoluteExpiresAt is not null && DateTimeOffset.UtcNow >= AbsoluteExpiresAt);
 }

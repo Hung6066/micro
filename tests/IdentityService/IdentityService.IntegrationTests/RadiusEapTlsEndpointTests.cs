@@ -9,7 +9,8 @@ using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
 
-public sealed class RadiusEapTlsEndpointTests : IClassFixture<IdentityServiceTestFixture>
+[Collection("IdentityServiceIntegration")]
+public sealed class RadiusEapTlsEndpointTests
 {
     private readonly IdentityServiceTestFixture _fixture;
 

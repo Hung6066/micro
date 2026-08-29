@@ -33,6 +33,8 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<SupportElevation> SupportElevations => Set<SupportElevation>();
     public DbSet<RoleTemplateVersion> RoleTemplateVersions => Set<RoleTemplateVersion>();
     public DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies => Set<AuthorizationPolicyDefinition>();
+    public DbSet<AuthorizationPolicyBundleArtifact> AuthorizationPolicyBundles => Set<AuthorizationPolicyBundleArtifact>();
+    public DbSet<AuthorizationChangeRequest> AuthorizationChangeRequests => Set<AuthorizationChangeRequest>();
     public DbSet<UserPasswordHistory> UserPasswordHistories => Set<UserPasswordHistory>();
     public DbSet<UserClientCertificate> UserClientCertificates => Set<UserClientCertificate>();
     public DbSet<DirectoryProvisioningOutbox> DirectoryProvisioningOutbox => Set<DirectoryProvisioningOutbox>();
@@ -50,7 +52,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<IamResourcePolicy> IamResourcePolicies => Set<IamResourcePolicy>();
     public DbSet<IamGroup> IamGroups => Set<IamGroup>();
     public DbSet<IamGroupMembership> IamGroupMemberships => Set<IamGroupMembership>();
-    public DbSet<IdentityUserClaim<Guid>> UserClaims => Set<IdentityUserClaim<Guid>>();
+    public new DbSet<IdentityUserClaim<Guid>> UserClaims => Set<IdentityUserClaim<Guid>>();
 
     // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
     // Non-generic sets are for OpenIddict 5.7.0 EF Core store access
@@ -212,6 +214,12 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(u => u.LockoutEnd);
             entity.Property(u => u.LastPasswordChangedAt);
             entity.Property(u => u.TrustedDeviceToken).HasMaxLength(256);
+            // Stable, bounded admin listing order. Keep the primary key as a
+            // tie-breaker so concurrent inserts cannot duplicate or skip rows.
+            entity.HasIndex(u => new { u.CreatedAt, u.Id })
+                .HasDatabaseName("ix_asp_net_users_created_at_id");
+            entity.HasIndex(u => new { u.IsActive, u.CreatedAt, u.Id })
+                .HasDatabaseName("ix_asp_net_users_active_created_at_id");
             entity.HasMany(u => u.FacilityMemberships)
                 .WithOne(membership => membership.User)
                 .HasForeignKey(membership => membership.UserId)
@@ -381,6 +389,20 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.CreatedBy).HasMaxLength(256);
             entity.Property(item => item.PublishedBy).HasMaxLength(256);
             entity.HasIndex(item => new { item.Key, item.Version }).IsUnique();
+        });
+
+        builder.Entity<AuthorizationPolicyBundleArtifact>(entity =>
+        {
+            entity.ToTable("authorization_policy_bundle_artifacts");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SchemaVersion).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Hash).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.PoliciesJson).HasMaxLength(120000).IsRequired();
+            entity.Property(item => item.Signature).HasMaxLength(12000).IsRequired();
+            entity.Property(item => item.KeyId).HasMaxLength(256);
+            entity.Property(item => item.CreatedBy).HasMaxLength(256).IsRequired();
+            entity.HasIndex(item => item.Hash).IsUnique();
+            entity.HasIndex(item => item.CreatedAt);
         });
 
         // ──────────────────────────────────────────────
@@ -725,6 +747,21 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
                 .IsUnique()
                 .HasDatabaseName("ix_openiddict_applications_client_id");
         });
+
+        builder.Entity<AuthorizationChangeRequest>(entity =>
+        {
+            entity.ToTable("authorization_change_requests");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ResourceType).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Action).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.RequestedBy).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(2000).IsRequired();
+            entity.Property(item => item.PayloadJson).HasMaxLength(16000).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.ApprovedBy).HasMaxLength(256);
+            entity.HasIndex(item => new { item.ResourceType, item.ResourceId, item.Action, item.Status });
+            entity.HasIndex(item => new { item.Status, item.ExpiresAt });
+        });
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>(entity =>
         {
             entity.ToTable("openiddict_authorizations");
@@ -750,7 +787,9 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             builder,
             typeof(User), typeof(Role), typeof(Permission), typeof(RolePermission),
             typeof(SystemSetting), typeof(UserMfa), typeof(ClientConsent), typeof(TableView),
-            typeof(UserFacility), typeof(RoleTemplateVersion), typeof(AuthorizationPolicyDefinition),
+            typeof(UserFacility), typeof(UserPasswordHistory), typeof(UserClientCertificate),
+            typeof(RoleTemplateVersion), typeof(AuthorizationPolicyDefinition),
+            typeof(AuthorizationPolicyBundleArtifact),
             typeof(IamScope), typeof(IamServiceDefinition), typeof(IamPermissionSet),
             typeof(IamPermissionSetAssignment), typeof(IamWorkloadRole),
             typeof(IamPermissionBoundary), typeof(IamResourcePolicy), typeof(IamGroup),

@@ -4,7 +4,7 @@ import { Router, RouterModule, NavigationEnd } from "@angular/router";
 import { FormsModule } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
 import { MatButtonModule } from "@angular/material/button";
-import { BehaviorSubject, Observable, filter } from "rxjs";
+import { Observable, filter } from "rxjs";
 import { AuthService } from "./core/services/auth.service";
 import {
   HisHopeOfflineBannerComponent,

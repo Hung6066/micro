@@ -12,6 +12,7 @@ public static class ManufacturingApiExtensions
     {
         var api = app.MapGroup("/api/v1/manufacturing")
             .RequireAuthorization()
+            .RequireTenantContext()
             .AddEndpointFilter<MobileOperationReplayFilter>();
 
         api.MapInventoryEndpoints()
@@ -26,4 +27,3 @@ public static class ManufacturingApiExtensions
             .MapIntegrationEndpoints();
     }
 }
-

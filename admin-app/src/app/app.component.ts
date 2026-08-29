@@ -278,6 +278,14 @@ export class AppComponent {
           permission: "admin.roles.read",
         },
         {
+          id: "authorization-change-requests",
+          route: "/iam/authorization-change-requests",
+          icon: "fact_check",
+          labelKey: "admin.authorizationChangeRequests",
+          fallback: "Authorization change approvals",
+          permission: "admin.roles.read",
+        },
+        {
           id: "jit-access",
           route: "/iam/jit-access",
           icon: "timer",

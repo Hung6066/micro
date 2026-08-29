@@ -37,7 +37,9 @@ Pilot tenants: **customer-acme** (tech-vendor) and **customer-factory-x** (manuf
 
 6. **Manufacturing console**: `manufacturing.pilot` via `manufacturing-app` on port **4200** (`internal-operator-app`).
    - Switch tenant to `customer-factory-x` → dashboard/users scoped via `?scopeId=`.
-   - **Orders** route: commerce orders for selected tenant (`?tenantKey=`).
+   - **Orders** route: commerce orders for selected tenant using the canonical
+     tenant context header (`X-HisHope-Tenant`); legacy `?tenantKey=` is retained
+     only for compatibility and must not be mixed with a conflicting context.
 7. **Tech vendor console**: `tech.pilot` via `tech-console` on port **4201** (`internal-operator-app`).
    - Switch tenant to `customer-acme` → dashboard/users scoped via `?scopeId=`.
 8. **Group HQ**: `hq.pilot` via `admin-app` port **4202** (full IAM, all tenants with `HqCustomerVisibility=all`).

@@ -19,7 +19,9 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
         using var session = await LoginAsync();
 
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminPolicies)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminPolicies}/bundle")).StatusCode);
+        // A signed bundle is fail-closed until the release pipeline publishes
+        // one; a fresh integration database must not synthesize an artifact.
+        Assert.Equal(HttpStatusCode.NotFound, (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminPolicies}/bundle")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminAccessRequests)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminAccessReviews)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminBreakGlassRequests)).StatusCode);
@@ -103,6 +105,10 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
             (HttpMethod.Get, IdentityApiRoutes.AdminAccessReviews),
             (HttpMethod.Get, IdentityApiRoutes.AdminBreakGlassRequests),
             (HttpMethod.Post, IdentityApiRoutes.AdminBreakGlassRequests),
+            (HttpMethod.Get, IdentityApiRoutes.AdminAuthorizationChangeRequests),
+            (HttpMethod.Post, IdentityApiRoutes.AdminAuthorizationChangeRequests),
+            (HttpMethod.Post, $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/approve"),
+            (HttpMethod.Post, $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/reject"),
             (HttpMethod.Get, IdentityApiRoutes.AdminAuthorizationChanges)
         };
 
@@ -115,6 +121,31 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
             var response = await fixture.AnonymousClient.SendAsync(request);
             Assert.Contains(response.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Redirect });
         }
+    }
+
+    [Fact]
+    public async Task Authorization_change_requests_require_step_up_for_mutations()
+    {
+        using var session = await LoginAsync();
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminAuthorizationChangeRequests)).StatusCode);
+
+        var request = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminAuthorizationChangeRequests, new
+        {
+            resourceType = "Role",
+            resourceId = Guid.NewGuid(),
+            action = "role.publish",
+            reason = "Validate step-up protection"
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, request.StatusCode);
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await session.PostWithCookiesAsync(
+                $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/approve", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await session.PostWithCookiesAsync(
+                $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/reject", new { })).StatusCode);
     }
 
     [Fact]
@@ -418,13 +449,11 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
         using var session = await LoginAsync();
 
         var bundle = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminPolicies}/bundle");
-        Assert.Equal(HttpStatusCode.OK, bundle.StatusCode);
-        var bundleBody = await bundle.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("authorization-policy-bundle.v1", bundleBody.GetProperty("schemaVersion").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(bundleBody.GetProperty("hash").GetString()));
-        Assert.True(bundleBody.TryGetProperty("signature", out _));
-        Assert.True(bundleBody.TryGetProperty("policies", out var policies));
-        Assert.Equal(JsonValueKind.Array, policies.ValueKind);
+        // The endpoint deliberately returns 404 when no durable signed
+        // artifact has been published for this database.
+        Assert.Equal(HttpStatusCode.NotFound, bundle.StatusCode);
+        // The response body is intentionally not part of the fail-closed
+        // contract; status is the stable signal consumed by the release gate.
 
         var key = $"integration-policy-artifact-{Guid.NewGuid():N}";
         var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminPolicies, new

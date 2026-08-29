@@ -83,6 +83,13 @@ internal class ProductionConfigurationValidator
             errors.Add("Vault:Address is required in production.");
         if (!config.GetValue("Vault:EnableTransit", false))
             errors.Add("Vault:EnableTransit must be true in production (required for MFA secret encryption).");
+
+        var superAdminIds = config.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>() ?? [];
+        if (superAdminIds.Length == 0)
+            errors.Add("At least one Identity:SuperAdmin:UserIds entry is required in production.");
+        else if (superAdminIds.Any(id => !Guid.TryParse(id, out _)))
+            errors.Add("Every Identity:SuperAdmin:UserIds entry must be a valid user GUID in production.");
+
         var vaultRole = config["Vault:Role"];
         var vaultJwtFile = config["Vault:JwtTokenFile"];
         if (string.IsNullOrWhiteSpace(vaultRole) || string.IsNullOrWhiteSpace(vaultJwtFile))

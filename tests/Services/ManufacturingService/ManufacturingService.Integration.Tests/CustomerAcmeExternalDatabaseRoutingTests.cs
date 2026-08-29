@@ -21,8 +21,9 @@ public sealed class CustomerAcmeExternalDatabaseRoutingTests
     private const string DedicatedConnectionName = "ManufacturingDb_customer_acme";
     private const string SharedConnectionName = "ManufacturingDb";
     private const string SharedTenant = "manufacturing";
+    private const string LatestMigration = "20260828110000_NormalizeDateOnlyColumns";
 
-    [Fact]
+    [ExternalDatabaseFact]
     public async Task Customer_acme_routes_to_external_database_when_placement_enabled()
     {
         var dedicatedConnection = ResolveDedicatedConnectionString();
@@ -95,7 +96,7 @@ public sealed class CustomerAcmeExternalDatabaseRoutingTests
         }
     }
 
-    [Fact]
+    [ExternalDatabaseFact]
     public async Task Customer_acme_external_database_has_manufacturing_schema()
     {
         var dedicatedConnection = ResolveDedicatedConnectionString();
@@ -108,6 +109,37 @@ public sealed class CustomerAcmeExternalDatabaseRoutingTests
 
         await using var db = new ManufacturingDbContext(options);
         (await db.Database.CanConnectAsync()).Should().BeTrue();
+
+        var expectedTables = new[]
+        {
+            "manufacturing_lots",
+            "manufacturing_production_batches",
+            "manufacturing_operation_measurements",
+            "manufacturing_sales_actuals",
+            "manufacturing_supplier_certificates",
+            "manufacturing_supplier_material_approvals",
+            "manufacturing_machine_downtimes",
+            "manufacturing_mobile_operation_replays",
+        };
+        var tableCount = await db.Database.SqlQueryRaw<long>(
+                """
+                SELECT COUNT(*)::bigint AS "Value"
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = ANY(@table_names)
+                """, new Npgsql.NpgsqlParameter("table_names", expectedTables))
+            .SingleAsync();
+        tableCount.Should().Be(expectedTables.Length, "external database must contain every core Manufacturing table");
+
+        var latestMigration = await db.Database.SqlQueryRaw<string>(
+                """
+                SELECT "MigrationId" AS "Value"
+                FROM "__EFMigrationsHistory"
+                ORDER BY "MigrationId" DESC
+                LIMIT 1
+                """)
+            .SingleOrDefaultAsync();
+        latestMigration.Should().Be(LatestMigration, "external database must be migrated to the current schema");
 
         var tableExists = await db.Database.SqlQueryRaw<bool>(
                 """
@@ -232,6 +264,32 @@ public sealed class CustomerAcmeExternalDatabaseRoutingTests
 
         var text = value.GetString()?.Trim();
         return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private sealed class ExternalDatabaseFactAttribute : FactAttribute
+    {
+        public ExternalDatabaseFactAttribute()
+        {
+            if (!HasDedicatedConnection())
+                Skip = "External tenant database connection is not configured.";
+        }
+
+        private static bool HasDedicatedConnection()
+        {
+            var direct = Environment.GetEnvironmentVariable("MANUFACTURING_DB_CUSTOMER_ACME_CONNECTION")
+                ?? Environment.GetEnvironmentVariable($"ConnectionStrings:{DedicatedConnectionName}")
+                ?? Environment.GetEnvironmentVariable($"ConnectionStrings__{DedicatedConnectionName}");
+            if (!string.IsNullOrWhiteSpace(direct))
+                return true;
+
+            var file = Environment.GetEnvironmentVariable("TENANT_PLACEMENT_CONNECTIONS_FILE");
+            if (string.IsNullOrWhiteSpace(file) || !File.Exists(file))
+                return false;
+
+            using var document = JsonDocument.Parse(File.ReadAllText(file));
+            return document.RootElement.TryGetProperty(DedicatedConnectionName, out var value)
+                && !string.IsNullOrWhiteSpace(value.GetString());
+        }
     }
 
     private static string GetDatabaseName(string connectionString)

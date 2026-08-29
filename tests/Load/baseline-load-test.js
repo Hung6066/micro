@@ -7,7 +7,7 @@ const patientLatency = new Trend('patient_latency');
 const appointmentLatency = new Trend('appointment_latency');
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
-const AUTH_TOKEN = __ENV.AUTH_TOKEN || 'test-token';
+const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
 
 export const options = {
     stages: [
@@ -28,6 +28,12 @@ const headers = {
     'Authorization': `Bearer ${AUTH_TOKEN}`,
     'Content-Type': 'application/json',
 };
+
+export function setup() {
+    if (!AUTH_TOKEN) {
+        throw new Error('AUTH_TOKEN is required for the authenticated enterprise load baseline; refusing to run with a placeholder token.');
+    }
+}
 
 export default function () {
     group('Patient Service', () => {

@@ -48,7 +48,6 @@ import {
   IdentityCapabilityState,
 } from "../../core/services/identity-capabilities.service";
 import { ApiErrorMessageService } from "../../core/services/api-error-message.service";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { UsersApiService } from "../../core/services/users-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";

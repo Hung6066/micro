@@ -12,8 +12,10 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Audit;
 using His.Hope.Contracts.Identity;
 using His.Hope.Contracts;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -192,12 +194,15 @@ public static class MfaEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(user.Id.ToString(), ct);
 
             var roles = await userManager.GetRolesAsync(user);
-            var permissions = await GetPermissionsForRoles(roles, db, user.Id, ct);
+            var permissions = await GetPermissionsForRoles(roles, db, user.Id, services.GetRequiredService<IConfiguration>(), ct);
             var tokenGenerator = services.GetRequiredService<JwtTokenGenerator>();
             var (accessToken, expiresAt) = tokenGenerator.GenerateAccessToken(
                 user, roles, permissions, amrValues: ["pwd", "otp"]);
 
             var refreshTokenValue = tokenGenerator.GenerateRefreshToken();
+            var sessionIssuedAt = DateTimeOffset.UtcNow;
+            var isPrivileged = services.GetRequiredService<IConfiguration>().GetSection("Identity:SuperAdmin:UserIds").Get<string[]>()
+                ?.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)) == true;
 
             // SECURITY: BFF mode — store tokens in HttpOnly cookie session, not response body
             var sessionId = Guid.NewGuid().ToString("N");
@@ -211,8 +216,11 @@ public static class MfaEndpoints
                 PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
                 CsrfToken = csrfToken,
                 UserAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
-                IssuedAt = DateTimeOffset.UtcNow,
-                ExpiresAt = expiresAt
+                IssuedAt = sessionIssuedAt,
+                ExpiresAt = expiresAt,
+                IsPrivileged = isPrivileged,
+                IdleExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30)),
+                AbsoluteExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromHours(4) : TimeSpan.FromHours(8))
             };
 
             var redis = services.GetRequiredService<IConnectionMultiplexer>();
@@ -252,11 +260,15 @@ public static class MfaEndpoints
             MfaRecoverRequest request,
             HttpContext httpContext,
             RecoveryCodeService recoveryCodeService,
-            TotpService totpService,
             IdentityDbContext db,
             UserManager<User> userManager,
+            ITokenBlacklistService tokenBlacklist,
+            IAuditService audit,
             CancellationToken ct) =>
         {
+            if (!HasCompletedMfa(httpContext.User))
+                return Results.Forbid();
+
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
@@ -285,6 +297,8 @@ public static class MfaEndpoints
             mfa.UpdatedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(ct);
+            await tokenBlacklist.RevokeAllUserTokensAsync(user.Id.ToString(), ct);
+            await AdminAudit.LogAsync(audit, httpContext, "MFA_RECOVERY_RESET", "UserMfa", user.Id.ToString("D"), ct);
 
             return Results.Ok(new { message = "MFA has been reset. Re-enroll to set up a new authenticator." });
         })
@@ -310,7 +324,7 @@ public static class MfaEndpoints
                 string.Equals(value.Trim('"'), "passkey", StringComparison.OrdinalIgnoreCase));
 
     private static async Task<List<string>> GetPermissionsForRoles(
-        IList<string> roleNames, IdentityDbContext db, Guid? userId, CancellationToken ct)
+        IList<string> roleNames, IdentityDbContext db, Guid? userId, IConfiguration configuration, CancellationToken ct)
     {
         var roleIds = await db.Roles
             .Where(r => roleNames.Contains(r.Name!))
@@ -327,7 +341,12 @@ public static class MfaEndpoints
                 .Where(request => request.SubjectUserId == subjectUserId && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > DateTime.UtcNow)
                 .Select(request => request.PermissionCode)
                 .ToListAsync(ct));
-        return permissions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var result = permissions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var configuredIds = configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>() ?? [];
+        return configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false) &&
+            userId is Guid subject && configuredIds.Any(id => Guid.TryParse(id, out var configured) && configured == subject)
+            ? PrivilegedIdentityPermissionBoundary.Filter(result).ToList()
+            : result;
     }
 
     private static UserDto MapToDto(User user, IList<string> roles) => new(

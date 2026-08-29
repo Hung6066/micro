@@ -73,21 +73,21 @@
               {{ "operator.content.imageUrl" | hhTranslate }}
               <input [(ngModel)]="draft.imageUrl" name="imageUrl" />
             </label>
-            <label>
+            <label for="locale">
               {{ "operator.content.locale" | hhTranslate }}
-              <select [(ngModel)]="draft.locale" name="locale">
+              <hh-select id="locale" [(ngModel)]="draft.locale" name="locale">
                 <option value="vi-VN">vi-VN</option>
                 <option value="en-US">en-US</option>
-              </select>
+              </hh-select>
             </label>
-            <label>
+            <label for="status">
               {{ "operator.content.status" | hhTranslate }}
-              <select [(ngModel)]="draft.status" name="status">
+              <hh-select id="status" [(ngModel)]="draft.status" name="status">
                 <option value="draft">{{ "operator.content.status.draft" | hhTranslate }}</option>
                 <option value="published">
                   {{ "operator.content.status.published" | hhTranslate }}
                 </option>
-              </select>
+              </hh-select>
             </label>
 
             @if (statusKey()) {
@@ -113,13 +113,13 @@
                   {{ inquiry.contactName }} · {{ inquiry.email }} · {{ inquiry.phone }}
                 </p>
                 <p>{{ inquiry.partnershipType }} — {{ inquiry.message }}</p>
-                <label>
+                <label for="inquiry-status-{{ inquiry.id }}">
                   {{ "operator.content.inquiry.status" | hhTranslate }}
-                  <select [value]="inquiry.status" (change)="updateInquiryStatus(inquiry, $any($event.target).value)">
+                  <hh-select [id]="'inquiry-status-' + inquiry.id" [ngModel]="inquiry.status" (ngModelChange)="updateInquiryStatus(inquiry, $event)">
                     <option value="new">{{ "operator.content.inquiry.status.new" | hhTranslate }}</option>
                     <option value="in_progress">{{ "operator.content.inquiry.status.in_progress" | hhTranslate }}</option>
                     <option value="closed">{{ "operator.content.inquiry.status.closed" | hhTranslate }}</option>
-                  </select>
+                  </hh-select>
                 </label>
               </article>
             }

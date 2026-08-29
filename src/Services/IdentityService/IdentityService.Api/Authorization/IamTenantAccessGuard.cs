@@ -87,19 +87,19 @@ public static class IamTenantAccessGuard
                         db.UserClaims.Any(claim =>
                             claim.UserId == userRole.UserId &&
                             claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                            filter.AllowedTenantKeys.Contains(claim.ClaimValue))) ||
+                            claim.ClaimValue != null && filter.AllowedTenantKeys.Contains(claim.ClaimValue))) ||
                 db.AccessRequests.Any(request =>
                     request.RoleIdsJson.Contains(role.Id.ToString()) &&
                     db.UserClaims.Any(claim =>
                         claim.UserId == request.SubjectUserId &&
                         claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                        filter.AllowedTenantKeys.Contains(claim.ClaimValue))) ||
+                        claim.ClaimValue != null && filter.AllowedTenantKeys.Contains(claim.ClaimValue))) ||
                 db.AccessReviews.Any(review =>
                     review.RoleIdsJson.Contains(role.Id.ToString()) &&
                     db.UserClaims.Any(claim =>
                         claim.UserId == review.SubjectUserId &&
                         claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
-                        filter.AllowedTenantKeys.Contains(claim.ClaimValue))))
+                        claim.ClaimValue != null && filter.AllowedTenantKeys.Contains(claim.ClaimValue))))
             .AnyAsync(ct);
 
         return visible ? null : Results.NotFound();

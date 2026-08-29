@@ -63,6 +63,15 @@ export const routes: Routes = [
             (m) => m.SyncPageComponent,
           ),
       },
+      {
+        path: "handover",
+        canActivate: [mobileReadGuard],
+        data: { area: "production" },
+        loadComponent: () =>
+          import("./features/handover/shift-handover-page.component").then(
+            (m) => m.ShiftHandoverPageComponent,
+          ),
+      },
     ],
   },
   { path: "**", redirectTo: "operations" },

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, effect, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { DatePipe } from "@angular/common";
 import { RouterLink } from "@angular/router";
@@ -19,7 +19,7 @@ import { BLOG_POSTS } from "../../core/utils/product-media.util";
   templateUrl: "./blog-list-page.component.html",
   styleUrls: ["./blog-list-page.component.scss"],
 })
-export class BlogListPageComponent implements OnInit {
+export class BlogListPageComponent {
   private readonly api = inject(ContentApiService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly errors = inject(HisHopeApiErrorMessageService);
@@ -30,9 +30,6 @@ export class BlogListPageComponent implements OnInit {
   readonly loading = signal(true);
   readonly error = signal("");
   readonly articles = signal<HisHopeContentArticleDto[]>([]);
-
-  ngOnInit(): void {
-  }
 
   private loadArticles(locale: string): void {
     this.loading.set(true);

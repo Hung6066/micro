@@ -46,9 +46,36 @@ internal sealed class TenantRequestNormalizationMiddleware(RequestDelegate next)
             return;
         }
 
-        if (node is JsonObject body && !body.Any(property => string.Equals(property.Key, "tenantKey", StringComparison.OrdinalIgnoreCase)))
+        if (node is JsonObject body)
         {
-            body["tenantKey"] = tenantKey;
+            var tenantProperty = body.FirstOrDefault(property =>
+                string.Equals(property.Key, "tenantKey", StringComparison.OrdinalIgnoreCase));
+            var hasTenantProperty = !string.IsNullOrWhiteSpace(tenantProperty.Key);
+
+            if (hasTenantProperty)
+            {
+                context.Items[TenantContextTelemetry.LegacyBodySelectorItemKey] = true;
+                if (tenantProperty.Value is not JsonValue jsonValue ||
+                    !jsonValue.TryGetValue<string>(out var requestedTenant) ||
+                    string.IsNullOrWhiteSpace(requestedTenant))
+                {
+                    await WriteTenantContextProblemAsync(context, StatusCodes.Status400BadRequest, "tenant_context_invalid");
+                    return;
+                }
+
+                // A body selector is legacy compatibility only. Never allow it
+                // to disagree with the authenticated/header-resolved context.
+                if (!string.Equals(requestedTenant.Trim(), tenantKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    await WriteTenantContextProblemAsync(context, StatusCodes.Status403Forbidden, "tenant_context_mismatch");
+                    return;
+                }
+            }
+            else
+            {
+                body["tenantKey"] = tenantKey;
+            }
+
             var normalized = JsonSerializer.Serialize(body, JsonOptions);
             context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(normalized));
             context.Request.ContentLength = Encoding.UTF8.GetByteCount(normalized);
@@ -59,6 +86,20 @@ internal sealed class TenantRequestNormalizationMiddleware(RequestDelegate next)
         }
 
         await next(context);
+    }
+
+    private static async Task WriteTenantContextProblemAsync(HttpContext context, int statusCode, string errorCode)
+    {
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/problem+json";
+        await JsonSerializer.SerializeAsync(context.Response.Body, new
+        {
+            type = "https://his-hope.com/errors/tenant-context",
+            title = "Tenant context rejected.",
+            status = statusCode,
+            instance = context.Request.Path.Value,
+            errorCode,
+        }, JsonOptions, context.RequestAborted);
     }
 
     private static bool ShouldNormalize(HttpRequest request) =>

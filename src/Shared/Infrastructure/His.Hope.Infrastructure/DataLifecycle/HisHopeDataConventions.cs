@@ -35,6 +35,21 @@ public static class HisHopeDataConventions
                     property.SetColumnName(targetColumn, table);
             }
 
+            // Owned value objects commonly share their owner's table. They
+            // must not receive an independent lifecycle stamp: EF would map
+            // both CreatedAt properties to the same physical column and
+            // reject a write when their values differ. The owner remains the
+            // single source of truth for row lifecycle metadata.
+            var ownership = entityType.FindOwnership();
+            if (ownership is not null &&
+                string.Equals(
+                    entityType.GetTableName(),
+                    ownership.PrincipalEntityType.GetTableName(),
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             var createdAt = entityType.FindProperty("CreatedAt") ?? entityType.AddProperty("CreatedAt", typeof(DateTime?));
             createdAt.SetColumnName("created_at");
             createdAt.SetDefaultValueSql("CURRENT_TIMESTAMP");

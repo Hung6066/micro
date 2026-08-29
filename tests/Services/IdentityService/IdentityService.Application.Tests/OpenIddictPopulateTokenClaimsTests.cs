@@ -7,6 +7,7 @@ using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -81,8 +82,31 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         identity.FindFirst("fullName")!.Value.Should().Be("Nguyen An");
         identity.FindFirst("licenseNumber")!.Value.Should().Be("LIC-42");
         identity.FindAll(OpenIddictConstants.Claims.Role).Select(c => c.Value).Should().BeEquivalentTo("Clinician", "Auditor");
+        identity.FindFirst("super_admin").Should().BeNull();
         identity.FindFirst("amr")!.Value.Should().Be("pwd");
         identity.FindFirst("scope")!.Value.Should().Be("hishop:permissions");
+    }
+
+    [Fact]
+    public async Task Human_principal_gets_super_admin_claim_only_when_configured()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "admin@example.test", UserName = "admin@example.test" };
+        var manager = MockManager(user, []);
+        manager.Setup(x => x.GetRolesAsync(user)).ReturnsAsync(["Admin"]);
+        var identity = new ClaimsIdentity();
+        identity.AddClaim(new Claim(OpenIddictConstants.Claims.Subject, user.Id.ToString("D")));
+        var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Identity:SuperAdmin:UserIds:0"] = user.Id.ToString("D")
+            })
+            .Build();
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), manager.Object, configuration).HandleAsync(context);
+
+        identity.FindFirst("super_admin")!.Value.Should().Be("true");
     }
 
     [Fact]
@@ -115,7 +139,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         var identity = new ClaimsIdentity();
         identity.AddClaim(new Claim(OpenIddictConstants.Claims.Subject, user.Id.ToString("D")));
         var context = Context(OpenIddictConstants.GrantTypes.AuthorizationCode, new ClaimsPrincipal(identity));
-        context.Transaction.Request.ClientId = "manufacturing-app";
+        context.Transaction!.Request!.ClientId = "manufacturing-app";
 
         await Handler(db, registry, manager.Object).HandleAsync(context);
 
@@ -286,7 +310,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         var registry = new TestConglomerateTenantRegistry(enabled: true, clientTenants: []);
         var identity = SubjectIdentity(user.Id);
         var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
-        context.Transaction.Request.ClientId = "public-client";
+        context.Transaction!.Request!.ClientId = "public-client";
 
         await Handler(db, registry, manager.Object).HandleAsync(context);
 
@@ -307,7 +331,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
             clientTenants: new Dictionary<string, string> { ["unbound-client"] = string.Empty });
         var identity = SubjectIdentity(user.Id);
         var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
-        context.Transaction.Request.ClientId = "unbound-client";
+        context.Transaction!.Request!.ClientId = "unbound-client";
 
         await Handler(db, registry, manager.Object).HandleAsync(context);
 
@@ -326,7 +350,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
             clientTenants: new Dictionary<string, string> { ["tenant-client"] = "tenant-a" });
         var identity = SubjectIdentity(user.Id);
         var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
-        context.Transaction.Request.ClientId = "tenant-client";
+        context.Transaction!.Request!.ClientId = "tenant-client";
 
         await Handler(db, registry, manager.Object).HandleAsync(context);
 
@@ -376,13 +400,14 @@ public sealed class OpenIddictPopulateTokenClaimsTests
     }
 
     private static CustomPopulateTokenClaims Handler(IApplicationDbContext db) =>
-        new(CreateUserManager(), db, new DisabledConglomerateTenantRegistry(), NullLogger<CustomPopulateTokenClaims>.Instance);
+        new(CreateUserManager(), db, new DisabledConglomerateTenantRegistry(), new ConfigurationBuilder().Build(), NullLogger<CustomPopulateTokenClaims>.Instance);
 
     private static CustomPopulateTokenClaims Handler(
         IApplicationDbContext db,
         IConglomerateTenantRegistry tenantRegistry,
-        UserManager<User>? userManager = null) =>
-        new(userManager ?? CreateUserManager(), db, tenantRegistry, NullLogger<CustomPopulateTokenClaims>.Instance);
+        UserManager<User>? userManager = null,
+        IConfiguration? configuration = null) =>
+        new(userManager ?? CreateUserManager(), db, tenantRegistry, configuration ?? new ConfigurationBuilder().Build(), NullLogger<CustomPopulateTokenClaims>.Instance);
 
     private static Mock<UserManager<User>> MockManager(User user, IEnumerable<Claim> claims)
     {

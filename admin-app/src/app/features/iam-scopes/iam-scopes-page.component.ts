@@ -23,7 +23,6 @@ import { IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { map } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";

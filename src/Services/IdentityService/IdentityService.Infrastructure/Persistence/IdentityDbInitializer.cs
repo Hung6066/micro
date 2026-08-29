@@ -445,7 +445,11 @@ public static class IdentityDbInitializer
                 await userManager.RemoveFromRoleAsync(adminUser, "Provider");
                 logger.LogInformation("Admin user removed from Provider role.");
             }
+
         }
+
+        if (hostEnvironment?.IsProduction() == true)
+            await ValidateProductionSuperAdminsAsync(configuration, userManager, context, logger, ct);
 
         // ──────────────────────────────────────────────
         // Step 5: Seed OpenIddict Application (idempotent)
@@ -1449,6 +1453,55 @@ public static class IdentityDbInitializer
             section["Role"] ?? section["role"] ?? "",
             section["FirstName"] ?? section["firstName"] ?? "",
             section["LastName"] ?? section["lastName"] ?? "");
+    }
+
+    private static async Task ValidateProductionSuperAdminsAsync(
+        IConfiguration? configuration,
+        UserManager<User> userManager,
+        IdentityDbContext context,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var configuredIds = configuration?.GetSection("Identity:SuperAdmin:UserIds")
+            .Get<string[]>() ?? [];
+        if (configuredIds.Length == 0)
+            throw new InvalidOperationException(
+                "Production requires at least one configured Identity:SuperAdmin:UserIds entry.");
+
+        foreach (var configuredId in configuredIds)
+        {
+            if (!Guid.TryParse(configuredId, out var userId))
+                throw new InvalidOperationException(
+                    $"Production super-admin ID '{configuredId}' is not a valid user GUID.");
+
+            var user = await userManager.FindByIdAsync(userId.ToString("D"));
+            if (user is null || !user.IsActive)
+                throw new InvalidOperationException(
+                    $"Production super-admin '{userId:D}' must exist and be active before IdentityService can start.");
+            if (!user.EmailConfirmed)
+                throw new InvalidOperationException(
+                    $"Production super-admin '{userId:D}' must have a confirmed email before IdentityService can start.");
+
+            var hasMfa = await context.Set<UserMfa>()
+                .AsNoTracking()
+                .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, cancellationToken);
+            var passkeyCount = await context.Set<PasskeyCredential>()
+                .AsNoTracking()
+                .CountAsync(item => item.UserId == user.Id.ToString(), cancellationToken);
+            if (!hasMfa && passkeyCount < 2)
+                throw new InvalidOperationException(
+                    $"Production super-admin '{userId:D}' must enroll MFA or at least two passkeys before IdentityService can start.");
+
+            if (!user.TwoFactorEnabled)
+            {
+                user.TwoFactorEnabled = true;
+                var result = await userManager.UpdateAsync(user);
+                if (!result.Succeeded)
+                    throw new InvalidOperationException(
+                        $"Failed to enable MFA enforcement for production super-admin '{userId:D}'.");
+                logger.LogInformation("Production super-admin MFA enforcement enabled for {UserId}.", userId);
+            }
+        }
     }
 
     private static string? ResolveConglomeratePilotPassword(

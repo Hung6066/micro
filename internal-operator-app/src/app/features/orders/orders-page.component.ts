@@ -1,3 +1,4 @@
+import { FormsModule } from "@angular/forms";
 import { CurrencyPipe, DatePipe } from "@angular/common";
 import {
   ChangeDetectionStrategy,
@@ -13,6 +14,7 @@ import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
+  HisHopeSelectComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -31,12 +33,14 @@ import { AdminDirectoryService, OperatorDirectoryUser } from "../../core/service
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FormsModule,
     CurrencyPipe,
     DatePipe,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
     HisHopeTranslatePipe,
+    HisHopeSelectComponent,
   ],
   template: `
     <hh-page-layout>
@@ -63,12 +67,12 @@ import { AdminDirectoryService, OperatorDirectoryUser } from "../../core/service
                   <strong>{{ order.id.slice(0, 8) }}</strong>
                   <span>{{ order.createdAt | date: "medium" }}</span>
                 </div>
-                <select [value]="order.status" (change)="updateStatus(order, $any($event.target).value)">
+                <hh-select [ngModel]="order.status" (ngModelChange)="updateStatus(order, $event)">
                   <option value="pending">{{ "customerPortal.orderStatusPending" | hhTranslate: "pending" }}</option>
                   <option value="confirmed">{{ "customerPortal.orderStatusConfirmed" | hhTranslate: "confirmed" }}</option>
                   <option value="shipped">{{ "customerPortal.orderStatusShipped" | hhTranslate: "shipped" }}</option>
                   <option value="cancelled">{{ "customerPortal.orderStatusCancelled" | hhTranslate: "cancelled" }}</option>
-                </select>
+                </hh-select>
               </header>
               <p>
                 {{

@@ -12,7 +12,9 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using Grpc.Core;
 
 namespace His.Hope.Bff.Core;
 
@@ -63,7 +65,21 @@ public static class DependencyInjection
 
     public static WebApplication MapBffAggregation(this WebApplication app)
     {
-        var handlers = app.Services.GetServices<IAggregationHandler>();
+        // Production handlers are singletons. Some integration hosts intentionally
+        // register them as scoped; support both lifetimes while keeping route metadata
+        // available during endpoint mapping.
+        IServiceScope? mappingScope = null;
+        IEnumerable<IAggregationHandler> handlers;
+        try
+        {
+            handlers = app.Services.GetServices<IAggregationHandler>().ToArray();
+        }
+        catch (InvalidOperationException)
+        {
+            mappingScope = app.Services.CreateScope();
+            handlers = mappingScope.ServiceProvider.GetServices<IAggregationHandler>().ToArray();
+            app.Lifetime.ApplicationStopped.Register(mappingScope.Dispose);
+        }
 
         foreach (var handler in handlers)
         {
@@ -76,7 +92,20 @@ public static class DependencyInjection
                 var aggContext = new AggregationContext(
                     routeValues, jwt, context.RequestAborted);
 
-                var result = await handler.HandleAsync(aggContext);
+                AggregationResult result;
+                try
+                {
+                    result = await handler.HandleAsync(aggContext);
+                }
+                catch (Exception exception) when (IsDownstreamFailure(exception))
+                {
+                    // Aggregation endpoints are a boundary around downstream services.
+                    // Never expose transport exceptions as a 500; return a stable gateway
+                    // response so clients can retry or render a degraded state.
+                    app.Logger.LogWarning(exception,
+                        "Downstream aggregation failed for {Route}", handler.Route);
+                    result = AggregationResult.Failed("Downstream service unavailable");
+                }
 
                 context.Response.StatusCode = result.StatusCode;
                 context.Response.ContentType = "application/json";
@@ -90,6 +119,17 @@ public static class DependencyInjection
 
         return app;
     }
+
+    private static bool IsDownstreamFailure(Exception exception) => exception switch
+    {
+        RpcException rpc when rpc.StatusCode is StatusCode.Unavailable
+            or StatusCode.DeadlineExceeded
+            or StatusCode.Internal
+            or StatusCode.Unknown => true,
+        HttpRequestException => true,
+        TimeoutException => true,
+        _ => exception.InnerException is not null && IsDownstreamFailure(exception.InnerException)
+    };
 
     public static WebApplication MapBffHealth(this WebApplication app)
     {

@@ -16,7 +16,6 @@ import {
 import { ClientsApiService } from "../../core/services/clients-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopePageQuery } from "@his-hope/frontend-foundation";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   HisHopeAuditFeedbackService,
   HisHopeBulkAction,

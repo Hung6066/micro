@@ -1,4 +1,5 @@
 using His.Hope.AspNetCore;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
 using His.Hope.Observability;
@@ -164,6 +165,7 @@ app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
 
 
 app.UsePhiAudit();
@@ -205,7 +207,7 @@ encounters.MapGet("/{id:guid}", async (
     if (encounterDto is null) return Results.NotFound();
     var encounter = await cache.GetOrSetAsync(
         $"encounter:{id}",
-        async () => encounterDto,
+        () => Task.FromResult(encounterDto),
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(encounter);
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalView).WithOpenApi();
@@ -491,7 +493,7 @@ dashboard.MapGet("/recent-encounters", async (
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.ReportsView).WithOpenApi();
 
 // GET /api/v1/dashboard/upcoming-appointments - returns upcoming appointments (mock data for now)
-dashboard.MapGet("/upcoming-appointments", async (
+dashboard.MapGet("/upcoming-appointments", (
     CancellationToken ct = default) =>
 {
     // Mock data until appointment integration is wired into ClinicalService
@@ -598,33 +600,6 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.MapHisHopeHealthEndpoints();
 app.Run();
-
-static X509Certificate2 LoadServerCertificate(IConfiguration config)
-{
-    var certPath = config["Certificates:Server:Path"];
-    var certPassword = config["Certificates:Server:Password"];
-    if (!string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword))
-        return new X509Certificate2(certPath, certPassword);
-    var pfxPath = Path.Combine(AppContext.BaseDirectory, "server.pfx");
-    if (File.Exists(pfxPath))
-        return new X509Certificate2(pfxPath, "his-hope-dev");
-    using var rsa = System.Security.Cryptography.RSA.Create(2048);
-    var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
-        "CN=his-hope-clinical, O=His.Hope", rsa,
-        System.Security.Cryptography.HashAlgorithmName.SHA256,
-        System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, true));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509KeyUsageExtension(
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.DigitalSignature |
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.KeyEncipherment, false));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
-        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1") }, true));
-    var san = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
-    san.AddDnsName("localhost"); san.AddDnsName("clinicalservice");
-    req.CertificateExtensions.Add(san.Build());
-    var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
-    return cert;
-}
 
 // DTO for raw SQL query results
 public class EncounterTypeCount

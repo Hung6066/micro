@@ -7,14 +7,21 @@ internal static class ManufacturingHttpExtensions
 
     public static bool TryResolveTenant(HttpContext context, string? requestedTenant, out string tenantKey)
     {
-        // Resolve through the shared context resolver so the canonical
-        // X-HisHope-Tenant header is honored consistently. The optional
-        // parameter remains only for legacy endpoint model binding.
-        var requested = context.GetRequestedTenant();
-        if (string.IsNullOrWhiteSpace(requested) && !string.IsNullOrWhiteSpace(requestedTenant))
-            requested = requestedTenant.Trim();
+        // The endpoint boundary resolves the tenant once. Keep the optional
+        // parameter solely as a compatibility check; handlers never select a
+        // tenant independently from the request context.
+        if (context.HasConflictingTenantSelectors())
+        {
+            tenantKey = string.Empty;
+            return false;
+        }
 
-        return context.User.TryResolveActiveTenant(requested, out tenantKey);
+        tenantKey = context.RequestServices.GetService<IHisHopeTenantContext>()?.TenantKey
+            ?? context.ResolveActiveTenant()
+            ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(tenantKey) &&
+            (string.IsNullOrWhiteSpace(requestedTenant) ||
+             string.Equals(requestedTenant.Trim(), tenantKey, StringComparison.OrdinalIgnoreCase));
     }
 
     public static bool TenantMatches(HttpContext context, string requestedTenant) =>

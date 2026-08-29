@@ -1,14 +1,16 @@
 import { ChangeDetectorRef, Component, effect, inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
-import { OperatorMobileApiService, type InspectionPlanVersion, type QualityInspection } from "../../core/services/operator-mobile-api.service";
+import { OperatorMobileApiService, type InspectionPlanVersion, type ProductionBatch, type QualityInspection, type QualitySample } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
 import type { LotSummary } from "../../core/services/operator-mobile-api.service";
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
+import { HisHopeSelectComponent } from "@his-hope/frontend-foundation/ui";
+import { operatorMobileErrorMessage } from "../../core/operator-mobile-error.util";
 
-@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe], templateUrl: "./quality-inspection-page.component.html", styleUrls: ["./quality-inspection-page.component.scss"] })
+@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeSelectComponent], templateUrl: "./quality-inspection-page.component.html", styleUrls: ["./quality-inspection-page.component.scss"] })
 export class QualityInspectionPageComponent {
   private readonly api = inject(OperatorMobileApiService);
   private readonly queue = inject(OperationQueueService);
@@ -36,12 +38,21 @@ export class QualityInspectionPageComponent {
   sampleCode = "";
   sampleLocation = "";
   sampleNotes = "";
+  samples: QualitySample[] = [];
+  sampleId = "";
+  sampleDisposition = "Pending";
+  sampleDispositionReason = "";
+  batches: ProductionBatch[] = [];
+  deviationBatchId = "";
+  deviationType = "Process deviation";
+  deviationDescription = "";
+  deviationImpact = "";
 
   constructor() {
     effect(() => {
       const tenantKey = this.tenant.activeTenantKey?.();
       if (!tenantKey) { this.lots = []; this.planVersions = []; this.inspectionPlanVersionId = ""; this.inspections = []; this.inspectionId = ""; return; }
-      this.api.getLots().pipe(catchError(() => { this.loadError = this.i18n.t("mobile.operatorDataLoadFailed", "Unable to load operational data. Check your connection and permissions."); this.cdr.markForCheck(); return of([]); })).subscribe((lots) => {
+      this.api.getLots().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of([]); })).subscribe((lots) => {
         setTimeout(() => {
           this.lots = lots;
           if (this.lotId && !lots.some((lot) => lot.id === this.lotId)) this.lotId = "";
@@ -51,14 +62,29 @@ export class QualityInspectionPageComponent {
       this.api.getInspectionPlanVersions().pipe(catchError(() => of([]))).subscribe((plans) => {
         setTimeout(() => { this.planVersions = plans; this.cdr.markForCheck(); });
       });
+      this.api.getProductionBatches("Started").pipe(catchError(() => of([]))).subscribe((batches) => {
+        setTimeout(() => { this.batches = batches; if (this.deviationBatchId && !batches.some((batch) => batch.id === this.deviationBatchId)) this.deviationBatchId = ""; this.cdr.markForCheck(); });
+      });
     });
   }
 
   loadInspections(): void {
-    if (!this.lotId) { this.inspections = []; this.inspectionId = ""; return; }
+    if (!this.lotId) { this.inspections = []; this.inspectionId = ""; this.samples = []; this.sampleId = ""; return; }
     this.api.getLotQualityInspections(this.lotId).pipe(catchError(() => of([]))).subscribe((inspections) => {
-      setTimeout(() => { this.inspections = inspections; this.inspectionId = inspections[0]?.id ?? ""; this.cdr.markForCheck(); });
+      setTimeout(() => { this.inspections = inspections; this.inspectionId = inspections[0]?.id ?? ""; this.loadSamples(); this.cdr.markForCheck(); });
     });
+  }
+
+  loadSamples(): void {
+    if (!this.inspectionId) { this.samples = []; this.sampleId = ""; return; }
+    this.api.getQualitySamples(this.inspectionId).pipe(catchError(() => of([]))).subscribe((samples) => {
+      setTimeout(() => { this.samples = samples; this.sampleId = samples[0]?.id ?? ""; this.sampleDisposition = samples[0]?.disposition ?? "Pending"; this.cdr.markForCheck(); });
+    });
+  }
+
+  selectSample(): void {
+    const sample = this.samples.find((item) => item.id === this.sampleId);
+    this.sampleDisposition = sample?.disposition ?? "Pending";
   }
 
   lotOptionLabel(lot: LotSummary): string {
@@ -102,5 +128,31 @@ export class QualityInspectionPageComponent {
       (queued) => this.api.createQualitySample(queued),
     );
     this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorSampleSaved", "Quality sample saved.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
+  }
+
+  async changeSampleDisposition(): Promise<void> {
+    const scope = this.tenant.commandScope;
+    if (!scope || !this.sampleId || this.sampleDisposition === "Pending") {
+      this.message = this.i18n.t("mobile.operatorSampleDispositionValidation", "Select a sample and a final disposition.");
+      return;
+    }
+    const operation = await this.queue.submit(
+      { ...scope, endpoint: `/quality-samples/${this.sampleId}/disposition`, payload: { disposition: this.sampleDisposition, actor: this.inspector.trim(), reason: this.sampleDispositionReason.trim() || undefined } },
+      (queued) => this.api.changeQualitySampleDisposition(queued),
+    );
+    this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorSampleDispositionSaved", "Sample disposition saved.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
+  }
+
+  async createDeviation(): Promise<void> {
+    const scope = this.tenant.commandScope;
+    if (!scope || !this.deviationBatchId || !this.deviationType.trim() || !this.deviationDescription.trim() || !this.deviationImpact.trim()) {
+      this.message = this.i18n.t("mobile.operatorDeviationValidation", "Select a batch and complete the deviation details.");
+      return;
+    }
+    const operation = await this.queue.submit(
+      { ...scope, endpoint: `/production-batches/${this.deviationBatchId}/deviations`, payload: { type: this.deviationType.trim(), description: this.deviationDescription.trim(), impact: this.deviationImpact.trim(), requestedBy: scope.subjectId } },
+      (queued) => this.api.createDeviation(queued),
+    );
+    this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorDeviationSaved", "Deviation submitted.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
   }
 }

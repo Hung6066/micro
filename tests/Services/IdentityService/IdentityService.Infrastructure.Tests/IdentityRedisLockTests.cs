@@ -50,7 +50,7 @@ public sealed class IdentityRedisLockTests
                 When.NotExists)).ReturnsAsync(true);
         database.Setup(x => x.ScriptEvaluateAsync(
                 It.IsAny<string>(), It.IsAny<RedisKey[]>(), It.IsAny<RedisValue[]>(), CommandFlags.None))
-            .ReturnsAsync(default(RedisResult));
+            .Returns(Task.FromResult(RedisResult.Create(Array.Empty<RedisValue>())));
 
         await using (await new IdentityRedisLock(Redis(database).Object)
             .TryAcquireAsync("hishop:retention", TimeSpan.FromMinutes(1))) { }

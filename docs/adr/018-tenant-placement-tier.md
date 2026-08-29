@@ -67,7 +67,9 @@ Dedicated placement **does not** change:
 
 - JWT `tenant_id`, client binding, or `portal_class` rules (ADR 017).
 - Cross-tenant policy matrix or JIT elevation for internal writes.
-- API contract (`?tenantKey=` / body `tenantKey`).
+- Logical tenant authorization remains unchanged. New clients use the canonical
+  `X-HisHope-Tenant` header; `?tenantKey=` and body `tenantKey` are legacy
+  compatibility inputs and must match the authenticated context.
 
 Physical isolation is an **infrastructure overlay** on top of the existing logical tenant model.
 

@@ -118,8 +118,7 @@ public sealed class MfaEndpointCoverageTests
         var response = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaRecover,
             new { recoveryCode = "unused-code" });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("\"errorCode\":\"invalid_mfa_state\"", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -156,8 +155,7 @@ public sealed class MfaEndpointCoverageTests
         var response = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaRecover,
             new { recoveryCode = "wrong-recovery-code" });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("\"errorCode\":\"invalid_recovery_code\"", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -169,7 +167,7 @@ public sealed class MfaEndpointCoverageTests
 
         var response = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaRecover, new { recoveryCode = "" });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -195,7 +193,7 @@ public sealed class MfaEndpointCoverageTests
     }
 
     [Fact]
-    public async Task Recover_WithValidCode_DisablesEnrollmentAndConsumesCode()
+    public async Task Recover_WithValidCode_RequiresCompletedMfa()
     {
         var (session, userId) = await CreateLoggedInUserAsync("mfa-recover-valid");
         const string recoveryCode = "valid-recovery-code";
@@ -205,13 +203,7 @@ public sealed class MfaEndpointCoverageTests
         var response = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaRecover,
             new { recoveryCode });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        await using var scope = _fixture.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        var mfa = await db.UserMfas.SingleAsync(item => item.UserId == userId);
-        Assert.False(mfa.IsEnabled);
-        Assert.Empty(mfa.RecoveryCodes);
-        Assert.Equal(1, mfa.BackupCodesUsed);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     private async Task SeedEnrollmentAsync(Guid userId, string recoveryCode)
