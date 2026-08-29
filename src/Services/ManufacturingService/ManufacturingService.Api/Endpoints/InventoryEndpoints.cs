@@ -4,6 +4,7 @@ using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Application;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Persistence.Querying;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
@@ -36,25 +37,25 @@ internal static class InventoryEndpoints
                     return Results.Ok(store.GetRecallImpact(lotId, tenantKey, Math.Clamp(maxLots ?? 500, 1, 5000)));
                 });
 
-                api.MapGet("/traceability/epcis", (DateTimeOffset? from, DateTimeOffset? to, int? limit, HttpContext context, IManufacturingTraceabilityStore store) =>
+                api.MapGet("/traceability/epcis", async (DateTimeOffset? from, DateTimeOffset? to, int? limit, int? page, HttpContext context, IManufacturingTraceabilityStore store, CancellationToken cancellationToken) =>
                 {
                     var tenantKey = TenantClaim(context);
                     return string.IsNullOrWhiteSpace(tenantKey)
                         ? Results.Forbid()
-                        : Results.Ok(store.GetEpcisEvents(tenantKey, from, to, Math.Clamp(limit ?? 500, 1, 5000)));
+                        : Results.Ok(await store.GetEpcisEventsAsync(tenantKey, from, to, Math.Clamp(limit ?? HisHopePaginationDefaults.ExportDefaultPageSize, 1, HisHopePaginationDefaults.ExportMaxPageSize), page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
-                api.MapGet("/lots", (string? tenantKey, string? sku, string? disposition, int? limit, HttpContext context, IManufacturingProductionStore store) =>
+                api.MapGet("/lots", async (string? tenantKey, string? sku, string? disposition, int? limit, int? page, HttpContext context, IManufacturingProductionStore store, CancellationToken cancellationToken) =>
                 {
                     if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid();
-                    return Results.Ok(store.GetLots(scopedTenant, sku, disposition, limit ?? 50));
+                    return Results.Ok(await store.GetLotsAsync(scopedTenant, sku, disposition, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
-                api.MapGet("/lots/{lotId:guid}/status-history", (Guid lotId, int? limit, HttpContext context, IManufacturingProductionStore store) =>
+                api.MapGet("/lots/{lotId:guid}/status-history", (Guid lotId, int? limit, int? page, HttpContext context, IManufacturingProductionStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    return Results.Ok(store.GetLotStatusHistory(lotId, tenantKey, limit ?? 50));
+                    return Results.Ok(store.GetLotStatusHistory(lotId, tenantKey, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
                 api.MapPost("/lots/{lotId:guid}/disposition", (Guid lotId, LotDispositionRequest request, HttpContext context, IManufacturingProductionStore store) =>
@@ -72,12 +73,12 @@ internal static class InventoryEndpoints
                     };
                 });
 
-                api.MapGet("/lots/{lotId:guid}/inventory-transactions", (Guid lotId, int? limit, HttpContext context, IManufacturingTraceabilityStore store) =>
+                api.MapGet("/lots/{lotId:guid}/inventory-transactions", async (Guid lotId, int? limit, int? page, HttpContext context, IManufacturingTraceabilityStore store, CancellationToken cancellationToken) =>
                 {
                     var tenantKey = TenantClaim(context);
                     return string.IsNullOrWhiteSpace(tenantKey)
                         ? Results.Forbid()
-                        : Results.Ok(store.GetInventoryTransactions(lotId, tenantKey, limit ?? 100));
+                        : Results.Ok(await store.GetInventoryTransactionsAsync(lotId, tenantKey, limit ?? HisHopePaginationDefaults.SmallDefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
                 api.MapPost("/lots/{lotId:guid}/reservations", (Guid lotId, CreateLotReservationRequest request, HttpContext context, IManufacturingReservationStore store) =>
@@ -151,7 +152,3 @@ internal static class InventoryEndpoints
         return api;
     }
 }
-
-
-
-

@@ -56,12 +56,9 @@ test("authenticated operator can reach production work", async ({ page }) => {
     .poll(async () => page.locator(".hh-select__option").count())
     .toBeGreaterThan(1);
   await page.locator(".hh-select__option").nth(1).click();
-  const workflowSection = page
-    .locator(".work-page .secondary-section")
-    .filter({ hasText: /Batch workflow|Vòng đời lô sản xuất/i })
-    .first();
-  await expect(workflowSection.locator("summary")).toBeVisible();
-  await workflowSection.locator("summary").click();
+  await page.getByRole("tab", { name: /Overview|Tổng quan/i }).click();
+  await expect(page.locator(".work-page details")).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(2);
   await expect(
     page.getByRole("heading", { name: /Batch workflow|Vòng đời lô sản xuất/i }),
   ).toBeVisible();
@@ -122,12 +119,9 @@ test("authenticated operator can switch locale and theme", async ({ page }) => {
   await page.goto("/operations/maintenance");
   await expect((await healthResponse).status()).toBe(200);
   await expect((await maintenancePlansResponse).status()).toBe(200);
-  const machineContext = page
-    .locator(".maintenance-page .secondary-section")
-    .filter({ hasText: /Machine context|Thông tin máy/i })
-    .first();
-  await expect(machineContext.locator("summary")).toBeVisible();
-  await machineContext.locator("summary").click();
+  await page.getByRole("tab", { name: /Machine|Thông tin máy/i }).click();
+  await expect(page.locator(".maintenance-page details")).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(3);
   await expect(
     page.getByRole("heading", { name: /Machine health|Tình trạng máy/i }),
   ).toBeVisible();
@@ -147,6 +141,11 @@ test("authenticated operator can switch locale and theme", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: /Scan a lot|Quét lô/i }),
   ).toBeVisible();
+  await page.getByRole("tab", { name: /History|Lịch sử/i }).click();
+  await expect(page.locator(".scan-page details")).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.locator(".scan-page button").first()).toBeVisible();
+  await page.getByRole("tab", { name: /Lot action|Thao tác lô/i }).click();
   await expect
     .poll(() =>
       page.evaluate(
@@ -186,6 +185,18 @@ test("authenticated operator can switch locale and theme", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: /Record inspection|Ghi nhận kiểm tra/i }),
   ).toBeVisible();
+  await expect(page.locator(".quality-page details")).toHaveCount(0);
+  await page.getByRole("tab", { name: /Samples|Mẫu/i }).click();
+  await expect(
+    page.getByRole("heading", { name: /Quality sample|Mẫu chất lượng/i }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: /Deviations|Sai lệch/i }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: /Production deviation|Sai lệch sản xuất/i,
+    }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: /Inspection|Kiểm tra/i }).click();
   await expect(page.locator("body")).not.toContainText("mobile.");
   await expect
     .poll(() =>

@@ -4,6 +4,7 @@ using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Application;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Persistence.Querying;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
@@ -18,16 +19,16 @@ internal static class ProductionEndpoints
     public static RouteGroupBuilder MapProductionEndpoints(this RouteGroupBuilder api)
     {
                 
-                api.MapGet("/transformations", (string? tenantKey, string? processStep, int? limit, HttpContext context, IManufacturingProductionStore store) =>
+                api.MapGet("/transformations", (string? tenantKey, string? processStep, int? limit, int? page, HttpContext context, IManufacturingProductionStore store) =>
                 {
                     if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid();
-                    return Results.Ok(store.GetTransformationSummaries(scopedTenant, processStep, limit ?? 50));
+                    return Results.Ok(store.GetTransformationSummaries(scopedTenant, processStep, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
-                api.MapGet("/recipes", (string? tenantKey, string? productSku, bool? active, int? limit, HttpContext context, IManufacturingRecipeWorkflowStore store) =>
+                api.MapGet("/recipes", (string? tenantKey, string? productSku, bool? active, int? limit, int? page, HttpContext context, IManufacturingRecipeWorkflowStore store) =>
                 {
                     if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid();
-                    return Results.Ok(store.GetRecipes(scopedTenant, productSku, active, limit ?? 50));
+                    return Results.Ok(store.GetRecipes(scopedTenant, productSku, active, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
                 api.MapPost("/recipes", (CreateRecipeRequest request, HttpContext context, IManufacturingRecipeWorkflowStore store) =>
@@ -239,6 +240,4 @@ internal static class ProductionEndpoints
         return api;
     }
 }
-
-
 

@@ -1054,8 +1054,8 @@ public static class IdentityServiceEndpointExtensions
             return Results.Ok(new { tenants });
         }).RequireAuthorization();
         admin.MapGroup("/consents").RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead).MapGet("/", async (
-            int page = 1,
-            int pageSize = 20,
+            int page = PaginationDefaults.DefaultPage,
+            int pageSize = PaginationDefaults.DefaultPageSize,
             string? search = null,
             string? clientId = null,
             string? sort = null,
@@ -1063,14 +1063,16 @@ public static class IdentityServiceEndpointExtensions
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            if (page < 1 || pageSize is < 1 or > 100)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["pageSize"] = ["pageSize must be between 1 and 100 and page must be at least 1."] });
+            if (page < PaginationDefaults.DefaultPage || pageSize is < 1 or > PaginationDefaults.MaxPageSize)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["pageSize"] = [$"pageSize must be between 1 and {PaginationDefaults.MaxPageSize} and page must be at least {PaginationDefaults.DefaultPage}."] });
             if (search?.Length > 100 || clientId?.Length > 100 || sort?.Length > 100)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search must be 100 characters or fewer."] });
 
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
 
-            var query = db.ClientConsents.AsNoTracking().Where(c => c.IsActive);
+            var query = db.ClientConsents.AsNoTracking()
+                .TagWith("Identity.Consents.GetConsents")
+                .Where(c => c.IsActive);
             if (tenantFilter.AllowedTenantKeys is { } consentTenantKeys)
             {
                 // Keep the membership predicate rooted at UserClaims. Calling

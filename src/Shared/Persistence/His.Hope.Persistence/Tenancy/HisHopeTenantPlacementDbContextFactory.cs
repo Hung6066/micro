@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using His.Hope.AspNetCore.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
+using His.Hope.Persistence;
 
 namespace His.Hope.Persistence.Tenancy;
 
@@ -132,6 +135,29 @@ public sealed class SingleConnectionDbContextFactory<TContext>(
 
 public static class HisHopeTenantAwareDbContextFactoryExtensions
 {
+    public static IServiceCollection AddHisHopeTenantAwareNpgsqlDbContextFactory<TContext>(
+        this IServiceCollection services,
+        string serviceName,
+        IConfiguration configuration,
+        Action<NpgsqlDbContextOptionsBuilder>? configureNpgsql = null,
+        Action<IServiceProvider, DbContextOptionsBuilder<TContext>>? configureContext = null)
+        where TContext : DbContext
+    {
+        services.AddHisHopeDatabasePerformance(configuration);
+        return services.AddHisHopeTenantAwareDbContextFactory<TContext>(
+            serviceName,
+            (serviceProvider, optionsBuilder, connectionString, connectionName) =>
+            {
+                optionsBuilder.UseHisHopeNpgsql(
+                    serviceProvider,
+                    configuration,
+                    connectionString,
+                    connectionName,
+                    configureNpgsql);
+                configureContext?.Invoke(serviceProvider, optionsBuilder);
+            });
+    }
+
     public static IServiceCollection AddHisHopeTenantAwareDbContextFactory<TContext>(
         this IServiceCollection services,
         string serviceName,

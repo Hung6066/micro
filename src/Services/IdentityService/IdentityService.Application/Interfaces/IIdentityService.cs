@@ -11,13 +11,13 @@ public interface IIdentityService
     Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default);
 
     // Password recovery
-    Task<string> GeneratePasswordResetTokenAsync(string email);
-    Task ResetPasswordAsync(string email, string token, string newPassword);
-    Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword);
+    Task<string> GeneratePasswordResetTokenAsync(string email, CancellationToken cancellationToken = default);
+    Task ResetPasswordAsync(string email, string token, string newPassword, CancellationToken cancellationToken = default);
+    Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
 
     // Email verification
-    Task<string> GenerateEmailConfirmationTokenAsync(Guid userId);
-    Task ConfirmEmailAsync(string email, string token);
+    Task<string> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task ConfirmEmailAsync(string email, string token, CancellationToken cancellationToken = default);
 
     /// <summary>Role, IAM permission-set, break-glass, and boundary-resolved permissions.</summary>
     Task<IReadOnlyList<string>> GetEffectivePermissionsAsync(Guid userId, CancellationToken cancellationToken = default);

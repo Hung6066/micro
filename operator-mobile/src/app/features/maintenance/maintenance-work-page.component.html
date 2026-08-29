@@ -17,11 +17,53 @@
   @if (loadError) {
     <p class="load-error" role="alert">{{ loadError }}</p>
   }
+  <hh-tabs label="Maintenance sections">
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'work'"
+      [class.active]="activeTab === 'work'"
+      (click)="activeTab = 'work'"
+    >
+      {{ "mobile.operatorWorkOrderTab" | hhTranslate: "Work order" }}
+    </button>
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'machine'"
+      [class.active]="activeTab === 'machine'"
+      (click)="activeTab = 'machine'"
+    >
+      {{ "mobile.operatorMachineContext" | hhTranslate: "Machine context" }}
+    </button>
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'downtime'"
+      [class.active]="activeTab === 'downtime'"
+      (click)="activeTab = 'downtime'"
+    >
+      {{ "mobile.operatorDowntimeTab" | hhTranslate: "Downtime" }}
+    </button>
+  </hh-tabs>
+  @if (activeTab !== "work" && (machineId || workOrderId)) {
+    <div class="operator-context-bar" role="status" aria-live="polite">
+      @if (machineId) {
+        <span class="operator-context-bar__label">{{
+          "mobile.operatorMachineId" | hhTranslate: "Machine"
+        }}</span>
+        <strong>{{ selectedMachineLabel() }}</strong>
+      }
+      @if (workOrderId) {
+        <span class="operator-context-bar__label">{{
+          "mobile.operatorWorkOrderId" | hhTranslate: "Work order"
+        }}</span>
+        <strong>{{ workOrderId.slice(0, 8) }}</strong>
+      }
+    </div>
+  }
   <article>
-    <details class="secondary-section">
-      <summary>
-        {{ "mobile.operatorMachineContext" | hhTranslate: "Machine context" }}
-      </summary>
+    @if (activeTab === "machine") {
       @if (health; as snapshot) {
         <aside class="health-card" aria-live="polite">
           <h3>
@@ -156,115 +198,128 @@
           }
         </aside>
       }
-    </details>
-    <label for="maintenance-work-order"
-      ><span>{{
-        "mobile.operatorWorkOrderId" | hhTranslate: "Work order"
-      }}</span
-      ><hh-select
-        id="maintenance-work-order"
-        [(ngModel)]="workOrderId"
-        (ngModelChange)="loadWorkOrderChecklist()"
-        label="mobile.operatorWorkOrderId"
-        placeholder="mobile.operatorChooseWorkOrder"
-        ><option value="">
-          {{
-            "mobile.operatorChooseWorkOrder"
-              | hhTranslate: "Choose a work order"
-          }}
-        </option>
-        @for (order of workOrders; track order.id) {
-          <option
-            [value]="order.id"
-            [textContent]="
-              maintenanceStatusLabel(order.status) +
-              ' · ' +
-              maintenanceTypeLabel(order.maintenanceType || 'Other') +
-              ' · ' +
-              order.id.slice(0, 8)
-            "
-          ></option>
-        }</hh-select
-    ></label>
-    <label for="maintenance-technician"
-      ><span>{{ "mobile.operatorTechnician" | hhTranslate: "Technician" }}</span
-      ><input id="maintenance-technician" [(ngModel)]="technician"
-    /></label>
-    <label for="maintenance-evidence"
-      ><span>{{
-        "mobile.operatorEvidenceReference" | hhTranslate: "Evidence reference"
-      }}</span
-      ><input
-        id="maintenance-evidence"
-        [(ngModel)]="evidence"
-        placeholder="photo://work-order" /></label
-    ><button type="button" class="secondary-action" (click)="captureEvidence()">
-      {{ "mobile.operatorCaptureEvidence" | hhTranslate: "Capture evidence" }}
-    </button>
-    @if (checklistItems.length) {
-      <fieldset class="checklist-card">
+    }
+    @if (activeTab === "work") {
+      <label for="maintenance-work-order"
+        ><span>{{
+          "mobile.operatorWorkOrderId" | hhTranslate: "Work order"
+        }}</span
+        ><hh-select
+          id="maintenance-work-order"
+          [(ngModel)]="workOrderId"
+          (ngModelChange)="loadWorkOrderChecklist()"
+          label="mobile.operatorWorkOrderId"
+          placeholder="mobile.operatorChooseWorkOrder"
+          ><option value="">
+            {{
+              "mobile.operatorChooseWorkOrder"
+                | hhTranslate: "Choose a work order"
+            }}
+          </option>
+          @for (order of workOrders; track order.id) {
+            <option
+              [value]="order.id"
+              [textContent]="
+                maintenanceStatusLabel(order.status) +
+                ' · ' +
+                maintenanceTypeLabel(order.maintenanceType || 'Other') +
+                ' · ' +
+                order.id.slice(0, 8)
+              "
+            ></option>
+          }</hh-select
+      ></label>
+      <label for="maintenance-technician"
+        ><span>{{
+          "mobile.operatorTechnician" | hhTranslate: "Technician"
+        }}</span
+        ><input id="maintenance-technician" [(ngModel)]="technician"
+      /></label>
+      <label for="maintenance-evidence"
+        ><span>{{
+          "mobile.operatorEvidenceReference" | hhTranslate: "Evidence reference"
+        }}</span
+        ><input
+          id="maintenance-evidence"
+          [(ngModel)]="evidence"
+          placeholder="photo://work-order" /></label
+      ><button
+        type="button"
+        class="secondary-action"
+        (click)="captureEvidence()"
+      >
+        {{ "mobile.operatorCaptureEvidence" | hhTranslate: "Capture evidence" }}
+      </button>
+      @if (checklistItems.length) {
+        <fieldset class="checklist-card">
+          <legend>
+            {{
+              "mobile.operatorChecklist" | hhTranslate: "Maintenance checklist"
+            }}
+          </legend>
+          @for (item of checklistItems; track item.label; let index = $index) {
+            <label class="checklist-label"
+              ><input
+                type="checkbox"
+                [ngModel]="item.complete"
+                (ngModelChange)="updateChecklistItem(index, $event)"
+              /><span>{{ item.label }}</span></label
+            >
+          }
+        </fieldset>
+      } @else {
+        <label class="checklist-label" for="maintenance-checklist"
+          ><input
+            id="maintenance-checklist"
+            type="checkbox"
+            [(ngModel)]="checklistComplete"
+          /><span>{{
+            "mobile.operatorIsolationChecklist"
+              | hhTranslate: "Isolation checklist complete"
+          }}</span></label
+        >
+      }
+      <button
+        type="button"
+        class="primary-action"
+        [disabled]="!checklistComplete"
+        (click)="completeWorkOrder()"
+      >
+        {{
+          "mobile.operatorCompleteWorkOrder"
+            | hhTranslate: "Complete work order"
+        }}
+      </button>
+    }
+    @if (activeTab === "downtime") {
+      <fieldset class="downtime-card">
         <legend>
           {{
-            "mobile.operatorChecklist" | hhTranslate: "Maintenance checklist"
+            "mobile.operatorDowntimeControl" | hhTranslate: "Downtime control"
           }}
         </legend>
-        @for (item of checklistItems; track item.label; let index = $index) {
-          <label class="checklist-label"
-            ><input
-              type="checkbox"
-              [ngModel]="item.complete"
-              (ngModelChange)="updateChecklistItem(index, $event)"
-            /><span>{{ item.label }}</span></label
+        <label for="maintenance-downtime-reason"
+          ><span>{{
+            "mobile.operatorDowntimeReason" | hhTranslate: "Reason"
+          }}</span
+          ><input id="maintenance-downtime-reason" [(ngModel)]="downtimeReason"
+        /></label>
+        <button type="button" (click)="recordDowntime()">
+          {{ "mobile.operatorRecordDowntime" | hhTranslate: "Record downtime" }}
+        </button>
+        @if (hasOpenDowntime()) {
+          <button
+            type="button"
+            class="secondary-action"
+            (click)="resolveDowntime()"
           >
+            {{
+              "mobile.operatorResolveDowntime" | hhTranslate: "Resolve downtime"
+            }}
+          </button>
         }
       </fieldset>
-    } @else {
-      <label class="checklist-label" for="maintenance-checklist"
-        ><input
-          id="maintenance-checklist"
-          type="checkbox"
-          [(ngModel)]="checklistComplete"
-        /><span>{{
-          "mobile.operatorIsolationChecklist"
-            | hhTranslate: "Isolation checklist complete"
-        }}</span></label
-      >
     }
-    <button
-      type="button"
-      class="primary-action"
-      [disabled]="!checklistComplete"
-      (click)="completeWorkOrder()"
-    >
-      {{
-        "mobile.operatorCompleteWorkOrder" | hhTranslate: "Complete work order"
-      }}
-    </button>
-    <fieldset class="downtime-card">
-      <legend>
-        {{ "mobile.operatorDowntimeControl" | hhTranslate: "Downtime control" }}
-      </legend>
-      <label for="maintenance-downtime-reason"
-        ><span>{{
-          "mobile.operatorDowntimeReason" | hhTranslate: "Reason"
-        }}</span
-        ><input id="maintenance-downtime-reason" [(ngModel)]="downtimeReason"
-      /></label>
-      <button type="button" (click)="recordDowntime()">
-        {{ "mobile.operatorRecordDowntime" | hhTranslate: "Record downtime" }}
-      </button>
-      @if (hasOpenDowntime()) {
-        <button
-          type="button"
-          class="secondary-action"
-          (click)="resolveDowntime()"
-        >
-          {{
-            "mobile.operatorResolveDowntime" | hhTranslate: "Resolve downtime"
-          }}
-        </button>
-      }
-    </fieldset>
     @if (message) {
       <p role="status">{{ message }}</p>
     }

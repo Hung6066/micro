@@ -28,10 +28,10 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                var token = await identityService.GeneratePasswordResetTokenAsync(request.Email);
+                var token = await identityService.GeneratePasswordResetTokenAsync(request.Email, ct);
                 await emailSender.SendAsync(request.Email, "Password Reset — His.Hope",
                     $"Your password reset token: {token}", ct);
-                logger.LogInformation("Password reset email sent to {Email}", request.Email);
+                logger.LogInformation("Password reset email dispatch completed.");
             }
             catch (KeyNotFoundException)
             {
@@ -57,8 +57,8 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                await identityService.ResetPasswordAsync(request.Email, request.Token, request.NewPassword);
-                logger.LogInformation("Password reset completed for {Email}", request.Email);
+                await identityService.ResetPasswordAsync(request.Email, request.Token, request.NewPassword, ct);
+                logger.LogInformation("Password reset completed.");
                 return Results.Ok(new { message = "Password has been reset successfully." });
             }
             catch (KeyNotFoundException)
@@ -95,7 +95,7 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                await identityService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword);
+                await identityService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword, ct);
                 logger.LogInformation("Password changed for UserId={UserId}", userId);
                 return Results.Ok(new { message = "Password changed successfully." });
             }
@@ -130,13 +130,13 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                var token = await identityService.GenerateEmailConfirmationTokenAsync(userId.Value);
+                var token = await identityService.GenerateEmailConfirmationTokenAsync(userId.Value, ct);
                 var email = httpContext.User.FindFirst(ClaimTypes.Email)?.Value;
                 if (!string.IsNullOrEmpty(email))
                 {
                     await emailSender.SendAsync(email, "Verify Your Email — His.Hope",
                         $"Your email verification token: {token}", ct);
-                    logger.LogInformation("Verification email sent to {Email}", email);
+                    logger.LogInformation("Verification email dispatch completed.");
                 }
                 return Results.Ok(new { message = "Verification email sent." });
             }
@@ -159,8 +159,8 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                await identityService.ConfirmEmailAsync(request.Email, request.Token);
-                logger.LogInformation("Email verified for {Email}", request.Email);
+                await identityService.ConfirmEmailAsync(request.Email, request.Token, ct);
+                logger.LogInformation("Email verification completed.");
                 return Results.Ok(new { message = "Email verified successfully." });
             }
             catch (KeyNotFoundException)

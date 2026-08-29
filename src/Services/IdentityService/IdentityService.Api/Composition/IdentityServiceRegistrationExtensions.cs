@@ -170,6 +170,7 @@ public static class IdentityServiceRegistrationExtensions
             options.UseHisHopeNpgsql(serviceProvider, builder.Configuration, "IdentityDb")
                 .UseSnakeCaseNamingConvention()
                 .AddInterceptors(serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
+        builder.Services.AddHisHopeDatabasePerformance(builder.Configuration);
         builder.Services.AddHisHopeMigrationRunner<IdentityDbContext>();
         builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
 

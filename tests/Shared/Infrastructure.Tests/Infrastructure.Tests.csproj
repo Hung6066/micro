@@ -21,5 +21,6 @@
     <ProjectReference Include="..\..\..\src\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\Shared\Authorization\His.Hope.Authorization\His.Hope.Authorization.csproj" />
     <ProjectReference Include="..\..\..\src\Shared\Secrets\His.Hope.Secrets\His.Hope.Secrets.csproj" />
+    <ProjectReference Include="..\..\..\src\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
   </ItemGroup>
 </Project>

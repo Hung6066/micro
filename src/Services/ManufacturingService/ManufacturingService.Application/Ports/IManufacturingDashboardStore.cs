@@ -13,7 +13,7 @@ public interface IManufacturingDashboardStore
     CostProjectionDto? GetCostProjection(string tenantKey, string productSku, int? recipeVersion, decimal plannedQuantity);
     (ProductionBatchCostDto? Cost, string? Error) CalculateBatchCost(Guid batchId, string tenantKey, CalculateBatchCostRequest request);
     ProductionBatchCostDto? GetBatchCost(Guid batchId, string tenantKey);
-    IReadOnlyList<SalesForecastDto> GetSalesForecasts(string tenantKey, string? productSku, int limit);
+    IReadOnlyList<SalesForecastDto> GetSalesForecasts(string tenantKey, string? productSku, int limit, int page = 1);
     SalesForecastDto CreateSalesForecast(string tenantKey, CreateSalesForecastRequest request);
     (IReadOnlyList<SalesForecastMaterialRequirementDto> Requirements, string? Error) GetSalesForecastMaterialRequirements(string tenantKey, Guid forecastId);
 }

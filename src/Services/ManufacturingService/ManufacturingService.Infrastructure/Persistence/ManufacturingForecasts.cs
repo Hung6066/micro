@@ -2,6 +2,7 @@ using System.Text.Json;
 using His.Hope.Contracts.Manufacturing;
 using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
+using His.Hope.Persistence.Querying;
 
 public sealed partial class PostgresManufacturingStore : IManufacturingDashboardStore
 {
@@ -37,12 +38,14 @@ public sealed partial class PostgresManufacturingStore : IManufacturingDashboard
         return ToDto(entity);
     }
 
-    public IReadOnlyList<SalesForecastDto> GetSalesForecasts(string tenantKey, string? productSku, int limit)
+    public IReadOnlyList<SalesForecastDto> GetSalesForecasts(string tenantKey, string? productSku, int limit, int page = 1)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.SalesForecasts.AsNoTracking().Where(x => x.TenantKey == tenantKey);
         if (!string.IsNullOrWhiteSpace(productSku)) query = query.Where(x => x.ProductSku == productSku.Trim());
-        return query.OrderByDescending(x => x.PeriodStart).ThenByDescending(x => x.Version).Take(Math.Clamp(limit, 1, 200)).Select(ToDto).ToList();
+        return query.TagUseCase("Manufacturing.Planning.GetSalesForecasts")
+            .OrderByDescending(x => x.PeriodStart).ThenByDescending(x => x.Version)
+            .ApplyPage(page, limit).Select(ToDto).ToList();
     }
 
     public (IReadOnlyList<SalesForecastMaterialRequirementDto> Requirements, string? Error) GetSalesForecastMaterialRequirements(string tenantKey, Guid forecastId)

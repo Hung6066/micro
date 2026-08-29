@@ -2,6 +2,7 @@ using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Persistence.Tenancy;
+using His.Hope.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,11 +16,11 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddSingleton<SoftDeleteInterceptor>();
         services.AddSingleton<ManufacturingAuditSaveChangesInterceptor>();
-        services.AddHisHopeTenantAwareDbContextFactory<ManufacturingDbContext>(
-                "manufacturing",
-            (sp, builder, connectionString, _) =>
-                builder.UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(typeof(ManufacturingDbContext).Assembly.GetName().Name))
-                    .AddInterceptors(
+        services.AddHisHopeTenantAwareNpgsqlDbContextFactory<ManufacturingDbContext>(
+            "manufacturing",
+            configuration,
+            npgsql => npgsql.MigrationsAssembly(typeof(ManufacturingDbContext).Assembly.GetName().Name),
+            (sp, builder) => builder.AddInterceptors(
                         sp.GetRequiredService<SoftDeleteInterceptor>(),
                         sp.GetRequiredService<ManufacturingAuditSaveChangesInterceptor>()));
         services.AddSingleton<IManufacturingDbContextFactory>(sp =>

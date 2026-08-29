@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace His.Hope.IdentityService.Application.UseCases.AuditLogs.Queries;
 
 public record GetAuditLogsQuery(
-    int Page = 1,
-    int PageSize = 20,
+    int Page = PaginationDefaults.DefaultPage,
+    int PageSize = PaginationDefaults.DefaultPageSize,
     string? UserId = null,
     string? Action = null,
     string? ResourceType = null,
@@ -32,7 +32,8 @@ public class GetAuditLogsQueryHandler
     public async Task<PagedResult<AuditLogDto>> Handle(GetAuditLogsQuery request,
         CancellationToken cancellationToken)
     {
-        IQueryable<AuditLog> query = _context.AuditLogs;
+        IQueryable<AuditLog> query = _context.AuditLogs.AsNoTracking()
+            .TagWith("Identity.AuditLogs.GetAuditLogs");
 
         // Apply filters
         if (!string.IsNullOrWhiteSpace(request.UserId))

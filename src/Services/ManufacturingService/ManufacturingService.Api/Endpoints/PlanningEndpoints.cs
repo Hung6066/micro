@@ -4,6 +4,7 @@ using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Application;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Persistence.Querying;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
@@ -18,11 +19,11 @@ internal static class PlanningEndpoints
     public static RouteGroupBuilder MapPlanningEndpoints(this RouteGroupBuilder api)
     {
                 
-                api.MapGet("/sales/forecasts", (string? productSku, int? limit, HttpContext context, IManufacturingDashboardStore store) =>
+                api.MapGet("/sales/forecasts", (string? productSku, int? limit, int? page, HttpContext context, IManufacturingDashboardStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    return Results.Ok(store.GetSalesForecasts(tenantKey, productSku, limit ?? 50));
+                    return Results.Ok(store.GetSalesForecasts(tenantKey, productSku, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
                 api.MapPost("/sales/forecasts", (CreateSalesForecastRequest request, HttpContext context, IManufacturingDashboardStore store) =>
@@ -106,7 +107,5 @@ internal static class PlanningEndpoints
         return api;
     }
 }
-
-
 
 

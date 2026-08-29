@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Domain;
 using His.Hope.Infrastructure.DataLifecycle;
+using His.Hope.Persistence.Querying;
 using System.Text.Json;
 using System.Data;
 
@@ -1067,7 +1068,8 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
     public GenealogyDto GetGenealogy(Guid lotId, bool upstream, string tenantKey)
     {
         using var db = dbFactory.CreateDbContext();
-        var lot = db.Lots.Single(x => x.Id == lotId && x.TenantKey == tenantKey);
+        var lot = db.Lots.TagUseCase("Manufacturing.Traceability.GetLot")
+            .Single(x => x.Id == lotId && x.TenantKey == tenantKey);
         var allTransformations = db.Transformations.AsNoTracking().Include(x => x.Inputs).Where(x => x.TenantKey == tenantKey).ToList();
         var linkedLotIds = new HashSet<Guid> { lotId };
         var frontier = new HashSet<Guid> { lotId };
@@ -1124,13 +1126,15 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return new RecallImpactDto(root.Id, tenantKey, result.Count, batches.Keys.Count(id => impacted.Contains(id)), result, DateTimeOffset.UtcNow);
     }
 
-    public EpcisDocumentDto GetEpcisEvents(string tenantKey, DateTimeOffset? from, DateTimeOffset? to, int limit = 500)
+    public async Task<EpcisDocumentDto> GetEpcisEventsAsync(string tenantKey, DateTimeOffset? from, DateTimeOffset? to, int limit = HisHopePaginationDefaults.ExportDefaultPageSize, int page = HisHopePaginationDefaults.FirstPage, CancellationToken cancellationToken = default)
     {
         using var db = dbFactory.CreateDbContext();
         var start = from?.UtcDateTime ?? DateTime.UtcNow.AddDays(-30);
         var end = to?.UtcDateTime ?? DateTime.UtcNow;
-        var events = db.OutboxMessages.AsNoTracking().Where(x => x.OccurredOn >= start && x.OccurredOn <= end)
-            .OrderBy(x => x.OccurredOn).Take(Math.Clamp(limit, 1, 5000)).AsEnumerable()
+        var outboxMessages = await db.OutboxMessages.AsNoTracking().Where(x => x.OccurredOn >= start && x.OccurredOn <= end)
+            .TagUseCase("Manufacturing.Traceability.GetEpcisEvents")
+            .OrderBy(x => x.OccurredOn).ApplyPage(page, limit, 5000).ToListAsync(cancellationToken);
+        var events = outboxMessages
             .Select(x =>
             {
                 try
@@ -1162,7 +1166,7 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return new AvailabilityDto(tenantKey, sku, releasedQuantity, reservedQuantity, Math.Max(0, releasedQuantity - reservedQuantity), uom, now);
     }
 
-    public IReadOnlyList<LotDto> GetLots(string? tenantKey, string? sku, string? disposition, int limit)
+    public async Task<IReadOnlyList<LotDto>> GetLotsAsync(string? tenantKey, string? sku, string? disposition, int limit, int page = 1, CancellationToken cancellationToken = default)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.Lots.AsNoTracking().AsQueryable();
@@ -1170,19 +1174,21 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         if (!string.IsNullOrWhiteSpace(sku)) query = query.Where(x => x.Sku == sku);
         if (!string.IsNullOrWhiteSpace(disposition)) query = query.Where(x => x.Disposition == disposition);
 
-        return query.OrderByDescending(x => x.CreatedAt)
-            .Take(Math.Clamp(limit, 1, 200))
-            .AsEnumerable()
+        return (await query.TagUseCase("Manufacturing.Traceability.GetLots")
+            .OrderByDescending(x => x.CreatedAt)
+            .ApplyPage(page, limit)
+            .ToListAsync(cancellationToken))
             .Select(ToDto)
             .ToList();
     }
 
-    public IReadOnlyList<LotStatusHistoryDto> GetLotStatusHistory(Guid lotId, string tenantKey, int limit)
+    public IReadOnlyList<LotStatusHistoryDto> GetLotStatusHistory(Guid lotId, string tenantKey, int limit, int page = 1)
     {
         using var db = dbFactory.CreateDbContext();
         return db.LotStatusHistory.AsNoTracking()
             .Where(x => x.LotId == lotId && x.TenantKey == tenantKey)
-            .OrderByDescending(x => x.OccurredAt).Take(Math.Clamp(limit, 1, 100))
+            .TagUseCase("Manufacturing.Traceability.GetLotStatusHistory")
+            .OrderByDescending(x => x.OccurredAt).ApplyPage(page, limit, 100)
             .Select(x => new LotStatusHistoryDto(x.Id, x.LotId, x.TenantKey, x.FromDisposition, x.ToDisposition,
                 x.Actor, x.ReasonCode, x.EvidenceReference, x.CorrelationId, x.OccurredAt))
             .ToList();
@@ -1440,15 +1446,17 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return (ToDto(entity), null);
     }
 
-    public IReadOnlyList<QualityInspectionDto> GetQualityInspections(Guid lotId, string? tenantKey, int limit)
+    public async Task<IReadOnlyList<QualityInspectionDto>> GetQualityInspectionsAsync(Guid lotId, string? tenantKey, int limit, int page = 1, CancellationToken cancellationToken = default)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.QualityInspections.AsNoTracking().Where(x => x.LotId == lotId);
         if (!string.IsNullOrWhiteSpace(tenantKey)) query = query.Where(x => x.TenantKey == tenantKey);
-        var inspections = query.OrderByDescending(x => x.InspectedAt).Take(Math.Clamp(limit, 1, 100)).ToList();
-        var resultsByInspection = db.QualityTestResults.AsNoTracking()
+        var inspections = await query.TagUseCase("Manufacturing.Quality.GetInspections")
+            .OrderByDescending(x => x.InspectedAt).ApplyPage(page, limit, 100).ToListAsync(cancellationToken);
+        var resultsByInspection = (await db.QualityTestResults.AsNoTracking()
+            .TagUseCase("Manufacturing.Quality.GetInspectionResults")
             .Where(x => inspections.Select(inspection => inspection.Id).Contains(x.QualityInspectionId))
-            .OrderBy(x => x.TestCode).ToList()
+            .OrderBy(x => x.TestCode).ToListAsync(cancellationToken))
             .GroupBy(x => x.QualityInspectionId)
             .ToDictionary(group => group.Key, group => (IReadOnlyList<ManufacturingQualityTestResultEntity>)group.ToList());
         return inspections.Select(inspection => ToDto(inspection, resultsByInspection.GetValueOrDefault(inspection.Id, []))).ToList();
@@ -1456,15 +1464,16 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
 
     private static readonly string[] AllowedInspectionStatuses = ["Pass", "Fail", "Pending"];
 
-    public IReadOnlyList<TransformationSummaryDto> GetTransformationSummaries(string? tenantKey, string? processStep, int limit)
+    public IReadOnlyList<TransformationSummaryDto> GetTransformationSummaries(string? tenantKey, string? processStep, int limit, int page = 1)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.Transformations.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(tenantKey)) query = query.Where(x => x.TenantKey == tenantKey);
         if (!string.IsNullOrWhiteSpace(processStep)) query = query.Where(x => x.ProcessStep == processStep);
 
-        return query.OrderByDescending(x => x.CreatedAt)
-            .Take(Math.Clamp(limit, 1, 200))
+        return query.TagUseCase("Manufacturing.Production.GetTransformationSummaries")
+            .OrderByDescending(x => x.CreatedAt)
+            .ApplyPage(page, limit)
             .Select(x => new TransformationSummaryDto(
                 x.Id, x.TenantKey, x.ProcessStep, x.RecipeId, x.MachineId, x.OutputLotId,
                 x.InputQuantity, x.OutputQuantity, x.YieldPercent, x.LossQuantity, x.CreatedAt))
@@ -1504,15 +1513,16 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return ToDto(entity);
     }
 
-    public IReadOnlyList<RecipeDto> GetRecipes(string? tenantKey, string? productSku, bool? active, int limit)
+    public IReadOnlyList<RecipeDto> GetRecipes(string? tenantKey, string? productSku, bool? active, int limit, int page = 1)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.Recipes.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(tenantKey)) query = query.Where(x => x.TenantKey == tenantKey);
         if (!string.IsNullOrWhiteSpace(productSku)) query = query.Where(x => x.ProductSku == productSku);
         if (active.HasValue) query = query.Where(x => x.Active == active.Value);
-        return query.Include(x => x.Components).OrderByDescending(x => x.ProductSku).ThenByDescending(x => x.Version)
-            .Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+        return query.TagUseCase("Manufacturing.Recipes.GetRecipes")
+            .Include(x => x.Components).OrderByDescending(x => x.ProductSku).ThenByDescending(x => x.Version)
+            .ApplyPage(page, limit).AsEnumerable().Select(ToDto).ToList();
     }
 
     public (RecipeDto? Recipe, string? Error) ChangeRecipeLifecycle(Guid recipeId, string tenantKey, string targetStatus, RecipeLifecycleRequest request)
@@ -1575,13 +1585,14 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         entity.Code = request.Code.Trim(); entity.Name = request.Name.Trim(); entity.Status = request.Status.Trim(); entity.NextMaintenanceAt = request.NextMaintenanceAt; entity.Active = request.Active; db.SaveChanges(); return (ToDto(entity), null);
     }
 
-    public IReadOnlyList<MachineDto> GetMachines(string? tenantKey, string? status, int limit)
+    public IReadOnlyList<MachineDto> GetMachines(string? tenantKey, string? status, int limit, int page = 1)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.Machines.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(tenantKey)) query = query.Where(x => x.TenantKey == tenantKey);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
-        return query.OrderBy(x => x.Code).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+        return query.TagUseCase("Manufacturing.Maintenance.GetMachines")
+            .OrderBy(x => x.Code).ApplyPage(page, limit).AsEnumerable().Select(ToDto).ToList();
     }
 
     public (MachineCalibrationDto? Calibration, string? Error) CreateMachineCalibration(Guid machineId, CreateMachineCalibrationRequest request, string tenantKey)
@@ -1724,13 +1735,14 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return (ToDto(entity), null);
     }
 
-    public IReadOnlyList<MaintenanceWorkOrderDto> GetMaintenanceWorkOrders(string tenantKey, Guid? machineId, string? status, int limit)
+    public IReadOnlyList<MaintenanceWorkOrderDto> GetMaintenanceWorkOrders(string tenantKey, Guid? machineId, string? status, int limit, int page = 1)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.MaintenanceWorkOrders.AsNoTracking().Where(x => x.TenantKey == tenantKey);
         if (machineId.HasValue) query = query.Where(x => x.MachineId == machineId.Value);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
-        return query.OrderBy(x => x.DueAt).Take(Math.Clamp(limit, 1, 200)).ToList().Select(ToDto).ToList();
+        return query.TagUseCase("Manufacturing.Maintenance.GetWorkOrders")
+            .OrderBy(x => x.DueAt).ApplyPage(page, limit).ToList().Select(ToDto).ToList();
     }
 
     public (MaintenancePlanDto? Plan, string? Error) CreateMaintenancePlan(Guid machineId, CreateMaintenancePlanRequest request, string tenantKey)
@@ -1746,29 +1758,38 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return (ToDto(entity), null);
     }
 
-    public IReadOnlyList<MaintenancePlanDto> GetMaintenancePlans(string tenantKey, Guid? machineId, bool? active, int limit)
+    public IReadOnlyList<MaintenancePlanDto> GetMaintenancePlans(string tenantKey, Guid? machineId, bool? active, int limit, int page = 1)
     {
         using var db = dbFactory.CreateDbContext();
         var query = db.MaintenancePlans.AsNoTracking().Where(x => x.TenantKey == tenantKey);
         if (machineId.HasValue) query = query.Where(x => x.MachineId == machineId.Value);
         if (active.HasValue) query = query.Where(x => x.Active == active.Value);
-        return query.OrderBy(x => x.NextDueAt).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+        return query.TagUseCase("Manufacturing.Maintenance.GetPlans")
+            .OrderBy(x => x.NextDueAt).ApplyPage(page, limit).AsEnumerable().Select(ToDto).ToList();
     }
 
     public IReadOnlyList<MaintenanceWorkOrderDto> GenerateDueMaintenanceWorkOrders(string tenantKey, DateTimeOffset asOf)
     {
         using var db = dbFactory.CreateDbContext();
         using var transaction = db.Database.BeginTransaction(System.Data.IsolationLevel.Serializable);
-        var dueMachines = db.Machines
+        var dueMachines = db.Machines.AsNoTracking()
             .Where(x => x.TenantKey == tenantKey && x.Active && x.NextMaintenanceAt != null && x.NextMaintenanceAt <= asOf)
             .ToList();
         var duePlans = db.MaintenancePlans
             .Where(x => x.TenantKey == tenantKey && x.Active && x.NextDueAt <= asOf)
             .ToList();
+        var candidateMachineIds = duePlans.Select(x => x.MachineId)
+            .Concat(dueMachines.Select(x => x.Id))
+            .Distinct()
+            .ToArray();
+        var openMachineIds = db.MaintenanceWorkOrders.AsNoTracking()
+            .Where(x => x.TenantKey == tenantKey && x.Status == "Open" && candidateMachineIds.Contains(x.MachineId))
+            .Select(x => x.MachineId)
+            .ToHashSet();
         var created = new List<ManufacturingMaintenanceWorkOrderEntity>();
         foreach (var plan in duePlans)
         {
-            if (db.MaintenanceWorkOrders.Any(x => x.TenantKey == tenantKey && x.MachineId == plan.MachineId && x.Status == "Open")) continue;
+            if (openMachineIds.Contains(plan.MachineId)) continue;
             var entity = new ManufacturingMaintenanceWorkOrderEntity
             {
                 Id = Guid.NewGuid(), MachineId = plan.MachineId, TenantKey = tenantKey, Status = "Open",
@@ -1780,10 +1801,11 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
             plan.NextDueAt = plan.NextDueAt.AddDays(plan.FrequencyDays);
             AddMaintenanceWorkOrderOutbox(db, entity, "Manufacturing.MaintenanceWorkOrderCreated.v1");
             created.Add(entity);
+            openMachineIds.Add(plan.MachineId);
         }
         foreach (var machine in dueMachines)
         {
-            if (db.MaintenanceWorkOrders.Any(x => x.TenantKey == tenantKey && x.MachineId == machine.Id && x.Status == "Open")) continue;
+            if (openMachineIds.Contains(machine.Id)) continue;
             var entity = new ManufacturingMaintenanceWorkOrderEntity
             {
                 Id = Guid.NewGuid(), MachineId = machine.Id, TenantKey = tenantKey, Status = "Open",
@@ -1793,6 +1815,7 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
             db.MaintenanceWorkOrders.Add(entity);
             AddMaintenanceWorkOrderOutbox(db, entity, "Manufacturing.MaintenanceWorkOrderCreated.v1");
             created.Add(entity);
+            openMachineIds.Add(machine.Id);
         }
         db.SaveChanges();
         transaction.Commit();
@@ -1881,15 +1904,16 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
             .ToList();
     }
 
-    public IReadOnlyList<InventoryTransactionDto> GetInventoryTransactions(Guid lotId, string tenantKey, int limit)
+    public async Task<IReadOnlyList<InventoryTransactionDto>> GetInventoryTransactionsAsync(Guid lotId, string tenantKey, int limit, int page = 1, CancellationToken cancellationToken = default)
     {
         using var db = dbFactory.CreateDbContext();
-        return db.InventoryTransactions.AsNoTracking()
+        return await db.InventoryTransactions.AsNoTracking()
+            .TagUseCase("Manufacturing.Traceability.GetInventoryTransactions")
             .Where(x => x.LotId == lotId && x.TenantKey == tenantKey)
             .OrderByDescending(x => x.OccurredAt)
-            .Take(Math.Clamp(limit, 1, 200))
+            .ApplyPage(page, limit)
             .Select(x => new InventoryTransactionDto(x.Id, x.TenantKey, x.LotId, x.TransactionType, x.Quantity, x.Uom, x.FacilityId, x.StockStatus, x.CorrelationId, x.OccurredAt))
-            .ToList();
+            .ToListAsync(cancellationToken);
     }
 
     public ManufacturingDashboardSummaryDto GetDashboardSummary(string tenantKey)

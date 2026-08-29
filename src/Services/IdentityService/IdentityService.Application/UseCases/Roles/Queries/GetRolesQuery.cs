@@ -8,8 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace His.Hope.IdentityService.Application.UseCases.Roles.Queries;
 
 public record GetRolesQuery(
-    int Page = 1,
-    int PageSize = 20,
+    int Page = PaginationDefaults.DefaultPage,
+    int PageSize = PaginationDefaults.DefaultPageSize,
     string? Search = null,
     string? Sort = null,
     IReadOnlyList<string>? TenantMembershipKeys = null)
@@ -27,7 +27,9 @@ public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<R
     public async Task<PagedResult<RoleDto>> Handle(GetRolesQuery request, CancellationToken cancellationToken)
     {
         ValidatePagination(request.Page, request.PageSize);
-        var query = _context.Roles.AsNoTracking().AsQueryable();
+        var query = _context.Roles.AsNoTracking()
+            .TagWith("Identity.Roles.GetRoles")
+            .AsQueryable();
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim();

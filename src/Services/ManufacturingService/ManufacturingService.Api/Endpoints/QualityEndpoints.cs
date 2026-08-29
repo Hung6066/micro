@@ -4,6 +4,7 @@ using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Application;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Persistence.Querying;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
@@ -18,10 +19,10 @@ internal static class QualityEndpoints
     public static RouteGroupBuilder MapQualityEndpoints(this RouteGroupBuilder api)
     {
                 
-                api.MapGet("/lots/{lotId:guid}/quality-inspections", (Guid lotId, string? tenantKey, int? limit, HttpContext context, IManufacturingProductionStore store) =>
+                api.MapGet("/lots/{lotId:guid}/quality-inspections", async (Guid lotId, string? tenantKey, int? limit, int? page, HttpContext context, IManufacturingProductionStore store, CancellationToken cancellationToken) =>
                 {
                     if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid();
-                    return Results.Ok(store.GetQualityInspections(lotId, scopedTenant, limit ?? 25));
+                    return Results.Ok(await store.GetQualityInspectionsAsync(lotId, scopedTenant, limit ?? HisHopePaginationDefaults.QualityDefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
                 api.MapPost("/quality-inspections", (CreateQualityInspectionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
@@ -200,7 +201,3 @@ internal static class QualityEndpoints
         return api;
     }
 }
-
-
-
-

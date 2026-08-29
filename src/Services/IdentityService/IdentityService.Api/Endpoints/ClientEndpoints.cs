@@ -52,8 +52,8 @@ public static class ClientEndpoints
     }
 
     private static async Task<Results<Ok<PagedResult<ClientResponse>>, ValidationProblem, ForbidHttpResult>> GetClients(
-        int page = 1,
-        int pageSize = 20,
+        int page = PaginationDefaults.DefaultPage,
+        int pageSize = PaginationDefaults.DefaultPageSize,
         string? search = null,
         string? sort = null,
         IdentityDbContext db = null!,
@@ -61,14 +61,15 @@ public static class ClientEndpoints
         HttpContext http = null!,
         CancellationToken ct = default)
     {
-        if (page < 1 || pageSize is < 1 or > 100)
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["pageSize"] = ["pageSize must be between 1 and 100 and page must be at least 1."] });
+        if (page < PaginationDefaults.DefaultPage || pageSize is < 1 or > PaginationDefaults.MaxPageSize)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["pageSize"] = [$"pageSize must be between 1 and {PaginationDefaults.MaxPageSize} and page must be at least {PaginationDefaults.DefaultPage}."] });
         if (search?.Length > 100)
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search must be 100 characters or fewer."] });
 
         var filter = IamTenantHttpContext.RequireFilter(http);
 
-        var query = db.OpenIddictApplications.AsNoTracking();
+        var query = db.OpenIddictApplications.AsNoTracking()
+            .TagWith("Identity.Clients.GetClients");
         var allowedClientIds = IamTenantQueryExtensions.ResolveAllowedClientIds(tenantRegistry, filter);
         if (allowedClientIds is not null)
             query = query.Where(application => allowedClientIds.Contains(application.ClientId ?? ""));

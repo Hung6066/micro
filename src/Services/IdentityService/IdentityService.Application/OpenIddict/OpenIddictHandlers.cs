@@ -505,13 +505,15 @@ public class CustomPopulateTokenClaims :
                 // the client id. New roles are resolved by audience above.
                 var workloadRole = await _dbContext.IamWorkloadRoles
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(item => (item.Key == userId || item.Audience == userId) && item.IsActive);
+                    .TagWith("Identity.Oidc.ResolveWorkloadFallback")
+                    .FirstOrDefaultAsync(item => (item.Key == userId || item.Audience == userId) && item.IsActive, context.CancellationToken);
                 if (workloadRole is not null)
                 {
                     var workloadPermissions = JsonSerializer.Deserialize<string[]>(workloadRole.PermissionsJson) ?? [];
                     var boundary = await _dbContext.IamPermissionBoundaries.AsNoTracking()
+                        .TagWith("Identity.Oidc.ResolveWorkloadBoundary")
                         .SingleOrDefaultAsync(item => item.IsActive && item.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload &&
-                            item.PrincipalId == workloadRole.Id && item.ScopeId == workloadRole.ScopeId);
+                            item.PrincipalId == workloadRole.Id && item.ScopeId == workloadRole.ScopeId, context.CancellationToken);
                     if (boundary is not null)
                     {
                         var allowed = JsonSerializer.Deserialize<string[]>(boundary.AllowedPermissionsJson) ?? [];
@@ -590,12 +592,13 @@ public class CustomPopulateTokenClaims :
 
         var legacyClaims = await _userManager.GetClaimsAsync(user);
         var legacyFacility = legacyClaims.FirstOrDefault(c => c.Type == "facility_id")?.Value;
-        var memberships = await _dbContext.UserFacilities
+        var memberships = await _dbContext.UserFacilities.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveUserFacilities")
             .Where(membership => membership.UserId == user.Id && membership.IsActive)
             .OrderByDescending(membership => membership.IsPrimary)
             .ThenBy(membership => membership.FacilityId)
             .Select(membership => membership.FacilityId)
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
         if (memberships.Count == 0 && !string.IsNullOrWhiteSpace(legacyFacility))
             memberships.Add(legacyFacility);
         if (memberships.Count > 0)
@@ -604,24 +607,27 @@ public class CustomPopulateTokenClaims :
             identity.AddClaim(new Claim("facility_ids", string.Join(",", memberships.Distinct(StringComparer.OrdinalIgnoreCase))));
         }
 
-        var permissions = await _dbContext.RolePermissions
+        var permissions = await _dbContext.RolePermissions.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveRolePermissions")
             .Where(rp => roles.Contains(rp.Role.Name!))
             .Select(rp => rp.PermissionCode)
             .Distinct()
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
 
-        var groupIds = await _dbContext.IamGroupMemberships
+        var groupIds = await _dbContext.IamGroupMemberships.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveUserGroups")
             .Where(membership => membership.UserId == user.Id)
             .Select(membership => membership.GroupId)
-            .ToListAsync();
-        var policyScopeIds = await _dbContext.IamPermissionSetAssignments
+            .ToListAsync(context.CancellationToken);
+        var policyScopeIds = await _dbContext.IamPermissionSetAssignments.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolvePolicyScopes")
             .Where(assignment => assignment.Status == AuthorizationConstants.LifecycleStatuses.Active &&
                 (assignment.ExpiresAt == null || assignment.ExpiresAt > DateTime.UtcNow) &&
                 ((assignment.PrincipalId == user.Id && assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Human) ||
                  (assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Group && groupIds.Contains(assignment.PrincipalId))))
             .Select(assignment => assignment.ScopeId)
             .Distinct()
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
         var policyClaims = new List<ResourcePolicyClaim>();
         foreach (var policyScopeId in policyScopeIds)
         {
@@ -638,16 +644,17 @@ public class CustomPopulateTokenClaims :
             policyClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
             identity.AddClaim(policyClaim);
         }
-        var assignedSetJson = await _dbContext.IamPermissionSetAssignments
+        var assignedSetJson = await _dbContext.IamPermissionSetAssignments.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolvePermissionSets")
             .Where(assignment => assignment.Status == AuthorizationConstants.LifecycleStatuses.Active &&
                 (assignment.ExpiresAt == null || assignment.ExpiresAt > DateTime.UtcNow) &&
                 ((assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Human && assignment.PrincipalId == user.Id) ||
                  (assignment.PrincipalType == "group" && groupIds.Contains(assignment.PrincipalId))))
-            .Join(_dbContext.IamPermissionSets.Where(set => set.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published),
+            .Join(_dbContext.IamPermissionSets.AsNoTracking().Where(set => set.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published),
                 assignment => assignment.PermissionSetId,
                 set => set.Id,
                 (_, set) => set.PermissionsJson)
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
         var registeredPrefixes = await _dbContext.IamServiceDefinitions.AsNoTracking()
             .Where(item => item.IsActive).Select(item => item.PermissionPrefix)
             .ToListAsync(context.CancellationToken);
@@ -664,15 +671,17 @@ public class CustomPopulateTokenClaims :
             }
         }
 
-        permissions.AddRange(await _dbContext.BreakGlassRequests
+        permissions.AddRange(await _dbContext.BreakGlassRequests.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveBreakGlassPermissions")
             .Where(item => item.SubjectUserId == user.Id && item.Status == "approved" &&
                 item.RevokedAt == null && item.ExpiresAt > DateTime.UtcNow)
             .Select(item => item.PermissionCode)
-            .ToListAsync());
+            .ToListAsync(context.CancellationToken));
 
-        var boundaries = await _dbContext.IamPermissionBoundaries
+        var boundaries = await _dbContext.IamPermissionBoundaries.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveUserPermissionBoundaries")
             .Where(item => item.IsActive && item.PrincipalType == AuthorizationConstants.PrincipalTypes.Human && item.PrincipalId == user.Id)
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
         foreach (var boundary in boundaries)
         {
             try

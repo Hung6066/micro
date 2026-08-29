@@ -13,84 +13,123 @@
   @if (loadError) {
     <p class="load-error" role="alert">{{ loadError }}</p>
   }
-  <button type="button" (click)="scanQr()">
-    {{ "mobile.operatorScanQr" | hhTranslate: "Scan QR with camera" }}
-  </button>
-  <label for="traceability-lot"
-    ><span>{{ "mobile.operatorLotCode" | hhTranslate: "Lot" }}</span>
-    <hh-select
-      id="traceability-lot"
-      [(ngModel)]="scannedCode"
-      label="mobile.operatorLotCode"
-      placeholder="mobile.operatorChooseLot"
-      ><option value="">
-        {{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}
-      </option>
-      @for (lot of lots; track lot.id) {
-        <option
-          [value]="lot.lotCode || lot.id"
-          [textContent]="lotOptionLabel(lot)"
-        ></option>
-      }
-    </hh-select>
-  </label>
-  <button type="button" (click)="openLot()">
-    {{ "mobile.operatorOpenLot" | hhTranslate: "Open lot" }}
-  </button>
-  @if (selectedLot; as lot) {
-    <fieldset class="disposition-card">
-      <legend>
-        {{ "mobile.operatorLotDisposition" | hhTranslate: "Lot disposition" }}
-      </legend>
-      <label for="traceability-disposition"
-        ><span>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}</span
-        ><hh-select
-          id="traceability-disposition"
-          [(ngModel)]="newDisposition"
-          label="mobile.operatorStatus"
-          placeholder="mobile.operatorChooseDisposition"
-          ><option value="Released">
-            {{ "mobile.operatorStatusReleased" | hhTranslate: "Released" }}
-          </option>
-          <option value="Hold">
-            {{ "mobile.operatorStatusHold" | hhTranslate: "Hold" }}
-          </option>
-          <option value="Rejected">
-            {{ "mobile.operatorStatusRejected" | hhTranslate: "Rejected" }}
-          </option>
-          <option value="Consumed">
-            {{ "mobile.operatorStatusConsumed" | hhTranslate: "Consumed" }}
-          </option></hh-select
-        ></label
-      >
-      <label
-        >{{ "mobile.operatorDispositionReason" | hhTranslate: "Reason"
-        }}<input [(ngModel)]="dispositionReason"
-      /></label>
-      <label
-        >{{
-          "mobile.operatorEvidenceReference"
-            | hhTranslate: "Evidence reference"
-        }}<input [(ngModel)]="dispositionEvidence" /></label
-      ><button
-        type="button"
-        class="secondary-action"
-        (click)="captureEvidence()"
-      >
-        {{ "mobile.operatorCaptureEvidence" | hhTranslate: "Capture evidence" }}
-      </button>
-      <button type="button" (click)="changeDisposition()">
-        {{ "mobile.operatorSaveDisposition" | hhTranslate: "Save disposition" }}
-      </button>
-    </fieldset>
-  }
-  @if (message) {
-    <p role="status">{{ message }}</p>
-  }
-  <details class="secondary-section" [open]="!!recallImpact">
-    <summary>
+  <hh-tabs label="Traceability sections">
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'scan'"
+      [class.active]="activeTab === 'scan'"
+      (click)="activeTab = 'scan'"
+    >
+      {{ "mobile.operatorLotScanTab" | hhTranslate: "Lot action" }}
+    </button>
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'history'"
+      [class.active]="activeTab === 'history'"
+      (click)="activeTab = 'history'"
+    >
       {{ "mobile.operatorLotHistory" | hhTranslate: "Lot history and context" }}
-    </summary>
+    </button>
+  </hh-tabs>
+  @if (activeTab !== "scan" && selectedLot; as lot) {
+    <div class="operator-context-bar" role="status" aria-live="polite">
+      <span class="operator-context-bar__label">{{
+        "mobile.operatorLotCode" | hhTranslate: "Lot"
+      }}</span>
+      <strong>{{ lot.lotCode || lot.sku }}</strong>
+      <small>{{ dispositionLabel(lot.disposition) }}</small>
+    </div>
+  } @else if (activeTab !== "scan" && scannedCode) {
+    <div class="operator-context-bar" role="status" aria-live="polite">
+      <span class="operator-context-bar__label">{{
+        "mobile.operatorLotCode" | hhTranslate: "Lot"
+      }}</span>
+      <strong>{{ scannedCode }}</strong>
+    </div>
+  }
+  @if (activeTab === "scan") {
+    <button type="button" (click)="scanQr()">
+      {{ "mobile.operatorScanQr" | hhTranslate: "Scan QR with camera" }}
+    </button>
+    <label for="traceability-lot"
+      ><span>{{ "mobile.operatorLotCode" | hhTranslate: "Lot" }}</span>
+      <hh-select
+        id="traceability-lot"
+        [(ngModel)]="scannedCode"
+        label="mobile.operatorLotCode"
+        placeholder="mobile.operatorChooseLot"
+        ><option value="">
+          {{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}
+        </option>
+        @for (lot of lots; track lot.id) {
+          <option
+            [value]="lot.lotCode || lot.id"
+            [textContent]="lotOptionLabel(lot)"
+          ></option>
+        }
+      </hh-select>
+    </label>
+    <button type="button" (click)="openLot()">
+      {{ "mobile.operatorOpenLot" | hhTranslate: "Open lot" }}
+    </button>
+    @if (selectedLot; as lot) {
+      <fieldset class="disposition-card">
+        <legend>
+          {{ "mobile.operatorLotDisposition" | hhTranslate: "Lot disposition" }}
+        </legend>
+        <label for="traceability-disposition"
+          ><span>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}</span
+          ><hh-select
+            id="traceability-disposition"
+            [(ngModel)]="newDisposition"
+            label="mobile.operatorStatus"
+            placeholder="mobile.operatorChooseDisposition"
+            ><option value="Released">
+              {{ "mobile.operatorStatusReleased" | hhTranslate: "Released" }}
+            </option>
+            <option value="Hold">
+              {{ "mobile.operatorStatusHold" | hhTranslate: "Hold" }}
+            </option>
+            <option value="Rejected">
+              {{ "mobile.operatorStatusRejected" | hhTranslate: "Rejected" }}
+            </option>
+            <option value="Consumed">
+              {{ "mobile.operatorStatusConsumed" | hhTranslate: "Consumed" }}
+            </option></hh-select
+          ></label
+        >
+        <label
+          >{{ "mobile.operatorDispositionReason" | hhTranslate: "Reason"
+          }}<input [(ngModel)]="dispositionReason"
+        /></label>
+        <label
+          >{{
+            "mobile.operatorEvidenceReference"
+              | hhTranslate: "Evidence reference"
+          }}<input [(ngModel)]="dispositionEvidence" /></label
+        ><button
+          type="button"
+          class="secondary-action"
+          (click)="captureEvidence()"
+        >
+          {{
+            "mobile.operatorCaptureEvidence" | hhTranslate: "Capture evidence"
+          }}
+        </button>
+        <button type="button" (click)="changeDisposition()">
+          {{
+            "mobile.operatorSaveDisposition" | hhTranslate: "Save disposition"
+          }}
+        </button>
+      </fieldset>
+    }
+    @if (message) {
+      <p role="status">{{ message }}</p>
+    }
+  }
+  @if (activeTab === "history") {
     @if (qualityHistory.length) {
       <article class="quality-history" aria-live="polite">
         <h3>
@@ -201,7 +240,9 @@
     }
     @if (genealogy; as graph) {
       <article class="genealogy" aria-live="polite">
-        <h3>{{ "mobile.operatorGenealogy" | hhTranslate: "Lot genealogy" }}</h3>
+        <h3>
+          {{ "mobile.operatorGenealogy" | hhTranslate: "Lot genealogy" }}
+        </h3>
         <p>
           {{ graph.lot.lotCode || graph.lot.sku }} ·
           {{ formatNumber(graph.lot.quantity) }} {{ graph.lot.uom }} ·
@@ -226,5 +267,5 @@
         }
       </article>
     }
-  </details>
+  }
 </section>

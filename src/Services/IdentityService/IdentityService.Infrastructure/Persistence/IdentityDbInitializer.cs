@@ -1311,7 +1311,7 @@ public static class IdentityDbInitializer
                     continue;
                 }
 
-                logger.LogInformation("Created conglomerate pilot user '{UserName}'.", userName);
+                logger.LogInformation("Created conglomerate pilot user.");
             }
             else
             {
@@ -1351,7 +1351,7 @@ public static class IdentityDbInitializer
                     }
                     else
                     {
-                        logger.LogInformation("Reset conglomerate pilot password for '{UserName}'.", userName);
+                        logger.LogInformation("Reset conglomerate pilot password.");
                     }
                 }
             }

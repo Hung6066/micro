@@ -11,8 +11,8 @@ namespace His.Hope.IdentityService.Application.UseCases.Users.Queries;
 /// Paginated user search query with filtering by role, search term, and active status.
 /// </summary>
 public record GetUsersQuery(
-    int Page = 1,
-    int PageSize = 20,
+    int Page = PaginationDefaults.DefaultPage,
+    int PageSize = PaginationDefaults.DefaultPageSize,
     string? Search = null,
     string? Role = null,
     bool? IsActive = null,
@@ -33,7 +33,8 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
         CancellationToken cancellationToken)
     {
         ValidatePagination(request.Page, request.PageSize);
-        IQueryable<User> query = _context.Users.AsNoTracking();
+        IQueryable<User> query = _context.Users.AsNoTracking()
+            .TagWith("Identity.Users.GetUsers");
 
         // Apply search filter across name fields
         if (!string.IsNullOrWhiteSpace(request.Search))

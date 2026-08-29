@@ -442,7 +442,9 @@ public class IdentityService : IIdentityService
     public async Task<UserDto> GetUserByIdAsync(Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        var user = await _userManager.Users.AsNoTracking()
+            .TagWith("Identity.Users.ServiceGetUserById")
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
         if (user is null)
             throw new KeyNotFoundException("User not found.");
 
@@ -457,7 +459,7 @@ public class IdentityService : IIdentityService
         _logger.LogInformation("User logout - refresh token revoked");
     }
 
-    public async Task<string> GeneratePasswordResetTokenAsync(string email)
+    public async Task<string> GeneratePasswordResetTokenAsync(string email, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email);
         if (user is null)
@@ -466,22 +468,23 @@ public class IdentityService : IIdentityService
         return await _userManager.GeneratePasswordResetTokenAsync(user);
     }
 
-    public async Task ResetPasswordAsync(string email, string token, string newPassword)
+    public async Task ResetPasswordAsync(string email, string token, string newPassword, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email)
             ?? throw new KeyNotFoundException("User not found.");
 
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
             var hasher = new PasswordHasher<User>();
             var priorHash = user.PasswordHash;
-            var recentHashes = await _context.UserPasswordHistories
+            var recentHashes = await _context.UserPasswordHistories.AsNoTracking()
+                .TagWith("Identity.Password.ResetRecentHistory")
                 .Where(item => item.UserId == user.Id)
                 .OrderByDescending(item => item.ChangedAt)
                 .Take(5)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
             foreach (var oldHash in recentHashes)
             {
                 var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
@@ -498,16 +501,16 @@ public class IdentityService : IIdentityService
 
             user.LastPasswordChangedAt = DateTime.UtcNow;
             if (!string.IsNullOrWhiteSpace(priorHash))
-                await RecordPasswordHistoryAsync(user.Id, priorHash);
+                await RecordPasswordHistoryAsync(user.Id, priorHash, cancellationToken);
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
                 throw new InvalidOperationException("Unable to persist password policy metadata.");
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(cancellationToken);
             _logger.LogInformation("Password reset completed for UserId={UserId}", user.Id);
         });
     }
 
-    public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
             ?? throw new KeyNotFoundException("User not found.");
@@ -518,15 +521,16 @@ public class IdentityService : IIdentityService
 
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
             var hasher = new PasswordHasher<User>();
             var priorHash = user.PasswordHash;
-            var recentHashes = await _context.UserPasswordHistories
+            var recentHashes = await _context.UserPasswordHistories.AsNoTracking()
+                .TagWith("Identity.Password.ChangeRecentHistory")
                 .Where(item => item.UserId == user.Id)
                 .OrderByDescending(item => item.ChangedAt)
                 .Take(5)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
             foreach (var oldHash in recentHashes)
             {
                 var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
@@ -543,16 +547,16 @@ public class IdentityService : IIdentityService
 
             user.LastPasswordChangedAt = DateTime.UtcNow;
             if (!string.IsNullOrWhiteSpace(priorHash))
-                await RecordPasswordHistoryAsync(user.Id, priorHash);
+                await RecordPasswordHistoryAsync(user.Id, priorHash, cancellationToken);
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
                 throw new InvalidOperationException("Unable to persist password policy metadata.");
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(cancellationToken);
             _logger.LogInformation("Password changed for UserId={UserId}", user.Id);
         });
     }
 
-    private async Task RecordPasswordHistoryAsync(Guid userId, string passwordHash)
+    private async Task RecordPasswordHistoryAsync(Guid userId, string passwordHash, CancellationToken cancellationToken)
     {
         _context.UserPasswordHistories.Add(new UserPasswordHistory
         {
@@ -561,16 +565,17 @@ public class IdentityService : IIdentityService
             ChangedAt = DateTime.UtcNow
         });
 
-        var stale = await _context.UserPasswordHistories
+        var stale = await _context.UserPasswordHistories.AsNoTracking()
+            .TagWith("Identity.Password.TrimHistory")
             .Where(item => item.UserId == userId)
             .OrderByDescending(item => item.ChangedAt)
             .Skip(5)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         _context.UserPasswordHistories.RemoveRange(stale);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<string> GenerateEmailConfirmationTokenAsync(Guid userId)
+    public async Task<string> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
             ?? throw new KeyNotFoundException("User not found.");
@@ -578,7 +583,7 @@ public class IdentityService : IIdentityService
         return await _userManager.GenerateEmailConfirmationTokenAsync(user);
     }
 
-    public async Task ConfirmEmailAsync(string email, string token)
+    public async Task ConfirmEmailAsync(string email, string token, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email)
             ?? throw new KeyNotFoundException("User not found.");

@@ -1,5 +1,5 @@
 @use "@his-hope/frontend-foundation/styles" as his;
-@import "../../shared/mobile-foundation/angular/src/styles/mobile-layout.scss";
+@use "../../shared/mobile-foundation/angular/src/styles/mobile-layout";
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
@@ -50,7 +50,13 @@ body {
   font-family: var(--font-body);
 }
 
-/* Mobile field flows keep secondary context closed and the current task action reachable. */
+/* Feature pages use full-width action buttons; tabs must keep intrinsic widths. */
+.operator-shell__content hh-tabs button[role="tab"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* Tab content is always visible; tabs isolate the workflow groups. */
 .operator-shell__content .secondary-section {
   min-width: 0;
   padding: 0.75rem 1rem;
@@ -59,17 +65,13 @@ body {
   background: var(--surface-muted, var(--surface-white));
 }
 
-.operator-shell__content .secondary-section > summary {
+.operator-shell__content .secondary-section__title {
   min-height: var(--touch-target, 2.75rem);
   display: flex;
   align-items: center;
-  cursor: pointer;
+  margin: 0;
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold, 600);
-}
-
-.operator-shell__content .secondary-section[open] > summary {
-  margin-bottom: 0;
 }
 
 .operator-shell__content .secondary-section .summary-card,
@@ -90,33 +92,31 @@ body {
   border: 0;
 }
 
-.operator-shell__content details.secondary-section {
+.operator-shell__content .secondary-section {
   display: grid;
   gap: var(--space-md, 0.75rem);
 }
 
-.operator-shell__content .maintenance-page details.secondary-section {
+.operator-shell__content .maintenance-page .secondary-section {
   row-gap: 1rem;
 }
 
-.operator-shell__content .maintenance-page details.secondary-section > aside,
-.operator-shell__content .maintenance-page details.secondary-section > label {
+.operator-shell__content .maintenance-page .secondary-section > aside,
+.operator-shell__content .maintenance-page .secondary-section > label {
   margin: 0;
 }
 
-.operator-shell__content
-  .maintenance-page
-  details.secondary-section[open]
-  > *
-  + * {
+.operator-shell__content .maintenance-page .secondary-section > * + * {
   margin-top: 1rem;
 }
 
-.operator-shell__content
-  .maintenance-page
-  details.secondary-section[open]
-  + label {
+.operator-shell__content .maintenance-page .secondary-section + label {
   padding-top: 0.5rem;
+}
+
+/* Every tab panel needs a visible separation between cards. */
+.operator-shell__content .secondary-section > * + * {
+  margin-top: 1rem;
 }
 
 .operator-shell__content .maintenance-page .primary-action {
@@ -124,8 +124,42 @@ body {
   box-shadow: none;
 }
 
-.operator-shell__content details.secondary-section[open] + label {
+.operator-shell__content .secondary-section + label {
   margin-top: var(--space-sm, 0.5rem);
+}
+
+.operator-shell__content .operator-context-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.6rem;
+  min-width: 0;
+  margin: 0 var(--space-md, 0.75rem);
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-default);
+  border-radius: 0.75rem;
+  background: var(--surface-muted, var(--surface-white));
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+/* The selected context belongs directly to the secondary tab, without the tabs' default bottom gap. */
+.operator-shell__content hh-tabs:has(+ .operator-context-bar) {
+  margin-bottom: 0.35rem;
+}
+
+.operator-context-bar__label {
+  font-size: var(--font-size-caption, 0.8rem);
+  font-weight: var(--font-weight-semibold, 600);
+}
+
+.operator-shell__content .operator-context-bar strong {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.operator-shell__content .operator-context-bar small {
+  color: var(--text-secondary);
 }
 
 .operator-shell__content .primary-action {

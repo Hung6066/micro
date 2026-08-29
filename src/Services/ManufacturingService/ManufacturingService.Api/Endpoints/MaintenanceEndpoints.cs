@@ -4,6 +4,7 @@ using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Application;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Persistence.Querying;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
@@ -18,10 +19,10 @@ internal static class MaintenanceEndpoints
     public static RouteGroupBuilder MapMaintenanceEndpoints(this RouteGroupBuilder api)
     {
                 
-                api.MapGet("/machines", (string? tenantKey, string? status, int? limit, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapGet("/machines", (string? tenantKey, string? status, int? limit, int? page, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid();
-                    return Results.Ok(store.GetMachines(scopedTenant, status, limit ?? 50));
+                    return Results.Ok(store.GetMachines(scopedTenant, status, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
                 api.MapPost("/machines", (CreateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
@@ -91,18 +92,18 @@ internal static class MaintenanceEndpoints
                     };
                 });
 
-                api.MapGet("/maintenance-work-orders", (Guid? machineId, string? status, int? limit, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapGet("/maintenance-work-orders", (Guid? machineId, string? status, int? limit, int? page, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    return Results.Ok(store.GetMaintenanceWorkOrders(tenantKey, machineId, status, limit ?? 50));
+                    return Results.Ok(store.GetMaintenanceWorkOrders(tenantKey, machineId, status, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
-                api.MapGet("/maintenance-plans", (Guid? machineId, bool? active, int? limit, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapGet("/maintenance-plans", (Guid? machineId, bool? active, int? limit, int? page, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    return Results.Ok(store.GetMaintenancePlans(tenantKey, machineId, active, limit ?? 100));
+                    return Results.Ok(store.GetMaintenancePlans(tenantKey, machineId, active, limit ?? HisHopePaginationDefaults.SmallMaxPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
                 api.MapPost("/machines/{machineId:guid}/maintenance-plans", (Guid machineId, CreateMaintenancePlanRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
@@ -205,8 +206,6 @@ internal static class MaintenanceEndpoints
         return api;
     }
 }
-
-
 
 
 

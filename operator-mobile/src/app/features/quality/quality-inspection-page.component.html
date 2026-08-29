@@ -15,152 +15,196 @@
   @if (loadError) {
     <p class="load-error" role="alert">{{ loadError }}</p>
   }
-  <article class="hh-mobile-field-card">
-    <label for="quality-lot"
-      ><span>{{ "mobile.operatorLotId" | hhTranslate: "Lot" }}</span
-      ><hh-select
-        id="quality-lot"
-        [(ngModel)]="lotId"
-        (ngModelChange)="loadInspections()"
-        label="mobile.operatorLotId"
-        placeholder="mobile.operatorChooseLot"
-      >
-        <option value="">
-          {{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}
-        </option>
-        @for (lot of lots; track lot.id) {
-          <option [value]="lot.id" [textContent]="lotOptionLabel(lot)"></option>
-        }</hh-select
-    ></label>
-    <label for="quality-plan"
-      ><span>{{
-        "mobile.operatorInspectionPlan" | hhTranslate: "Inspection plan"
-      }}</span
-      ><hh-select
-        id="quality-plan"
-        [(ngModel)]="inspectionPlanVersionId"
-        label="mobile.operatorInspectionPlan"
-        placeholder="mobile.operatorNoInspectionPlan"
-        ><option value="">
-          {{
-            "mobile.operatorNoInspectionPlan" | hhTranslate: "No plan selected"
-          }}
-        </option>
-        @for (plan of planVersions; track plan.id) {
-          <option
-            [value]="plan.id"
-            [textContent]="
-              plan.planCode + ' · ' + plan.productSku + ' · v' + plan.version
-            "
-          ></option>
-        }</hh-select
-    ></label>
-    <label
-      >{{ "mobile.operatorInspector" | hhTranslate: "Inspector"
-      }}<input
-        [(ngModel)]="inspector"
-        [placeholder]="
-          'mobile.operatorInspectorPlaceholder' | hhTranslate: 'Your name'
-        "
-    /></label>
-    <label
-      >{{ "mobile.operatorMoisture" | hhTranslate: "Moisture %"
-      }}<input type="number" [(ngModel)]="moisturePercent"
-    /></label>
-    <label for="quality-status"
-      ><span>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}</span
-      ><hh-select
-        id="quality-status"
-        [(ngModel)]="status"
-        label="mobile.operatorStatus"
-        placeholder="mobile.operatorStatus"
-        ><option value="Pass">
-          {{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}
-        </option>
-        <option value="Fail">
-          {{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}
-        </option>
-        <option value="Pending">
-          {{ "mobile.operatorStatusPending" | hhTranslate: "Pending" }}
-        </option></hh-select
-      ></label
+  <hh-tabs label="Quality inspection sections">
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'inspection'"
+      [class.active]="activeTab === 'inspection'"
+      (click)="activeTab = 'inspection'"
     >
-    <button type="button" class="primary-action" (click)="submitInspection()">
-      {{ "mobile.operatorSaveInspection" | hhTranslate: "Save inspection" }}
+      {{ "mobile.operatorInspectionTab" | hhTranslate: "Inspection" }}
     </button>
-    <details class="secondary-section">
-      <summary>
-        {{
-          "mobile.operatorQualityTestDetails"
-            | hhTranslate: "Optional quality test"
-        }}
-      </summary>
-      <fieldset>
-        <legend>
-          {{
-            "mobile.operatorTestResult" | hhTranslate: "Quality test (optional)"
-          }}
-        </legend>
-        <label
-          >{{ "mobile.operatorTestCode" | hhTranslate: "Test code"
-          }}<input [(ngModel)]="testCode" placeholder="CCP-TEMP"
-        /></label>
-        <label
-          >{{ "mobile.operatorTestName" | hhTranslate: "Test name"
-          }}<input [(ngModel)]="testName"
-        /></label>
-        <label
-          >{{ "mobile.operatorMeasuredValue" | hhTranslate: "Measured value"
-          }}<input type="number" [(ngModel)]="measuredValue"
-        /></label>
-        <label
-          >{{ "mobile.operatorTestUom" | hhTranslate: "Unit"
-          }}<input [(ngModel)]="testUom" placeholder="°C"
-        /></label>
-        <label for="quality-test-result"
-          ><span>{{ "mobile.operatorTestResult" | hhTranslate: "Result" }}</span
-          ><hh-select
-            id="quality-test-result"
-            [(ngModel)]="testResult"
-            label="mobile.operatorTestResult"
-            placeholder="mobile.operatorTestResult"
-            ><option value="Pass">
-              {{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}
-            </option>
-            <option value="Fail">
-              {{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}
-            </option>
-            <option value="NotApplicable">
-              {{
-                "mobile.operatorNotApplicable" | hhTranslate: "Not applicable"
-              }}
-            </option></hh-select
-          ></label
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'sample'"
+      [class.active]="activeTab === 'sample'"
+      (click)="activeTab = 'sample'"
+    >
+      {{ "mobile.operatorSample" | hhTranslate: "Quality sample" }}
+    </button>
+    <button
+      role="tab"
+      type="button"
+      [attr.aria-selected]="activeTab === 'deviation'"
+      [class.active]="activeTab === 'deviation'"
+      (click)="activeTab = 'deviation'"
+    >
+      {{ "mobile.operatorDeviation" | hhTranslate: "Production deviation" }}
+    </button>
+  </hh-tabs>
+  @if (activeTab !== "inspection" && selectedLot(); as lot) {
+    <div class="operator-context-bar" role="status" aria-live="polite">
+      <span class="operator-context-bar__label">{{
+        "mobile.operatorLotCode" | hhTranslate: "Lot"
+      }}</span>
+      <strong>{{ lot.lotCode || lot.sku }}</strong>
+      <small>{{ lot.quantity }} {{ lot.uom || "" }}</small>
+    </div>
+  }
+  <article class="hh-mobile-field-card">
+    @if (activeTab === "inspection") {
+      <label for="quality-lot"
+        ><span>{{ "mobile.operatorLotId" | hhTranslate: "Lot" }}</span
+        ><hh-select
+          id="quality-lot"
+          [(ngModel)]="lotId"
+          (ngModelChange)="loadInspections()"
+          label="mobile.operatorLotId"
+          placeholder="mobile.operatorChooseLot"
         >
-        <label
-          >{{ "mobile.operatorTestMethod" | hhTranslate: "Method"
-          }}<input [(ngModel)]="testMethod"
-        /></label>
-        <label
-          >{{
-            "mobile.operatorEvidenceReference"
-              | hhTranslate: "Evidence reference"
-          }}<input [(ngModel)]="evidenceReference" /></label
-        ><button
-          type="button"
-          class="secondary-action"
-          (click)="captureEvidence()"
-        >
+          <option value="">
+            {{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}
+          </option>
+          @for (lot of lots; track lot.id) {
+            <option
+              [value]="lot.id"
+              [textContent]="lotOptionLabel(lot)"
+            ></option>
+          }</hh-select
+      ></label>
+      <label for="quality-plan"
+        ><span>{{
+          "mobile.operatorInspectionPlan" | hhTranslate: "Inspection plan"
+        }}</span
+        ><hh-select
+          id="quality-plan"
+          [(ngModel)]="inspectionPlanVersionId"
+          label="mobile.operatorInspectionPlan"
+          placeholder="mobile.operatorNoInspectionPlan"
+          ><option value="">
+            {{
+              "mobile.operatorNoInspectionPlan"
+                | hhTranslate: "No plan selected"
+            }}
+          </option>
+          @for (plan of planVersions; track plan.id) {
+            <option
+              [value]="plan.id"
+              [textContent]="
+                plan.planCode + ' · ' + plan.productSku + ' · v' + plan.version
+              "
+            ></option>
+          }</hh-select
+      ></label>
+      <label
+        >{{ "mobile.operatorInspector" | hhTranslate: "Inspector"
+        }}<input
+          [(ngModel)]="inspector"
+          [placeholder]="
+            'mobile.operatorInspectorPlaceholder' | hhTranslate: 'Your name'
+          "
+      /></label>
+      <label
+        >{{ "mobile.operatorMoisture" | hhTranslate: "Moisture %"
+        }}<input type="number" [(ngModel)]="moisturePercent"
+      /></label>
+      <label for="quality-status"
+        ><span>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}</span
+        ><hh-select
+          id="quality-status"
+          [(ngModel)]="status"
+          label="mobile.operatorStatus"
+          placeholder="mobile.operatorStatus"
+          ><option value="Pass">
+            {{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}
+          </option>
+          <option value="Fail">
+            {{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}
+          </option>
+          <option value="Pending">
+            {{ "mobile.operatorStatusPending" | hhTranslate: "Pending" }}
+          </option></hh-select
+        ></label
+      >
+      <button type="button" class="primary-action" (click)="submitInspection()">
+        {{ "mobile.operatorSaveInspection" | hhTranslate: "Save inspection" }}
+      </button>
+      <section class="secondary-section">
+        <h2 class="secondary-section__title">
           {{
-            "mobile.operatorCaptureEvidence" | hhTranslate: "Capture evidence"
+            "mobile.operatorQualityTestDetails"
+              | hhTranslate: "Optional quality test"
           }}
-        </button>
-      </fieldset>
-    </details>
-    <details class="secondary-section">
-      <summary>
-        {{ "mobile.operatorSample" | hhTranslate: "Quality sample" }}
-      </summary>
+        </h2>
+        <fieldset>
+          <legend>
+            {{
+              "mobile.operatorTestResult"
+                | hhTranslate: "Quality test (optional)"
+            }}
+          </legend>
+          <label
+            >{{ "mobile.operatorTestCode" | hhTranslate: "Test code"
+            }}<input [(ngModel)]="testCode" placeholder="CCP-TEMP"
+          /></label>
+          <label
+            >{{ "mobile.operatorTestName" | hhTranslate: "Test name"
+            }}<input [(ngModel)]="testName"
+          /></label>
+          <label
+            >{{ "mobile.operatorMeasuredValue" | hhTranslate: "Measured value"
+            }}<input type="number" [(ngModel)]="measuredValue"
+          /></label>
+          <label
+            >{{ "mobile.operatorTestUom" | hhTranslate: "Unit"
+            }}<input [(ngModel)]="testUom" placeholder="°C"
+          /></label>
+          <label for="quality-test-result"
+            ><span>{{
+              "mobile.operatorTestResult" | hhTranslate: "Result"
+            }}</span
+            ><hh-select
+              id="quality-test-result"
+              [(ngModel)]="testResult"
+              label="mobile.operatorTestResult"
+              placeholder="mobile.operatorTestResult"
+              ><option value="Pass">
+                {{ "mobile.operatorStatusPass" | hhTranslate: "Pass" }}
+              </option>
+              <option value="Fail">
+                {{ "mobile.operatorStatusFail" | hhTranslate: "Fail" }}
+              </option>
+              <option value="NotApplicable">
+                {{
+                  "mobile.operatorNotApplicable" | hhTranslate: "Not applicable"
+                }}
+              </option></hh-select
+            ></label
+          >
+          <label
+            >{{ "mobile.operatorTestMethod" | hhTranslate: "Method"
+            }}<input [(ngModel)]="testMethod"
+          /></label>
+          <label
+            >{{
+              "mobile.operatorEvidenceReference"
+                | hhTranslate: "Evidence reference"
+            }}<input [(ngModel)]="evidenceReference" /></label
+          ><button
+            type="button"
+            class="secondary-action"
+            (click)="captureEvidence()"
+          >
+            {{
+              "mobile.operatorCaptureEvidence" | hhTranslate: "Capture evidence"
+            }}
+          </button>
+        </fieldset>
+      </section>
+    }
+    @if (activeTab === "sample") {
       <fieldset>
         <legend>
           {{ "mobile.operatorSample" | hhTranslate: "Quality sample" }}
@@ -262,11 +306,8 @@
           </button>
         }
       </fieldset>
-    </details>
-    <details class="secondary-section">
-      <summary>
-        {{ "mobile.operatorDeviation" | hhTranslate: "Production deviation" }}
-      </summary>
+    }
+    @if (activeTab === "deviation") {
       <fieldset>
         <legend>
           {{ "mobile.operatorDeviation" | hhTranslate: "Production deviation" }}
@@ -309,12 +350,12 @@
         </button>
       </fieldset>
       @if (deviations.length) {
-        <details class="secondary-section">
-          <summary>
+        <section class="secondary-section">
+          <h3 class="secondary-section__title">
             {{
               "mobile.operatorDeviationReview" | hhTranslate: "Deviation review"
             }}
-          </summary>
+          </h3>
           <fieldset>
             <legend>
               {{
@@ -383,9 +424,9 @@
               }}
             </button>
           </fieldset>
-        </details>
+        </section>
       }
-    </details>
+    }
     @if (message) {
       <p role="status">{{ message }}</p>
     }
