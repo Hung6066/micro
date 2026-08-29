@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, effect, inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
-import { OperatorMobileApiService, type InspectionPlanVersion, type ProductionBatch, type QualityInspection, type QualitySample } from "../../core/services/operator-mobile-api.service";
+import { OperatorMobileApiService, type InspectionPlanVersion, type ProductionBatch, type QualityInspection, type QualitySample, type ManufacturingDeviation } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
@@ -9,6 +9,7 @@ import type { LotSummary } from "../../core/services/operator-mobile-api.service
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
 import { HisHopeSelectComponent } from "@his-hope/frontend-foundation/ui";
 import { operatorMobileErrorMessage } from "../../core/operator-mobile-error.util";
+import { NativeCapabilityService } from "../../core/native-capability.service";
 
 @Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeSelectComponent], templateUrl: "./quality-inspection-page.component.html", styleUrls: ["./quality-inspection-page.component.scss"] })
 export class QualityInspectionPageComponent {
@@ -17,6 +18,7 @@ export class QualityInspectionPageComponent {
   private readonly tenant = inject(OperatorMobileTenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly native = inject(NativeCapabilityService);
   lotId = "";
   inspector = "";
   moisturePercent = 0;
@@ -47,6 +49,16 @@ export class QualityInspectionPageComponent {
   deviationType = "Process deviation";
   deviationDescription = "";
   deviationImpact = "";
+  deviations: ManufacturingDeviation[] = [];
+  deviationId = "";
+  deviationReviewStatus: "Approved" | "Rejected" | "Closed" = "Approved";
+  deviationReviewer = "";
+  deviationReviewNotes = "";
+
+  async captureEvidence(): Promise<void> {
+    const photo = await this.native.capturePhoto({ quality: 82, width: 1600, height: 1600 });
+    if (photo?.uri) this.evidenceReference = photo.uri;
+  }
 
   constructor() {
     effect(() => {
@@ -64,6 +76,9 @@ export class QualityInspectionPageComponent {
       });
       this.api.getProductionBatches("Started").pipe(catchError(() => of([]))).subscribe((batches) => {
         setTimeout(() => { this.batches = batches; if (this.deviationBatchId && !batches.some((batch) => batch.id === this.deviationBatchId)) this.deviationBatchId = ""; this.cdr.markForCheck(); });
+      });
+      this.api.getDeviations(undefined, "Open").pipe(catchError(() => of([]))).subscribe((deviations) => {
+        setTimeout(() => { this.deviations = deviations; if (this.deviationId && !deviations.some((deviation) => deviation.id === this.deviationId)) this.deviationId = ""; this.cdr.markForCheck(); });
       });
     });
   }
@@ -154,5 +169,19 @@ export class QualityInspectionPageComponent {
       (queued) => this.api.createDeviation(queued),
     );
     this.message = operation.status === "synced" ? this.i18n.t("mobile.operatorDeviationSaved", "Deviation submitted.") : this.i18n.t("mobile.operatorPendingSync", "Pending sync — it will retry when connected.");
+  }
+
+  async reviewDeviation(): Promise<void> {
+    if (!this.deviationId || !this.deviationReviewer.trim()) {
+      this.message = this.i18n.t("mobile.operatorDeviationReviewValidation", "Select a deviation and enter the reviewing operator.");
+      return;
+    }
+    const result = await this.api.changeDeviationStatus(this.deviationId, this.deviationReviewStatus, this.deviationReviewer.trim(), this.deviationReviewNotes);
+    this.message = result.kind === "synced"
+      ? this.i18n.t("mobile.operatorDeviationReviewSaved", "Deviation review saved.")
+      : operatorMobileErrorMessage(this.i18n, { status: result.kind === "conflict" ? result.statusCode : undefined, message: result.message });
+    if (result.kind === "synced") {
+      this.api.getDeviations(undefined, "Open").pipe(catchError(() => of([]))).subscribe((deviations) => { this.deviations = deviations; this.deviationId = ""; this.cdr.markForCheck(); });
+    }
   }
 }

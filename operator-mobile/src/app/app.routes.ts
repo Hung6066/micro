@@ -72,6 +72,13 @@ export const routes: Routes = [
             (m) => m.ShiftHandoverPageComponent,
           ),
       },
+      {
+        path: "notifications",
+        loadComponent: () =>
+          import("./features/notifications/notifications-page.component").then(
+            (m) => m.NotificationsPageComponent,
+          ),
+      },
     ],
   },
   { path: "**", redirectTo: "operations" },

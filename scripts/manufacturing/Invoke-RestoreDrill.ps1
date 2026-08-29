@@ -13,16 +13,31 @@ if ($MaxRpoMinutes -lt 0) { throw 'MaxRpoMinutes cannot be negative.' }
 if ($DatabasePrefix -notmatch '^[A-Za-z_][A-Za-z0-9_]{0,40}$') {
     throw 'DatabasePrefix must be a PostgreSQL identifier (letters, digits, underscore; max 41 characters).'
 }
+$name = $null
+$dumpPath = $null
+function Remove-RestoreDrillArtifacts {
+    if ($name) {
+        & docker exec $PostgresContainer psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $name" | Out-Null
+    }
+    if ($dumpPath) {
+        & docker exec $PostgresContainer rm -f $dumpPath | Out-Null
+    }
+}
+trap {
+    Remove-RestoreDrillArtifacts
+    throw
+}
 $backup = [IO.Path]::GetFullPath($BackupFile)
 if (-not (Test-Path -LiteralPath $backup -PathType Leaf)) { throw "Backup file not found: $backup" }
 $stopwatch = [Diagnostics.Stopwatch]::StartNew()
 $backupTimestamp = (Get-Item -LiteralPath $backup).LastWriteTimeUtc
 $name = "${DatabasePrefix}_$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))"
-& docker cp $backup "${PostgresContainer}:/tmp/$name.dump"
+$dumpPath = "/tmp/$name.dump"
+& docker cp $backup "${PostgresContainer}:$dumpPath"
 if ($LASTEXITCODE -ne 0) { throw 'docker cp failed.' }
 & docker exec $PostgresContainer psql -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE $name"
 if ($LASTEXITCODE -ne 0) { throw "Could not create isolated database '$name'." }
-& docker exec $PostgresContainer pg_restore -U postgres --no-owner --no-acl --dbname=$name "/tmp/$name.dump"
+& docker exec $PostgresContainer pg_restore -U postgres --no-owner --no-acl --dbname=$name "$dumpPath"
 if ($LASTEXITCODE -ne 0) { throw "pg_restore failed for '$name'." }
 $lots = (& docker exec $PostgresContainer psql -U postgres -d $name -Atc 'select count(*) from manufacturing_lots;').Trim()
 $outbox = (& docker exec $PostgresContainer psql -U postgres -d $name -Atc 'select count(*) from manufacturing_outbox_messages;').Trim()
@@ -60,4 +75,5 @@ if ($OutputPath) {
     [IO.File]::WriteAllText([IO.Path]::GetFullPath($OutputPath), $json, [Text.UTF8Encoding]::new($false))
 }
 Write-Output $json
+Remove-RestoreDrillArtifacts
 if (-not $rtoPass -or -not $rpoPass) { exit 2 }

@@ -2,17 +2,20 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace ManufacturingService.Api.Migrations
+namespace ManufacturingService.Infrastructure.Migrations
 {
     [DbContext(typeof(ManufacturingDbContext))]
-    partial class ManufacturingDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829062955_AddSopArtifactsAndBusinessSignatures")]
+    partial class AddSopArtifactsAndBusinessSignatures
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5044,96 +5047,6 @@ namespace ManufacturingService.Api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ManufacturingSopArtifactAcknowledgmentEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("AcknowledgedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Actor")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("created_by");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<string>("DeletedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("deleted_by");
-
-                    b.Property<bool?>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_deleted");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<Guid>("SopArtifactId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TenantKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("updated_by");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SopArtifactId");
-
-                    b.HasIndex("TenantKey", "SopArtifactId", "Actor")
-                        .IsUnique();
-
-                    b.ToTable("manufacturing_sop_artifact_acknowledgments", null, t =>
-                        {
-                            t.Property("Id")
-                                .HasColumnName("id");
-
-                            t.Property("AcknowledgedAt")
-                                .HasColumnName("acknowledged_at");
-
-                            t.Property("Actor")
-                                .HasColumnName("actor");
-
-                            t.Property("Notes")
-                                .HasColumnName("notes");
-
-                            t.Property("SopArtifactId")
-                                .HasColumnName("sop_artifact_id");
-
-                            t.Property("TenantKey")
-                                .HasColumnName("tenant_key");
-                        });
-                });
-
             modelBuilder.Entity("ManufacturingSopArtifactEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6891,15 +6804,6 @@ namespace ManufacturingService.Api.Migrations
                         .WithMany()
                         .HasForeignKey("ProductSpecificationId")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("ManufacturingSopArtifactAcknowledgmentEntity", b =>
-                {
-                    b.HasOne("ManufacturingSopArtifactEntity", null)
-                        .WithMany()
-                        .HasForeignKey("SopArtifactId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("ManufacturingStorageLocationEntity", b =>

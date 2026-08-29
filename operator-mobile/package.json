@@ -5,7 +5,7 @@
   "scripts": {
     "prebuild": "npm --prefix ../shared/frontend-foundation run build && npm --prefix ../shared/mobile-foundation run build",
     "prestart": "node -e \"try { require('fs').rmSync('.angular/cache',{recursive:true,force:true,maxRetries:3,retryDelay:100}); } catch (error) { if (!['EPERM','EBUSY'].includes(error.code)) throw error; }\"",
-    "start": "ng serve --port 4310",
+    "start": "ng serve --configuration development --watch --port 4310",
     "build": "ng build --configuration production",
     "test": "ng test --watch=false",
     "cap:sync": "cap sync",

@@ -26,6 +26,12 @@ và không biến việc partition thành một lần nâng cấp phá vỡ dữ
    `max_connections`.
 2. Chụp row count, kích thước bảng/index, dead tuple, lock/deadlock, p95 query,
    pool wait, replication lag và backup age.
+   Snapshot scale-readiness cũng ghi nhận bảng ứng viên đã là partitioned hay
+   chưa; trạng thái `warning` ở đây chỉ mở capacity review, không tự động chạy
+   DDL trên production. Snapshot phải bao gồm cả các bảng quan hệ tăng theo user
+   (`asp_net_user_claims`, `asp_net_user_roles`, `asp_net_user_logins`, MFA,
+   password history) và OpenIddict authorization/token; thiếu bất kỳ bảng nào là
+   schema-drift và phải dừng rollout.
 3. Chạy `npm run validate:identity-migrations`,
    `scripts/validate-database-migration-contract.ps1` và drift check trên bản
    sao độc lập. Không triển khai nếu migration safety hoặc drift fail.
@@ -58,6 +64,11 @@ LIKE`, tạo partition theo tháng hoặc quý, copy theo khoảng khóa/thời 
 checkpoint, đối soát count/checksum, sau đó chuyển writer trong một cửa sổ ngắn.
 Không partition trực tiếp `asp_net_users` chỉ vì row count: khóa/unique/FK và
 đường đăng nhập phải được benchmark và thiết kế lại trước.
+
+Mọi migration có `PARTITION BY` hoặc `PARTITION OF` phải có comment kiểm soát
+`-- partition-approved: <table>` cho từng bảng append-only được capacity review
+phê duyệt. Guard `validate-identity-migration-safety.ps1` sẽ từ chối partition
+user/relationship tables hoặc partition DDL không có marker này.
 
 ### Vượt khả năng một PostgreSQL writer
 

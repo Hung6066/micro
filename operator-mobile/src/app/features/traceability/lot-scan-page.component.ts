@@ -9,6 +9,7 @@ import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util
 import { HisHopeSelectComponent } from "@his-hope/frontend-foundation/ui";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
 import { operatorMobileErrorMessage } from "../../core/operator-mobile-error.util";
+import { NativeCapabilityService } from "../../core/native-capability.service";
 
 @Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeSelectComponent], templateUrl: "./lot-scan-page.component.html", styleUrls: ["./lot-scan-page.component.scss"] })
 export class LotScanPageComponent {
@@ -18,6 +19,7 @@ export class LotScanPageComponent {
   private readonly tenant = inject(OperatorMobileTenantContextService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly queue = inject(OperationQueueService);
+  private readonly native = inject(NativeCapabilityService);
   scannedCode = "";
   message = "";
   loadError = "";
@@ -33,6 +35,11 @@ export class LotScanPageComponent {
   newDisposition = "";
   dispositionReason = "";
   dispositionEvidence = "";
+
+  async captureEvidence(): Promise<void> {
+    const photo = await this.native.capturePhoto({ quality: 82, width: 1600, height: 1600 });
+    if (photo?.uri) this.dispositionEvidence = photo.uri;
+  }
 
   dispositionLabel(disposition: string): string { return manufacturingEnumLabel(this.i18n, "disposition", disposition); }
   genealogyRoleLabel(role: string): string { return manufacturingEnumLabel(this.i18n, "genealogyRole", role); }

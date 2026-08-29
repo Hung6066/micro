@@ -6,6 +6,7 @@ import { NativeCapabilityService } from './native-capability.service';
 import { DpopProofService } from './dpop-proof.service';
 import { environment } from '../../environments/environment';
 import { rewriteHisHopeNativeOidcUrl } from './mobile-runtime';
+import { OperationQueueService } from './offline/operation-queue.service';
 
 export interface MobileCurrentUserProfile {
   id: string;
@@ -19,6 +20,7 @@ export class MobileAuthService {
   private readonly http = inject(HttpClient);
   private readonly native = inject(NativeCapabilityService);
   private readonly dpop = inject(DpopProofService);
+  private readonly queue = inject(OperationQueueService);
   private readonly mfaStatusUrl = environment.adminApiUrl.replace(/\/admin$/, '/auth/mfa/status');
   readonly isAuthenticated$ = this.oidc.isAuthenticated$.pipe(map(state => state.isAuthenticated));
   readonly userData$ = this.oidc.userData$;
@@ -135,6 +137,7 @@ export class MobileAuthService {
 
   private clearLocalSession(): void {
     this.oidc.logoffLocal();
+    void this.queue.clear();
     void this.native.secureRemove('his-hope.mobile.session');
   }
 

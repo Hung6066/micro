@@ -18,7 +18,5 @@ export const environment = {
   sentryDsn: resolveMobileSentryDsn(''),
   sentryEnvironment: resolveMobileSentryEnvironment('development'),
   pushNotificationsEnabled: resolveMobilePushNotificationsEnabled(true),
-  security: {
-    certificatePins: [{ host: 'api.his-hope.example', sha256Spki: 'sha256/REPLACE_IN_RELEASE' }],
-  },
+  security: { certificatePins: [] },
 };

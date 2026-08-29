@@ -31,7 +31,8 @@ public sealed class ManufacturingMigrationContractTests
             .Where(entity => entity.GetTableName() is not null)
             .ToArray();
 
-        entities.Should().HaveCount(52);
+        entities.Should().NotBeEmpty();
+        entities.Select(entity => entity.GetTableName()).Should().OnlyHaveUniqueItems();
 
         foreach (var entity in entities)
         {

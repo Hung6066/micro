@@ -67,7 +67,10 @@ export class MobilePlatformService implements Partial<HisHopeNativePasskeyCapabi
   }
 
   async configureCertificatePins(): Promise<void> {
-    const pins = environment.security.certificatePins;
+    const runtimePins = typeof window !== "undefined"
+      ? (window.__HISHOPE_CONFIG__ as typeof window.__HISHOPE_CONFIG__ & { certificatePins?: readonly HisHopeCertificatePin[] } | undefined)?.certificatePins
+      : undefined;
+    const pins = runtimePins ?? environment.security.certificatePins;
     if (Capacitor.isNativePlatform() && pins.length > 0) await Security.configureCertificatePins({ pins });
   }
 

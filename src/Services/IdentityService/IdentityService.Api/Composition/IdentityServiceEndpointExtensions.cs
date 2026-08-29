@@ -623,6 +623,83 @@ public static class IdentityServiceEndpointExtensions
         .RequireAuthorization()
         .WithOpenApi();
 
+        // Mobile and other authenticated end-user clients need their effective
+        // permissions for local capability hints. Keep this endpoint outside
+        // the admin group: authorization remains enforced by the resource API,
+        // while the admin route below stays restricted to HumanAdmin users.
+        auth.MapGet("/me/permissions", async (
+            HttpContext httpContext,
+            UserManager<User> userManager,
+            IdentityDbContext db,
+            IIdentityService identityService,
+            CancellationToken ct) =>
+        {
+            var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? httpContext.User.FindFirstValue("sub");
+            if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
+
+            var scopes = httpContext.User.FindAll("scope")
+                .Concat(httpContext.User.FindAll("scp"))
+                .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var user = Guid.TryParse(userId, out var parsedUserId)
+                ? await userManager.FindByIdAsync(parsedUserId.ToString())
+                : null;
+
+            if (user is not null)
+            {
+                var roles = await userManager.GetRolesAsync(user);
+                var facilityIds = await db.UserFacilities
+                    .Where(membership => membership.UserId == user.Id && membership.IsActive && membership.RevokedAt == null)
+                    .Select(membership => membership.FacilityId)
+                    .Distinct()
+                    .ToArrayAsync(ct);
+                var tenantMemberships = (await userManager.GetClaimsAsync(user))
+                    .Where(claim => claim.Type == "tenant_membership")
+                    .Select(claim => claim.Value)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                var effectivePermissions = await identityService.GetEffectivePermissionsAsync(user.Id, ct);
+                return Results.Ok(new
+                {
+                    userId,
+                    userName = user.Email ?? user.UserName,
+                    roles = roles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                    permissions = effectivePermissions,
+                    scopes,
+                    facilityIds,
+                    tenantId = httpContext.User.FindFirstValue("tenant_id"),
+                    tenantMemberships,
+                    authzVersion = user.SecurityStamp
+                });
+            }
+
+            return Results.Ok(new
+            {
+                userId,
+                userName = httpContext.User.Identity?.Name,
+                roles = httpContext.User.FindAll(ClaimTypes.Role).Select(c => c.Value)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                permissions = httpContext.User.FindAll("permission").Concat(httpContext.User.FindAll("permissions"))
+                    .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                scopes,
+                facilityIds = httpContext.User.FindAll("facility_ids")
+                    .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    .Concat(httpContext.User.FindAll("facility_id").Select(c => c.Value))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                tenantId = httpContext.User.FindFirstValue("tenant_id"),
+                tenantMemberships = httpContext.User.FindAll("tenant_membership").Select(c => c.Value)
+                    .Concat(httpContext.User.FindAll("tenant_memberships")
+                        .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                authzVersion = httpContext.User.FindFirst("securityVersion")?.Value
+            });
+        })
+        .RequireAuthorization()
+        .WithOpenApi();
+
         auth.MapPost("/check-permission", (PermissionCheckRequest request, HttpContext httpContext) =>
         {
             var permission = request.Permission?.Trim();

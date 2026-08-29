@@ -83,6 +83,34 @@ foreach ($file in $sqlFiles) {
 if ($destructive.Count -gt 0) { Add-Check 'destructive-migration-review' 'blocked' "Destructive SQL requires an explicit expand/contract review: $($destructive -join ', ')" }
 else { Add-Check 'destructive-migration-review' 'pass' 'No destructive SQL pattern detected in generated scripts.' }
 
+# Every hand-authored EF migration must expose a rollback body. This does not
+# execute Down() in production; it prevents an upgrade from being shipped with
+# an irreversible schema step that cannot be rehearsed on a restore copy.
+$migrationRoots = @(
+    'src/Services/IdentityService/IdentityService.Infrastructure/Persistence/Migrations',
+    'src/Services/AppointmentService/AppointmentService.Infrastructure/Persistence/Migrations',
+    'src/Services/ClinicalService/ClinicalService.Infrastructure/Persistence/Migrations',
+    'src/Services/LabService/LabService.Infrastructure/Persistence/Migrations',
+    'src/Services/BillingService/BillingService.Infrastructure/Persistence/Migrations',
+    'src/Services/PatientService/PatientService.Infrastructure/Persistence/Migrations',
+    'src/Services/PharmacyService/PharmacyService.Infrastructure/Persistence/Migrations'
+)
+$rollbackMissing = [System.Collections.Generic.List[string]]::new()
+foreach ($relativeRoot in $migrationRoots) {
+    $migrationRoot = Join-Path $root $relativeRoot
+    if (-not (Test-Path -LiteralPath $migrationRoot -PathType Container)) { continue }
+    foreach ($migrationFile in @(Get-ChildItem -LiteralPath $migrationRoot -Filter '*.cs' -File | Where-Object { $_.Name -notmatch 'Designer|Snapshot' })) {
+        if ((Get-Content -LiteralPath $migrationFile.FullName -Raw) -notmatch 'protected override void Down\(') {
+            $rollbackMissing.Add($migrationFile.FullName.Substring($root.Length + 1))
+        }
+    }
+}
+if ($rollbackMissing.Count -gt 0) {
+    Add-Check 'migration-rollback-surface' 'fail' "Migrations without Down(): $($rollbackMissing -join ', ')"
+} else {
+    Add-Check 'migration-rollback-surface' 'pass' 'All hand-authored EF migrations expose a Down() rollback body.'
+}
+
 # Every API that owns an EF context must expose a one-shot migration-only mode
 # for the reviewed Kubernetes Job. This keeps DDL out of long-running API
 # replicas while preserving the existing development convenience path.

@@ -1,1 +1,75 @@
-.sync-page { display: grid; gap: 1rem; min-width: 0; } .sync-page > * { min-width: 0; } .eyebrow { color: var(--text-secondary); font-size: var(--font-size-overline, .7rem); font-weight: 800; letter-spacing: .12em; } h2 { margin: 0; font-size: var(--font-size-headline, 1.9rem); overflow-wrap: anywhere; } p { color: var(--text-secondary); line-height: 1.5; overflow-wrap: anywhere; } article { display: grid; gap: .65rem; min-width: 0; padding: 1rem; border: 1px solid var(--border-default); border-radius: 1rem; background: var(--surface-white); } article div { display: flex; justify-content: space-between; gap: .5rem; min-width: 0; } article span { color: var(--color-success); font-weight: 700; overflow-wrap: anywhere; } button { width: 100%; min-height: 2.5rem; border: 0; border-radius: .7rem; background: var(--color-primary); color: var(--color-on-primary); font-weight: 700; } .empty { color: var(--text-secondary); }
+.sync-page {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.sync-page > * {
+  min-width: 0;
+}
+.eyebrow {
+  color: var(--text-secondary);
+  font-size: var(--font-size-overline, 0.7rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+h2 {
+  margin: 0;
+  font-size: var(--font-size-headline, 1.9rem);
+  overflow-wrap: anywhere;
+}
+p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+article {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: 1rem;
+  background: var(--surface-white);
+}
+article div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+article span {
+  color: var(--color-success);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+button {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 0;
+  border-radius: 0.7rem;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 700;
+}
+.empty {
+  color: var(--text-secondary);
+}
+.sync-page .secondary-action {
+  border: 1px solid var(--border-default);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+.sync-page .discard-warning {
+  margin: 0;
+  color: var(--color-danger, #b42318);
+  font-weight: 600;
+}
+.discard-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.sync-page .danger-action {
+  background: var(--color-danger, #b42318);
+  color: var(--color-on-danger, #fff);
+}

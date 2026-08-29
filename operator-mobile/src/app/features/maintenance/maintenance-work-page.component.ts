@@ -8,6 +8,7 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
 import { HisHopeSelectComponent } from "@his-hope/frontend-foundation/ui";
 import { operatorMobileErrorMessage } from "../../core/operator-mobile-error.util";
+import { NativeCapabilityService } from "../../core/native-capability.service";
 
 @Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe, HisHopeSelectComponent], templateUrl: "./maintenance-work-page.component.html", styleUrls: ["./maintenance-work-page.component.scss"] })
 export class MaintenanceWorkPageComponent {
@@ -16,6 +17,7 @@ export class MaintenanceWorkPageComponent {
   private readonly tenant = inject(OperatorMobileTenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly native = inject(NativeCapabilityService);
   checklistComplete = false;
   checklistItems: Array<{ label: string; complete: boolean }> = [];
   machineId = "";
@@ -60,6 +62,11 @@ export class MaintenanceWorkPageComponent {
     if (!item) return;
     item.complete = complete;
     this.checklistComplete = this.checklistItems.every((entry) => entry.complete);
+  }
+
+  async captureEvidence(): Promise<void> {
+    const photo = await this.native.capturePhoto({ quality: 82, width: 1600, height: 1600 });
+    if (photo?.uri) this.evidence = photo.uri;
   }
 
   loadCalibrations(): void {

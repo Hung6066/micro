@@ -74,14 +74,27 @@ try {
 SELECT json_build_object(
   'server_version', current_setting('server_version'),
   'max_connections', current_setting('max_connections')::int,
+  'current_connections', (SELECT count(*)::int FROM pg_stat_activity),
   'tables', COALESCE((SELECT json_agg(row_to_json(t)) FROM (
     SELECT schemaname, relname, n_live_tup::bigint AS estimated_rows,
            pg_total_relation_size(relid)::bigint AS total_bytes,
            n_dead_tup::bigint AS dead_rows,
-           CASE WHEN n_live_tup > 0 THEN round((n_dead_tup::numeric / n_live_tup) * 100, 2) ELSE 0 END AS dead_ratio_pct
+           CASE WHEN n_live_tup > 0 THEN round((n_dead_tup::numeric / n_live_tup) * 100, 2) ELSE 0 END AS dead_ratio_pct,
+           EXISTS (
+             SELECT 1
+             FROM pg_partitioned_table pt
+             JOIN pg_class parent ON parent.oid = pt.partrelid
+             WHERE parent.relname = relname
+           ) AS is_partitioned
     FROM pg_stat_user_tables
     WHERE schemaname = 'public'
-      AND relname IN ('asp_net_users','audit_logs','security_events','openiddict_tokens','security_signal_outbox','directory_provisioning_outbox')
+      AND relname IN (
+        'asp_net_users','asp_net_user_claims','asp_net_user_roles',
+        'asp_net_user_logins','asp_net_user_tokens','user_mfa',
+        'user_password_history','audit_logs','security_events',
+        'openiddict_authorizations','openiddict_tokens',
+        'security_signal_outbox','directory_provisioning_outbox'
+      )
     ORDER BY pg_total_relation_size(relid) DESC
   ) t), '[]'::json)
 )::text;
@@ -93,20 +106,69 @@ SELECT json_build_object(
         Add-Check $checks 'live-database' 'pass' 'Live PostgreSQL capacity snapshot collected.'
         Add-Check $checks 'server-version' 'pass' ([string]$snapshot.server_version)
         Add-Check $checks 'max-connections' 'pass' "max_connections=$($snapshot.max_connections)" ([int]$snapshot.max_connections)
+        $connectionUtilization = [double]$snapshot.current_connections / [double]$snapshot.max_connections
+        if ($connectionUtilization -ge 0.8) {
+            Add-Check $checks 'connection-utilization' 'warning' "Current connections=$($snapshot.current_connections) are $([math]::Round($connectionUtilization * 100, 2))% of max_connections."
+        } else {
+            Add-Check $checks 'connection-utilization' 'pass' "Current connections=$($snapshot.current_connections) are $([math]::Round($connectionUtilization * 100, 2))% of max_connections."
+        }
         if ($totalConnectionBudget -ge [int]$snapshot.max_connections) {
             Add-Check $checks 'connection-budget-headroom' 'fail' "Configured connection budget $totalConnectionBudget must remain below max_connections=$($snapshot.max_connections)."
         } else {
             Add-Check $checks 'connection-budget-headroom' 'pass' "Connection budget $totalConnectionBudget leaves $([int]$snapshot.max_connections - $totalConnectionBudget) connections of headroom."
         }
 
-        $indexSql = "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ('ix_security_events_timestamp_brin','ix_audit_logs_timestamp_brin','ix_asp_net_users_created_at_id','ix_asp_net_users_active_created_at_id');"
+        $requiredIndexes = @(
+            'ix_security_events_timestamp_brin', 'ix_audit_logs_timestamp_brin',
+            'ix_asp_net_users_created_at_id', 'ix_asp_net_users_active_created_at_id',
+            'ix_asp_net_user_claims_user_id', 'ix_asp_net_user_logins_user_id',
+            'ix_user_password_history_user_id_changed_at',
+            'ix_openiddict_tokens_status_expiration',
+            'ix_openiddict_tokens_subject_status_expiration'
+        )
+        $quotedIndexes = ($requiredIndexes | ForEach-Object { "'$_'" }) -join ','
+        $indexSql = "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname IN ($quotedIndexes);"
         $indexText = (& psql --no-psqlrc --no-align --tuples-only --quiet --dbname=$psqlConnection --command=$indexSql 2>&1 | Out-String).Trim()
         if ($LASTEXITCODE -ne 0) { throw "Live identity index verification failed: $indexText" }
         $indexCount = [int]$indexText
-        if ($indexCount -ne 4) {
-            Add-Check $checks 'required-scale-indexes' 'fail' "Expected 4 scale indexes, found $indexCount." $indexCount
+        if ($indexCount -ne $requiredIndexes.Count) {
+            Add-Check $checks 'required-scale-indexes' 'fail' "Expected $($requiredIndexes.Count) scale indexes, found $indexCount." $indexCount
         } else {
-            Add-Check $checks 'required-scale-indexes' 'pass' 'BRIN audit/security and user listing indexes are present.' $indexCount
+            Add-Check $checks 'required-scale-indexes' 'pass' 'BRIN, user-listing, identity-child and token-lifecycle indexes are present.' $indexCount
+        }
+
+        $planSql = @'
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
+EXPLAIN (FORMAT TEXT) SELECT id FROM asp_net_users WHERE is_active = true ORDER BY created_at, id LIMIT 100;
+EXPLAIN (FORMAT TEXT) SELECT id FROM asp_net_users ORDER BY created_at DESC, id DESC LIMIT 100;
+'@
+        $planText = (& psql --no-psqlrc --tuples-only --quiet --dbname=$psqlConnection --command=$planSql 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0) { throw "Identity listing query-plan verification failed: $planText" }
+        if ($planText -notmatch 'ix_asp_net_users_active_created_at_id') {
+            Add-Check $checks 'query-plan-active-listing' 'fail' 'Active user listing does not use ix_asp_net_users_active_created_at_id.'
+        } else {
+            Add-Check $checks 'query-plan-active-listing' 'pass' 'Active user listing uses the stable composite index.'
+        }
+        if ($planText -notmatch 'ix_asp_net_users_created_at_id') {
+            Add-Check $checks 'query-plan-created-listing' 'fail' 'Created-at user listing does not use ix_asp_net_users_created_at_id.'
+        } else {
+            Add-Check $checks 'query-plan-created-listing' 'pass' 'Created-at user listing uses the stable composite index.'
+        }
+
+        $requiredScaleTables = @(
+            'asp_net_users','asp_net_user_claims','asp_net_user_roles',
+            'asp_net_user_logins','asp_net_user_tokens','user_mfa',
+            'user_password_history','audit_logs','security_events',
+            'openiddict_authorizations','openiddict_tokens',
+            'security_signal_outbox','directory_provisioning_outbox'
+        )
+        $observedTables = @($snapshot.tables | ForEach-Object relname)
+        $missingScaleTables = @($requiredScaleTables | Where-Object { $observedTables -notcontains $_ })
+        if ($missingScaleTables.Count -gt 0) {
+            Add-Check $checks 'required-scale-tables' 'fail' "Required scale tables are missing from the live schema snapshot: $($missingScaleTables -join ', ')"
+        } else {
+            Add-Check $checks 'required-scale-tables' 'pass' 'All user, authorization, lifecycle and audit scale tables are present.'
         }
 
         foreach ($table in @($snapshot.tables)) {
@@ -115,6 +177,19 @@ SELECT json_build_object(
             $status = if ($rows -ge $RowWarningThreshold -or $bytes -ge $TableSizeWarningBytes) { 'warning' } else { 'pass' }
             $message = "rows=$rows; sizeBytes=$bytes; deadRatioPct=$($table.dead_ratio_pct)"
             Add-Check $checks "table:$($table.relname)" $status $message $table
+
+            # Partitioning is an explicit capacity-review decision, not an
+            # automatic migration. At the warning threshold, emit evidence
+            # that the table is ready for (or still needs) an additive
+            # archive/partition plan. Core user tables remain review-only.
+            $isCandidate = $table.relname -in @('audit_logs', 'security_events', 'openiddict_tokens', 'security_signal_outbox', 'directory_provisioning_outbox')
+            if ($isCandidate -and ($rows -ge $RowWarningThreshold -or $bytes -ge $TableSizeWarningBytes)) {
+                if ([bool]$table.is_partitioned) {
+                    Add-Check $checks "partition:$($table.relname)" 'pass' 'Scale candidate is already partitioned; verify retention and partition maintenance.' $table
+                } else {
+                    Add-Check $checks "partition:$($table.relname)" 'warning' 'Scale candidate crossed the threshold and requires an additive partition/archive capacity review before further growth.' $table
+                }
+            }
         }
     }
 

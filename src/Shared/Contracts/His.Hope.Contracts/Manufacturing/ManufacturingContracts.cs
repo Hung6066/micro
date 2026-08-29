@@ -94,6 +94,13 @@ public sealed record RecipeComponentDto(string IngredientSku, decimal Quantity, 
 public sealed record CreateDeviationRequest(string Type, string Description, string Impact, string RequestedBy);
 public sealed record DeviationActionRequest(string Actor, string? Notes = null);
 public sealed record ManufacturingDeviationDto(Guid Id, string TenantKey, Guid ProductionBatchId, string Type, string Description, string Impact, string Status, string RequestedBy, string? ApprovedBy, string? ResolutionNotes, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt, DateTimeOffset? ClosedAt);
+public sealed record CreateSopArtifactRequest(string ArtifactKey, string Title, int Version, string Content, string ContentType = "text/markdown", string Status = "Draft", DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null, string? CreatedBy = null);
+public sealed record SopArtifactLifecycleRequest(string Actor, DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null);
+public sealed record SopArtifactDto(Guid Id, string TenantKey, string ArtifactKey, string Title, int Version, string Content, string ContentType, string Status, string Checksum, DateTimeOffset? EffectiveFrom, DateTimeOffset? EffectiveTo, string? ApprovedBy, DateTimeOffset? ApprovedAt, string? CreatedBy, DateTimeOffset CreatedAt);
+public sealed record SopArtifactAcknowledgmentRequest(string? Notes = null);
+public sealed record SopArtifactAcknowledgmentDto(Guid Id, Guid SopArtifactId, string TenantKey, string Actor, string? Notes, DateTimeOffset AcknowledgedAt);
+public sealed record CreateBusinessSignatureRequest(string EntityType, Guid EntityId, string Action, string Reason, string? EvidenceReference = null, string SignatureMethod = "AuthenticatedSession");
+public sealed record BusinessSignatureDto(Guid Id, string TenantKey, string EntityType, Guid EntityId, string Action, string Reason, string? EvidenceReference, string Actor, string SignatureMethod, string SignatureHash, DateTimeOffset SignedAt);
 public sealed record CreateMachineRequest(string TenantKey, string Code, string Name, string Status = "Available", DateTimeOffset? LastMaintenanceAt = null, DateTimeOffset? NextMaintenanceAt = null, bool Active = true);
 public sealed record UpdateMachineRequest(string Code, string Name, string Status, DateTimeOffset? NextMaintenanceAt, bool Active);
 public sealed record RecordMaintenanceRequest(DateTimeOffset MaintainedAt, DateTimeOffset? NextMaintenanceAt, string Status = "Available");

@@ -1064,6 +1064,47 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    [Fact]
+    public async Task Compliance_routes_persist_versioned_sop_and_authenticated_business_signature()
+    {
+        var sop = await client.PostAsJsonAsync("/api/v1/manufacturing/sop-artifacts", new
+        {
+            artifactKey = "SOP-DRYING", title = "Drying work instruction", version = 1,
+            content = "Keep product temperature between 60 and 65 C", status = "Draft"
+        });
+        sop.StatusCode.Should().Be(HttpStatusCode.Created);
+        var sopId = (await ReadJson(sop)).GetProperty("id").GetGuid();
+        (await client.PostAsJsonAsync($"/api/v1/manufacturing/sop-artifacts/{sopId}/approve", new { actor = "approver-1" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await client.PostAsJsonAsync($"/api/v1/manufacturing/sop-artifacts/{sopId}/retire", new { actor = "approver-1" })).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+
+        var submitted = await client.PostAsJsonAsync("/api/v1/manufacturing/sop-artifacts", new
+        {
+            artifactKey = "SOP-DRYING", title = "Drying work instruction", version = 2,
+            content = "Keep product temperature between 60 and 65 C", status = "Submitted"
+        });
+        var submittedId = (await ReadJson(submitted)).GetProperty("id").GetGuid();
+        var approved = await client.PostAsJsonAsync($"/api/v1/manufacturing/sop-artifacts/{submittedId}/approve", new { actor = "approver-1" });
+        approved.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(approved)).GetProperty("checksum").GetString().Should().HaveLength(64);
+        var acknowledgment = await client.PostAsJsonAsync($"/api/v1/manufacturing/sop-artifacts/{submittedId}/acknowledge", new { notes = "Read before starting the batch." });
+        acknowledgment.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await ReadJson(acknowledgment)).GetProperty("actor").GetString().Should().Be("manufacturing-http-test");
+        var duplicateAcknowledgment = await client.PostAsJsonAsync($"/api/v1/manufacturing/sop-artifacts/{submittedId}/acknowledge", new { });
+        duplicateAcknowledgment.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var signature = await client.PostAsJsonAsync("/api/v1/manufacturing/business-signatures", new
+        {
+            entityType = "sop-artifact", entityId = submittedId, action = "approve", reason = "Reviewed against site procedure", signatureMethod = "AuthenticatedSession"
+        });
+        signature.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await ReadJson(signature)).GetProperty("signatureHash").GetString().Should().HaveLength(64);
+        var duplicate = await client.PostAsJsonAsync("/api/v1/manufacturing/business-signatures", new
+        {
+            entityType = "sop-artifact", entityId = submittedId, action = "approve", reason = "Duplicate", signatureMethod = "AuthenticatedSession"
+        });
+        duplicate.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
     private static async Task<System.Text.Json.JsonElement> ReadJson(HttpResponseMessage response) =>
         System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
 
@@ -1088,6 +1129,8 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
                 new Claim("permissions", HisHopePermissions.Manufacturing.QualityApprove),
                 new Claim("permissions", HisHopePermissions.Manufacturing.RecipeApprove),
                 new Claim("permissions", HisHopePermissions.Manufacturing.SpecificationApprove),
+                new Claim("permissions", HisHopePermissions.Manufacturing.SopApprove),
+                new Claim("permissions", HisHopePermissions.Manufacturing.BusinessSign),
                 new Claim("permissions", HisHopePermissions.Manufacturing.MaintenanceComplete)
             };
             var identity = new ClaimsIdentity(claims, TestScheme);

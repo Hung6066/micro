@@ -27,6 +27,7 @@ Assert-Contains 'k8s/infrastructure/pgbouncer-configmap.yaml' 'postgres.his-hope
 Assert-Contains 'admin-app/src/app/app.routes.ts' 'database-platform' 'Angular Manager exposes database platform screen'
 Assert-Contains 'scripts/inspect-identity-scale-readiness.ps1' 'RowWarningThreshold' 'identity capacity validator is present'
 Assert-Contains 'scripts/validate-identity-migration-dry-run.ps1' 'ON_ERROR_STOP' 'identity migration empty-database dry-run is present'
+Assert-Contains 'scripts/operations/Invoke-IdentityConcurrentIndexUpgrade.ps1' 'CREATE INDEX CONCURRENTLY' 'large-table concurrent index upgrade path is present'
 Assert-Contains 'docs/operations/identity-scale-migration-runbook.vi.md' 'Expand/contract' 'identity expand-contract runbook is present'
 
 $migrationFiles = Get-ChildItem (Join-Path $RepositoryRoot 'src/Services') -Recurse -Filter '*OptimizeReadIndexes.cs'

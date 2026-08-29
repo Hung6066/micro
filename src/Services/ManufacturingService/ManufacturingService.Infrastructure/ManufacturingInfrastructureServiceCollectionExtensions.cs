@@ -33,6 +33,7 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         services.AddSingleton<IManufacturingTraceabilityStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingQualityWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingRecipeWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
+        services.AddSingleton<IManufacturingComplianceStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingPlanningWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingIntegrationStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingWorkflowStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());

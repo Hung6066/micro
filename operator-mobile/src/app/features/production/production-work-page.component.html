@@ -1,45 +1,511 @@
 <section class="work-page">
-  <p class="eyebrow">{{ "mobile.operatorProduction" | hhTranslate: "TODAY'S SHIFT" }}</p>
-  <h2>{{ "mobile.operatorProductionTitle" | hhTranslate: "Production work" }}</h2>
-  <p class="lede">{{ "mobile.operatorProductionDescription" | hhTranslate: "Record output at the point of work. Offline entries remain queued until synchronised." }}</p>
-  @if (loadError) { <p class="load-error" role="alert">{{ loadError }}</p> }
-  @if (summary; as snapshot) { <article class="summary-card" aria-label="{{ 'mobile.operatorProductionSummary' | hhTranslate: 'Production summary' }}"><h3>{{ "mobile.operatorProductionSummary" | hhTranslate: "Production summary" }}</h3><div class="summary-grid"><span><strong>{{ formatNumber(snapshot.activeBatchCount) }}</strong>{{ "mobile.operatorActiveBatches" | hhTranslate: "Active batches" }}</span><span><strong>{{ formatNumber(snapshot.pendingInspectionCount) }}</strong>{{ "mobile.operatorPendingInspections" | hhTranslate: "QC pending" }}</span><span><strong>{{ formatNumber(snapshot.failedInspectionCount) }}</strong>{{ "mobile.operatorFailedInspections" | hhTranslate: "QC failed" }}</span><span><strong>{{ formatNumber(snapshot.releasedQuantity) }}</strong>{{ "mobile.operatorReleasedQuantity" | hhTranslate: "Released quantity" }}</span></div></article> }
-  @if (kpis; as snapshot) { <article class="summary-card kpi-card" aria-label="{{ 'mobile.operatorProductionKpis' | hhTranslate: 'Production KPIs' }}"><h3>{{ "mobile.operatorProductionKpis" | hhTranslate: "Production KPIs" }}</h3><div class="summary-grid"><span><strong>{{ formatNumber(snapshot.actualOutputQuantity) }} / {{ formatNumber(snapshot.plannedOutputQuantity) }}</strong>{{ "mobile.operatorActualPlannedOutput" | hhTranslate: "Actual / planned output" }}</span><span><strong>{{ formatPercent(snapshot.averageYieldPercent) }}</strong>{{ "mobile.operatorAverageYield" | hhTranslate: "Average yield" }}</span><span><strong>{{ formatPercent(snapshot.yieldVariancePercent) }}</strong>{{ "mobile.operatorYieldVariance" | hhTranslate: "Yield variance" }}</span><span><strong>{{ dataCompletenessLabel(snapshot.dataCompleteness) || ("mobile.operatorDataCompletenessUnknown" | hhTranslate: "Insufficient data") }}</strong>{{ "mobile.operatorDataCompleteness" | hhTranslate: "Data completeness" }}</span></div></article> }
-  @if (oee; as snapshot) { <article class="summary-card oee-card" aria-label="{{ 'mobile.operatorOee' | hhTranslate: 'OEE' }}"><h3>{{ "mobile.operatorOee" | hhTranslate: "OEE" }} · {{ oeeStatusLabel(snapshot.status) }}</h3><div class="summary-grid"><span><strong>{{ snapshot.oeePercent === null || snapshot.oeePercent === undefined ? "—" : formatPercent(snapshot.oeePercent) }}</strong>{{ "mobile.operatorOeeScore" | hhTranslate: "OEE score" }}</span><span><strong>{{ snapshot.availabilityPercent === null || snapshot.availabilityPercent === undefined ? "—" : formatPercent(snapshot.availabilityPercent) }}</strong>{{ "mobile.operatorOeeAvailability" | hhTranslate: "Availability" }}</span><span><strong>{{ snapshot.performancePercent === null || snapshot.performancePercent === undefined ? "—" : formatPercent(snapshot.performancePercent) }}</strong>{{ "mobile.operatorOeePerformance" | hhTranslate: "Performance" }}</span><span><strong>{{ snapshot.qualityPercent === null || snapshot.qualityPercent === undefined ? "—" : formatPercent(snapshot.qualityPercent) }}</strong>{{ "mobile.operatorOeeQuality" | hhTranslate: "Quality" }}</span></div>@if (snapshot.missingMetrics.length) { <small>{{ "mobile.operatorOeeMissingMetrics" | hhTranslate: "Missing metrics" }}: {{ oeeMissingMetricsLabel(snapshot.missingMetrics) }}</small> }</article> }
-  @if (exceptions.length) { <article class="summary-card exception-card" aria-label="{{ 'mobile.operatorExceptions' | hhTranslate: 'Operational exceptions' }}"><h3>{{ "mobile.operatorExceptions" | hhTranslate: "Operational exceptions" }}</h3>@for (exception of exceptions; track exception.code + exception.occurredAt) { <div class="exception-row"><strong>{{ exceptionSeverityLabel(exception.severity) }} · {{ exceptionCodeLabel(exception.code) }}</strong><span>{{ exception.title }}</span><small>{{ exception.detail }}</small></div> }</article> }
-  @if (costs; as snapshot) { <article class="summary-card cost-card" aria-label="{{ 'mobile.operatorProductionCosts' | hhTranslate: 'Production costs' }}"><h3>{{ "mobile.operatorProductionCosts" | hhTranslate: "Production costs" }}</h3><div class="summary-grid"><span><strong>{{ formatNumber(snapshot.completedBatchCount) }}</strong>{{ "mobile.operatorCostCompletedBatches" | hhTranslate: "Completed batches" }}</span><span><strong>{{ formatCurrency(snapshot.estimatedMaterialCost) }}</strong>{{ "mobile.operatorEstimatedMaterialCost" | hhTranslate: "Estimated material cost" }}</span><span><strong>{{ formatCurrency(snapshot.estimatedCostPerOutputUnit) }}</strong>{{ "mobile.operatorCostPerOutputUnit" | hhTranslate: "Cost per output unit" }}</span></div>@if (snapshot.missingPriceSkus.length) { <small>{{ "mobile.operatorMissingPrices" | hhTranslate: "Missing prices" }}: {{ snapshot.missingPriceSkus.join(", ") }}</small> }</article> }
-  @if (batchWorkflowSteps().length) { <article class="workflow-card" aria-label="{{ 'mobile.operatorBatchWorkflow' | hhTranslate: 'Batch workflow' }}"><h3>{{ "mobile.operatorBatchWorkflow" | hhTranslate: "Batch workflow" }}</h3><hh-workflow-stepper [steps]="batchWorkflowSteps()" [ariaLabel]="'mobile.operatorBatchWorkflow' | hhTranslate: 'Batch workflow'" /></article> }
+  <p class="eyebrow">
+    {{ "mobile.operatorProduction" | hhTranslate: "TODAY'S SHIFT" }}
+  </p>
+  <h2>
+    {{ "mobile.operatorProductionTitle" | hhTranslate: "Production work" }}
+  </h2>
+  <p class="lede">
+    {{
+      "mobile.operatorProductionDescription"
+        | hhTranslate
+          : "Record output at the point of work. Offline entries remain queued until synchronised."
+    }}
+  </p>
+  @if (loadError) {
+    <p class="load-error" role="alert">{{ loadError }}</p>
+  }
+  <details class="secondary-section">
+    <summary>
+      {{ "mobile.operatorShiftOverview" | hhTranslate: "Shift overview" }}
+    </summary>
+    @if (summary; as snapshot) {
+      <article
+        class="summary-card"
+        aria-label="{{
+          'mobile.operatorProductionSummary' | hhTranslate: 'Production summary'
+        }}"
+      >
+        <h3>
+          {{
+            "mobile.operatorProductionSummary"
+              | hhTranslate: "Production summary"
+          }}
+        </h3>
+        <div class="summary-grid">
+          <span
+            ><strong>{{ formatNumber(snapshot.activeBatchCount) }}</strong
+            >{{
+              "mobile.operatorActiveBatches" | hhTranslate: "Active batches"
+            }}</span
+          ><span
+            ><strong>{{ formatNumber(snapshot.pendingInspectionCount) }}</strong
+            >{{
+              "mobile.operatorPendingInspections" | hhTranslate: "QC pending"
+            }}</span
+          ><span
+            ><strong>{{ formatNumber(snapshot.failedInspectionCount) }}</strong
+            >{{
+              "mobile.operatorFailedInspections" | hhTranslate: "QC failed"
+            }}</span
+          ><span
+            ><strong>{{ formatNumber(snapshot.releasedQuantity) }}</strong
+            >{{
+              "mobile.operatorReleasedQuantity"
+                | hhTranslate: "Released quantity"
+            }}</span
+          >
+        </div>
+      </article>
+    }
+    @if (kpis; as snapshot) {
+      <article
+        class="summary-card kpi-card"
+        aria-label="{{
+          'mobile.operatorProductionKpis' | hhTranslate: 'Production KPIs'
+        }}"
+      >
+        <h3>
+          {{ "mobile.operatorProductionKpis" | hhTranslate: "Production KPIs" }}
+        </h3>
+        <div class="summary-grid">
+          <span
+            ><strong
+              >{{ formatNumber(snapshot.actualOutputQuantity) }} /
+              {{ formatNumber(snapshot.plannedOutputQuantity) }}</strong
+            >{{
+              "mobile.operatorActualPlannedOutput"
+                | hhTranslate: "Actual / planned output"
+            }}</span
+          ><span
+            ><strong>{{ formatPercent(snapshot.averageYieldPercent) }}</strong
+            >{{
+              "mobile.operatorAverageYield" | hhTranslate: "Average yield"
+            }}</span
+          ><span
+            ><strong>{{ formatPercent(snapshot.yieldVariancePercent) }}</strong
+            >{{
+              "mobile.operatorYieldVariance" | hhTranslate: "Yield variance"
+            }}</span
+          ><span
+            ><strong>{{
+              dataCompletenessLabel(snapshot.dataCompleteness) ||
+                ("mobile.operatorDataCompletenessUnknown"
+                  | hhTranslate: "Insufficient data")
+            }}</strong
+            >{{
+              "mobile.operatorDataCompleteness"
+                | hhTranslate: "Data completeness"
+            }}</span
+          >
+        </div>
+      </article>
+    }
+    @if (oee; as snapshot) {
+      <article
+        class="summary-card oee-card"
+        aria-label="{{ 'mobile.operatorOee' | hhTranslate: 'OEE' }}"
+      >
+        <h3>
+          {{ "mobile.operatorOee" | hhTranslate: "OEE" }} ·
+          {{ oeeStatusLabel(snapshot.status) }}
+        </h3>
+        <div class="summary-grid">
+          <span
+            ><strong>{{
+              snapshot.oeePercent === null || snapshot.oeePercent === undefined
+                ? "—"
+                : formatPercent(snapshot.oeePercent)
+            }}</strong
+            >{{ "mobile.operatorOeeScore" | hhTranslate: "OEE score" }}</span
+          ><span
+            ><strong>{{
+              snapshot.availabilityPercent === null ||
+              snapshot.availabilityPercent === undefined
+                ? "—"
+                : formatPercent(snapshot.availabilityPercent)
+            }}</strong
+            >{{
+              "mobile.operatorOeeAvailability" | hhTranslate: "Availability"
+            }}</span
+          ><span
+            ><strong>{{
+              snapshot.performancePercent === null ||
+              snapshot.performancePercent === undefined
+                ? "—"
+                : formatPercent(snapshot.performancePercent)
+            }}</strong
+            >{{
+              "mobile.operatorOeePerformance" | hhTranslate: "Performance"
+            }}</span
+          ><span
+            ><strong>{{
+              snapshot.qualityPercent === null ||
+              snapshot.qualityPercent === undefined
+                ? "—"
+                : formatPercent(snapshot.qualityPercent)
+            }}</strong
+            >{{ "mobile.operatorOeeQuality" | hhTranslate: "Quality" }}</span
+          >
+        </div>
+        @if (snapshot.missingMetrics.length) {
+          <small
+            >{{
+              "mobile.operatorOeeMissingMetrics"
+                | hhTranslate: "Missing metrics"
+            }}: {{ oeeMissingMetricsLabel(snapshot.missingMetrics) }}</small
+          >
+        }
+      </article>
+    }
+    @if (exceptions.length) {
+      <article
+        class="summary-card exception-card"
+        aria-label="{{
+          'mobile.operatorExceptions' | hhTranslate: 'Operational exceptions'
+        }}"
+      >
+        <h3>
+          {{
+            "mobile.operatorExceptions" | hhTranslate: "Operational exceptions"
+          }}
+        </h3>
+        @for (
+          exception of exceptions;
+          track exception.code + exception.occurredAt
+        ) {
+          <div class="exception-row">
+            <strong
+              >{{ exceptionSeverityLabel(exception.severity) }} ·
+              {{ exceptionCodeLabel(exception.code) }}</strong
+            ><span>{{ exception.title }}</span
+            ><small>{{ exception.detail }}</small>
+          </div>
+        }
+      </article>
+    }
+    @if (costs; as snapshot) {
+      <article
+        class="summary-card cost-card"
+        aria-label="{{
+          'mobile.operatorProductionCosts' | hhTranslate: 'Production costs'
+        }}"
+      >
+        <h3>
+          {{
+            "mobile.operatorProductionCosts" | hhTranslate: "Production costs"
+          }}
+        </h3>
+        <div class="summary-grid">
+          <span
+            ><strong>{{ formatNumber(snapshot.completedBatchCount) }}</strong
+            >{{
+              "mobile.operatorCostCompletedBatches"
+                | hhTranslate: "Completed batches"
+            }}</span
+          ><span
+            ><strong>{{
+              formatCurrency(snapshot.estimatedMaterialCost)
+            }}</strong
+            >{{
+              "mobile.operatorEstimatedMaterialCost"
+                | hhTranslate: "Estimated material cost"
+            }}</span
+          ><span
+            ><strong>{{
+              formatCurrency(snapshot.estimatedCostPerOutputUnit)
+            }}</strong
+            >{{
+              "mobile.operatorCostPerOutputUnit"
+                | hhTranslate: "Cost per output unit"
+            }}</span
+          >
+        </div>
+        @if (snapshot.missingPriceSkus.length) {
+          <small
+            >{{
+              "mobile.operatorMissingPrices" | hhTranslate: "Missing prices"
+            }}: {{ snapshot.missingPriceSkus.join(", ") }}</small
+          >
+        }
+      </article>
+    }
+    @if (batchWorkflowSteps().length) {
+      <article
+        class="workflow-card"
+        aria-label="{{
+          'mobile.operatorBatchWorkflow' | hhTranslate: 'Batch workflow'
+        }}"
+      >
+        <h3>
+          {{ "mobile.operatorBatchWorkflow" | hhTranslate: "Batch workflow" }}
+        </h3>
+        <hh-workflow-stepper
+          [steps]="batchWorkflowSteps()"
+          [ariaLabel]="
+            'mobile.operatorBatchWorkflow' | hhTranslate: 'Batch workflow'
+          "
+        />
+      </article>
+    }
+  </details>
   <article class="work-card">
-    <label for="production-batch"><span>{{ "mobile.operatorBatch" | hhTranslate: "Batch" }}</span><hh-select id="production-batch" [(ngModel)]="selectedBatchId" label="mobile.operatorBatch" placeholder="mobile.operatorChooseBatch"><option value="">{{ "mobile.operatorChooseBatch" | hhTranslate: "Choose a started batch" }}</option>@for (batch of batches; track batch.id) { <option [value]="batch.id" [textContent]="batch.batchNumber + ' · ' + batchStatusLabel(batch.status)"></option> }</hh-select></label>
-    <label>{{ "mobile.operatorProcessStep" | hhTranslate: "Process step" }}<input [(ngModel)]="processStep" /></label>
-    <label>{{ "mobile.operatorInputQuantity" | hhTranslate: "Input quantity" }}<input type="number" min="0" step=".01" [(ngModel)]="inputQuantity" /></label>
-    <label>{{ "mobile.operatorOutputQuantity" | hhTranslate: "Output quantity" }}<input type="number" min="0" step=".01" [(ngModel)]="outputQuantity" /></label>
-    <label for="production-qc-status"><span>{{ "mobile.operatorQcStatus" | hhTranslate: "QC status" }}</span><hh-select id="production-qc-status" [(ngModel)]="qcStatus" label="mobile.operatorQcStatus" placeholder="mobile.operatorQcStatus"><option value="Pending">{{ qcStatusLabel("Pending") }}</option><option value="Pass">{{ qcStatusLabel("Pass") }}</option><option value="Fail">{{ qcStatusLabel("Fail") }}</option></hh-select></label>
+    <label for="production-batch"
+      ><span>{{ "mobile.operatorBatch" | hhTranslate: "Batch" }}</span
+      ><hh-select
+        id="production-batch"
+        [(ngModel)]="selectedBatchId"
+        label="mobile.operatorBatch"
+        placeholder="mobile.operatorChooseBatch"
+        ><option value="">
+          {{
+            "mobile.operatorChooseBatch" | hhTranslate: "Choose a started batch"
+          }}
+        </option>
+        @for (batch of batches; track batch.id) {
+          <option
+            [value]="batch.id"
+            [textContent]="
+              batch.batchNumber + ' · ' + batchStatusLabel(batch.status)
+            "
+          ></option>
+        }</hh-select
+    ></label>
+    <label
+      >{{ "mobile.operatorProcessStep" | hhTranslate: "Process step"
+      }}<input [(ngModel)]="processStep"
+    /></label>
+    <label
+      >{{ "mobile.operatorInputQuantity" | hhTranslate: "Input quantity"
+      }}<input type="number" min="0" step=".01" [(ngModel)]="inputQuantity"
+    /></label>
+    <label
+      >{{ "mobile.operatorOutputQuantity" | hhTranslate: "Output quantity"
+      }}<input type="number" min="0" step=".01" [(ngModel)]="outputQuantity"
+    /></label>
+    <label for="production-qc-status"
+      ><span>{{ "mobile.operatorQcStatus" | hhTranslate: "QC status" }}</span
+      ><hh-select
+        id="production-qc-status"
+        [(ngModel)]="qcStatus"
+        label="mobile.operatorQcStatus"
+        placeholder="mobile.operatorQcStatus"
+        ><option value="Pending">{{ qcStatusLabel("Pending") }}</option>
+        <option value="Pass">{{ qcStatusLabel("Pass") }}</option>
+        <option value="Fail">{{ qcStatusLabel("Fail") }}</option></hh-select
+      ></label
+    >
     @if (selectedBatch(); as batch) {
-      <div class="batch-actions" aria-label="{{ 'mobile.operatorBatchActions' | hhTranslate: 'Batch actions' }}">
-        @if (batch.status === "Started") { <button type="button" class="secondary-action" (click)="transitionBatch('pause')">{{ "mobile.operatorPauseBatch" | hhTranslate: "Pause batch" }}</button> }
-        @if (batch.status === "Paused") { <button type="button" class="secondary-action" (click)="transitionBatch('resume')">{{ "mobile.operatorResumeBatch" | hhTranslate: "Resume batch" }}</button> }
-        @if (batch.status === "Started" || batch.status === "Paused") { <button type="button" class="secondary-action" (click)="transitionBatch('complete')">{{ "mobile.operatorCompleteBatch" | hhTranslate: "Complete batch" }}</button> }
+      @if (selectedRecipe(); as recipe) {
+        <article class="sop-card">
+          <p class="eyebrow">
+            {{
+              "mobile.operatorSopEyebrow"
+                | hhTranslate: "STANDARD OPERATING PROCEDURE"
+            }}
+          </p>
+          <h3>
+            {{
+              "mobile.operatorSopTitle" | hhTranslate: "Process instructions"
+            }}
+          </h3>
+          <p>
+            {{ "mobile.operatorSopVersion" | hhTranslate: "Recipe version" }}
+            {{ recipe.version }} · {{ recipe.processStep }}
+          </p>
+          <p>
+            {{ "mobile.operatorSopYield" | hhTranslate: "Target yield" }}:
+            {{ formatPercent(recipe.targetYieldPercent) }}
+          </p>
+          <ul>
+            @for (
+              component of recipe.components;
+              track component.ingredientSku
+            ) {
+              <li>
+                {{ component.ingredientSku }} · {{ component.quantity }}
+                {{ component.uom }}
+              </li>
+            }
+          </ul>
+        </article>
+      }
+      @if (selectedSopArtifact(); as artifact) {
+        <article class="sop-artifact-card">
+          <p class="eyebrow">
+            {{
+              "mobile.operatorSopArtifact" | hhTranslate: "APPROVED INSTRUCTION"
+            }}
+          </p>
+          <h3>{{ artifact.title }}</h3>
+          <p>
+            {{
+              "mobile.operatorSopArtifactVersion"
+                | hhTranslate: "Artifact version"
+            }}
+            {{ artifact.version }} · {{ artifact.checksum.slice(0, 12) }}
+          </p>
+          <p class="sop-artifact-content">{{ artifact.content }}</p>
+          @if (acknowledgedSopArtifactIds.has(artifact.id)) {
+            <p class="sop-acknowledged" role="status">
+              {{
+                "mobile.operatorSopAlreadyAcknowledged"
+                  | hhTranslate: "Acknowledged for this session."
+              }}
+            </p>
+          } @else {
+            <label
+              ><span>{{
+                "mobile.operatorSopAcknowledgmentNotes"
+                  | hhTranslate: "Acknowledgement note (optional)"
+              }}</span
+              ><input [(ngModel)]="sopAcknowledgmentNotes" /></label
+            ><button
+              type="button"
+              class="secondary-action"
+              (click)="acknowledgeSopArtifact()"
+            >
+              {{
+                "mobile.operatorSopAcknowledge" | hhTranslate: "Acknowledge SOP"
+              }}
+            </button>
+          }
+        </article>
+      }
+      <div
+        class="batch-actions"
+        aria-label="{{
+          'mobile.operatorBatchActions' | hhTranslate: 'Batch actions'
+        }}"
+      >
+        @if (batch.status === "Started") {
+          <button
+            type="button"
+            class="secondary-action"
+            (click)="transitionBatch('pause')"
+          >
+            {{ "mobile.operatorPauseBatch" | hhTranslate: "Pause batch" }}
+          </button>
+        }
+        @if (batch.status === "Paused") {
+          <button
+            type="button"
+            class="secondary-action"
+            (click)="transitionBatch('resume')"
+          >
+            {{ "mobile.operatorResumeBatch" | hhTranslate: "Resume batch" }}
+          </button>
+        }
+        @if (batch.status === "Started" || batch.status === "Paused") {
+          <button
+            type="button"
+            class="secondary-action"
+            (click)="transitionBatch('complete')"
+          >
+            {{ "mobile.operatorCompleteBatch" | hhTranslate: "Complete batch" }}
+          </button>
+        }
       </div>
       <fieldset class="measurement-card">
-        <legend>{{ "mobile.operatorMeasurement" | hhTranslate: "Process measurement" }}</legend>
-        <label><span>{{ "mobile.operatorMeasurementType" | hhTranslate: "Measurement type" }}</span><input [(ngModel)]="measurementType" /></label>
-        <label><span>{{ "mobile.operatorMeasuredValue" | hhTranslate: "Measured value" }}</span><input type="number" [(ngModel)]="measurementValue" /></label>
-        <label><span>{{ "mobile.operatorTestUom" | hhTranslate: "Unit" }}</span><input [(ngModel)]="measurementUom" /></label>
-        <button type="button" class="secondary-action" (click)="recordMeasurement()">{{ "mobile.operatorRecordMeasurement" | hhTranslate: "Record measurement" }}</button>
+        <legend>
+          {{
+            "mobile.operatorMeasurement" | hhTranslate: "Process measurement"
+          }}
+        </legend>
+        <label
+          ><span>{{
+            "mobile.operatorMeasurementType" | hhTranslate: "Measurement type"
+          }}</span
+          ><input [(ngModel)]="measurementType"
+        /></label>
+        <label
+          ><span>{{
+            "mobile.operatorMeasuredValue" | hhTranslate: "Measured value"
+          }}</span
+          ><input type="number" [(ngModel)]="measurementValue"
+        /></label>
+        <label
+          ><span>{{ "mobile.operatorTestUom" | hhTranslate: "Unit" }}</span
+          ><input [(ngModel)]="measurementUom"
+        /></label>
+        <button
+          type="button"
+          class="secondary-action"
+          (click)="recordMeasurement()"
+        >
+          {{
+            "mobile.operatorRecordMeasurement"
+              | hhTranslate: "Record measurement"
+          }}
+        </button>
       </fieldset>
       @if (lossOperations().length) {
         <fieldset class="measurement-card">
-          <legend>{{ "mobile.operatorLossReview" | hhTranslate: "Loss review" }}</legend>
-          <label for="production-loss-operation"><span>{{ "mobile.operatorLossOperation" | hhTranslate: "Operation" }}</span><hh-select id="production-loss-operation" [(ngModel)]="lossOperationId" label="mobile.operatorLossOperation" placeholder="mobile.operatorChooseLossOperation"><option value="">{{ "mobile.operatorChooseLossOperation" | hhTranslate: "Choose loss operation" }}</option>@for (operation of lossOperations(); track operation.id) { <option [value]="operation.id" [textContent]="operation.processStep + ' · ' + operation.lossQuantity"></option> }</hh-select></label>
-          <label for="production-loss-decision"><span>{{ "mobile.operatorLossDecision" | hhTranslate: "Decision" }}</span><hh-select id="production-loss-decision" [(ngModel)]="lossDecision" label="mobile.operatorLossDecision" placeholder="mobile.operatorLossDecision"><option value="Approved">{{ "mobile.operatorApproveLoss" | hhTranslate: "Approve loss" }}</option><option value="Rejected">{{ "mobile.operatorRejectLoss" | hhTranslate: "Reject loss" }}</option></hh-select></label>
-          <label>{{ "mobile.operatorLossReviewer" | hhTranslate: "Reviewer" }}<input [(ngModel)]="lossReviewer" /></label>
-          <label>{{ "mobile.operatorLossReviewNotes" | hhTranslate: "Review notes" }}<input [(ngModel)]="lossNotes" /></label>
-          <button type="button" class="secondary-action" (click)="reviewLoss()">{{ "mobile.operatorSaveLossReview" | hhTranslate: "Save loss review" }}</button>
+          <legend>
+            {{ "mobile.operatorLossReview" | hhTranslate: "Loss review" }}
+          </legend>
+          <label for="production-loss-operation"
+            ><span>{{
+              "mobile.operatorLossOperation" | hhTranslate: "Operation"
+            }}</span
+            ><hh-select
+              id="production-loss-operation"
+              [(ngModel)]="lossOperationId"
+              label="mobile.operatorLossOperation"
+              placeholder="mobile.operatorChooseLossOperation"
+              ><option value="">
+                {{
+                  "mobile.operatorChooseLossOperation"
+                    | hhTranslate: "Choose loss operation"
+                }}
+              </option>
+              @for (operation of lossOperations(); track operation.id) {
+                <option
+                  [value]="operation.id"
+                  [textContent]="
+                    operation.processStep + ' · ' + operation.lossQuantity
+                  "
+                ></option>
+              }</hh-select
+          ></label>
+          <label for="production-loss-decision"
+            ><span>{{
+              "mobile.operatorLossDecision" | hhTranslate: "Decision"
+            }}</span
+            ><hh-select
+              id="production-loss-decision"
+              [(ngModel)]="lossDecision"
+              label="mobile.operatorLossDecision"
+              placeholder="mobile.operatorLossDecision"
+              ><option value="Approved">
+                {{ "mobile.operatorApproveLoss" | hhTranslate: "Approve loss" }}
+              </option>
+              <option value="Rejected">
+                {{ "mobile.operatorRejectLoss" | hhTranslate: "Reject loss" }}
+              </option></hh-select
+            ></label
+          >
+          <label
+            >{{ "mobile.operatorLossReviewer" | hhTranslate: "Reviewer"
+            }}<input [(ngModel)]="lossReviewer"
+          /></label>
+          <label
+            >{{ "mobile.operatorLossReviewNotes" | hhTranslate: "Review notes"
+            }}<input [(ngModel)]="lossNotes"
+          /></label>
+          <button type="button" class="secondary-action" (click)="reviewLoss()">
+            {{
+              "mobile.operatorSaveLossReview" | hhTranslate: "Save loss review"
+            }}
+          </button>
         </fieldset>
       }
     }
-    <button type="button" (click)="recordOperation()">{{ "mobile.operatorRecordOperation" | hhTranslate: "Record operation" }}</button>
-    @if (message) { <p class="work-card__message" role="status">{{ message }}</p> }
+    <button type="button" class="primary-action" (click)="recordOperation()">
+      {{ "mobile.operatorRecordOperation" | hhTranslate: "Record operation" }}
+    </button>
+    @if (message) {
+      <p class="work-card__message" role="status">{{ message }}</p>
+    }
   </article>
 </section>

@@ -59,6 +59,9 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
     public DbSet<ManufacturingOperationMeasurementEntity> OperationMeasurements => Set<ManufacturingOperationMeasurementEntity>();
     public DbSet<ManufacturingSalesActualEntity> SalesActuals => Set<ManufacturingSalesActualEntity>();
     public DbSet<ManufacturingMlFeatureSnapshotEntity> MlFeatureSnapshots => Set<ManufacturingMlFeatureSnapshotEntity>();
+    public DbSet<ManufacturingSopArtifactEntity> SopArtifacts => Set<ManufacturingSopArtifactEntity>();
+    public DbSet<ManufacturingSopArtifactAcknowledgmentEntity> SopArtifactAcknowledgments => Set<ManufacturingSopArtifactAcknowledgmentEntity>();
+    public DbSet<ManufacturingBusinessSignatureEntity> BusinessSignatures => Set<ManufacturingBusinessSignatureEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -745,6 +748,32 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.HasOne<ManufacturingProductionBatchEntity>().WithMany().HasForeignKey(x => x.ProductionBatchId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<ManufacturingLotEntity>().WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<ManufacturingLotReservationEntity>().WithMany().HasForeignKey(x => x.ReservationId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ManufacturingSopArtifactEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_sop_artifacts"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired(); entity.Property(x => x.ArtifactKey).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Title).HasMaxLength(300).IsRequired(); entity.Property(x => x.Content).IsRequired(); entity.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(30).IsRequired(); entity.Property(x => x.Checksum).HasMaxLength(64).IsRequired(); entity.Property(x => x.ApprovedBy).HasMaxLength(200); entity.Property(x => x.CreatedBy).HasMaxLength(200);
+            entity.HasIndex(x => new { x.TenantKey, x.ArtifactKey, x.Version }).IsUnique(); entity.HasIndex(x => new { x.TenantKey, x.Status });
+        });
+
+        modelBuilder.Entity<ManufacturingBusinessSignatureEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_business_signatures"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired(); entity.Property(x => x.EntityType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Action).HasMaxLength(100).IsRequired(); entity.Property(x => x.Reason).HasMaxLength(2000).IsRequired(); entity.Property(x => x.EvidenceReference).HasMaxLength(1000);
+            entity.Property(x => x.Actor).HasMaxLength(200).IsRequired(); entity.Property(x => x.SignatureMethod).HasMaxLength(40).IsRequired(); entity.Property(x => x.SignatureHash).HasMaxLength(64).IsRequired();
+            entity.HasIndex(x => new { x.TenantKey, x.EntityType, x.EntityId, x.Action, x.Actor }).IsUnique(); entity.HasIndex(x => new { x.TenantKey, x.SignedAt });
+        });
+
+        modelBuilder.Entity<ManufacturingSopArtifactAcknowledgmentEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_sop_artifact_acknowledgments"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired(); entity.Property(x => x.Actor).HasMaxLength(200).IsRequired(); entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.HasIndex(x => new { x.TenantKey, x.SopArtifactId, x.Actor }).IsUnique();
+            entity.HasOne<ManufacturingSopArtifactEntity>().WithMany().HasForeignKey(x => x.SopArtifactId).OnDelete(DeleteBehavior.Cascade);
         });
 
         HisHopeDataConventions.Apply(

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Net.Sockets;
 using DotNet.Testcontainers.Builders;
 using FluentAssertions;
 using His.Hope.Contracts.Commerce;
@@ -40,6 +41,7 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
         await postgres.StartAsync();
         await rabbit.StartAsync();
         rabbitPort = rabbit.GetMappedPublicPort(5672);
+        await WaitForRabbitHandshakeAsync();
 
         var factory = new TestDbContextFactory(postgres.GetConnectionString());
         db = factory.CreateDbContext();
@@ -153,6 +155,35 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
             "Commerce.OrderPlaced.v1",
             properties,
             Encoding.UTF8.GetBytes(JsonSerializer.Serialize(order)));
+    }
+
+    private async Task WaitForRabbitHandshakeAsync()
+    {
+        var factory = new ConnectionFactory
+        {
+            HostName = "localhost",
+            Port = rabbitPort,
+            UserName = "testuser",
+            Password = "testpass123!",
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(2),
+        };
+
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            try
+            {
+                using var connection = factory.CreateConnection();
+                return;
+            }
+            catch (Exception error) when (error is SocketException or RabbitMQ.Client.Exceptions.BrokerUnreachableException)
+            {
+                lastError = error;
+                await Task.Delay(500);
+            }
+        }
+
+        throw new TimeoutException("RabbitMQ did not complete its AMQP handshake before the test fixture timeout.", lastError);
     }
 
     private static async Task EventuallyAsync(Func<Task<bool>> condition)

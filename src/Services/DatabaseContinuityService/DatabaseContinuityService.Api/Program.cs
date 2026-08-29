@@ -24,7 +24,10 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "DatabaseConti
 builder.Services.AddHealthChecks().AddCheck(
     "database-continuity-process",
     () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(),
-    tags: ["live", "ready"]);
+    tags: ["live", "ready"])
+    .AddCheck<ContinuityDependenciesHealthCheck>(
+    "continuity-dependencies",
+    tags: ["ready"]);
 builder.Host.UseSerilog((context, config) => config.ReadFrom.Configuration(context.Configuration));
 builder.Services.AddOptions<DatabaseContinuityOptions>()
     .Bind(builder.Configuration.GetSection(DatabaseContinuityOptions.SectionName))

@@ -26,18 +26,28 @@ import type {
   HisHopeLotStatusHistoryDto,
   HisHopeQualityInspectionDto,
   HisHopeQualitySampleDto,
+  HisHopeManufacturingDeviationDto,
   HisHopeInspectionPlanVersionDto,
   HisHopeProductionBatchDto,
   HisHopeLotDto,
+  HisHopeProductionOrderDto,
+  HisHopeRecipeDto,
+  HisHopeSopArtifactDto,
+  HisHopeSopArtifactAcknowledgmentDto,
 } from "@his-hope/frontend-foundation/contracts";
 
-export type ProductionBatch = Pick<HisHopeProductionBatchDto, "id" | "batchNumber" | "status" | "plannedQuantity" | "operations"> & { version?: string };
+export type ProductionBatch = Pick<HisHopeProductionBatchDto, "id" | "productionOrderId" | "batchNumber" | "status" | "plannedQuantity" | "operations"> & { version?: string };
+export type ProductionOrder = HisHopeProductionOrderDto;
+export type Recipe = HisHopeRecipeDto;
+export type SopArtifact = HisHopeSopArtifactDto;
+export type SopArtifactAcknowledgment = HisHopeSopArtifactAcknowledgmentDto;
 export type LotSummary = Pick<HisHopeLotDto, "id" | "sku" | "quantity" | "uom" | "disposition" | "bestBefore" | "updatedAt"> & { lotCode?: string };
 export type LotRelation = HisHopeGenealogyDto["relations"][number];
 export type LotGenealogy = Pick<HisHopeGenealogyDto, "relations"> & { lot: LotSummary };
 export type RecallImpact = HisHopeRecallImpactDto;
 export type QualityInspection = HisHopeQualityInspectionDto;
 export type QualitySample = HisHopeQualitySampleDto;
+export type ManufacturingDeviation = HisHopeManufacturingDeviationDto;
 export type InspectionPlanVersion = HisHopeInspectionPlanVersionDto;
 export type LotStatusHistory = HisHopeLotStatusHistoryDto;
 export type InventoryTransaction = HisHopeInventoryTransactionDto;
@@ -70,6 +80,25 @@ export class OperatorMobileApiService {
   getProductionBatches(status?: string): Observable<ProductionBatch[]> {
     return this.cachedGet(`production-batches:${status ?? "all"}`, () => this.http.get<ProductionBatch[]>(`${this.baseUrl}/production-batches`, {
       params: status ? { status } : {},
+    }));
+  }
+
+  getProductionOrders(status?: string): Observable<ProductionOrder[]> {
+    return this.cachedGet(`production-orders:${status ?? "all"}`, () => this.http.get<ProductionOrder[]>(`${this.baseUrl}/production-orders`, { params: status ? { status } : {} }));
+  }
+
+  getRecipes(productSku?: string, status = "Approved"): Observable<Recipe[]> {
+    return this.cachedGet(`recipes:${productSku ?? "all"}:${status}`, () => this.http.get<Recipe[]>(`${this.baseUrl}/recipes`, { params: { ...(productSku ? { productSku } : {}), status } }));
+  }
+
+  getSopArtifacts(artifactKey?: string, status = "Approved"): Observable<SopArtifact[]> {
+    return this.cachedGet(`sop-artifacts:${artifactKey ?? "all"}:${status}`, () => this.http.get<SopArtifact[]>(`${this.baseUrl}/sop-artifacts`, { params: { ...(artifactKey ? { artifactKey } : {}), status } }));
+  }
+
+  acknowledgeSopArtifact(artifactId: string, notes?: string): Promise<{ status: "synced" | "already-acknowledged" | "failed"; acknowledgment?: SopArtifactAcknowledgment }> {
+    return new Promise((resolve) => this.http.post<SopArtifactAcknowledgment>(`${this.baseUrl}/sop-artifacts/${artifactId}/acknowledge`, { notes: notes?.trim() || undefined }).subscribe({
+      next: (acknowledgment) => resolve({ status: "synced", acknowledgment }),
+      error: (error: { status?: number }) => resolve({ status: error?.status === 409 ? "already-acknowledged" : "failed" }),
     }));
   }
 
@@ -138,6 +167,12 @@ export class OperatorMobileApiService {
   getQualitySamples(inspectionId: string): Observable<QualitySample[]> {
     return this.cachedGet(`quality-samples:${inspectionId}`, () => this.http.get<QualitySample[]>(`${this.baseUrl}/quality-samples`, {
       params: { inspectionId, limit: "25" },
+    }));
+  }
+
+  getDeviations(productionBatchId?: string, status?: string): Observable<ManufacturingDeviation[]> {
+    return this.cachedGet(`deviations:${productionBatchId ?? "all"}:${status ?? "all"}`, () => this.http.get<ManufacturingDeviation[]>(`${this.baseUrl}/deviations`, {
+      params: { ...(productionBatchId ? { productionBatchId } : {}), ...(status ? { status } : {}), limit: "50" },
     }));
   }
 
@@ -229,6 +264,24 @@ export class OperatorMobileApiService {
 
   changeLotDisposition(operation: QueuedOperation): Promise<OperationTransportResult> {
     return this.postQueued(`${this.baseUrl}${operation.endpoint}`, operation);
+  }
+
+  /** Deviation approval/closure is deliberately online-only: it is a second-person control. */
+  changeDeviationStatus(deviationId: string, targetStatus: "Approved" | "Rejected" | "Closed", actor: string, notes?: string): Promise<OperationTransportResult> {
+    const endpoint = `/deviations/${deviationId}/${targetStatus === "Approved" ? "approve" : targetStatus === "Rejected" ? "reject" : "close"}`;
+    return new Promise((resolve) => {
+      this.http.post(`${this.baseUrl}${endpoint}`, { actor, notes: notes?.trim() || undefined }, {
+        headers: new HttpHeaders({ "X-HisHope-Operation-Id": crypto.randomUUID() }),
+      }).subscribe({
+        next: () => resolve({ kind: "synced" }),
+        error: (error: { status?: number; message?: string }) => {
+          const message = error.message ?? "Deviation status could not be changed.";
+          if (error.status === 409) resolve({ kind: "conflict", statusCode: 409, message });
+          else if (error.status && error.status >= 400 && error.status < 500) resolve({ kind: "failed", message });
+          else resolve({ kind: "pending", message });
+        },
+      });
+    });
   }
 
   completeMaintenanceWorkOrder(operation: QueuedOperation): Promise<OperationTransportResult> {

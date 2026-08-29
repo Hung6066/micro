@@ -48,6 +48,8 @@ Add-Result "P0" "No native select remains" (-not ($htmlText -match "<select\b|</
 Add-Result "P0" "No direct Capacitor feature import" (-not ($featureTsText -match "@capacitor")) "Feature code remains behind application services."
 Add-Result "P0" "Shared i18n usage" (($htmlText -match "hhTranslate") -and ($tsText -match "HisHopeI18nService")) "Templates and command messages use shared i18n APIs."
 Add-Result "P0" "API error normalization" (($tsText -match "operatorMobileErrorMessage") -and ($tsText -match "operatorSessionExpired") -and ($tsText -match "operatorConflict")) "401/403/409/422 responses map to localized guidance."
+ $permissionApiText = Read-Text (Join-Path $appRoot "src/app/core/admin-api.service.ts")
+Add-Result "P0" "End-user permission hydration" (($permissionApiText -match 'this\.authApiUrl}/me/permissions') -and ($permissionApiText -notmatch 'this\.baseUrl}/me/permissions')) "Authenticated operators load effective permissions from the non-admin identity route."
 
 # Phase 1: operational command surfaces and offline transport.
 $apiText = Read-Text (Join-Path $appRoot "src/app/core/services/operator-mobile-api.service.ts")
@@ -55,6 +57,10 @@ $maintenanceText = Read-Text (Join-Path $appRoot "src/app/features/maintenance/m
 $maintenanceHtml = Read-Text (Join-Path $appRoot "src/app/features/maintenance/maintenance-work-page.component.html")
 $handoverText = Read-Text (Join-Path $appRoot "src/app/features/handover/shift-handover-page.component.ts")
 $handoverHtml = Read-Text (Join-Path $appRoot "src/app/features/handover/shift-handover-page.component.html")
+$notificationsText = Read-Text (Join-Path $appRoot "src/app/features/notifications/notifications-page.component.ts")
+$notificationsHtml = Read-Text (Join-Path $appRoot "src/app/features/notifications/notifications-page.component.html")
+$productionHtml = Read-Text (Join-Path $appRoot "src/app/features/production/production-work-page.component.html")
+$authText = Read-Text (Join-Path $appRoot "src/app/core/auth.service.ts")
 $queueText = Read-Text (Join-Path $appRoot "src/app/core/offline/operation-queue.service.ts")
 $readCacheText = Read-Text (Join-Path $appRoot "src/app/core/services/operator-mobile-read-cache.service.ts")
 Add-Result "P1" "Production commands" (($apiText -match "transitionProductionBatch") -and ($apiText -match "recordOperationMeasurement") -and ($apiText -match "reviewLoss")) "Lifecycle, measurement and loss-review transports are present."
@@ -65,7 +71,18 @@ Add-Result "P1" "Offline queue/idempotency" (($apiText -match "X-HisHope-Operati
 Add-Result "P0" "Read cache/stale indicator" (($readCacheText -match "ttlMs") -and ($readCacheText -match "stale") -and ($htmlText -match "operatorStaleData")) "Tenant-scoped reads retain a short-lived value and expose stale state."
 Add-Result "P2" "Queue recovery controls" (($queueText -match "retry\(") -and ($queueText -match "clear\(") -and ($htmlText -match "operatorRetryRecord")) "Operators can retry failed/conflicted records and wipe local queue on logout."
 Add-Result "P4" "Queue retention/dead-letter" (($queueText -match "MAX_ENTRIES") -and ($queueText -match "DEAD_LETTER_ATTEMPTS") -and ($queueText -match "pruneTerminalEntries")) "Transient retries have a bounded budget and terminal records are retained within a fixed limit."
+Add-Result "P4" "Certificate pin release boundary" (($featureTsText -notmatch "REPLACE_IN_RELEASE") -and ($tsText -match "certificatePins")) "Certificate pins are supplied by runtime release configuration; no placeholder pin is shipped in source."
+Add-Result "P4" "Session queue wipe" (($authText -match "queue\.clear\(\)") -and ($authText -match "clearLocalSession")) "Expired or revoked local sessions wipe the encrypted command queue."
 Add-Result "P2" "Shift handover" (($handoverText -match "getProductionBatches") -and ($handoverText -match "getLots") -and ($handoverText -match "getMaintenanceWorkOrders") -and ($handoverHtml -match "operatorHandoverDowntime")) "Handover view aggregates unresolved batches, holds, downtime and overdue work orders."
+Add-Result "P3" "Operational notifications" (($notificationsText -match "markAllRead") -and ($notificationsText -match "markRead") -and ($notificationsHtml -match "operatorNotificationsTitle")) "Notification inbox exposes operational alerts and read-state controls."
+Add-Result "P3" "Versioned SOP context" (($apiText -match "getProductionOrders") -and ($apiText -match "getRecipes") -and ($productionHtml -match "operatorSopVersion")) "Selected batches expose approved recipe version and process guidance."
+Add-Result "P2" "Field evidence capture" (($featureTsText -match "capturePhoto") -and ($htmlText -match "operatorCaptureEvidence")) "Maintenance, QC and lot-disposition evidence fields can receive native camera references through the application service."
+Add-Result "P3" "Second-person deviation review" (($apiText -match "changeDeviationStatus") -and ($apiText -match "getDeviations") -and ($htmlText -match "operatorDeviationReview")) "Deviation approve/reject/close is online-only and requires a separate reviewer actor."
+$manufacturingComplianceText = Read-Text (Join-Path $repoRoot "src/Services/ManufacturingService/ManufacturingService.Api/Endpoints/ComplianceEndpoints.cs")
+$manufacturingComplianceStoreText = Read-Text (Join-Path $repoRoot "src/Services/ManufacturingService/ManufacturingService.Infrastructure/Persistence/ManufacturingCompliance.cs")
+Add-Result "P3" "SOP artifact endpoint" (($manufacturingComplianceText -match "sop-artifacts") -and ($manufacturingComplianceStoreText -match "Checksum") -and ($manufacturingComplianceStoreText -match "SopArtifactVersion" -or $manufacturingComplianceStoreText -match "Version")) "Manufacturing Service persists versioned, checksummed SOP artifacts with lifecycle endpoints."
+Add-Result "P3" "SOP acknowledgment" (($manufacturingComplianceText -match "acknowledge") -and ($manufacturingComplianceStoreText -match "AcknowledgeSopArtifact") -and ($apiText -match "getSopArtifacts") -and ($apiText -match "acknowledgeSopArtifact") -and ($htmlText -match "operatorSopAcknowledge")) "Approved SOP content is visible in the field app and requires an online operator acknowledgment."
+Add-Result "P3" "Business e-signature endpoint" (($manufacturingComplianceText -match "business-signatures") -and ($manufacturingComplianceStoreText -match "SignatureHash") -and ($manufacturingComplianceStoreText -match "BusinessSignature")) "Manufacturing Service exposes an authenticated, immutable business-signature record with integrity hash."
 
 # Phase 2-4: presentation and shared-foundation constraints.
 $enPath = Join-Path $repoRoot "shared/frontend-foundation/i18n/src/dictionaries/en.ts"

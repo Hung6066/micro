@@ -601,9 +601,12 @@ services:
       ConnectionStrings__Redis: ${REDIS_URL:-redis://redis:6379}
       Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
       Vault__Address: ${VAULT_ADDR:-http://vault:8200}
-      Vault__Token: ${VAULT_TOKEN:-}
+      # Local Compose uses the bootstrap token only for the dev Vault. The
+      # production overlay must replace this with workload identity and set
+      # Vault__AllowStaticToken=false.
+      Vault__Token: ${VAULT_TOKEN:-root}
       Vault__RequireVault: ${VAULT_REQUIRE:-false}
-      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-true}
       Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
       Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
       Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
@@ -668,6 +671,10 @@ services:
       identityservice: { condition: service_healthy }
       redis: { condition: service_healthy }
       vault: { condition: service_healthy }
+      # Ensure the local/test Transit key is initialized and Vault is
+      # unsealed before continuity starts. Production replaces this with
+      # an external KMS/auto-unseal readiness gate.
+      vault-init: { condition: service_completed_successfully }
       postgres-restore-drill: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:

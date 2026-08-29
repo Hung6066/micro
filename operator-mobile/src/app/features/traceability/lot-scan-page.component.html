@@ -1,28 +1,230 @@
 <section class="scan-page">
-  <p class="eyebrow">{{ "mobile.operatorTraceabilityEyebrow" | hhTranslate: "TRACEABILITY" }}</p>
+  <p class="eyebrow">
+    {{ "mobile.operatorTraceabilityEyebrow" | hhTranslate: "TRACEABILITY" }}
+  </p>
   <h2>{{ "mobile.operatorTraceabilityTitle" | hhTranslate: "Scan a lot" }}</h2>
-  <p>{{ "mobile.operatorTraceabilityDescription" | hhTranslate: "Use the native QR camera or enter a lot code to inspect genealogy and quality history." }}</p>
-  @if (loadError) { <p class="load-error" role="alert">{{ loadError }}</p> }
-  <button type="button" (click)="scanQr()">{{ "mobile.operatorScanQr" | hhTranslate: "Scan QR with camera" }}</button>
-  <label for="traceability-lot"><span>{{ "mobile.operatorLotCode" | hhTranslate: "Lot" }}</span>
-    <hh-select id="traceability-lot" [(ngModel)]="scannedCode" label="mobile.operatorLotCode" placeholder="mobile.operatorChooseLot"><option value="">{{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}</option>@for (lot of lots; track lot.id) { <option [value]="lot.lotCode || lot.id" [textContent]="lotOptionLabel(lot)"></option> }</hh-select>
+  <p>
+    {{
+      "mobile.operatorTraceabilityDescription"
+        | hhTranslate
+          : "Use the native QR camera or enter a lot code to inspect genealogy and quality history."
+    }}
+  </p>
+  @if (loadError) {
+    <p class="load-error" role="alert">{{ loadError }}</p>
+  }
+  <button type="button" (click)="scanQr()">
+    {{ "mobile.operatorScanQr" | hhTranslate: "Scan QR with camera" }}
+  </button>
+  <label for="traceability-lot"
+    ><span>{{ "mobile.operatorLotCode" | hhTranslate: "Lot" }}</span>
+    <hh-select
+      id="traceability-lot"
+      [(ngModel)]="scannedCode"
+      label="mobile.operatorLotCode"
+      placeholder="mobile.operatorChooseLot"
+      ><option value="">
+        {{ "mobile.operatorChooseLot" | hhTranslate: "Choose a lot" }}
+      </option>
+      @for (lot of lots; track lot.id) {
+        <option
+          [value]="lot.lotCode || lot.id"
+          [textContent]="lotOptionLabel(lot)"
+        ></option>
+      }
+    </hh-select>
   </label>
-  <button type="button" (click)="openLot()">{{ "mobile.operatorOpenLot" | hhTranslate: "Open lot" }}</button>
+  <button type="button" (click)="openLot()">
+    {{ "mobile.operatorOpenLot" | hhTranslate: "Open lot" }}
+  </button>
   @if (selectedLot; as lot) {
     <fieldset class="disposition-card">
-      <legend>{{ "mobile.operatorLotDisposition" | hhTranslate: "Lot disposition" }}</legend>
-      <label for="traceability-disposition"><span>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}</span><hh-select id="traceability-disposition" [(ngModel)]="newDisposition" label="mobile.operatorStatus" placeholder="mobile.operatorChooseDisposition"><option value="Released">{{ "mobile.operatorStatusReleased" | hhTranslate: "Released" }}</option><option value="Hold">{{ "mobile.operatorStatusHold" | hhTranslate: "Hold" }}</option><option value="Rejected">{{ "mobile.operatorStatusRejected" | hhTranslate: "Rejected" }}</option><option value="Consumed">{{ "mobile.operatorStatusConsumed" | hhTranslate: "Consumed" }}</option></hh-select></label>
-      <label>{{ "mobile.operatorDispositionReason" | hhTranslate: "Reason" }}<input [(ngModel)]="dispositionReason" /></label>
-      <label>{{ "mobile.operatorEvidenceReference" | hhTranslate: "Evidence reference" }}<input [(ngModel)]="dispositionEvidence" /></label>
-      <button type="button" (click)="changeDisposition()">{{ "mobile.operatorSaveDisposition" | hhTranslate: "Save disposition" }}</button>
+      <legend>
+        {{ "mobile.operatorLotDisposition" | hhTranslate: "Lot disposition" }}
+      </legend>
+      <label for="traceability-disposition"
+        ><span>{{ "mobile.operatorStatus" | hhTranslate: "Status" }}</span
+        ><hh-select
+          id="traceability-disposition"
+          [(ngModel)]="newDisposition"
+          label="mobile.operatorStatus"
+          placeholder="mobile.operatorChooseDisposition"
+          ><option value="Released">
+            {{ "mobile.operatorStatusReleased" | hhTranslate: "Released" }}
+          </option>
+          <option value="Hold">
+            {{ "mobile.operatorStatusHold" | hhTranslate: "Hold" }}
+          </option>
+          <option value="Rejected">
+            {{ "mobile.operatorStatusRejected" | hhTranslate: "Rejected" }}
+          </option>
+          <option value="Consumed">
+            {{ "mobile.operatorStatusConsumed" | hhTranslate: "Consumed" }}
+          </option></hh-select
+        ></label
+      >
+      <label
+        >{{ "mobile.operatorDispositionReason" | hhTranslate: "Reason"
+        }}<input [(ngModel)]="dispositionReason"
+      /></label>
+      <label
+        >{{
+          "mobile.operatorEvidenceReference"
+            | hhTranslate: "Evidence reference"
+        }}<input [(ngModel)]="dispositionEvidence" /></label
+      ><button
+        type="button"
+        class="secondary-action"
+        (click)="captureEvidence()"
+      >
+        {{ "mobile.operatorCaptureEvidence" | hhTranslate: "Capture evidence" }}
+      </button>
+      <button type="button" (click)="changeDisposition()">
+        {{ "mobile.operatorSaveDisposition" | hhTranslate: "Save disposition" }}
+      </button>
     </fieldset>
   }
-  @if (message) { <p role="status">{{ message }}</p> }
-  @if (qualityHistory.length) { <article class="quality-history" aria-live="polite"><h3>{{ "mobile.operatorQualityHistory" | hhTranslate: "Quality history" }}</h3>@for (inspection of qualityHistory; track inspection.id) { <p><strong>{{ inspectionStatusLabel(inspection.status) }}</strong> · {{ inspection.inspector }} · {{ formatNumber(inspection.moisturePercent) }}% · {{ inspectionDateLabel(inspection.inspectedAt) }}</p> }</article> }
-  @if (statusHistory.length) { <article class="status-history" aria-live="polite"><h3>{{ "mobile.operatorLotStatusHistory" | hhTranslate: "Lot status history" }}</h3>@for (change of statusHistory; track change.id) { <p>{{ dispositionLabel(change.fromDisposition) }} → {{ dispositionLabel(change.toDisposition) }} · {{ change.actor }} · {{ inspectionDateLabel(change.occurredAt) }}</p> }</article> }
-  @if (inventoryHistory.length) { <article class="inventory-history" aria-live="polite"><h3>{{ "mobile.operatorInventoryHistory" | hhTranslate: "Inventory history" }}</h3>@for (transaction of inventoryHistory; track transaction.id) { <p><strong>{{ transactionTypeLabel(transaction.transactionType) }}</strong> · {{ formatNumber(transaction.quantity) }} {{ transaction.uom }} · {{ stockStatusLabel(transaction.stockStatus) }} · {{ inspectionDateLabel(transaction.occurredAt) }}</p> }</article> }
-  @if (availability; as snapshot) { <article class="availability-card" aria-live="polite"><h3>{{ "mobile.operatorAvailability" | hhTranslate: "Available to promise" }}</h3><p><strong>{{ formatNumber(snapshot.availableToPromiseQuantity) }} {{ snapshot.uom }}</strong> · {{ "mobile.operatorReleasedQuantity" | hhTranslate: "Released" }}: {{ formatNumber(snapshot.releasedQuantity) }} · {{ "mobile.operatorReservedQuantity" | hhTranslate: "Reserved" }}: {{ formatNumber(snapshot.reservedQuantity) }}</p></article> }
-  @if (fefoLots.length) { <article class="fefo-card" aria-live="polite"><h3>{{ "mobile.operatorFefo" | hhTranslate: "FEFO lots" }}</h3>@for (lot of fefoLots; track lot.lotId) { <p><strong>{{ lot.lotCode }}</strong> · {{ formatNumber(lot.availableQuantity) }} {{ lot.uom }} · {{ lot.bestBefore ? inspectionDateLabel(lot.bestBefore) : ("mobile.operatorNoExpiry" | hhTranslate: "No expiry") }}</p> }</article> }
-  @if (recallImpact; as impact) { <article class="recall-card" aria-live="polite"><h3>{{ "mobile.operatorRecallImpact" | hhTranslate: "Recall impact" }}</h3><p>{{ "mobile.operatorImpactedLots" | hhTranslate: "Impacted lots" }}: <strong>{{ formatNumber(impact.impactedLotCount) }}</strong> · {{ "mobile.operatorImpactedBatches" | hhTranslate: "Impacted batches" }}: <strong>{{ formatNumber(impact.impactedBatchCount) }}</strong></p>@for (lot of impact.lots; track lot.lotId) { <p><strong>{{ lot.lotCode }}</strong> · {{ dispositionLabel(lot.disposition) }} · {{ recallRelationLabel(lot.relation) }}{{ lot.batchNumber ? " · " + lot.batchNumber : "" }}</p> }</article> }
-  @if (genealogy; as graph) { <article class="genealogy" aria-live="polite"><h3>{{ "mobile.operatorGenealogy" | hhTranslate: "Lot genealogy" }}</h3><p>{{ graph.lot.lotCode || graph.lot.sku }} · {{ formatNumber(graph.lot.quantity) }} {{ graph.lot.uom }} · {{ dispositionLabel(graph.lot.disposition) }}</p>@if (!graph.relations.length) { <p>{{ "mobile.operatorNoGenealogy" | hhTranslate: "No related lots found." }}</p> } @for (relation of graph.relations; track relation.transformationId + relation.lotId) { <p>{{ genealogyRoleLabel(relation.role) }} · {{ relation.sku }} · {{ formatNumber(relation.quantity) }}</p> }</article> }
+  @if (message) {
+    <p role="status">{{ message }}</p>
+  }
+  <details class="secondary-section" [open]="!!recallImpact">
+    <summary>
+      {{ "mobile.operatorLotHistory" | hhTranslate: "Lot history and context" }}
+    </summary>
+    @if (qualityHistory.length) {
+      <article class="quality-history" aria-live="polite">
+        <h3>
+          {{ "mobile.operatorQualityHistory" | hhTranslate: "Quality history" }}
+        </h3>
+        @for (inspection of qualityHistory; track inspection.id) {
+          <p>
+            <strong>{{ inspectionStatusLabel(inspection.status) }}</strong> ·
+            {{ inspection.inspector }} ·
+            {{ formatNumber(inspection.moisturePercent) }}% ·
+            {{ inspectionDateLabel(inspection.inspectedAt) }}
+          </p>
+        }
+      </article>
+    }
+    @if (statusHistory.length) {
+      <article class="status-history" aria-live="polite">
+        <h3>
+          {{
+            "mobile.operatorLotStatusHistory"
+              | hhTranslate: "Lot status history"
+          }}
+        </h3>
+        @for (change of statusHistory; track change.id) {
+          <p>
+            {{ dispositionLabel(change.fromDisposition) }} →
+            {{ dispositionLabel(change.toDisposition) }} · {{ change.actor }} ·
+            {{ inspectionDateLabel(change.occurredAt) }}
+          </p>
+        }
+      </article>
+    }
+    @if (inventoryHistory.length) {
+      <article class="inventory-history" aria-live="polite">
+        <h3>
+          {{
+            "mobile.operatorInventoryHistory" | hhTranslate: "Inventory history"
+          }}
+        </h3>
+        @for (transaction of inventoryHistory; track transaction.id) {
+          <p>
+            <strong>{{
+              transactionTypeLabel(transaction.transactionType)
+            }}</strong>
+            · {{ formatNumber(transaction.quantity) }} {{ transaction.uom }} ·
+            {{ stockStatusLabel(transaction.stockStatus) }} ·
+            {{ inspectionDateLabel(transaction.occurredAt) }}
+          </p>
+        }
+      </article>
+    }
+    @if (availability; as snapshot) {
+      <article class="availability-card" aria-live="polite">
+        <h3>
+          {{
+            "mobile.operatorAvailability" | hhTranslate: "Available to promise"
+          }}
+        </h3>
+        <p>
+          <strong
+            >{{ formatNumber(snapshot.availableToPromiseQuantity) }}
+            {{ snapshot.uom }}</strong
+          >
+          · {{ "mobile.operatorReleasedQuantity" | hhTranslate: "Released" }}:
+          {{ formatNumber(snapshot.releasedQuantity) }} ·
+          {{ "mobile.operatorReservedQuantity" | hhTranslate: "Reserved" }}:
+          {{ formatNumber(snapshot.reservedQuantity) }}
+        </p>
+      </article>
+    }
+    @if (fefoLots.length) {
+      <article class="fefo-card" aria-live="polite">
+        <h3>{{ "mobile.operatorFefo" | hhTranslate: "FEFO lots" }}</h3>
+        @for (lot of fefoLots; track lot.lotId) {
+          <p>
+            <strong>{{ lot.lotCode }}</strong> ·
+            {{ formatNumber(lot.availableQuantity) }} {{ lot.uom }} ·
+            {{
+              lot.bestBefore
+                ? inspectionDateLabel(lot.bestBefore)
+                : ("mobile.operatorNoExpiry" | hhTranslate: "No expiry")
+            }}
+          </p>
+        }
+      </article>
+    }
+    @if (recallImpact; as impact) {
+      <article class="recall-card" aria-live="polite">
+        <h3>
+          {{ "mobile.operatorRecallImpact" | hhTranslate: "Recall impact" }}
+        </h3>
+        <p>
+          {{ "mobile.operatorImpactedLots" | hhTranslate: "Impacted lots" }}:
+          <strong>{{ formatNumber(impact.impactedLotCount) }}</strong> ·
+          {{
+            "mobile.operatorImpactedBatches" | hhTranslate: "Impacted batches"
+          }}: <strong>{{ formatNumber(impact.impactedBatchCount) }}</strong>
+        </p>
+        @for (lot of impact.lots; track lot.lotId) {
+          <p>
+            <strong>{{ lot.lotCode }}</strong> ·
+            {{ dispositionLabel(lot.disposition) }} ·
+            {{ recallRelationLabel(lot.relation)
+            }}{{ lot.batchNumber ? " · " + lot.batchNumber : "" }}
+          </p>
+        }
+      </article>
+    }
+    @if (genealogy; as graph) {
+      <article class="genealogy" aria-live="polite">
+        <h3>{{ "mobile.operatorGenealogy" | hhTranslate: "Lot genealogy" }}</h3>
+        <p>
+          {{ graph.lot.lotCode || graph.lot.sku }} ·
+          {{ formatNumber(graph.lot.quantity) }} {{ graph.lot.uom }} ·
+          {{ dispositionLabel(graph.lot.disposition) }}
+        </p>
+        @if (!graph.relations.length) {
+          <p>
+            {{
+              "mobile.operatorNoGenealogy"
+                | hhTranslate: "No related lots found."
+            }}
+          </p>
+        }
+        @for (
+          relation of graph.relations;
+          track relation.transformationId + relation.lotId
+        ) {
+          <p>
+            {{ genealogyRoleLabel(relation.role) }} · {{ relation.sku }} ·
+            {{ formatNumber(relation.quantity) }}
+          </p>
+        }
+      </article>
+    }
+  </details>
 </section>

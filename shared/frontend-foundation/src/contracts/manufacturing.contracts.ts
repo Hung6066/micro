@@ -491,6 +491,33 @@ export interface HisHopeRecipeDto {
   productSpecificationId: string | null;
 }
 
+export interface HisHopeSopArtifactDto {
+  id: string;
+  tenantKey: string;
+  artifactKey: string;
+  title: string;
+  version: number;
+  content: string;
+  contentType: string;
+  status: string;
+  checksum: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface HisHopeSopArtifactAcknowledgmentDto {
+  id: string;
+  sopArtifactId: string;
+  tenantKey: string;
+  actor: string;
+  notes: string | null;
+  acknowledgedAt: string;
+}
+
 export interface HisHopeCreateRecipeRequest {
   tenantKey: string;
   productSku: string;

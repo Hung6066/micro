@@ -1,1 +1,83 @@
-<section class="sync-page"><p class="eyebrow">{{ "mobile.operatorSyncEyebrow" | hhTranslate: "DEVICE QUEUE" }}</p><h2>{{ "mobile.operatorSyncTitle" | hhTranslate: "Sync status" }}</h2><p>{{ "mobile.operatorSyncDescription" | hhTranslate: "Offline records remain encrypted on this device until the server confirms them." }}</p><button type="button" [disabled]="syncing" (click)="sync()">{{ (syncing ? "mobile.operatorSyncing" : "mobile.operatorSyncNow") | hhTranslate: (syncing ? "Syncing…" : "Sync now") }}</button>@if (message) { <p role="status">{{ message }}</p> }@if (!entries.length) { <article class="empty">{{ "mobile.operatorNoQueuedOperations" | hhTranslate: "No queued operations." }}</article> } @for (entry of entries; track entry.id) { <article><div><strong>{{ entry.endpoint }}</strong><span>{{ statusLabel(entry.status) }}</span></div>@if (entry.error) { <p>{{ entry.error }}</p> }@if (entry.status === "failed" || entry.status === "conflict") { <button type="button" (click)="retry(entry)">{{ "mobile.operatorRetryRecord" | hhTranslate: "Retry record" }}</button> }<button type="button" (click)="discard(entry)">{{ "mobile.operatorDiscardRecord" | hhTranslate: "Discard local record" }}</button></article> }</section>
+<section class="sync-page">
+  <p class="eyebrow">
+    {{ "mobile.operatorSyncEyebrow" | hhTranslate: "DEVICE QUEUE" }}
+  </p>
+  <h2>{{ "mobile.operatorSyncTitle" | hhTranslate: "Sync status" }}</h2>
+  <p>
+    {{
+      "mobile.operatorSyncDescription"
+        | hhTranslate
+          : "Offline records remain encrypted on this device until the server confirms them."
+    }}
+  </p>
+  <button type="button" [disabled]="syncing" (click)="sync()">
+    {{
+      (syncing ? "mobile.operatorSyncing" : "mobile.operatorSyncNow")
+        | hhTranslate: (syncing ? "Syncing…" : "Sync now")
+    }}
+  </button>
+  @if (message) {
+    <p role="status">{{ message }}</p>
+  }
+  @if (!entries.length) {
+    <article class="empty">
+      {{
+        "mobile.operatorNoQueuedOperations"
+          | hhTranslate: "No queued operations."
+      }}
+    </article>
+  }
+  @for (entry of entries; track entry.id) {
+    <article>
+      <div>
+        <strong>{{ entry.endpoint }}</strong
+        ><span>{{ statusLabel(entry.status) }}</span>
+      </div>
+      @if (entry.error) {
+        <p>{{ entry.error }}</p>
+      }
+      @if (entry.status === "failed" || entry.status === "conflict") {
+        <button type="button" (click)="retry(entry)">
+          {{ "mobile.operatorRetryRecord" | hhTranslate: "Retry record" }}
+        </button>
+      }
+      @if (pendingDiscardId === entry.id) {
+        <p class="discard-warning" role="alert">
+          {{
+            "mobile.operatorDiscardWarning"
+              | hhTranslate
+                : "This record will be removed from this device and will not be sent to the server."
+          }}
+        </p>
+        <div class="discard-actions">
+          <button
+            type="button"
+            class="secondary-action"
+            (click)="cancelDiscard()"
+          >
+            {{ "common.cancel" | hhTranslate: "Cancel" }}
+          </button>
+          <button
+            type="button"
+            class="danger-action"
+            (click)="confirmDiscard(entry)"
+          >
+            {{
+              "mobile.operatorConfirmDiscard" | hhTranslate: "Discard record"
+            }}
+          </button>
+        </div>
+      } @else {
+        <button
+          type="button"
+          class="secondary-action"
+          (click)="requestDiscard(entry)"
+        >
+          {{
+            "mobile.operatorDiscardRecord" | hhTranslate: "Discard local record"
+          }}
+        </button>
+      }
+    </article>
+  }
+</section>

@@ -24,6 +24,7 @@ public static class ManufacturingApiExtensions
             .MapMasterDataEndpoints()
             .MapDashboardEndpoints()
             .MapWorkflowEndpoints()
-            .MapIntegrationEndpoints();
+            .MapIntegrationEndpoints()
+            .MapComplianceEndpoints();
     }
 }

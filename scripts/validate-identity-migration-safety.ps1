@@ -15,6 +15,16 @@ $criticalTables = @(
     'iam_permission_set_assignments', 'iam_group_memberships',
     'openiddict_tokens', 'audit_logs', 'security_events'
 )
+$coreUserTables = @(
+    'asp_net_users', 'asp_net_user_claims', 'asp_net_user_roles',
+    'asp_net_user_logins', 'asp_net_user_tokens', 'user_mfa',
+    'user_password_history', 'openiddict_authorizations'
+)
+$partitionCandidates = @(
+    'audit_logs', 'security_events', 'openiddict_tokens',
+    'security_signal_outbox', 'directory_provisioning_outbox',
+    'mobile_telemetry_events'
+)
 $unsafe = [System.Collections.Generic.List[string]]::new()
 $checked = 0
 $protectedIndexes = @('ix_security_events_timestamp_brin', 'ix_audit_logs_timestamp_brin')
@@ -36,6 +46,29 @@ Get-ChildItem -LiteralPath $path -Filter '*.cs' -File |
         foreach ($indexName in $protectedIndexes) {
             if ($up -match ('DropIndex\s*\([\s\S]{0,300}?name:\s*["'']?' + [regex]::Escape($indexName))) {
                 $unsafe.Add("$($_.Name): protected time-series index $indexName must not be dropped by a migration")
+            }
+        }
+
+        # Partitioning is an additive capacity decision. Never allow a
+        # migration to partition user/relationship tables implicitly: doing so
+        # changes primary-key/FK and uniqueness semantics and can make a rolling
+        # upgrade impossible. Append-only candidates require an explicit marker
+        # so the capacity review is auditable in the migration source.
+        $partitionDdl = $up -match '(?im)\bPARTITION\s+BY\b|\bPARTITION\s+OF\b'
+        if ($partitionDdl) {
+            foreach ($table in $coreUserTables) {
+                if ($up -match ('(?i)\b' + [regex]::Escape($table) + '\b')) {
+                    $unsafe.Add("$($_.Name): partitioning core identity table $table is forbidden; use an additive archive/read-model plan")
+                }
+            }
+            $candidateMatches = @($partitionCandidates | Where-Object { $up -match ('(?i)\b' + [regex]::Escape($_) + '\b') })
+            if ($candidateMatches.Count -eq 0) {
+                $unsafe.Add("$($_.Name): partition DDL targets no approved append-only identity table")
+            }
+            foreach ($candidate in $candidateMatches) {
+                if ($up -notmatch ('(?im)--\s*partition-approved\s*:\s*' + [regex]::Escape($candidate) + '\b')) {
+                    $unsafe.Add("$($_.Name): partitioning $candidate requires a -- partition-approved: $candidate marker after capacity review")
+                }
             }
         }
     }

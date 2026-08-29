@@ -2,7 +2,7 @@ import { ChangeDetectorRef, Component, effect, inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { catchError, of } from "rxjs";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
-import { OperatorMobileApiService, type ManufacturingException, type ManufacturingOee, type ManufacturingProductionCost, type ManufacturingSummary, type ProductionBatch, type ProductionKpi } from "../../core/services/operator-mobile-api.service";
+import { OperatorMobileApiService, type ManufacturingException, type ManufacturingOee, type ManufacturingProductionCost, type ManufacturingSummary, type ProductionBatch, type ProductionKpi, type ProductionOrder, type Recipe, type SopArtifact } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { manufacturingEnumLabel } from "../../core/manufacturing-enum-label.util";
@@ -31,6 +31,11 @@ export class ProductionWorkPageComponent {
   oee: ManufacturingOee | null = null;
   exceptions: ManufacturingException[] = [];
   costs: ManufacturingProductionCost | null = null;
+  orders: ProductionOrder[] = [];
+  recipes: Recipe[] = [];
+  sopArtifacts: SopArtifact[] = [];
+  acknowledgedSopArtifactIds = new Set<string>();
+  sopAcknowledgmentNotes = "";
   measurementType = "temperature";
   measurementValue = 0;
   measurementUom = "°C";
@@ -57,6 +62,32 @@ export class ProductionWorkPageComponent {
 
   selectedBatch(): ProductionBatch | undefined {
     return this.batches.find((batch) => batch.id === this.selectedBatchId);
+  }
+
+  selectedRecipe(): Recipe | undefined {
+    const order = this.orders.find((item) => item.id === this.selectedBatch()?.productionOrderId);
+    return this.recipes.find((recipe) => recipe.id === order?.recipeId);
+  }
+
+  selectedSopArtifact(): SopArtifact | undefined {
+    const recipe = this.selectedRecipe();
+    if (!recipe) return undefined;
+    const product = recipe.productSku.toLowerCase();
+    const step = recipe.processStep.toLowerCase();
+    return this.sopArtifacts.find((artifact) => artifact.artifactKey.toLowerCase().includes(product) || artifact.artifactKey.toLowerCase().includes(step)) ?? this.sopArtifacts[0];
+  }
+
+  async acknowledgeSopArtifact(): Promise<void> {
+    const artifact = this.selectedSopArtifact();
+    if (!artifact) return;
+    const result = await this.api.acknowledgeSopArtifact(artifact.id, this.sopAcknowledgmentNotes);
+    if (result.status === "synced" || result.status === "already-acknowledged") {
+      this.acknowledgedSopArtifactIds.add(artifact.id);
+      this.message = this.i18n.t("mobile.operatorSopAcknowledged", "SOP acknowledgement recorded.");
+    } else {
+      this.message = this.i18n.t("mobile.operatorSopAcknowledgmentOnline", "SOP acknowledgement requires an online authenticated session.");
+    }
+    this.cdr.markForCheck();
   }
 
   lossOperations() {
@@ -125,6 +156,10 @@ export class ProductionWorkPageComponent {
         this.oee = null;
         this.exceptions = [];
         this.costs = null;
+        this.orders = [];
+        this.recipes = [];
+        this.sopArtifacts = [];
+        this.acknowledgedSopArtifactIds.clear();
         this.selectedBatchId = "";
         return;
       }
@@ -134,6 +169,15 @@ export class ProductionWorkPageComponent {
           if (this.selectedBatchId && !batches.some((batch) => batch.id === this.selectedBatchId)) this.selectedBatchId = "";
           this.cdr.markForCheck();
         });
+      });
+      this.api.getProductionOrders("Released").pipe(catchError(() => of([]))).subscribe((orders) => {
+        setTimeout(() => { this.orders = orders; this.cdr.markForCheck(); });
+      });
+      this.api.getRecipes(undefined, "Approved").pipe(catchError(() => of([]))).subscribe((recipes) => {
+        setTimeout(() => { this.recipes = recipes; this.cdr.markForCheck(); });
+      });
+      this.api.getSopArtifacts(undefined, "Approved").pipe(catchError(() => of([]))).subscribe((artifacts) => {
+        setTimeout(() => { this.sopArtifacts = artifacts.filter((artifact) => artifact.status === "Approved"); this.cdr.markForCheck(); });
       });
       this.api.getManufacturingSummary().pipe(catchError((error) => { this.loadError = operatorMobileErrorMessage(this.i18n, error); this.cdr.markForCheck(); return of(null); })).subscribe((summary) => {
         setTimeout(() => { this.summary = summary; this.cdr.markForCheck(); });

@@ -41,7 +41,7 @@ export class MobileAdminApiService implements HisHopeNotificationInboxApi {
 
   getMyPermissions(): Observable<{ permissions: string[]; roles: string[] }> {
     return this.http.get<{ permissions: string[]; roles: string[] }>(
-      `${this.baseUrl}/me/permissions`,
+      `${this.authApiUrl}/me/permissions`,
     );
   }
   enrollMfa(): Observable<MobileMfaEnrollment> {

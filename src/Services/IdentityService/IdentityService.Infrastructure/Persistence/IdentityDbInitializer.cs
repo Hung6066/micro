@@ -266,6 +266,8 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Manufacturing.QualityApprove,
                 HisHopePermissions.Manufacturing.RecipeApprove,
                 HisHopePermissions.Manufacturing.SpecificationApprove,
+                HisHopePermissions.Manufacturing.SopApprove,
+                HisHopePermissions.Manufacturing.BusinessSign,
                 HisHopePermissions.Manufacturing.MaintenanceComplete,
                 HisHopePermissions.Manufacturing.CostManage,
                 HisHopePermissions.Dashboard.View,
@@ -294,6 +296,7 @@ public static class IdentityDbInitializer
             {
                 HisHopePermissions.Manufacturing.RecipeApprove,
                 HisHopePermissions.Manufacturing.SpecificationApprove,
+                HisHopePermissions.Manufacturing.SopApprove,
                 HisHopePermissions.Dashboard.View,
             },
             ["ManufacturingMaintenanceTechnician"] = new HashSet<string>
