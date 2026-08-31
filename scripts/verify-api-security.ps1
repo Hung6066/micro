@@ -40,6 +40,21 @@ foreach ($project in $apiProjects) {
     if ($source -notmatch 'AddHisHopeAuthorization') {
         $failures.Add("${name}: missing AddHisHopeAuthorization()")
     }
+
+    if ($source -match 'Exception\?\.Message') {
+        $failures.Add("${name}: public API source exposes exception messages; health/error responses must be redacted")
+    }
+}
+
+# BFF liveness is consumed by Docker/Kubernetes probes and must not depend on
+# a user session. Keep the probe anonymous while leaving controllers protected.
+$systemDashboardProgram = Join-Path $Root 'src/Bff/SystemDashboard.Bff/Program.cs'
+if (Test-Path -LiteralPath $systemDashboardProgram) {
+    $systemDashboardSource = Get-Content -LiteralPath $systemDashboardProgram -Raw
+    if ($systemDashboardSource -notmatch 'MapHealthChecks\(\"/health\"\)\.AllowAnonymous\(\)' -and
+        $systemDashboardSource -notmatch 'MapHisHopeHealthEndpoints\(\)') {
+        $failures.Add('SystemDashboard.Bff: /health must be explicitly anonymous for runtime probes')
+    }
 }
 
 # Environment templates are repository artifacts, not secret stores. Reject

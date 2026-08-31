@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.Authorization.Handlers;
 using His.Hope.Authorization.Requirements;
 
@@ -47,7 +48,7 @@ public static class AuthorizationPoliciesExtensions
         builder.AddPolicy(AuthorizationConstants.Policies.HumanSuperAdmin, policy => policy
             .RequireAuthenticatedUser()
             .RequireRole("Admin")
-            .RequireClaim("super_admin", "true")
+            .RequireClaim(HisHopeProtocolConstants.Claims.SuperAdmin, "true")
             .AddRequirements(new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human)));
 
         foreach (var permissionCode in HisHopePermissions.All)

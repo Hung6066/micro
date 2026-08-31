@@ -7,6 +7,7 @@ using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
@@ -79,7 +80,8 @@ public static class AdminIncidentEndpoints
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } accessError)
                 return accessError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
-            if (!await db.Users.AnyAsync(userEntity => userEntity.Id == id, ct)) return Results.NotFound();
+            _ = Guard.Against.NotFound(
+                await db.Users.AsNoTracking().FirstOrDefaultAsync(userEntity => userEntity.Id == id, ct), "User", id);
 
             var current = await sessionTracker.GetUserSessionsAsync(id.ToString());
             var database = redis.GetDatabase();
@@ -146,7 +148,8 @@ public static class AdminIncidentEndpoints
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } accessError)
                 return accessError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
-            if (!await db.Users.AnyAsync(userEntity => userEntity.Id == id, ct)) return Results.NotFound();
+            _ = Guard.Against.NotFound(
+                await db.Users.AsNoTracking().FirstOrDefaultAsync(userEntity => userEntity.Id == id, ct), "User", id);
 
             var sessionIds = await sessionTracker.GetUserSessionsAsync(id.ToString());
             var keys = sessionIds.Select(sessionId => (RedisKey)$"session:{sessionId}").ToArray();
@@ -173,8 +176,8 @@ public static class AdminIncidentEndpoints
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } userError) return userError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
-            var user = await db.Users.SingleOrDefaultAsync(item => item.Id == id, ct);
-            if (user is null) return Results.NotFound();
+            var user = Guard.Against.NotFound(
+                await db.Users.SingleOrDefaultAsync(item => item.Id == id, ct), "User", id);
 
             var removedMfa = 0;
             var removedPasskeys = 0;

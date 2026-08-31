@@ -37,6 +37,16 @@ public sealed class AssurancePolicyCoverageTests
     }
 
     [Fact]
+    public void LoadFromJson_rejects_step_up_journey_without_allowed_factors()
+    {
+        var action = () => AssurancePolicyEvaluator.LoadFromJson(
+            "{\"version\":\"1\",\"approvedBy\":[],\"journeys\":[{\"id\":\"admin-write\",\"minimumAssurance\":\"aal2\",\"allowedFactors\":[],\"stepUpRequired\":true}],\"recovery\":{\"forbidWeakFallbackForHighRisk\":true,\"allowedRecoveryMethods\":[],\"forbiddenRecoveryMethods\":[]}}");
+
+        var exception = Assert.Throws<InvalidOperationException>(action);
+        Assert.Equal("Every step-up assurance journey must define allowed authentication factors.", exception.Message);
+    }
+
+    [Fact]
     public void Evaluate_unknown_journey_fails_closed()
     {
         var result = AssurancePolicyEvaluator.Evaluate(Policy(), "not-configured", "aal3");
@@ -72,7 +82,7 @@ public sealed class AssurancePolicyCoverageTests
     public void Evaluate_allows_case_insensitive_break_glass_journey()
     {
         var result = AssurancePolicyEvaluator.Evaluate(
-            Policy(), "BREAK-GLASS", "passkey", devicePostureFresh: false, isBreakGlass: true);
+            Policy(), "BREAK-GLASS", "passkey", devicePostureFresh: false, isBreakGlass: true, currentFactor: "mfa");
 
         Assert.True(result.Allowed);
         Assert.Equal("break-glass", result.JourneyId);
@@ -87,7 +97,7 @@ public sealed class AssurancePolicyCoverageTests
     public void Evaluate_denies_missing_or_insufficient_assurance(string? currentAssurance)
     {
         var result = AssurancePolicyEvaluator.Evaluate(
-            Policy(), "admin-write", currentAssurance, devicePostureFresh: true);
+            Policy(), "admin-write", currentAssurance, devicePostureFresh: true, currentFactor: "mfa");
 
         Assert.False(result.Allowed);
         Assert.Equal("Assurance below journey minimum.", result.Reason);
@@ -99,7 +109,7 @@ public sealed class AssurancePolicyCoverageTests
     public void Evaluate_denies_forbidden_recovery_case_insensitively(string recoveryMethod)
     {
         var result = AssurancePolicyEvaluator.Evaluate(
-            Policy(), "admin-write", "aal2", recoveryMethod, devicePostureFresh: true);
+            Policy(), "admin-write", "aal2", recoveryMethod, devicePostureFresh: true, currentFactor: "mfa");
 
         Assert.False(result.Allowed);
         Assert.Equal("Recovery method forbidden by policy.", result.Reason);
@@ -109,7 +119,7 @@ public sealed class AssurancePolicyCoverageTests
     public void Evaluate_allows_configured_assurance_and_non_forbidden_recovery()
     {
         var result = AssurancePolicyEvaluator.Evaluate(
-            Policy(), "admin-write", "MFA", recoveryMethod: "admin-assisted", devicePostureFresh: true);
+            Policy(), "admin-write", "MFA", recoveryMethod: "admin-assisted", devicePostureFresh: true, currentFactor: "mfa");
 
         Assert.True(result.Allowed);
         Assert.Equal("admin-write", result.JourneyId);
@@ -143,7 +153,12 @@ public sealed class AssurancePolicyCoverageTests
         var policy = Policy();
         var service = new AssurancePolicyService(policy);
 
-        var result = service.EvaluateJourney(Principal(("amr", "mfa"), ("device_posture_fresh", "1")), "clinical-read");
+        var result = service.EvaluateJourney(
+            Principal(
+                ("amr", "mfa"),
+                ("device_posture_fresh", "1"),
+                ("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString())),
+            "clinical-read");
 
         Assert.Same(policy, service.Policy);
         Assert.True(result.Allowed);
@@ -158,6 +173,20 @@ public sealed class AssurancePolicyCoverageTests
 
         Assert.False(result.Allowed);
         Assert.Equal("Fresh device posture required.", result.Reason);
+    }
+
+    [Fact]
+    public void Policy_service_denies_old_step_up_authentication()
+    {
+        var service = new AssurancePolicyService(Policy());
+        var oldAuthTime = DateTimeOffset.UtcNow.AddMinutes(-16).ToUnixTimeSeconds().ToString();
+
+        var result = service.EvaluateJourney(
+            Principal(("amr", "mfa"), ("auth_time", oldAuthTime)),
+            "admin-write");
+
+        Assert.False(result.Allowed);
+        Assert.Equal("Fresh step-up authentication required.", result.Reason);
     }
 
     [Fact]

@@ -25,6 +25,8 @@ public static class IamControlPlaneEndpoints
             ? routeGroup
             : app.MapGroup(IdentityApiRoutes.AdminIam).RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin);
 
+        group.AddEndpointFilter(StepUpAuthenticationGuard.RequireFreshMfaForMutationFilter);
+
         // Identity Workbench owns the canonical identity/application surfaces.
         // The legacy /admin/users and /admin/clients routes remain available for
         // older clients, while new callers use these aliases under /admin/iam.
@@ -369,7 +371,7 @@ public static class IamControlPlaneEndpoints
             var invalid = request.Permissions.Where(x => string.IsNullOrWhiteSpace(x) || x.Length > 200 || !HisHopePermissions.All.Contains(x.Trim().ToLowerInvariant())).ToArray();
             if (invalid.Length > 0) return Results.ValidationProblem(new Dictionary<string, string[]> { ["permissions"] = ["Permission codes must be non-empty, <= 200 characters and registered in the canonical server catalog."] });
             var permissions = request.Permissions.Select(x => x.Trim().ToLowerInvariant()).Distinct(StringComparer.Ordinal).Order().ToArray();
-            var item = new IamPermissionSet { Key = request.Key.Trim(), DisplayName = request.DisplayName.Trim(), ScopeId = request.ScopeId, PermissionsJson = JsonSerializer.Serialize(permissions), CreatedBy = http.User.FindFirstValue("sub") };
+            var item = new IamPermissionSet { Key = request.Key.Trim(), DisplayName = request.DisplayName.Trim(), ScopeId = request.ScopeId, PermissionsJson = JsonSerializer.Serialize(permissions), CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) };
             db.IamPermissionSets.Add(item); await db.SaveChangesAsync(ct);
             return Results.Created(IdentityApiRoutes.IamPermissionSet(item.Id), item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
@@ -426,7 +428,7 @@ public static class IamControlPlaneEndpoints
                 _ => false
             };
             if (!principalExists) return Results.NotFound("principal_not_found");
-            var item = new IamPermissionSetAssignment { PermissionSetId = id, PrincipalId = request.PrincipalId, PrincipalType = request.PrincipalType, ScopeId = request.ScopeId, ExpiresAt = request.ExpiresAt, CreatedBy = http.User.FindFirstValue("sub") };
+            var item = new IamPermissionSetAssignment { PermissionSetId = id, PrincipalId = request.PrincipalId, PrincipalType = request.PrincipalType, ScopeId = request.ScopeId, ExpiresAt = request.ExpiresAt, CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) };
             db.IamPermissionSetAssignments.Add(item); await db.SaveChangesAsync(ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "IAM_ASSIGNMENT_CREATE", "IamPermissionSetAssignment", item.Id.ToString(), "Permission set assignment created.", null, JsonSerializer.Serialize(new { item.PermissionSetId, item.PrincipalId, item.PrincipalType, item.ScopeId, item.ExpiresAt }), ct);
             return Results.Created(IdentityApiRoutes.IamAssignment(item.Id), item);
@@ -715,7 +717,7 @@ public static class IamControlPlaneEndpoints
             if (IamTenantAccessGuard.EnsureScopeAccess(request.ScopeId, filter) is { } scopeError) return scopeError;
             if (!await db.IamScopes.AnyAsync(x => x.Id == request.ScopeId && x.IsActive, ct)) return Results.NotFound("scope_not_found");
             var key = request.Key.Trim().ToLowerInvariant(); if (await db.IamGroups.AnyAsync(x => x.ScopeId == request.ScopeId && x.Key == key, ct)) return Results.Conflict("group_key_exists");
-            var item = new IamGroup { Key = key, DisplayName = request.DisplayName.Trim(), ScopeId = request.ScopeId, CreatedBy = http.User.FindFirstValue("sub") }; db.IamGroups.Add(item); await db.SaveChangesAsync(ct);
+            var item = new IamGroup { Key = key, DisplayName = request.DisplayName.Trim(), ScopeId = request.ScopeId, CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) }; db.IamGroups.Add(item); await db.SaveChangesAsync(ct);
             return Results.Created(IdentityApiRoutes.IamGroup(item.Id), item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
@@ -773,7 +775,7 @@ public static class IamControlPlaneEndpoints
             if (IamTenantAccessGuard.EnsureScopeAccess(groupScopeId.Value, filter) is { } scopeError) return scopeError;
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, userId, filter, ct) is { } userError) return userError;
             if (await db.IamGroupMemberships.AnyAsync(x => x.GroupId == id && x.UserId == userId, ct)) return Results.Conflict("membership_exists");
-            var item = new IamGroupMembership { GroupId = id, UserId = userId, CreatedBy = http.User.FindFirstValue("sub") }; db.IamGroupMemberships.Add(item); await db.SaveChangesAsync(ct); return Results.Created($"{IdentityApiRoutes.IamGroup(id)}/members/{userId:D}", item);
+            var item = new IamGroupMembership { GroupId = id, UserId = userId, CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) }; db.IamGroupMemberships.Add(item); await db.SaveChangesAsync(ct); return Results.Created($"{IdentityApiRoutes.IamGroup(id)}/members/{userId:D}", item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
 
@@ -822,7 +824,7 @@ public static class IamControlPlaneEndpoints
             if (await db.IamPermissionBoundaries.AnyAsync(x => x.PrincipalId == request.PrincipalId && x.PrincipalType == request.PrincipalType && x.ScopeId == request.ScopeId, ct))
                 return Results.Conflict("boundary_exists");
             if (!TryParseObject(request.ResourceConstraintsJson, out _)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["resourceConstraintsJson"] = ["Resource constraints must be a JSON object."] });
-            var item = new IamPermissionBoundary { PrincipalId = request.PrincipalId, PrincipalType = request.PrincipalType, ScopeId = request.ScopeId, AllowedPermissionsJson = JsonSerializer.Serialize(permissions), ResourceConstraintsJson = request.ResourceConstraintsJson, CreatedBy = http.User.FindFirstValue("sub") };
+            var item = new IamPermissionBoundary { PrincipalId = request.PrincipalId, PrincipalType = request.PrincipalType, ScopeId = request.ScopeId, AllowedPermissionsJson = JsonSerializer.Serialize(permissions), ResourceConstraintsJson = request.ResourceConstraintsJson, CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) };
             db.IamPermissionBoundaries.Add(item); await db.SaveChangesAsync(ct);
             return Results.Created(IdentityApiRoutes.IamBoundary(item.Id), item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
@@ -889,7 +891,7 @@ public static class IamControlPlaneEndpoints
             var serviceKey = request.ServiceKey.Trim().ToLowerInvariant();
             if (!await db.IamServiceDefinitions.AnyAsync(x => x.Key == serviceKey && x.IsActive, ct)) return Results.NotFound("service_not_found");
             if (await db.IamResourcePolicies.AnyAsync(x => x.ScopeId == request.ScopeId && x.ServiceKey == serviceKey && x.ResourcePattern == request.ResourcePattern.Trim(), ct)) return Results.Conflict("resource_policy_exists");
-            var item = new IamResourcePolicy { ScopeId = request.ScopeId, ServiceKey = serviceKey, ResourcePattern = request.ResourcePattern.Trim(), StatementsJson = request.StatementsJson, CreatedBy = http.User.FindFirstValue("sub") };
+            var item = new IamResourcePolicy { ScopeId = request.ScopeId, ServiceKey = serviceKey, ResourcePattern = request.ResourcePattern.Trim(), StatementsJson = request.StatementsJson, CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) };
             db.IamResourcePolicies.Add(item); await db.SaveChangesAsync(ct); return Results.Created(IdentityApiRoutes.IamResourcePolicy(item.Id), item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();

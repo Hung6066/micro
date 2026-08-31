@@ -40,13 +40,22 @@ jobs:
         run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
       - name: Build Core and services
         run: dotnet build His.Hope.sln --no-restore --configuration Release --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+      - name: Analyzer warning baseline gate
+        shell: pwsh
+        run: ./scripts/validate-analyzer-warning-baseline.ps1
       - name: Run non-integration .NET tests
         env:
           # The solution still contains integration-host assemblies. Keep the
           # contract test deterministic on constrained runners instead of
           # allowing parallel vstest handshakes to time out before assertions.
           VSTEST_CONNECTION_TIMEOUT: '300'
-        run: dotnet test His.Hope.sln --no-build --configuration Release --filter "FullyQualifiedName!~Integration" -- RunConfiguration.MaxCpuCount=1
+        run: ./scripts/run-non-integration-tests.ps1
+      - name: Non-integration runner contract gate
+        shell: pwsh
+        run: ./scripts/tests/non-integration-test-runner.Tests.ps1
+      - name: PowerShell compatibility contract gate
+        shell: pwsh
+        run: ./scripts/tests/powershell-compatibility.Tests.ps1
       - name: Generate and validate one-shot migration artifacts
         shell: pwsh
         run: |
@@ -75,9 +84,18 @@ jobs:
       - name: API platform convention gate
         shell: pwsh
         run: ./scripts/validate-api-platform-conventions.ps1
+      - name: Service hardcode and constants audit
+        shell: pwsh
+        run: ./scripts/audit-service-standardization.ps1 -MinimumOccurrences 6 -MinimumFiles 3
+      - name: All API/BFF/Gateway health contract gate
+        shell: pwsh
+        run: ./scripts/validate-health-contract.ps1
       - name: Persistence boundary gate
         shell: pwsh
         run: ./scripts/validate-persistence-boundaries.ps1
+      - name: Service architecture dependency gate
+        shell: pwsh
+        run: ./scripts/validate-service-architecture.ps1
       - name: Operational boundary gate
         shell: pwsh
         run: ./scripts/validate-operational-boundaries.ps1
@@ -183,6 +201,11 @@ jobs:
       - run: npm run test:mobile-foundation
       - run: npm run test:mobile
       - run: npm --workspace @his-hope/mobile-app run build
+      - run: npm --workspace @his-hope/operator-mobile run lint
+      # Angular's default Karma browser is interactive; use the deterministic
+      # headless browser required by CI and the local release gate.
+      - run: npm --workspace @his-hope/operator-mobile run test -- --browsers=ChromeHeadless --watch=false
+      - run: npm --workspace @his-hope/operator-mobile run build
       - run: npm pack --workspace @his-hope/frontend-foundation --dry-run
       - run: npm --workspace admin-app run build
       - run: npm --workspace dashboard-app run build
@@ -205,12 +228,17 @@ jobs:
           E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_ROLE_MATRIX_JSON: ${{ secrets.E2E_ROLE_MATRIX_JSON }}
 
   commerce-manufacturing-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Validate Compose source before startup
+        run: docker compose -f docker/docker-compose.yml config --quiet
       - name: Start Commerce and Manufacturing runtime
         run: >-
           docker compose -f docker/docker-compose.yml up -d --build

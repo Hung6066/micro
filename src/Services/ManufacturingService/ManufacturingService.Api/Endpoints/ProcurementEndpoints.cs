@@ -27,10 +27,10 @@ internal static class ProcurementEndpoints
                 api.MapPost("/suppliers", (CreateSupplierRequest request, HttpContext context, IManufacturingProcurementStore store) =>
                 {
                     if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
-                        return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_supplier");
+                        return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidSupplier);
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
                     try { return Results.Created("/api/v1/manufacturing/suppliers", store.CreateSupplier(request)); }
-                    catch (InvalidOperationException ex) when (ex.Message == "supplier_code_exists")
+                    catch (InvalidOperationException ex) when (ex.Message == ManufacturingErrorCodes.SupplierCodeExists)
                     { return ManufacturingProblem(StatusCodes.Status409Conflict, ex.Message); }
                     catch (InvalidOperationException ex)
                     { return ManufacturingProblem(StatusCodes.Status400BadRequest, ex.Message); }
@@ -61,7 +61,7 @@ internal static class ProcurementEndpoints
 
                 api.MapPost("/supplier-rfqs/{rfqId:guid}/quotations", (Guid rfqId, CreateSupplierQuotationRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey) || request.SupplierRfqId != rfqId) return Results.Forbid(); var result = store.CreateSupplierQuotation(tenantKey, request); return result.Error switch { "supplier_rfq_not_found" or "supplier_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "invalid_supplier_quotation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), "supplier_quotation_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Created($"/api/v1/manufacturing/supplier-rfqs/{rfqId}/quotations", result.Quotation) };
+                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey) || request.SupplierRfqId != rfqId) return Results.Forbid(); var result = store.CreateSupplierQuotation(tenantKey, request); return result.Error switch { "supplier_rfq_not_found" or ManufacturingErrorCodes.SupplierNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "invalid_supplier_quotation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), "supplier_quotation_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Created($"/api/v1/manufacturing/supplier-rfqs/{rfqId}/quotations", result.Quotation) };
                 });
 
                 api.MapGet("/supplier-rfqs/{rfqId:guid}/quotations", (Guid rfqId, HttpContext context, IManufacturingMasterDataStore store) =>
@@ -73,13 +73,13 @@ internal static class ProcurementEndpoints
                 api.MapPatch("/suppliers/{supplierId:guid}", (Guid supplierId, UpdateSupplierRequest request, HttpContext context, IManufacturingProcurementStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
-                    if (string.IsNullOrWhiteSpace(tenantKey) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name)) return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_supplier");
+                    if (string.IsNullOrWhiteSpace(tenantKey) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name)) return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidSupplier);
                     var result = store.UpdateSupplier(tenantKey, supplierId, request);
                     return result.Error switch
                     {
-                        "supplier_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
-                        "supplier_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
+                        ManufacturingErrorCodes.SupplierNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
+                        ManufacturingErrorCodes.SupplierCodeExists => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ => Results.Ok(result.Supplier)
                     };
                 });
@@ -101,10 +101,10 @@ internal static class ProcurementEndpoints
                     var result = store.CreatePurchaseOrder(request);
                     return result.Error switch
                     {
-                        "supplier_not_found" or "supplier_inactive" or "material_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "supplier_material_not_approved" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
-                        "supplier_not_approved" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
+                        ManufacturingErrorCodes.SupplierNotFound or ManufacturingErrorCodes.SupplierInactive or ManufacturingErrorCodes.MaterialNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.SupplierMaterialNotApproved => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
+                        ManufacturingErrorCodes.SupplierNotApproved => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
                         "purchase_order_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         "invalid_purchase_order_status" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         _ => Results.Created("/api/v1/manufacturing/purchase-orders", result.Order)
@@ -119,8 +119,8 @@ internal static class ProcurementEndpoints
                     return result.Error switch
                     {
                         "purchase_order_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
-                        "supplier_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
+                        ManufacturingErrorCodes.SupplierNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
                         "purchase_order_not_editable" or "invalid_purchase_order" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         "purchase_order_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ => Results.Ok(result.Order)
@@ -136,7 +136,7 @@ internal static class ProcurementEndpoints
                     return result.Error switch
                     {
                         "purchase_order_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
                         "invalid_purchase_order_transition" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         _ => Results.Ok(result.Order)
                     };
@@ -153,8 +153,8 @@ internal static class ProcurementEndpoints
                     return result.Error switch
                     {
                         "purchase_order_not_found" or "purchase_order_line_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
-                        "invalid_receipt_quantity" or "material_mismatch" or "purchase_order_not_receivable" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
+                        "invalid_receipt_quantity" or ManufacturingErrorCodes.MaterialMismatch or "purchase_order_not_receivable" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         "receipt_number_exists" or "supplier_lot_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         "over_receipt" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                         _ => Results.Created($"/api/v1/manufacturing/lots/{result.Receipt!.LotId}/inbound-receipt", result.Receipt)
@@ -169,9 +169,9 @@ internal static class ProcurementEndpoints
                     var result = store.UpdateSupplierApproval(tenantKey, supplierId, request, actor);
                     return result.Error switch
                     {
-                        "supplier_not_found" or "material_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "supplier_material_not_approved" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
+                        ManufacturingErrorCodes.SupplierNotFound or ManufacturingErrorCodes.MaterialNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.SupplierMaterialNotApproved => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
                         "invalid_supplier_approval_status" or "invalid_supplier_approval_transition" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         _ => Results.Ok(result.Supplier)
                     };
@@ -193,9 +193,9 @@ internal static class ProcurementEndpoints
                     var result = store.CreateSupplierCertificate(tenantKey, supplierId, request, actor);
                     return result.Error switch
                     {
-                        "supplier_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.SupplierNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
                         "supplier_certificate_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
-                        "invalid_supplier_certificate" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.InvalidSupplierCertificate => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         _ => Results.Created($"/api/v1/manufacturing/suppliers/{supplierId}/certificates/{result.Certificate!.Id}", result.Certificate)
                     };
                 });
@@ -213,9 +213,9 @@ internal static class ProcurementEndpoints
                     var result = store.CreateSupplierMaterialApproval(tenantKey, supplierId, request, context.User.Identity?.Name ?? "system");
                     return result.Error switch
                     {
-                        "supplier_not_found" or "material_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.SupplierNotFound or ManufacturingErrorCodes.MaterialNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
                         "supplier_material_approval_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
-                        "invalid_supplier_material_approval" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.InvalidSupplierMaterialApproval => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         _ => Results.Created($"/api/v1/manufacturing/suppliers/{supplierId}/material-approvals/{result.Approval!.Id}", result.Approval)
                     };
                 });
@@ -233,9 +233,9 @@ internal static class ProcurementEndpoints
                     var result = store.ReceiveInboundBatch(tenantKey, purchaseOrderId, request);
                     return result.Error switch
                     {
-                        "invalid_inbound_batch" or "invalid_inbound_receipt" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.InvalidInboundBatch or "invalid_inbound_receipt" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         "purchase_order_not_found" or "purchase_order_line_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
                         "receipt_number_exists" or "supplier_lot_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         "over_receipt" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                         _ => Results.Ok(result.Receipts)

@@ -3,6 +3,7 @@ using His.Hope.AspNetCore.Tenancy;
 using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Application;
+using His.Hope.ManufacturingService.Domain;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
@@ -36,11 +37,11 @@ internal static class ManufacturingEndpointHelpers
                 var result = store.ChangeRecipeLifecycle(recipeId, tenantKey, status, request);
                 return result.Error switch
                 {
-                    "tenant_scope_denied" => Results.Forbid(),
-                    "recipe_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                    ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
+                    ManufacturingErrorCodes.RecipeNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
                     "invalid_recipe_actor" or "invalid_recipe_transition" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                     _ when result.Recipe is not null => Results.Ok(result.Recipe),
-                    _ => ManufacturingProblem(StatusCodes.Status404NotFound, "recipe_not_found")
+                    _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.RecipeNotFound)
                 };
             }
 
@@ -51,12 +52,12 @@ internal static class ManufacturingEndpointHelpers
                 var result = store.ChangeProductSpecificationLifecycle(specificationId, tenantKey, targetStatus, request);
                 return result.Error switch
                 {
-                    "product_specification_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                    "tenant_scope_denied" => Results.Forbid(),
-                    "active_product_specification_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
+                    ManufacturingErrorCodes.ProductSpecificationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                    ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
+                    ManufacturingErrorCodes.ActiveProductSpecificationExists => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                     "invalid_product_specification_actor" or "invalid_product_specification_transition" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                     _ when result.Specification is not null => Results.Ok(result.Specification),
-                    _ => ManufacturingProblem(StatusCodes.Status404NotFound, "product_specification_not_found")
+                    _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.ProductSpecificationNotFound)
                 };
             }
 
@@ -67,11 +68,11 @@ internal static class ManufacturingEndpointHelpers
                 var result = store.ChangeDeviationStatus(deviationId, tenantKey, targetStatus, request);
                 return result.Error switch
                 {
-                    "deviation_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                    "tenant_scope_denied" => Results.Forbid(),
+                    ManufacturingErrorCodes.DeviationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                    ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                     "invalid_deviation_actor" or "invalid_deviation_transition" or "author_cannot_approve_own_deviation" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                     _ when result.Deviation is not null => Results.Ok(result.Deviation),
-                    _ => ManufacturingProblem(StatusCodes.Status404NotFound, "deviation_not_found")
+                    _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.DeviationNotFound)
                 };
             }
 
@@ -89,9 +90,9 @@ internal static class ManufacturingEndpointHelpers
             var result = store.ChangeBatchStatus(tenantKey, batchId, targetStatus);
             return result.Error switch
             {
-                "production_batch_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                "tenant_mismatch" => Results.Forbid(),
-                "required_operation_incomplete" or "quality_gate_incomplete" or "machine_unavailable" or "invalid_batch_transition" or "input_reservation_unavailable" or "input_quantity_insufficient" or "loss_review_required" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
+                ManufacturingErrorCodes.ProductionBatchNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+            ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
+                ManufacturingErrorCodes.RequiredOperationIncomplete or ManufacturingErrorCodes.QualityGateIncomplete or ManufacturingErrorCodes.MachineUnavailable or ManufacturingErrorCodes.InvalidBatchTransition or ManufacturingErrorCodes.InputReservationUnavailable or ManufacturingErrorCodes.InputQuantityInsufficient or "loss_review_required" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                 _ => Results.Ok(result.Batch)
             };
         }

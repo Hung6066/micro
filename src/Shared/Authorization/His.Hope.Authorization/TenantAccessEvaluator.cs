@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Authorization;
 
@@ -14,8 +15,8 @@ internal static class TenantAccessEvaluator
         if (string.IsNullOrWhiteSpace(resourceTenant))
             return null;
 
-        var tokenTenant = principal.FindFirst("tenant_id")?.Value
-            ?? principal.FindFirst("tenant")?.Value;
+        var tokenTenant = principal.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value
+            ?? principal.FindFirst(HisHopeProtocolConstants.Claims.Tenant)?.Value;
         if (string.IsNullOrWhiteSpace(tokenTenant))
             return "tenant_scope_denied";
 

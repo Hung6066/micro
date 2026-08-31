@@ -1,22 +1,23 @@
 using System.Security.Claims;
 using His.Hope.AspNetCore.Tenancy;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.CommerceService.Api;
 
 internal static class CommerceHttpExtensions
 {
     public static string? GetUserId(this ClaimsPrincipal user) =>
-        user.FindFirst("sub")?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        user.FindFirst(HisHopeProtocolConstants.Claims.Subject)?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
     public static string? GetClientId(this ClaimsPrincipal user) =>
-        user.FindFirst("client_id")?.Value ?? user.FindFirst("azp")?.Value;
+        user.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value ?? user.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
 
     public static string GetEmail(this ClaimsPrincipal user) =>
-        user.FindFirst("email")?.Value ?? user.FindFirst(ClaimTypes.Email)?.Value ?? "buyer@example.com";
+        user.FindFirst(HisHopeProtocolConstants.Claims.Email)?.Value ?? user.FindFirst(ClaimTypes.Email)?.Value ?? "buyer@example.com";
 
     public static bool HasPermission(this ClaimsPrincipal user, string permissionCode) =>
-        user.FindAll("permissions")
+        user.FindAll(HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Any(value => string.Equals(value, permissionCode, StringComparison.OrdinalIgnoreCase));
 
@@ -41,6 +42,6 @@ internal static class CommerceHttpExtensions
     }
 
     private static bool AllowCommerceCrossTenant(ClaimsPrincipal user, string requestedTenant, string tokenTenant) =>
-        string.Equals(user.GetPortalClass(), "operator", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(user.GetPortalClass(), HisHopeProtocolConstants.PortalClasses.Operator, StringComparison.OrdinalIgnoreCase) &&
         user.HasPermission(HisHopePermissions.Commerce.OrdersView);
 }

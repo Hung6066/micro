@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 using Xunit;
 
+[Collection("ManufacturingIntegration")]
 public sealed class CommerceOrderAllocationTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer container = new PostgreSqlBuilder()

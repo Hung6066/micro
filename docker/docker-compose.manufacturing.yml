@@ -13,8 +13,8 @@ services:
     container_name: manufacturing-standalone-postgres
     environment:
       POSTGRES_DB: postgres
-      POSTGRES_USER: ${MANUFACTURING_POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${MANUFACTURING_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}
       POSTGRES_MULTIPLE_DATABASES: identitydb,manufacturingdb,commercedb,contentdb
     ports:
       - "${MANUFACTURING_POSTGRES_PORT:-5433}:5432"
@@ -50,8 +50,8 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: manufacturing-standalone-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${MANUFACTURING_RABBITMQ_USER:-admin}
-      RABBITMQ_DEFAULT_PASS: ${MANUFACTURING_RABBITMQ_PASSWORD:-admin}
+      RABBITMQ_DEFAULT_USER: ${MANUFACTURING_RABBITMQ_USER:?MANUFACTURING_RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
     ports:
       - "${MANUFACTURING_RABBITMQ_PORT:-5672}:5672"
       - "${MANUFACTURING_RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
@@ -76,7 +76,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5003
-      ConnectionStrings__IdentityDb: "Host=manufacturing-postgres;Database=identitydb;Username=${MANUFACTURING_POSTGRES_USER:-postgres};Password=${MANUFACTURING_POSTGRES_PASSWORD:-postgres}"
+      ConnectionStrings__IdentityDb: "Host=manufacturing-postgres;Database=identitydb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       Persistence__RunMigrationsOnStartup: "true"
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
       Redis__ConnectionString: manufacturing-redis
@@ -127,7 +127,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5015
-      ConnectionStrings__CommerceDb: "Host=manufacturing-postgres;Database=commercedb;Username=${MANUFACTURING_POSTGRES_USER:-postgres};Password=${MANUFACTURING_POSTGRES_PASSWORD:-postgres}"
+      ConnectionStrings__CommerceDb: "Host=manufacturing-postgres;Database=commercedb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       REDIS_URL: redis://manufacturing-redis:6379
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
       SERVICE_IDENTITY_URL: http://identityservice:5003
@@ -142,8 +142,8 @@ services:
       Outbox__Enabled: "true"
       EventBus__HostName: manufacturing-rabbitmq
       EventBus__Port: "5672"
-      EventBus__UserName: ${MANUFACTURING_RABBITMQ_USER:-admin}
-      EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:-admin}
+      EventBus__UserName: ${MANUFACTURING_RABBITMQ_USER:?MANUFACTURING_RABBITMQ_USER is required}
+      EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
     networks: [manufacturing]
@@ -170,7 +170,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5016
-      ConnectionStrings__ContentDb: "Host=manufacturing-postgres;Database=contentdb;Username=${MANUFACTURING_POSTGRES_USER:-postgres};Password=${MANUFACTURING_POSTGRES_PASSWORD:-postgres}"
+      ConnectionStrings__ContentDb: "Host=manufacturing-postgres;Database=contentdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       REDIS_URL: redis://manufacturing-redis:6379
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
       SERVICE_IDENTITY_URL: http://identityservice:5003
@@ -208,7 +208,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5050
 
-      ConnectionStrings__ManufacturingDb: "Host=manufacturing-postgres;Database=manufacturingdb;Username=${MANUFACTURING_POSTGRES_USER:-manufacturing};Password=${MANUFACTURING_POSTGRES_PASSWORD:-manufacturing-local-only}"
+      ConnectionStrings__ManufacturingDb: "Host=manufacturing-postgres;Database=manufacturingdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
       TenantPlacement__Enabled: "false"
       TenantPlacement__Services__manufacturing__DefaultConnectionName: ManufacturingDb
@@ -230,8 +230,8 @@ services:
       Manufacturing__SeedDemoData: ${MANUFACTURING_SEED_DEMO_DATA:-true}
       EventBus__HostName: manufacturing-rabbitmq
       EventBus__Port: "5672"
-      EventBus__UserName: ${MANUFACTURING_RABBITMQ_USER:-admin}
-      EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:-admin}
+      EventBus__UserName: ${MANUFACTURING_RABBITMQ_USER:?MANUFACTURING_RABBITMQ_USER is required}
+      EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
       Consumers__AnalyticsEnabled: "true"
       Consumers__CommerceOrdersEnabled: "true"
     networks: [manufacturing]
@@ -364,7 +364,7 @@ services:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: manufacturing-standalone-postgres-exporter
     environment:
-      DATA_SOURCE_NAME: postgresql://${MANUFACTURING_POSTGRES_USER:-postgres}:${MANUFACTURING_POSTGRES_PASSWORD:-postgres}@manufacturing-postgres:5432/postgres?sslmode=disable
+      DATA_SOURCE_NAME: postgresql://${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required}:${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}@manufacturing-postgres:5432/postgres?sslmode=disable
     networks: [manufacturing]
     depends_on:
       manufacturing-postgres: { condition: service_healthy }

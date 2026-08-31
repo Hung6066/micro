@@ -2,10 +2,15 @@ using System.Security.Claims;
 using System.Text.Json;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
+using His.Hope.SharedKernel.Protocol;
+using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Domain.Constants;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Infrastructure.Security;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
@@ -51,7 +56,7 @@ public static class SupportElevationEndpoints
                 ["request"] = ["targetTenant and a reason of at least 10 characters are required."]
             });
 
-        var sourceTenant = http.User.FindFirst("tenant_id")?.Value;
+        var sourceTenant = http.User.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value;
         if (string.IsNullOrWhiteSpace(sourceTenant))
             return Results.Forbid();
 
@@ -69,10 +74,28 @@ public static class SupportElevationEndpoints
         if (operatorUserId == Guid.Empty)
             return Results.Forbid();
 
-        var permissions = (request.Permissions ?? ["admin.users.write", "identity.update"])
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUpError)
+            return stepUpError;
+
+        var permissions = (request.Permissions ?? ["admin.users.write"])
             .Where(permission => !string.IsNullOrWhiteSpace(permission))
+            .Select(permission => permission.Trim().ToLowerInvariant())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        if (permissions.Length == 0)
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["permissions"] = ["At least one explicitly registered permission is required."]
+            });
+
+        var registeredPrefixes = await db.IamServiceDefinitions.AsNoTracking()
+            .Select(service => service.PermissionPrefix)
+            .ToArrayAsync(ct);
+        if (permissions.Any(permission => !PermissionCatalogRules.IsValid(permission, registeredPrefixes)))
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["permissions"] = ["Every permission must be registered in the canonical permission catalog."]
+            });
 
         var elevation = new SupportElevation
         {
@@ -80,8 +103,8 @@ public static class SupportElevationEndpoints
             SourceTenant = sourceTenant,
             TargetTenant = request.TargetTenant.Trim(),
             PermissionsJson = JsonSerializer.Serialize(permissions),
-            Status = "pending",
-            RequestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub"),
+            Status = IdentityWorkflowStatuses.SupportElevation.Pending,
+            RequestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject),
             Reason = request.Reason.Trim(),
             ExpiresAt = DateTime.UtcNow.AddMinutes(Math.Clamp(request.DurationMinutes, 5, 60))
         };
@@ -106,21 +129,26 @@ public static class SupportElevationEndpoints
         IdentityDbContext db,
         IAuditService audit,
         HttpContext http,
+        ITokenBlacklistService tokenBlacklist,
         CancellationToken ct)
     {
-        var elevation = await db.SupportElevations.FirstOrDefaultAsync(item => item.Id == id, ct);
-        if (elevation is null) return Results.NotFound();
-        if (elevation.Status != "pending" || elevation.ExpiresAt <= DateTime.UtcNow)
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUpError)
+            return stepUpError;
+
+        var elevation = Guard.Against.NotFound(
+            await db.SupportElevations.FirstOrDefaultAsync(item => item.Id == id, ct), "SupportElevation", id);
+        if (elevation.Status != IdentityWorkflowStatuses.SupportElevation.Pending || elevation.ExpiresAt <= DateTime.UtcNow)
             return Results.Conflict(new { errorCode = "support_elevation_not_pending" });
 
-        var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub");
+        var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
         if (string.IsNullOrWhiteSpace(approver)) return Results.Unauthorized();
         if (string.Equals(elevation.RequestedBy, approver, StringComparison.OrdinalIgnoreCase))
             return Results.Conflict(new { errorCode = "maker_checker_conflict" });
 
-        elevation.Status = "approved";
+        elevation.Status = IdentityWorkflowStatuses.SupportElevation.Approved;
         elevation.ApprovedBy = approver;
         await db.SaveChangesAsync(ct);
+        await tokenBlacklist.RevokeAllUserTokensAsync(elevation.OperatorUserId.ToString(), ct);
         await AdminAudit.LogAsync(audit, http, "SUPPORT_ELEVATION_APPROVE", "SupportElevation", id.ToString("D"), ct);
         return Results.Ok(new { elevation.Id, elevation.Status, elevation.ApprovedBy, elevation.ExpiresAt });
     }
@@ -130,16 +158,21 @@ public static class SupportElevationEndpoints
         IdentityDbContext db,
         IAuditService audit,
         HttpContext http,
+        ITokenBlacklistService tokenBlacklist,
         CancellationToken ct)
     {
-        var elevation = await db.SupportElevations.FirstOrDefaultAsync(item => item.Id == id, ct);
-        if (elevation is null) return Results.NotFound();
-        if (elevation.Status != "approved")
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUpError)
+            return stepUpError;
+
+        var elevation = Guard.Against.NotFound(
+            await db.SupportElevations.FirstOrDefaultAsync(item => item.Id == id, ct), "SupportElevation", id);
+        if (elevation.Status != IdentityWorkflowStatuses.SupportElevation.Approved)
             return Results.Conflict(new { errorCode = "support_elevation_not_active" });
 
-        elevation.Status = "revoked";
+        elevation.Status = IdentityWorkflowStatuses.SupportElevation.Revoked;
         elevation.ExpiresAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+        await tokenBlacklist.RevokeAllUserTokensAsync(elevation.OperatorUserId.ToString(), ct);
         await AdminAudit.LogAsync(audit, http, "SUPPORT_ELEVATION_REVOKE", "SupportElevation", id.ToString("D"), ct);
         return Results.Ok(new { elevation.Id, elevation.Status });
     }
@@ -171,7 +204,7 @@ public static class SupportElevationEndpoints
 
     private static Guid ResolveOperatorUserId(ClaimsPrincipal user)
     {
-        var subject = user.FindFirst("sub")?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var subject = user.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(subject, out var userId) ? userId : Guid.Empty;
     }
 

@@ -113,6 +113,7 @@ try {
             if ($staging -notmatch 'AUTHZ_PDP_MODE=canary') { throw 'Staging OpenFGA canary mode must be enabled.' }
         }
         Invoke-Step 'jwks-rotation-drill' { ./scripts/run-jwks-rotation-drill.ps1 }
+        Invoke-Step 'load-profile-contract' { ./scripts/validate-load-profiles.ps1 -Root $RepositoryRoot }
         if ($SkipLoadTestBaseline) {
             Add-Check 'load-test-baseline' 'skipped' 'Load baseline skipped by operator request.'
         } elseif (Test-Path -LiteralPath 'tests/load/results/baseline-summary.json') {

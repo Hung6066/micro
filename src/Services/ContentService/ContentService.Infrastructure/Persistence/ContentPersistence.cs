@@ -7,6 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 using System.Xml.Linq;
+using System.Text.Json;
+using His.Hope.Contracts.Saga;
 
 namespace His.Hope.ContentService.Infrastructure;
 
@@ -18,6 +20,7 @@ public sealed class ContentDbContext(DbContextOptions<ContentDbContext> options)
     public DbSet<ContentPartnershipInquiryEntity> PartnershipInquiries => Set<ContentPartnershipInquiryEntity>();
     public DbSet<ContentMediaAssetEntity> MediaAssets => Set<ContentMediaAssetEntity>();
     public DbSet<ContentNewsletterSubscriptionEntity> NewsletterSubscriptions => Set<ContentNewsletterSubscriptionEntity>();
+    public DbSet<ContentPublishingOutboxEntity> PublishingOutbox => Set<ContentPublishingOutboxEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -100,6 +103,18 @@ public sealed class ContentDbContext(DbContextOptions<ContentDbContext> options)
             entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Email).HasMaxLength(320).IsRequired();
             entity.HasIndex(x => new { x.TenantKey, x.Email }).IsUnique();
+        });
+        modelBuilder.Entity<ContentPublishingOutboxEntity>(entity =>
+        {
+            entity.ToTable("content_publishing_outbox"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.Type).HasColumnName("type");
+            entity.Property(x => x.Content).HasColumnName("content");
+            entity.Property(x => x.OccurredAt).HasColumnName("occurred_at");
+            entity.Property(x => x.ProcessedOn).HasColumnName("processed_on");
+            entity.Property(x => x.Type).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Content).IsRequired();
+            entity.HasIndex(x => x.ProcessedOn);
         });
 
         HisHopeDataConventions.Apply(
@@ -186,6 +201,15 @@ public sealed class ContentNewsletterSubscriptionEntity
     public string TenantKey { get; set; } = "";
     public string Email { get; set; } = "";
     public DateTimeOffset SubscribedAt { get; set; }
+}
+
+public sealed class ContentPublishingOutboxEntity
+{
+    public Guid Id { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public DateTimeOffset OccurredAt { get; set; }
+    public DateTimeOffset? ProcessedOn { get; set; }
 }
 
 public sealed class PostgresContentStore(IDbContextFactory<ContentDbContext> dbFactory)
@@ -382,6 +406,7 @@ public sealed class PostgresContentStore(IDbContextFactory<ContentDbContext> dbF
         var entity = id is null
             ? new ContentArticleEntity { Id = Guid.NewGuid(), TenantKey = tenantKey, PublishedAt = request.PublishedAt ?? now, UpdatedAt = now }
             : db.Articles.First(x => x.Id == id && x.TenantKey == tenantKey);
+        var wasPublished = entity.Status == ContentArticleStatuses.Published;
 
         entity.Slug = request.Slug.Trim().ToLowerInvariant();
         entity.Title = request.Title.Trim();
@@ -398,6 +423,23 @@ public sealed class PostgresContentStore(IDbContextFactory<ContentDbContext> dbF
         if (request.PublishedAt is not null) entity.PublishedAt = request.PublishedAt.Value;
 
         if (id is null) db.Articles.Add(entity);
+        if (entity.Status == ContentArticleStatuses.Published && !wasPublished)
+        {
+            var published = new ContentPublishedV1(Guid.NewGuid(), SagaMessagingContract.CurrentSchemaVersion,
+                now, entity.Id, entity.TenantKey, entity.Locale, $"content-publish:{entity.TenantKey}:{entity.Id}:{entity.UpdatedAt.Ticks}");
+            db.PublishingOutbox.Add(new ContentPublishingOutboxEntity
+            {
+                Id = Guid.NewGuid(), Type = SagaMessagingContract.ContentPublished,
+                Content = JsonSerializer.Serialize(published), OccurredAt = now
+            });
+            db.PublishingOutbox.Add(new ContentPublishingOutboxEntity
+            {
+                Id = Guid.NewGuid(), Type = SagaMessagingContract.ContentNotificationRequested,
+                Content = JsonSerializer.Serialize(new ContentNotificationRequestedV1(published.EventId,
+                    published.SchemaVersion, published.OccurredAt, published.ArticleId, published.TenantKey,
+                    published.Locale, published.IdempotencyKey, published.CorrelationId, published.CausationId)), OccurredAt = now
+            });
+        }
         db.SaveChanges();
         return ToArticleDto(entity);
     }
@@ -595,6 +637,8 @@ public static class ContentInfrastructureServiceCollectionExtensions
         services.AddSingleton<IContentDbContextFactory>(sp =>
             new ContentDbContextFactoryBridge(sp.GetRequiredService<IHisHopeDbContextFactory<ContentDbContext>>()));
         services.AddSingleton<PostgresContentStore>();
+        if (!string.Equals(configuration["HIS_HOPE_ENVIRONMENT"], "Testing", StringComparison.OrdinalIgnoreCase))
+            services.AddHostedService<Messaging.ContentPublishingOutboxDispatcher>();
         return services;
     }
 

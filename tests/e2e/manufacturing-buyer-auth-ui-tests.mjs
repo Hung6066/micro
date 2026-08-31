@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { assertE2eCredentials } from './config/credentials.js';
 
 const buyerUrl = process.env.BUYER_APP_URL ?? 'http://localhost:4205';
 const email = process.env.E2E_EMAIL;
@@ -7,7 +8,9 @@ const routes = ['catalog', 'cart', 'orders', 'profile', 'notifications', 'rfq'];
 
 test.describe('manufacturing buyer authenticated route contract @buyer-app', () => {
   test('renders protected routes without console errors or API 5xx', async ({ page }) => {
-    test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated buyer coverage.');
+    if (!assertE2eCredentials(email, password)) {
+      test.skip(true, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated buyer coverage.');
+    }
 
     const consoleErrors = [];
     const serverErrors = [];

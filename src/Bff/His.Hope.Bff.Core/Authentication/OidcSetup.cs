@@ -10,12 +10,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Bff.Core.Authentication;
 
 public static class OidcSetup
 {
-    private const string SessionCookieName = "hishop_sid";
+    private const string SessionCookieName = HisHopeProtocolConstants.Cookies.BrowserSession;
 
     public static IServiceCollection AddBffOidc(
         this IServiceCollection services, IConfiguration configuration)
@@ -81,7 +82,7 @@ public static class OidcSetup
                     var sessionId = Guid.NewGuid().ToString("N");
                     var accessToken = ctx.TokenEndpointResponse.AccessToken;
                     var refreshToken = ctx.TokenEndpointResponse.RefreshToken;
-                    var subjectId = ctx.Principal?.FindFirst("sub")?.Value
+                    var subjectId = ctx.Principal?.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
                         ?? ctx.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
                         ?? "unknown";
                     var issuedAt = DateTimeOffset.UtcNow;

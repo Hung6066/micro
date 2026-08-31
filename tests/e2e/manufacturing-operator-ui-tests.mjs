@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { assertE2eCredentials } from './config/credentials.js';
 
 const operatorUrl = process.env.OPERATOR_APP_URL ?? 'http://localhost:4300';
 const email = process.env.E2E_EMAIL;
@@ -20,7 +21,9 @@ test.describe('manufacturing operator localization, theme and route contract @op
   });
 
   test('authenticated routes render without console errors or API 5xx', async ({ page }) => {
-    test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
+    if (!assertE2eCredentials(email, password)) {
+      test.skip(true, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
+    }
 
     const consoleErrors = [];
     const serverErrors = [];

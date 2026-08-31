@@ -37,15 +37,23 @@ public class SagaDbContext : DbContext
                 .HasMaxLength(255)
                 .IsRequired();
 
+            entity.Property(e => e.TenantKey).HasColumnName("tenant_key").HasMaxLength(200);
+            entity.Property(e => e.CorrelationId).HasColumnName("correlation_id").HasMaxLength(200);
+            entity.Property(e => e.CausationId).HasColumnName("causation_id").HasMaxLength(200);
+            entity.Property(e => e.IdempotencyKey).HasColumnName("idempotency_key").HasMaxLength(500);
+
             entity.Property(e => e.Status)
                 .HasColumnName("status")
                 .HasMaxLength(20)
                 .IsRequired()
-                .HasDefaultValue("Pending");
+                .HasDefaultValue(SagaStatus.Pending);
 
             entity.Property(e => e.StepIndex)
                 .HasColumnName("step_index")
                 .HasDefaultValue(0);
+
+            entity.Property(e => e.RetryCount).HasColumnName("retry_count").HasDefaultValue(0);
+            entity.Property(e => e.Version).HasColumnName("version").IsConcurrencyToken().HasDefaultValue(0L);
 
             entity.Property(e => e.Data)
                 .HasColumnName("data")
@@ -67,6 +75,10 @@ public class SagaDbContext : DbContext
                 .HasColumnName("last_heartbeat")
                 .HasDefaultValueSql("now()");
 
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnName("updated_at")
+                .HasDefaultValueSql("now()");
+
             entity.HasIndex(e => new { e.Status, e.StartedAt })
                 .HasDatabaseName("idx_saga_status");
 
@@ -74,6 +86,11 @@ public class SagaDbContext : DbContext
             entity.HasIndex(e => e.LastHeartbeat)
                 .HasDatabaseName("idx_saga_heartbeat")
                 .HasFilter("\"status\" IN ('Running', 'Compensating')");
+
+            entity.HasIndex(e => new { e.SagaType, e.IdempotencyKey })
+                .HasDatabaseName("ux_saga_idempotency")
+                .IsUnique()
+                .HasFilter("idempotency_key IS NOT NULL");
         });
     }
 }

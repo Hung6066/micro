@@ -1,11 +1,14 @@
 using System.Text.Json;
 using His.Hope.CommerceService.Application.Orders;
 using His.Hope.Contracts.Commerce;
+using His.Hope.Contracts.Saga;
+using His.Hope.Infrastructure.Outbox;
 using His.Hope.Persistence;
 using His.Hope.Persistence.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace His.Hope.CommerceService.Infrastructure.Persistence;
 
@@ -21,6 +24,7 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
     public DbSet<CommerceRfqEntity> Rfqs => Set<CommerceRfqEntity>();
     public DbSet<CommerceRfqLineEntity> RfqLines => Set<CommerceRfqLineEntity>();
     public DbSet<CommerceOutboxMessageEntity> OutboxMessages => Set<CommerceOutboxMessageEntity>();
+    public DbSet<CommerceShipmentEntity> Shipments => Set<CommerceShipmentEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -134,6 +138,17 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
             entity.Property(x => x.Error).HasMaxLength(2000);
             entity.HasIndex(x => new { x.Status, x.OccurredAt });
         });
+        modelBuilder.Entity<CommerceShipmentEntity>(entity =>
+        {
+            entity.ToTable("commerce_shipments");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.State).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.IdempotencyKey).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.ProviderShipmentId).HasMaxLength(200);
+            entity.HasIndex(x => new { x.TenantKey, x.OrderId }).IsUnique();
+            entity.HasIndex(x => new { x.TenantKey, x.IdempotencyKey }).IsUnique();
+        });
     }
 }
 
@@ -242,7 +257,7 @@ public sealed class CommerceOutboxMessageEntity
     public string Content { get; set; } = "";
     public DateTimeOffset OccurredAt { get; set; }
     public DateTimeOffset? ProcessedOn { get; set; }
-    public string Status { get; set; } = "Pending";
+    public string Status { get; set; } = OutboxStatus.Pending;
     public int RetryCount { get; set; }
     public string? Error { get; set; }
 }
@@ -286,10 +301,39 @@ public sealed class PostgresCommerceOrderPersistence(IDbContextFactory<CommerceD
             db.OutboxMessages.Add(new CommerceOutboxMessageEntity
             {
                 Id = @event.EventId,
-                Type = "Commerce.OrderPlaced.v1",
+                Type = CommerceMessagingContract.OrderPlacedRoutingKey,
                 Content = JsonSerializer.Serialize(@event),
                 OccurredAt = @event.OccurredAt,
-                Status = "Pending",
+                Status = OutboxStatus.Pending,
+            });
+        }
+
+        // Payment authorization is a separate bounded context. Publish the
+        // request atomically with order acceptance; Billing owns the payment
+        // state and must deduplicate by the order idempotency key.
+        var paymentRequest = new PaymentAuthorizationRequestedV1(
+            Guid.NewGuid(),
+            SagaMessagingContract.CurrentSchemaVersion,
+            @event.OccurredAt,
+            @event.OrderId,
+            @event.TenantKey,
+            @event.TotalAmount,
+            "USD",
+            $"commerce-order:{@event.OrderId:D}",
+            @event.CorrelationId,
+            @event.CausationId);
+        if (!await db.OutboxMessages.AnyAsync(
+                x => x.Type == SagaMessagingContract.PaymentAuthorizationRequested &&
+                     x.Content.Contains(@event.OrderId.ToString("D")),
+                cancellationToken))
+        {
+            db.OutboxMessages.Add(new CommerceOutboxMessageEntity
+            {
+                Id = paymentRequest.EventId,
+                Type = SagaMessagingContract.PaymentAuthorizationRequested,
+                Content = JsonSerializer.Serialize(paymentRequest),
+                OccurredAt = paymentRequest.OccurredAt,
+                Status = OutboxStatus.Pending,
             });
         }
 
@@ -333,7 +377,7 @@ public sealed class PostgresCommerceOrderPersistence(IDbContextFactory<CommerceD
         string status,
         CancellationToken cancellationToken = default)
     {
-        var normalized = status.Trim().ToLowerInvariant();
+        var normalized = CommerceOrderStatusPolicy.Normalize(status);
         if (normalized is not ("pending" or "confirmed" or "shipped" or "cancelled"))
             return null;
 
@@ -342,6 +386,9 @@ public sealed class PostgresCommerceOrderPersistence(IDbContextFactory<CommerceD
             .Include(item => item.Lines)
             .SingleOrDefaultAsync(item => item.Id == orderId && item.TenantKey == tenantKey, cancellationToken);
         if (order is null)
+            return null;
+
+        if (!CommerceOrderStatusPolicy.CanTransition(order.Status, normalized))
             return null;
 
         order.Status = normalized;
@@ -612,11 +659,27 @@ public static class CommerceInfrastructureServiceCollectionExtensions
 {
     public static IServiceCollection AddCommerceInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         var connection = configuration.GetConnectionString("CommerceDb");
         if (string.IsNullOrWhiteSpace(connection))
+        {
+            if (!environment.IsDevelopment()
+                && !string.Equals(environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "CommerceDb connection string is required outside Development or Testing.");
+            }
+
+            services.AddSingleton<ICommerceOrderPersistence, InMemoryCommerceOrderPersistence>();
+            services.AddSingleton<ICommerceCatalogPersistence, InMemoryCommerceCatalogPersistence>();
+            services.AddSingleton<ICommerceCartPersistence, InMemoryCommerceCartPersistence>();
+            services.AddSingleton<ICommerceProfilePersistence, InMemoryCommerceProfilePersistence>();
+            services.AddSingleton<ICommerceNotificationPersistence, InMemoryCommerceNotificationPersistence>();
+            services.AddSingleton<ICommerceRfqPersistence, InMemoryCommerceRfqPersistence>();
             return services;
+        }
 
         services.AddHttpContextAccessor();
         services.AddHisHopeTenantAwareDbContextFactory<CommerceDbContext>(
@@ -636,6 +699,9 @@ public static class CommerceInfrastructureServiceCollectionExtensions
         services.AddSingleton<ICommerceProfilePersistence, PostgresCommerceProfilePersistence>();
         services.AddSingleton<ICommerceNotificationPersistence, PostgresCommerceNotificationPersistence>();
         services.AddSingleton<ICommerceRfqPersistence, PostgresCommerceRfqPersistence>();
+        services.AddSingleton<CommerceShipmentWorkflow>();
+        services.AddHostedService<Messaging.PaymentCapturedShipmentConsumer>();
+        services.AddHostedService<Messaging.PaymentAuthorizedCaptureConsumer>();
         services.AddHostedService<Messaging.CommerceOutboxDispatcher>();
         return services;
     }

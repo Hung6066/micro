@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.WebUtilities;
 using StackExchange.Redis;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.IdentityService.Api.Services;
 
@@ -98,11 +99,11 @@ public sealed class OidcLoginCompletionService(
     IConnectionMultiplexer redis,
     IConfiguration configuration)
 {
-    private const string CookieName = "hishop_oidc_mfa";
-    private const string SessionCookieName = "hishop_oidc_mfa_session";
-      private const string TrustedDeviceCookieName = "hishop_trusted_device";
-      private const string BrowserSessionCookieName = "hishop_sid";
-      private const string BrowserCsrfCookieName = "hishop_csrf";
+    private const string CookieName = HisHopeProtocolConstants.Cookies.OidcMfa;
+    private const string SessionCookieName = HisHopeProtocolConstants.Cookies.OidcMfaSession;
+    private const string TrustedDeviceCookieName = HisHopeProtocolConstants.Cookies.TrustedDevice;
+    private const string BrowserSessionCookieName = HisHopeProtocolConstants.Cookies.BrowserSession;
+    private const string BrowserCsrfCookieName = HisHopeProtocolConstants.Cookies.BrowserCsrf;
     private static readonly TimeSpan PendingMfaLifetime = TimeSpan.FromMinutes(5);
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("HisHope.OidcMfa.v1");
     private readonly IDatabase redisDb = redis.GetDatabase();
@@ -280,11 +281,14 @@ public sealed class OidcLoginCompletionService(
         var claims = authenticationMethods
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(value => new Claim("amr", value))
+            .Select(value => new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, value))
+            .Append(new Claim(
+                "auth_time",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)))
             .Append(new Claim(
                 AuthorizationConstants.Claims.PrincipalType,
                 AuthorizationConstants.PrincipalTypes.Human))
-            .Concat(permissions.Select(permission => new Claim("permissions", permission)))
+            .Concat(permissions.Select(permission => new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, permission)))
             .Concat(tenantClaims)
             .ToArray();
 

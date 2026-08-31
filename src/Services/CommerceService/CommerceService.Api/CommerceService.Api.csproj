@@ -6,6 +6,7 @@
     <RootNamespace>His.Hope.CommerceService.Api</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\CommerceService.Application\CommerceService.Application.csproj" />
     <ProjectReference Include="..\CommerceService.Infrastructure\CommerceService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />

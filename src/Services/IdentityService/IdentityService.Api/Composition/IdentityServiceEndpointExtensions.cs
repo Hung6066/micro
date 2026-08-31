@@ -16,6 +16,7 @@ using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.Security;
 using His.Hope.IdentityService.Api.Endpoints;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application;
@@ -132,8 +133,14 @@ public static class IdentityServiceEndpointExtensions
                 var (effectivePermissions, tenantClaims) = await HumanSessionAuthClaims.ResolveAsync(
                     userManager, identityService, identityUser, ct);
                 var permissions = effectivePermissions.ToArray();
+                var legacyAuthTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
                 var (sessionJwt, sessionExpiresAt) = tokenGenerator.GenerateAccessToken(
-                    identityUser, roles, permissions, additionalClaims: tenantClaims);
+                    identityUser,
+                    roles,
+                    permissions,
+                    amrValues: ["pwd"],
+                    additionalClaims: tenantClaims.Append(new Claim("auth_time", legacyAuthTime)));
                 var identityPrincipal = await signInManager.CreateUserPrincipalAsync(identityUser);
                 if (identityPrincipal.Identity is ClaimsIdentity identityClaims)
                 {
@@ -144,8 +151,12 @@ public static class IdentityServiceEndpointExtensions
                     identityClaims.AddClaim(new Claim(
                         AuthorizationConstants.Claims.PrincipalType,
                         AuthorizationConstants.PrincipalTypes.Human));
+                    identityClaims.AddClaim(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, "pwd"));
+                    identityClaims.AddClaim(new Claim(
+                        "auth_time",
+                        DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
                     foreach (var permission in permissions)
-                        identityClaims.AddClaim(new Claim("permissions", permission));
+                        identityClaims.AddClaim(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, permission));
                     foreach (var tenantClaim in tenantClaims)
                         identityClaims.AddClaim(tenantClaim);
                 }
@@ -183,7 +194,7 @@ public static class IdentityServiceEndpointExtensions
                     TimeSpan.FromHours(1));
                 await sessionTracker.AddSessionAsync(result.User.Id.ToString(), sessionId);
 
-                httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
+                httpContext.Response.Cookies.Append(HisHopeProtocolConstants.Cookies.BrowserSession, sessionId, new CookieOptions
                 {
                     HttpOnly = true,
                     Secure = httpContext.Request.IsHttps,
@@ -265,7 +276,7 @@ public static class IdentityServiceEndpointExtensions
         {
             try
             {
-                var sessionId = httpContext.Request.Cookies["hishop_sid"];
+                var sessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
                 if (!string.IsNullOrWhiteSpace(sessionId))
                 {
                     var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
@@ -316,7 +327,7 @@ public static class IdentityServiceEndpointExtensions
             SessionTokenProtector tokenProtector,
             IConfiguration configuration, ILogger<Program> logger, CancellationToken ct) =>
         {
-            var sessionId = httpContext.Request.Cookies["hishop_sid"];
+            var sessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             string? refreshToken = null;
             string? userId = null;
 
@@ -343,7 +354,7 @@ public static class IdentityServiceEndpointExtensions
                 {
                     var jwt = authHeader["Bearer ".Length..];
                     userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                        ?? httpContext.User.FindFirstValue("sub");
+                        ?? httpContext.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
                     logger.LogDebug("Logout via JWT Bearer: UserId={UserId}", userId);
                 }
             }
@@ -380,7 +391,7 @@ public static class IdentityServiceEndpointExtensions
             }
 
             // Clear cookies
-            httpContext.Response.Cookies.Append("hishop_sid", "", new CookieOptions
+            httpContext.Response.Cookies.Append(HisHopeProtocolConstants.Cookies.BrowserSession, "", new CookieOptions
             {
                 HttpOnly = true,
                 Secure = httpContext.Request.IsHttps,
@@ -413,7 +424,7 @@ public static class IdentityServiceEndpointExtensions
             {
                 authenticated = result.Succeeded,
                 userName = result.Principal?.Identity?.Name,
-                portalClass = result.Principal?.FindFirst("portal_class")?.Value
+                    portalClass = result.Principal?.FindFirst(HisHopeProtocolConstants.Claims.PortalClass)?.Value
             });
         })
         .WithOpenApi()
@@ -445,7 +456,7 @@ public static class IdentityServiceEndpointExtensions
             if (user is null)
                 return Results.Unauthorized();
 
-            var existingSessionId = httpContext.Request.Cookies["hishop_sid"];
+            var existingSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             if (!string.IsNullOrWhiteSpace(existingSessionId))
             {
                 // Always rotate the browser BFF session after an OIDC callback. The
@@ -468,7 +479,7 @@ public static class IdentityServiceEndpointExtensions
                     return Results.BadRequest(new { errorCode = "invalid_client", error = "Unknown BFF client." });
 
                 var memberships = tenantClaims
-                    .Where(claim => claim.Type == "tenant_membership")
+                    .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
                     .Select(claim => claim.Value)
                     .ToArray();
                 if (!memberships.Contains(clientTenant, StringComparer.OrdinalIgnoreCase))
@@ -476,15 +487,24 @@ public static class IdentityServiceEndpointExtensions
 
                 tenantClaims = tenantClaims
                     .Append(new Claim(ConglomerateConstants.ClaimPortalClass, tenantRegistry.GetPortalClass(request.ClientId)))
-                    .Append(new Claim("tenant_class", tenantRegistry.GetTenantClass(clientTenant)))
+                    .Append(new Claim(HisHopeProtocolConstants.Claims.TenantClass, tenantRegistry.GetTenantClass(clientTenant)))
                     .ToArray();
             }
             var permissionList = permissions.ToList();
+            var sessionAuthMethods = httpContext.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod)
+                .Select(claim => claim.Value)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var sessionAuthTime = httpContext.User.FindFirst("auth_time")?.Value;
             var (jwt, expiresAt) = tokenGenerator.GenerateAccessToken(
                 user,
                 roles,
                 permissionList,
-                additionalClaims: tenantClaims);
+                amrValues: sessionAuthMethods,
+                additionalClaims: string.IsNullOrWhiteSpace(sessionAuthTime)
+                    ? tenantClaims
+                    : tenantClaims.Append(new Claim("auth_time", sessionAuthTime)));
             var sessionId = Guid.NewGuid().ToString("N");
             var csrfToken = Guid.NewGuid().ToString("N");
             var sessionIssuedAt = DateTimeOffset.UtcNow;
@@ -512,7 +532,7 @@ public static class IdentityServiceEndpointExtensions
                 expiresAt - DateTime.UtcNow);
             await sessionTracker.AddSessionAsync(user.Id.ToString(), sessionId);
 
-            httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
+            httpContext.Response.Cookies.Append(HisHopeProtocolConstants.Cookies.BrowserSession, sessionId, new CookieOptions
             {
                 HttpOnly = true,
                 Secure = httpContext.Request.IsHttps,
@@ -572,7 +592,7 @@ public static class IdentityServiceEndpointExtensions
                 JsonSerializer.Serialize(session),
                 TimeSpan.FromHours(1));
 
-            httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
+            httpContext.Response.Cookies.Append(HisHopeProtocolConstants.Cookies.BrowserSession, sessionId, new CookieOptions
             {
                 HttpOnly = true,
                 Secure = httpContext.Request.IsHttps,
@@ -614,7 +634,7 @@ public static class IdentityServiceEndpointExtensions
         auth.MapGet("/me", async (HttpContext httpContext, IIdentityService identityService, CancellationToken ct) =>
         {
             var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
-                ?? httpContext.User.FindFirst("sub");
+                ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
             if (userIdClaim is null) return Results.Unauthorized();
             var userId = Guid.Parse(userIdClaim.Value);
             var user = await identityService.GetUserByIdAsync(userId, ct);
@@ -635,7 +655,7 @@ public static class IdentityServiceEndpointExtensions
             CancellationToken ct) =>
         {
             var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? httpContext.User.FindFirstValue("sub");
+                ?? httpContext.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
 
             var scopes = httpContext.User.FindAll("scope")
@@ -656,7 +676,7 @@ public static class IdentityServiceEndpointExtensions
                     .Distinct()
                     .ToArrayAsync(ct);
                 var tenantMemberships = (await userManager.GetClaimsAsync(user))
-                    .Where(claim => claim.Type == "tenant_membership")
+                    .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
                     .Select(claim => claim.Value)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -669,7 +689,7 @@ public static class IdentityServiceEndpointExtensions
                     permissions = effectivePermissions,
                     scopes,
                     facilityIds,
-                    tenantId = httpContext.User.FindFirstValue("tenant_id"),
+                    tenantId = httpContext.User.FindFirstValue(HisHopeProtocolConstants.Claims.TenantId),
                     tenantMemberships,
                     authzVersion = user.SecurityStamp
                 });
@@ -681,7 +701,7 @@ public static class IdentityServiceEndpointExtensions
                 userName = httpContext.User.Identity?.Name,
                 roles = httpContext.User.FindAll(ClaimTypes.Role).Select(c => c.Value)
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                permissions = httpContext.User.FindAll("permission").Concat(httpContext.User.FindAll("permissions"))
+                permissions = httpContext.User.FindAll("permission").Concat(httpContext.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions))
                     .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                 scopes,
@@ -689,8 +709,8 @@ public static class IdentityServiceEndpointExtensions
                     .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                     .Concat(httpContext.User.FindAll("facility_id").Select(c => c.Value))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                tenantId = httpContext.User.FindFirstValue("tenant_id"),
-                tenantMemberships = httpContext.User.FindAll("tenant_membership").Select(c => c.Value)
+                tenantId = httpContext.User.FindFirstValue(HisHopeProtocolConstants.Claims.TenantId),
+                tenantMemberships = httpContext.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership).Select(c => c.Value)
                     .Concat(httpContext.User.FindAll("tenant_memberships")
                         .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -707,7 +727,7 @@ public static class IdentityServiceEndpointExtensions
                 return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PermissionRequired });
 
             var granted = httpContext.User
-                .FindAll("permissions")
+                .FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
                 .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                 .Contains(permission, StringComparer.OrdinalIgnoreCase);
 
@@ -934,7 +954,7 @@ public static class IdentityServiceEndpointExtensions
             CancellationToken ct) =>
         {
             var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? httpContext.User.FindFirstValue("sub");
+                ?? httpContext.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
             var scopes = httpContext.User.FindAll("scope")
                 .Concat(httpContext.User.FindAll("scp"))
                 .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -953,7 +973,7 @@ public static class IdentityServiceEndpointExtensions
                     .Distinct()
                     .ToArrayAsync(ct);
                 var tenantMemberships = (await userManager.GetClaimsAsync(user))
-                    .Where(claim => claim.Type == "tenant_membership")
+                    .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
                     .Select(claim => claim.Value)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -966,7 +986,7 @@ public static class IdentityServiceEndpointExtensions
                     permissions = effectivePermissions,
                     scopes,
                     facilityIds,
-                    tenantId = httpContext.User.FindFirstValue("tenant_id"),
+                    tenantId = httpContext.User.FindFirstValue(HisHopeProtocolConstants.Claims.TenantId),
                     tenantMemberships,
                     authzVersion = user.SecurityStamp
                 });
@@ -978,7 +998,7 @@ public static class IdentityServiceEndpointExtensions
                 userName = httpContext.User.Identity?.Name,
                 roles = httpContext.User.FindAll(ClaimTypes.Role).Select(c => c.Value)
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                permissions = httpContext.User.FindAll("permission").Concat(httpContext.User.FindAll("permissions"))
+                permissions = httpContext.User.FindAll("permission").Concat(httpContext.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions))
                     .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
                 scopes,
@@ -986,8 +1006,8 @@ public static class IdentityServiceEndpointExtensions
                     .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                     .Concat(httpContext.User.FindAll("facility_id").Select(c => c.Value))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-                tenantId = httpContext.User.FindFirstValue("tenant_id"),
-                tenantMemberships = httpContext.User.FindAll("tenant_membership").Select(c => c.Value)
+                tenantId = httpContext.User.FindFirstValue(HisHopeProtocolConstants.Claims.TenantId),
+                tenantMemberships = httpContext.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership).Select(c => c.Value)
                     .Concat(httpContext.User.FindAll("tenant_memberships")
                         .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -1008,7 +1028,7 @@ public static class IdentityServiceEndpointExtensions
             if (memberships.Count == 0)
             {
                 var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                    ?? httpContext.User.FindFirstValue("sub");
+                    ?? httpContext.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
                 if (Guid.TryParse(userId, out var parsedUserId))
                 {
                     var user = await userManager.FindByIdAsync(parsedUserId.ToString());
@@ -1200,7 +1220,7 @@ public static class IdentityServiceEndpointExtensions
         app.MapPost("/api/v1/errors", (HttpContext context, ILogger<Program> logger) =>
         {
             logger.LogWarning("Frontend error report received. CorrelationId={CorrelationId}",
-                context.Request.Headers["X-Correlation-Id"].FirstOrDefault() ?? context.TraceIdentifier);
+                context.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? context.TraceIdentifier);
             return Results.NoContent();
         }).AllowAnonymous();
 
@@ -1284,7 +1304,7 @@ public static class IdentityServiceEndpointExtensions
             if (mfaEnabled && !HasCompletedMfa(context.User))
             {
                 var authorizeReturnUrl = context.Request.Path + context.Request.QueryString;
-                var authenticationMethods = context.User.FindAll("amr")
+                var authenticationMethods = context.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod)
                     .Select(claim => claim.Value)
                     .Where(value => !string.IsNullOrWhiteSpace(value))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1321,11 +1341,17 @@ public static class IdentityServiceEndpointExtensions
             principal.SetClaim(OpenIddictConstants.Claims.Subject, user.Id.ToString());
             principal.SetClaim(AuthorizationConstants.Claims.PrincipalType, AuthorizationConstants.PrincipalTypes.Human);
 
+            // Carry the interactive authentication time into the OIDC principal
+            // so downstream assurance policies can enforce fresh step-up MFA.
+            var authenticationTime = context.User.FindFirst("auth_time")?.Value;
+            if (!string.IsNullOrWhiteSpace(authenticationTime))
+                principal.SetClaim("auth_time", authenticationTime);
+
             // Preserve the authentication methods completed in the interactive
             // cookie. CreateUserPrincipalAsync builds a fresh principal from the
             // user record and otherwise drops amr=otp/passkey, causing Angular/mobile
             // MFA status checks to reject a session that already passed MFA.
-            var completedAuthenticationMethods = context.User.FindAll("amr")
+                var completedAuthenticationMethods = context.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod)
                 .Select(claim => claim.Value)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1334,10 +1360,10 @@ public static class IdentityServiceEndpointExtensions
             {
                 foreach (var method in completedAuthenticationMethods)
                 {
-                    if (!principalIdentity.FindAll("amr").Any(claim =>
+                    if (!principalIdentity.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim =>
                             string.Equals(claim.Value, method, StringComparison.OrdinalIgnoreCase)))
                     {
-                        principalIdentity.AddClaim(new Claim("amr", method));
+                        principalIdentity.AddClaim(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, method));
                     }
                 }
 
@@ -1348,7 +1374,7 @@ public static class IdentityServiceEndpointExtensions
                     method => string.Equals(method, "passkey", StringComparison.OrdinalIgnoreCase) ||
                               string.Equals(method, "otp", StringComparison.OrdinalIgnoreCase));
                 if (verifiedSecondFactor is not null)
-                    principal.SetClaim("amr", verifiedSecondFactor);
+                    principal.SetClaim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, verifiedSecondFactor);
             }
 
             principal.SetScopes(request.GetScopes());
@@ -1383,7 +1409,7 @@ public static class IdentityServiceEndpointExtensions
                 .ToListAsync(context.RequestAborted));
             permissions = permissions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (permissions.Count > 0)
-                principal.SetClaim("permissions", string.Join(",", permissions));
+                principal.SetClaim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", permissions));
 
             var resources = new List<string>();
             await foreach (var resource in scopeManager.ListResourcesAsync(principal.GetScopes()))
@@ -1451,7 +1477,7 @@ public static class IdentityServiceEndpointExtensions
 
             context.Response.OnStarting(() =>
             {
-                context.Response.Headers.Remove("Content-Security-Policy");
+                SetIdentityHtmlSecurityHeaders(context);
                 return Task.CompletedTask;
             });
             return Results.Content(html, "text/html; charset=utf-8");
@@ -1492,7 +1518,7 @@ public static class IdentityServiceEndpointExtensions
                 return Results.Unauthorized();
 
             var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? context.User.FindFirstValue("sub")
+                ?? context.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)
                 ?? "unknown";
             var decision = string.Equals(form["decision"].FirstOrDefault(), "allow", StringComparison.OrdinalIgnoreCase)
                 ? "CONSENT_GRANTED"
@@ -1567,7 +1593,7 @@ public static class IdentityServiceEndpointExtensions
                 var pageHtml = BuildAlreadySignedInPage(userName, returnUrl);
                 httpContext.Response.OnStarting(() =>
                 {
-                    httpContext.Response.Headers.Remove("Content-Security-Policy");
+                    SetIdentityHtmlSecurityHeaders(httpContext);
                     return Task.CompletedTask;
                 });
                 return Results.Content(pageHtml, "text/html; charset=utf-8");
@@ -1595,10 +1621,9 @@ public static class IdentityServiceEndpointExtensions
             var samlAvailable = samlSettings.Enabled && !string.IsNullOrWhiteSpace(samlSettings.IdpMetadata);
             var html = BuildLoginPage(hasError, errorMessage, encodedReturnUrl, encodedSpaOrigin, externalProviders, samlAvailable);
 
-            // Remove restrictive CSP on response flush — login page CSS is self-contained (SVG, no external fonts)
             httpContext.Response.OnStarting(() =>
             {
-                httpContext.Response.Headers.Remove("Content-Security-Policy");
+                SetIdentityHtmlSecurityHeaders(httpContext);
                 httpContext.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
                 httpContext.Response.Headers.Pragma = "no-cache";
                 return Task.CompletedTask;
@@ -1651,7 +1676,7 @@ public static class IdentityServiceEndpointExtensions
 
             httpContext.Response.OnStarting(() =>
             {
-                httpContext.Response.Headers.Remove("Content-Security-Policy");
+                SetIdentityHtmlSecurityHeaders(httpContext);
                 httpContext.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
                 httpContext.Response.Headers.Pragma = "no-cache";
                 return Task.CompletedTask;
@@ -1687,7 +1712,7 @@ public static class IdentityServiceEndpointExtensions
 
             httpContext.Response.OnStarting(() =>
             {
-                httpContext.Response.Headers.Remove("Content-Security-Policy");
+                SetIdentityHtmlSecurityHeaders(httpContext);
                 return Task.CompletedTask;
             });
 
@@ -1702,7 +1727,7 @@ public static class IdentityServiceEndpointExtensions
 
             context.Response.OnStarting(() =>
             {
-                context.Response.Headers.Remove("Content-Security-Policy");
+                SetIdentityHtmlSecurityHeaders(context);
                 return Task.CompletedTask;
             });
             return Results.Content(
@@ -2561,6 +2586,25 @@ body{{
             await signInManager.SignOutAsync();
             return Results.Redirect(returnUrl);
         });
+    }
+
+    private static void SetIdentityHtmlSecurityHeaders(HttpContext context)
+    {
+        // The account pages are intentionally server-rendered and contain inline
+        // styles. Keep that compatibility without removing CSP altogether:
+        // scripts remain same-origin only and navigation/embed primitives are
+        // explicitly restricted.
+        context.Response.Headers["Content-Security-Policy"] =
+            "default-src 'self'; " +
+            "base-uri 'self'; " +
+            "object-src 'none'; " +
+            "frame-ancestors 'none'; " +
+            "form-action 'self'; " +
+            "script-src 'self'; " +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+            "font-src 'self' https://fonts.gstatic.com; " +
+            "img-src 'self' data:; " +
+            "connect-src 'self' https://*.his-hope.internal";
     }
 
     private static string NormalizeLocale(string value)

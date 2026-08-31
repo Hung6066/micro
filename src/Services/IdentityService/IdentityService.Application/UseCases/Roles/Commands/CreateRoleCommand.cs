@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Application.Authorization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Roles.Commands;
 
@@ -29,7 +30,7 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
         var exists = await _context.Roles.AnyAsync(
             r => r.NormalizedName == request.Name.ToUpper(), cancellationToken);
         if (exists)
-            throw new InvalidOperationException($"Role '{request.Name}' already exists.");
+            Guard.Against.Conflict(true, $"Role '{request.Name}' already exists.");
 
         var role = new Role
         {

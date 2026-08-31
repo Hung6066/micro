@@ -1,3 +1,5 @@
+using His.Hope.ManufacturingService.Domain;
+
 namespace His.Hope.ManufacturingService.Application;
 
 public sealed record WorkflowStepDefinition(string Key, string I18nGroup);
@@ -16,96 +18,96 @@ public static class ManufacturingWorkflowRegistry
             ["production-order"] = new(
                 "production-order",
                 [
-                    new("Draft", "productionOrderStatus"),
+                    new(ManufacturingStatusCodes.Draft, "productionOrderStatus"),
                     new("Planned", "productionOrderStatus"),
-                    new("Released", "productionOrderStatus"),
+                    new(ManufacturingStatusCodes.Released, "productionOrderStatus"),
                     new("InProgress", "productionOrderStatus"),
-                    new("Completed", "productionOrderStatus"),
+                    new(ManufacturingStatusCodes.Completed, "productionOrderStatus"),
                 ],
                 new Dictionary<string, string> { ["Open"] = "InProgress" },
-                ["Cancelled"]),
+                [ManufacturingStatusCodes.Cancelled]),
             ["production-batch"] = new(
                 "production-batch",
                 [
-                    new("Created", "productionBatchStatus"),
-                    new("Started", "productionBatchStatus"),
-                    new("Completed", "productionBatchStatus"),
+                    new(ManufacturingStatusCodes.Created, "productionBatchStatus"),
+                    new(ManufacturingStatusCodes.Started, "productionBatchStatus"),
+                    new(ManufacturingStatusCodes.Completed, "productionBatchStatus"),
                 ],
                 new Dictionary<string, string>
                 {
-                    ["Paused"] = "Started",
-                    ["InProgress"] = "Started",
-                    ["AwaitingQA"] = "Started",
-                    ["Planned"] = "Created",
-                    ["Released"] = "Created",
+                    ["Paused"] = ManufacturingStatusCodes.Started,
+                    ["InProgress"] = ManufacturingStatusCodes.Started,
+                    ["AwaitingQA"] = ManufacturingStatusCodes.Started,
+                    ["Planned"] = ManufacturingStatusCodes.Created,
+                    [ManufacturingStatusCodes.Released] = ManufacturingStatusCodes.Created,
                 },
-                ["Cancelled"]),
+                [ManufacturingStatusCodes.Cancelled]),
             ["purchase-order"] = new(
                 "purchase-order",
                 [
-                    new("Draft", "purchaseOrderStatus"),
-                    new("Approved", "purchaseOrderStatus"),
-                    new("PartiallyReceived", "purchaseOrderStatus"),
-                    new("Closed", "purchaseOrderStatus"),
+                    new(ManufacturingStatusCodes.Draft, "purchaseOrderStatus"),
+                    new(ManufacturingStatusCodes.Approved, "purchaseOrderStatus"),
+                    new(ManufacturingStatusCodes.PartiallyReceived, "purchaseOrderStatus"),
+                    new(ManufacturingStatusCodes.Closed, "purchaseOrderStatus"),
                 ],
                 new Dictionary<string, string>
                 {
-                    ["Submitted"] = "Draft",
-                    ["Ordered"] = "Approved",
-                    ["Received"] = "PartiallyReceived",
+                    [ManufacturingStatusCodes.Submitted] = ManufacturingStatusCodes.Draft,
+                    ["Ordered"] = ManufacturingStatusCodes.Approved,
+                    ["Received"] = ManufacturingStatusCodes.PartiallyReceived,
                 },
-                ["Cancelled"]),
+                [ManufacturingStatusCodes.Cancelled]),
             ["deviation"] = new(
                 "deviation",
                 [
                     new("Requested", "deviationStatus"),
-                    new("Approved", "deviationStatus"),
-                    new("Closed", "deviationStatus"),
+                    new(ManufacturingStatusCodes.Approved, "deviationStatus"),
+                    new(ManufacturingStatusCodes.Closed, "deviationStatus"),
                 ],
-                TerminalStatuses: ["Rejected"]),
+                TerminalStatuses: [ManufacturingStatusCodes.Rejected]),
             ["capa"] = new(
                 "capa",
                 [
                     new("Open", "capaStatus"),
                     new("InProgress", "capaStatus"),
                     new("Verified", "capaStatus"),
-                    new("Closed", "capaStatus"),
+                    new(ManufacturingStatusCodes.Closed, "capaStatus"),
                 ]),
             ["quality-inspection"] = new(
                 "quality-inspection",
                 [
-                    new("Pending", "qualityInspectionStatus"),
+                    new(ManufacturingStatusCodes.Pending, "qualityInspectionStatus"),
                     new("Pass", "qualityInspectionStatus"),
                 ],
-                TerminalStatuses: ["Fail", "Rejected"]),
+                TerminalStatuses: ["Fail", ManufacturingStatusCodes.Rejected]),
             ["quality-sample"] = new(
                 "quality-sample",
                 [
-                    new("Pending", "qualitySampleDisposition"),
-                    new("Released", "qualitySampleDisposition"),
+                    new(ManufacturingStatusCodes.Pending, "qualitySampleDisposition"),
+                    new(ManufacturingStatusCodes.Released, "qualitySampleDisposition"),
                 ],
-                new Dictionary<string, string> { ["Accepted"] = "Released" },
-                ["Rejected"]),
+                new Dictionary<string, string> { ["Accepted"] = ManufacturingStatusCodes.Released },
+                [ManufacturingStatusCodes.Rejected]),
             ["inspection-plan"] = new(
                 "inspection-plan",
                 [
-                    new("Draft", "governanceLifecycleStatus"),
-                    new("Approved", "governanceLifecycleStatus"),
+                    new(ManufacturingStatusCodes.Draft, "governanceLifecycleStatus"),
+                    new(ManufacturingStatusCodes.Approved, "governanceLifecycleStatus"),
                 ],
-                new Dictionary<string, string> { ["Submitted"] = "Draft" }),
+                new Dictionary<string, string> { [ManufacturingStatusCodes.Submitted] = ManufacturingStatusCodes.Draft }),
             ["recipe"] = new(
                 "recipe",
                 [
-                    new("Draft", "governanceLifecycleStatus"),
-                    new("Submitted", "governanceLifecycleStatus"),
-                    new("Approved", "governanceLifecycleStatus"),
+                    new(ManufacturingStatusCodes.Draft, "governanceLifecycleStatus"),
+                    new(ManufacturingStatusCodes.Submitted, "governanceLifecycleStatus"),
+                    new(ManufacturingStatusCodes.Approved, "governanceLifecycleStatus"),
                     new("Retired", "governanceLifecycleStatus"),
                 ]),
             ["product-specification"] = new(
                 "product-specification",
                 [
-                    new("Draft", "governanceLifecycleStatus"),
-                    new("Approved", "governanceLifecycleStatus"),
+                    new(ManufacturingStatusCodes.Draft, "governanceLifecycleStatus"),
+                    new(ManufacturingStatusCodes.Approved, "governanceLifecycleStatus"),
                     new("Retired", "governanceLifecycleStatus"),
                 ]),
         };

@@ -143,6 +143,10 @@ test-grpc.csx
 /tests/e2e/html-report/
 
 /artifacts/
+**/artifacts/
+/*.png
+tests/e2e/**/*.png
+mobile-app/*-*.png
 docs/design-references/open-design
 
 coverage-*/

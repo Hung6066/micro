@@ -26,7 +26,12 @@ foreach ($project in $apiProjects) {
         continue
     }
 
-    $source = Get-Content -LiteralPath $program -Raw
+    # Host composition may live in a service-specific extension rather than
+    # Program.cs. Inspect the project's production C# sources so the gate
+    # validates runtime registration instead of enforcing one file layout.
+    $source = (Get-ChildItem -LiteralPath $project.DirectoryName -Recurse -Filter '*.cs' -File |
+        Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' } |
+        ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
     if ($source -notmatch '\bUseHisHopeTenantScope\s*\(') {
         $failures.Add("${name}: missing UseHisHopeTenantScope()")
     }

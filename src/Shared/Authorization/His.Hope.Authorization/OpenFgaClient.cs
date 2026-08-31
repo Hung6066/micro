@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Authorization;
 
@@ -55,6 +56,6 @@ public sealed class OpenFgaClient(HttpClient httpClient, IConfiguration? configu
 
     private void AddToken(HttpRequestMessage request)
     {
-        if (!string.IsNullOrWhiteSpace(_token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+        if (!string.IsNullOrWhiteSpace(_token)) request.Headers.Authorization = new AuthenticationHeaderValue(HisHopeProtocolConstants.AuthorizationSchemes.Bearer, _token);
     }
 }

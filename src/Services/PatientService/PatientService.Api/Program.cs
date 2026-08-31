@@ -11,13 +11,13 @@ using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
-using His.Hope.Resilience;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Persistence;
@@ -40,7 +40,6 @@ using Serilog;
 using His.Hope.SharedKernel.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "PatientService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -61,31 +60,13 @@ builder.Services.AddHisHopeServicePlatform(builder.Configuration, "patient-servi
 
 builder.Services.AddOutbox<PatientDbContext>();
 
-// Resilient HTTP client for outbound calls to internal services
-builder.Services.AddHttpClient("resilient-internal-client")
-    .AddHttpMessageHandler(sp =>
-    {
-        var pipelines = sp.GetRequiredService<HisHopeResiliencePipelines>();
-        return new HisHopeResilienceHandler(pipelines.CreateHttp("patient-http-internal"));
-    });
-
 builder.Services.AddGrpc(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
 builder.Services.AddGrpcHealthChecks();
 
-builder.Services.AddRabbitMQEventBus(options =>
-{
-    options.HostName = builder.Configuration.GetValue("EventBus:HostName", "localhost")!;
-    options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
-    options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
-    options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
-    options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
-    options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
-    options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
-});
+builder.Services.AddHisHopeLegacyRabbitMqEventBus(builder.Configuration);
 
 // Comprehensive Health Checks
 builder.Services.AddHealthChecks()
@@ -94,7 +75,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
         builder.Configuration.GetValue("EventBus:UserName", "admin")!,
-        builder.Configuration.GetValue("EventBus:Password", "admin")!,
+        His.Hope.Infrastructure.Messaging.EventBusSecurity.GetPassword(builder.Configuration),
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
@@ -131,16 +112,16 @@ using (var scope = app.Services.CreateScope())
     var writeDb = sp.GetRequiredService<His.Hope.PatientService.Infrastructure.Persistence.PatientDbContext>();
     var readDb = sp.GetRequiredService<PatientReadDbContext>();
 
-    if (app.Environment.IsDevelopment())
-    {
-        writeDb.Database.EnsureCreated();
-        readDb.Database.EnsureCreated();
-    }
-    else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+    if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
              builder.Configuration.GetValue("Persistence:MigrationOnly", false))
     {
         await sp.GetRequiredService<IMigrationRunner>().MigrateAsync();
         await readDb.Database.MigrateAsync();
+    }
+    else if (!app.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "PatientService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
     }
 
     if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
@@ -331,7 +312,6 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
                 status = e.Value.Status.ToString(),
                 description = e.Value.Description,
                 tags = e.Value.Tags,
-                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
         };

@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$AttestationPath,
     [string]$OutputPath,
+    [ValidatePattern('^[A-Fa-f0-9]{64}$')][string]$ExpectedSha256,
     [ValidateRange(1, 36500)][int]$MinimumRetentionDays = 30
 )
 
@@ -12,11 +13,27 @@ if (-not (Test-Path -LiteralPath $AttestationPath -PathType Leaf)) {
     throw "Attestation file not found: $AttestationPath"
 }
 
+$sha256 = [Security.Cryptography.SHA256]::Create()
+try {
+    $attestationHash = [BitConverter]::ToString(
+        $sha256.ComputeHash([IO.File]::ReadAllBytes($AttestationPath))
+    ).Replace('-', '')
+} finally {
+    $sha256.Dispose()
+}
 $document = Get-Content -LiteralPath $AttestationPath -Raw | ConvertFrom-Json
 $checks = [System.Collections.Generic.List[object]]::new()
 
 function Add-Check([string]$Name, [ValidateSet('pass', 'fail', 'blocked')][string]$Status, [string]$Detail) {
     $checks.Add([pscustomobject]@{ name = $Name; status = $Status; detail = $Detail })
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+    if ($attestationHash -ieq $ExpectedSha256) {
+        Add-Check 'attestation-integrity' 'pass' 'Attestation SHA-256 matches the protected expected digest.'
+    } else {
+        Add-Check 'attestation-integrity' 'fail' 'Attestation SHA-256 does not match the protected expected digest.'
+    }
 }
 
 function Get-Required([object]$Object, [string]$Path) {

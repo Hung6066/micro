@@ -19,4 +19,6 @@ public sealed class VaultOptions
     public string SecretIdFile { get; set; } = string.Empty;
     public bool AllowStaticToken { get; set; }
     public string TlsCaFile { get; set; } = string.Empty;
+    public string SecretsMount { get; set; } = "secret";
+    public string SecretsPathPrefix { get; set; } = "his-hope";
 }

@@ -60,7 +60,7 @@ public sealed class DirectoryProvisioningDispatcher(
         // observes the lease it just acquired and can release it reliably.
         db.ChangeTracker.Clear();
         var entries = await db.DirectoryProvisioningOutbox
-            .Where(item => item.LeaseId == _leaseId && item.LeaseUntil == leaseUntil)
+            .Where(item => item.LeaseId == _leaseId && item.CompletedAt == null)
             .OrderBy(item => item.CreatedAt).ToListAsync(ct);
         foreach (var entry in entries)
         {

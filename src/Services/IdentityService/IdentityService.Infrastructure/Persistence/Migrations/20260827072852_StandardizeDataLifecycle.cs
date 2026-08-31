@@ -3,9 +3,14 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+// EF-generated migration code materializes constant arrays for HasData. The
+// CA1861 allocation suggestion is not actionable for this deployment artifact.
+#pragma warning disable CA1861
+
 namespace His.Hope.IdentityService.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
+    [System.CodeDom.Compiler.GeneratedCode("EntityFrameworkCore", "8.0")]
     public partial class StandardizeDataLifecycle : Migration
     {
         /// <inheritdoc />
@@ -6347,3 +6352,4 @@ namespace His.Hope.IdentityService.Infrastructure.Persistence.Migrations
         }
     }
 }
+#pragma warning restore CA1861

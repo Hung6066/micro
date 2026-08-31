@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using Polly;
 using Polly.Retry;
 using RabbitMQ.Client;
+using His.Hope.SharedKernel.Protocol;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 
@@ -27,7 +28,7 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
     private readonly SemaphoreSlim _publisherSlots;
     private IModel? _consumerChannel;
     private readonly Dictionary<string, List<Type>> _eventHandlers = new();
-    private const string DlxExchangeName = "his-hope.dlx";
+    private const string DlxExchangeName = HisHopeProtocolConstants.Messaging.DeadLetterExchange;
     private const int MaxRetryCount = 3;
 
     public RabbitMQEventBus(

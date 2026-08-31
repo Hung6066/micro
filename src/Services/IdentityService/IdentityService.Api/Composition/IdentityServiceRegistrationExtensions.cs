@@ -22,6 +22,8 @@ using His.Hope.IdentityService.Api.Services;
 using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Api.Handlers;
+using His.Hope.Configuration;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.IdentityService.Application;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.OpenIddict;
@@ -35,6 +37,7 @@ using His.Hope.IdentityService.Application.Scim;
 using His.Hope.IdentityService.Application.Provisioning;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.IdentityService.Infrastructure.Facility;
+using His.Hope.IdentityService.Infrastructure.Provisioning;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
@@ -81,6 +84,10 @@ public static class IdentityServiceRegistrationExtensions
                 {
                     options.FirebaseCredentialsJson = File.ReadAllText(options.FirebaseCredentialsFile);
                 }
+                if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsSecretPath))
+                    options.FirebaseCredentialsSecretPath = builder.Configuration["ExternalProviders:Firebase:CredentialsSecretPath"] ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsSecretKey))
+                    options.FirebaseCredentialsSecretKey = builder.Configuration["ExternalProviders:Firebase:CredentialsSecretKey"] ?? "credentials_json";
             })
             // Production must never be able to disable provider validation via
             // configuration. Development can still run without push material.
@@ -94,33 +101,10 @@ public static class IdentityServiceRegistrationExtensions
             ServerName = builder.Configuration["Passkeys:RpName"] ?? "His.Hope",
             Origins = new HashSet<string>(builder.Configuration.GetSection("Passkeys:Origins").Get<string[]>() ?? new[] { builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost" })
         }));
-        builder.Services.AddHttpClient();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<SoftDeleteInterceptor>();
-        builder.Services.AddHttpClient("vault")
-            .ConfigurePrimaryHttpMessageHandler(() =>
-            {
-                var handler = new HttpClientHandler();
-                var caPath = builder.Configuration["Vault:TlsCaFile"];
-                if (!string.IsNullOrWhiteSpace(caPath))
-                {
-                    if (!File.Exists(caPath))
-                        throw new InvalidOperationException($"Vault TLS CA file '{caPath}' is missing.");
-                    var ca = new X509Certificate2(caPath);
-                    handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
-                    {
-                        if (certificate is null) return false;
-                        using var chain = new X509Chain();
-                        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                        chain.ChainPolicy.CustomTrustStore.Add(ca);
-                        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                        return chain.Build(new X509Certificate2(certificate));
-                    };
-                }
-                return handler;
-            });
         builder.Services.AddScoped<SamlRuntimeConfigurationService>();
-        builder.Services.AddScoped<His.Hope.IdentityService.Application.Interfaces.IEmailSender, NoOpEmailSender>();
+        builder.Services.AddScoped<His.Hope.IdentityService.Application.Interfaces.IEmailSender, ConfiguredEmailSender>();
         builder.Services.AddScoped<IPushDeliveryService, PushDeliveryService>();
         builder.Services.AddScoped<OidcLoginCompletionService>();
         if (!builder.Environment.IsEnvironment("Testing"))
@@ -155,8 +139,6 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddSaml2();
         builder.Services.AddControllersWithViews();
 
-        builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityService");
-
         builder.Host.UseSerilog((context, config) =>
             config.ReadFrom.Configuration(context.Configuration)
                         .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
@@ -175,15 +157,6 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
 
         builder.Services.AddHisHopeServicePlatform(builder.Configuration, "identity-service");
-
-        // Use Redis distributed cache for token blacklist + refresh token storage (shared across services).
-        builder.Services.AddStackExchangeRedisCache(options =>
-        {
-            options.Configuration = builder.Configuration.GetConnectionString("Redis")
-                ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
-                ?? "localhost:6379";
-            options.InstanceName = "HisHope:";
-        });
 
         // IdentityService user-management requests do not use distributed locks, so keep
         // MediatR off Redis here to avoid an unnecessary IConnectionMultiplexer dependency.
@@ -426,11 +399,14 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddFacilityBoundary();
         builder.Services.AddScoped<JwtTokenGenerator>();
         builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastructure.Services.IdentityService>();
-        builder.Services.AddHttpClient("security-signals", client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(10);
-        });
-        builder.Services.AddHttpClient("directory-provisioning", client => client.Timeout = TimeSpan.FromSeconds(15));
+        builder.Services.AddHisHopeExternalHttpClient(
+            "security-signals",
+            "identity.security-signals",
+            client => client.Timeout = TimeSpan.FromSeconds(10));
+        builder.Services.AddHisHopeExternalHttpClient(
+            "directory-provisioning",
+            "identity.directory-provisioning",
+            client => client.Timeout = TimeSpan.FromSeconds(15));
         builder.Services.AddScoped<IProvisioningTarget, ScimOutboundProvisioningTarget>();
         builder.Services.AddScoped<IProvisioningTarget, EntraOutboundProvisioningTarget>();
         builder.Services.AddScoped<IProvisioningTarget, GoogleWorkspaceProvisioningTarget>();
@@ -442,6 +418,11 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddScoped<RecoveryCodeService>();
         builder.Services.AddScoped<IdentityBrokerService>();
         builder.Services.AddScoped<BulkUserImportService>();
+        builder.Services.AddScoped<TenantProvisioningWorkflow>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<TenantProvisioningConsumer>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<TenantProvisioningOutboxDispatcher>();
 
         // CORS for browser SPAs on separate localhost ports (BFF cookie + session exchange).
         builder.Services.AddCors(options =>
@@ -461,8 +442,14 @@ public static class IdentityServiceRegistrationExtensions
                 {
                     policy.WithOrigins(productionOrigins)
                         .WithHeaders(
-                            "Authorization", "DPoP", "Content-Type", "X-CSRF-Token",
-                            "X-Correlation-ID", "Accept-Language", "X-Timezone", "X-Currency");
+                            HisHopeProtocolConstants.Headers.Authorization,
+                            HisHopeProtocolConstants.Headers.Dpop,
+                            HisHopeProtocolConstants.Headers.ContentType,
+                            HisHopeProtocolConstants.Headers.CsrfToken,
+                            HisHopeProtocolConstants.Headers.CorrelationId,
+                            HisHopeProtocolConstants.Headers.AcceptLanguage,
+                            HisHopeProtocolConstants.Headers.Timezone,
+                            HisHopeProtocolConstants.Headers.Currency);
                 }
                 else
                 {
@@ -551,6 +538,8 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddSingleton<RedisAdminJobStore>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<AdminJobWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<SupportElevationExpiryWorker>();
 
         // SECURITY: Binds tokens to (user_id, ip_hash, client_id) to prevent cross-IP replay attacks
         builder.Services.AddSingleton<TokenBindingService>();
@@ -583,6 +572,37 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddGrpcReflection();
 
         // ─── Vault transit signing (production only; development uses ephemeral RSA) ───
+        builder.Services.AddHttpClient("vault-health", client => client.Timeout = TimeSpan.FromSeconds(5))
+            .ConfigurePrimaryHttpMessageHandler(() =>
+            {
+                var handler = new HttpClientHandler();
+                var caPath = builder.Configuration["Vault:TlsCaFile"];
+                if (!string.IsNullOrWhiteSpace(caPath))
+                {
+                    if (!File.Exists(caPath))
+                        throw new InvalidOperationException($"Vault TLS CA file '{caPath}' is missing.");
+
+                    var ca = new X509Certificate2(caPath);
+                    handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
+                    {
+                        if (certificate is null) return false;
+                        using var chain = new X509Chain();
+                        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                        chain.ChainPolicy.CustomTrustStore.Add(ca);
+                        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                        return chain.Build(new X509Certificate2(certificate));
+                    };
+                }
+                return handler;
+            })
+            .UseHisHopeOutboundHttp("identity.vault-health");
+        builder.Services.AddHttpClient("vault-transit", (sp, client) =>
+        {
+            var address = sp.GetRequiredService<IConfiguration>()["Vault:Address"];
+            if (!string.IsNullOrWhiteSpace(address))
+                client.BaseAddress = new Uri(address.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        }).UseHisHopeOutboundHttp("identity.vault-transit");
         builder.Services.AddSingleton<IVaultKeyProvider, VaultKeyService>();
         builder.Services.AddSingleton<VaultClientSecretStore>();
 
@@ -593,18 +613,14 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddHealthChecks()
             .AddCheck<VaultHealthCheck>("vault-transit", tags: new[] { "ready" })
             .AddCheck<DbHealthCheck>("identity-db", tags: new[] { "ready" })
-            .AddCheck("redis", new RedisHealthCheck(
-                builder.Configuration.GetConnectionString("Redis")
-                    ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
-                    ?? "localhost:6379",
-                builder.Configuration), tags: new[] { "ready" });
+            .AddCheck<RedisHealthCheck>("redis", tags: new[] { "ready" });
 
         // Persist the DataProtection key ring in Redis so cookies, BFF session protection,
         // and MFA encryption survive container replacement and work across replicas.
         var dataProtectionRedis = builder.Configuration.GetConnectionString("Redis")
-            ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
+            ?? builder.Configuration.GetValue<string>(HisHopeConfigurationKeys.RedisConnectionString)
             ?? "localhost:6379";
-        var dataProtectionKeyName = builder.Configuration["DataProtection:KeyName"]
+        var dataProtectionKeyName = builder.Configuration[HisHopeConfigurationKeys.DataProtectionKeyName]
             ?? "HisHope:IdentityService:DataProtection:Keys";
         builder.Services.AddDataProtection()
             .SetApplicationName("His.Hope.IdentityService")
@@ -775,7 +791,9 @@ public static class IdentityServiceRegistrationExtensions
         if (defaultObservabilityAuditSink != null)
             builder.Services.Remove(defaultObservabilityAuditSink);
         builder.Services.AddSingleton<IdentityObservabilityAuditSink>();
-        builder.Services.AddHttpClient<SiemWormAuditForwarder>();
+        builder.Services.AddHisHopeExternalHttpClient(
+            nameof(SiemWormAuditForwarder),
+            "identity.siem");
         builder.Services.AddSingleton<SiemWormAuditForwarder>();
         builder.Services.AddSingleton<IAuditSink, IdentityDurableAuditSink>();
 

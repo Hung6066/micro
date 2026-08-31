@@ -1,4 +1,5 @@
 using His.Hope.Contracts;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -86,7 +87,7 @@ public static class ApiContractExtensions
     }
 
     private static string GetCorrelationId(HttpContext context) =>
-        context.Response.Headers["X-Correlation-Id"].FirstOrDefault()
-        ?? context.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+        context.Response.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
+        ?? context.Request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
         ?? context.TraceIdentifier;
 }

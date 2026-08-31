@@ -3,6 +3,7 @@ using His.Hope.Contracts.Manufacturing;
 using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.Persistence.Querying;
+using His.Hope.SharedKernel.Domain.Common;
 
 public sealed partial class PostgresManufacturingStore : IManufacturingDashboardStore
 {
@@ -17,7 +18,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingDashboard
             throw new InvalidOperationException("invalid_sales_forecast");
         if (db.SalesForecasts.Any(x => x.TenantKey == normalizedTenant && x.ProductSku == sku && x.PeriodStart == request.PeriodStart &&
             x.PeriodEnd == request.PeriodEnd && x.Version == request.Version))
-            throw new InvalidOperationException("forecast_version_exists");
+            Guard.Against.Conflict(true, "forecast_version_exists");
 
         var now = DateTimeOffset.UtcNow;
         var entity = new ManufacturingSalesForecastEntity
@@ -29,7 +30,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingDashboard
         db.SalesForecasts.Add(entity);
         db.OutboxMessages.Add(new ManufacturingOutboxMessageEntity
         {
-            Id = Guid.NewGuid(), Type = "Manufacturing.SalesForecastChanged.v1", Status = "Pending", OccurredOn = now.UtcDateTime,
+            Id = Guid.NewGuid(), Type = "Manufacturing.SalesForecastChanged.v1", Status = ManufacturingStatusCodes.Pending, OccurredOn = now.UtcDateTime,
             Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = now, correlationId = entity.Id,
                 tenantKey = entity.TenantKey, productSku = entity.ProductSku, periodStart = entity.PeriodStart, periodEnd = entity.PeriodEnd,
                 quantity = entity.Quantity, uom = entity.Uom, version = entity.Version, source = entity.Source, actor = entity.Actor })
@@ -52,14 +53,14 @@ public sealed partial class PostgresManufacturingStore : IManufacturingDashboard
     {
         using var db = dbFactory.CreateDbContext();
         var forecast = db.SalesForecasts.AsNoTracking().SingleOrDefault(x => x.Id == forecastId && x.TenantKey == tenantKey);
-        if (forecast is null) return ([], "forecast_not_found");
+        if (forecast is null) return ([], ManufacturingErrorCodes.ForecastNotFound);
         var recipe = db.Recipes.AsNoTracking().Include(x => x.Components)
-            .Where(x => x.TenantKey == tenantKey && x.ProductSku == forecast.ProductSku && x.Status == "Approved" && x.Active)
+            .Where(x => x.TenantKey == tenantKey && x.ProductSku == forecast.ProductSku && x.Status == ManufacturingStatusCodes.Approved && x.Active)
             .OrderByDescending(x => x.Version).FirstOrDefault();
-        if (recipe is null) return ([], "approved_recipe_not_found");
+        if (recipe is null) return ([], ManufacturingErrorCodes.ApprovedRecipeNotFound);
 
         var skus = recipe.Components.Select(x => x.IngredientSku).Distinct().ToArray();
-        var lots = db.Lots.AsNoTracking().Where(x => x.TenantKey == tenantKey && skus.Contains(x.Sku) && x.Disposition == "Released").ToList();
+        var lots = db.Lots.AsNoTracking().Where(x => x.TenantKey == tenantKey && skus.Contains(x.Sku) && x.Disposition == ManufacturingStatusCodes.Released).ToList();
         var lotIds = lots.Select(x => x.Id).ToArray();
         var now = DateTimeOffset.UtcNow;
         var reservations = db.LotReservations.AsNoTracking().Where(x => lotIds.Contains(x.LotId) && x.Status == "Reserved" && (x.ExpiresAt == null || x.ExpiresAt > now)).ToList();

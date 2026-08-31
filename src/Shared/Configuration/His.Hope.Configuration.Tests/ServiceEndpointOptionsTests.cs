@@ -7,6 +7,18 @@ namespace His.Hope.Configuration.Tests;
 public sealed class ServiceEndpointOptionsTests
 {
     [Fact]
+    public void EventBusKeys_UseCanonicalConfigurationPaths()
+    {
+        Assert.Equal("EventBus:HostName", HisHopeConfigurationKeys.EventBus.HostName);
+        Assert.Equal("EventBus:Port", HisHopeConfigurationKeys.EventBus.Port);
+        Assert.Equal("EventBus:UserName", HisHopeConfigurationKeys.EventBus.UserName);
+        Assert.Equal("EventBus:Password", HisHopeConfigurationKeys.EventBus.Password);
+        Assert.Equal("EventBus:VirtualHost", HisHopeConfigurationKeys.EventBus.VirtualHost);
+        Assert.Equal("EventBus:InternalExchangeName", HisHopeConfigurationKeys.EventBus.InternalExchangeName);
+        Assert.Equal("EventBus:UseSsl", HisHopeConfigurationKeys.EventBus.UseSsl);
+    }
+
+    [Fact]
     public void BindServiceEndpoints_BindsLogicalServiceUris_AndNormalizesTrailingSlash()
     {
         var configuration = CreateConfiguration(new Dictionary<string, string?>
@@ -106,6 +118,27 @@ public sealed class ServiceEndpointOptionsTests
 
         Assert.False(registry.IsEnabled("COMMERCE"));
         Assert.Equal("Commerce disabled", registry.Get("commerce")!.DisplayName);
+    }
+
+    [Fact]
+    public void ServicePluginRegistry_NormalizesRuntimeModuleMetadata()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Plugins:Items:0:Key"] = " manufacturing ",
+            ["Plugins:Items:0:DisplayName"] = " Manufacturing ",
+            ["Plugins:Items:0:DashboardRoute"] = " dashboard/manufacturing ",
+            ["Plugins:Items:0:Permissions:0"] = " manufacturing.view ",
+            ["Plugins:Items:0:Permissions:1"] = "manufacturing.view"
+        });
+
+        var plugin = new ServicePluginRegistry(configuration).Get("MANUFACTURING")!;
+
+        Assert.Equal("manufacturing", plugin.Key);
+        Assert.Equal("Manufacturing", plugin.DisplayName);
+        Assert.Equal("/dashboard/manufacturing", plugin.DashboardRoute);
+        Assert.Single(plugin.Permissions);
+        Assert.Equal("manufacturing.view", plugin.Permissions[0]);
     }
 
     private static IConfiguration CreateConfiguration(IDictionary<string, string?> values) =>

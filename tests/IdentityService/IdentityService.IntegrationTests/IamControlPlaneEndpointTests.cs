@@ -19,6 +19,14 @@ public sealed class IamControlPlaneEndpointTests
 
     public IamControlPlaneEndpointTests(IdentityServiceTestFixture fixture) => _fixture = fixture;
 
+    private async Task<HttpResponseMessage> LoginWithFreshMfaAsync(SessionClient session)
+    {
+        var response = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        if (response.IsSuccessStatusCode)
+            session.SetBearerToken(await _fixture.CreateFreshMfaAdminTokenAsync());
+        return response;
+    }
+
     [Fact]
     public async Task Iam_control_plane_rejects_invalid_scope_and_service_commands()
     {
@@ -154,7 +162,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Admin_can_read_iam_overview_summary()
     {
         using var session = _fixture.CreateSessionClient();
-        var login = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        var login = await LoginWithFreshMfaAsync(session);
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
 
         var response = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/overview");
@@ -219,7 +227,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Admin_can_create_publish_assign_and_revoke_permission_set()
     {
         using var session = _fixture.CreateSessionClient();
-        var login = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        var login = await LoginWithFreshMfaAsync(session);
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
 
         var suffix = Guid.NewGuid().ToString("N");
@@ -300,7 +308,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Permission_set_rejects_permission_outside_server_catalog()
     {
         using var session = _fixture.CreateSessionClient();
-        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await LoginWithFreshMfaAsync(session)).StatusCode);
 
         var scopeResponse = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/scopes", new
         {
@@ -322,7 +330,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Admin_can_create_group_boundary_resource_policy_and_analyzer_views()
     {
         using var session = _fixture.CreateSessionClient();
-        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await LoginWithFreshMfaAsync(session)).StatusCode);
         var suffix = Guid.NewGuid().ToString("N");
         var scopeResponse = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/scopes", new { key = $"tenant-{suffix}", displayName = "IAM extension tenant", kind = "tenant", parentId = (Guid?)null });
         Assert.Equal(HttpStatusCode.Created, scopeResponse.StatusCode);
@@ -385,7 +393,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Group_membership_contributes_to_effective_access_and_can_be_removed()
     {
         using var session = _fixture.CreateSessionClient();
-        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await LoginWithFreshMfaAsync(session)).StatusCode);
         var suffix = Guid.NewGuid().ToString("N");
         var users = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminUsers}?page=1&pageSize=1&isActive=true");
         Assert.Equal(HttpStatusCode.OK, users.StatusCode);
@@ -421,7 +429,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Workload_role_can_be_updated_with_catalog_validation()
     {
         using var session = _fixture.CreateSessionClient();
-        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await LoginWithFreshMfaAsync(session)).StatusCode);
         var suffix = Guid.NewGuid().ToString("N");
         var scope = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/scopes", new { key = $"tenant-{suffix}", displayName = "Workload tenant", kind = "tenant", parentId = (Guid?)null });
         Assert.Equal(HttpStatusCode.Created, scope.StatusCode);
@@ -468,7 +476,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Iam_group_and_boundary_guards_reject_duplicates_missing_principals_and_inactive_scopes()
     {
         using var session = _fixture.CreateSessionClient();
-        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await LoginWithFreshMfaAsync(session)).StatusCode);
         var root = IdentityApiRoutes.AdminIam;
         var suffix = Guid.NewGuid().ToString("N");
 
@@ -566,7 +574,7 @@ public sealed class IamControlPlaneEndpointTests
     public async Task Iam_workload_and_resource_policy_inputs_reject_invalid_json_and_unknown_dependencies()
     {
         using var session = _fixture.CreateSessionClient();
-        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await LoginWithFreshMfaAsync(session)).StatusCode);
         var root = IdentityApiRoutes.AdminIam;
         var suffix = Guid.NewGuid().ToString("N");
         var scope = await session.PostWithCookiesAsync($"{root}/scopes", new

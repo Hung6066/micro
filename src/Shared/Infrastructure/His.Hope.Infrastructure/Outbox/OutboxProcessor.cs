@@ -22,6 +22,7 @@ public class OutboxProcessor<TDbContext> : BackgroundService
     private readonly EventTypeRegistry _eventTypeRegistry;
     private readonly OutboxOptions _options;
     private readonly IConfiguration _configuration;
+    private readonly IEnumerable<IOutboxMessageHandler> _messageHandlers;
     private readonly string _workerId = $"{Environment.MachineName}-{Environment.ProcessId}-{Guid.NewGuid():N}";
     private int _pendingIndexInitialized;
     private static readonly Meter Meter = new("His.Hope.Outbox", "1.0.0");
@@ -35,13 +36,15 @@ public class OutboxProcessor<TDbContext> : BackgroundService
         ILogger<OutboxProcessor<TDbContext>> logger,
         EventTypeRegistry eventTypeRegistry,
         IOptions<OutboxOptions> options,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IEnumerable<IOutboxMessageHandler> messageHandlers)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _eventTypeRegistry = eventTypeRegistry;
         _options = options.Value;
         _configuration = configuration;
+        _messageHandlers = messageHandlers;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -130,6 +133,18 @@ public class OutboxProcessor<TDbContext> : BackgroundService
         {
             try
             {
+                var messageHandler = _messageHandlers.FirstOrDefault(handler => handler.CanHandle(message.Type));
+                if (messageHandler is not null)
+                {
+                    var customStarted = Stopwatch.GetTimestamp();
+                    await messageHandler.PublishAsync(message, ct);
+                    PublishDuration.Record(Stopwatch.GetElapsedTime(customStarted).TotalMilliseconds);
+                    message.Status = OutboxStatus.Completed;
+                    message.ProcessedOn = DateTime.UtcNow;
+                    CompletedCounter.Add(1);
+                    continue;
+                }
+
                 var eventType = _eventTypeRegistry.Resolve(message.Type);
                 if (eventType is null)
                 {

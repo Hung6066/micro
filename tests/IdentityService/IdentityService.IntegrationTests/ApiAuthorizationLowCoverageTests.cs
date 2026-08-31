@@ -79,10 +79,10 @@ public sealed class ApiAuthorizationLowCoverageTests
     }
 
     [Fact]
-    public void Support_elevation_permissions_allow_empty_or_matching_and_reject_other_actions()
+    public void Support_elevation_permissions_require_explicit_matching_actions()
     {
         var empty = new SupportElevation { PermissionsJson = "[]" };
-        SupportElevationPermissions.Allows(empty, "admin.users.write").Should().BeTrue();
+        SupportElevationPermissions.Allows(empty, "admin.users.write").Should().BeFalse();
         var scoped = new SupportElevation { PermissionsJson = "[\"admin.users.write\"]" };
         SupportElevationPermissions.Allows(scoped, "ADMIN.USERS.WRITE").Should().BeTrue();
         SupportElevationPermissions.Allows(scoped, "admin.roles.write").Should().BeFalse();

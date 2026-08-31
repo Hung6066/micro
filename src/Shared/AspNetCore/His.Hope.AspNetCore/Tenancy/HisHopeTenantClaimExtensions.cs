@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.AspNetCore.Tenancy;
 
@@ -27,15 +28,18 @@ public static class HisHopeTenantClaimExtensions
     }
 
     public static string? GetTokenTenant(this ClaimsPrincipal user) =>
-        user.FindFirst("tenant_id")?.Value ?? user.FindFirst("tenant")?.Value;
+        user.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value ??
+        user.FindFirst(HisHopeProtocolConstants.Claims.Tenant)?.Value;
 
     public static string? GetPortalClass(this ClaimsPrincipal user) =>
-        user.FindFirst("portal_class")?.Value;
+        user.FindFirst(HisHopeProtocolConstants.Claims.PortalClass)?.Value;
 
     public static IReadOnlySet<string> GetAllowedTenants(this ClaimsPrincipal user)
     {
         var values = user.Claims
-            .Where(claim => claim.Type is "tenant_id" or "tenant" or "tenant_membership" or "tenant_memberships" or "tenant_ids" or "tenants")
+            .Where(claim => claim.Type is HisHopeProtocolConstants.Claims.TenantId or
+                HisHopeProtocolConstants.Claims.Tenant or HisHopeProtocolConstants.Claims.TenantMembership or
+                "tenant_memberships" or "tenant_ids" or "tenants")
             .SelectMany(claim => ExpandTenantClaim(claim.Value))
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim())
@@ -101,7 +105,7 @@ public static class HisHopeTenantClaimExtensions
         string.Equals(scopedTenant, requestedTenant, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsOperatorMembershipCrossTenant(ClaimsPrincipal user, string requestedTenant) =>
-        string.Equals(user.GetPortalClass(), "operator", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(user.GetPortalClass(), HisHopeProtocolConstants.PortalClasses.Operator, StringComparison.OrdinalIgnoreCase) &&
         user.GetAllowedTenants().Contains(requestedTenant);
 
     private static IEnumerable<string> ExpandTenantClaim(string value)
@@ -128,7 +132,7 @@ public static class HisHopeTenantClaimExtensions
                     if (item.ValueKind == JsonValueKind.String && item.GetString() is { } text)
                         yield return text;
                     else if (item.ValueKind == JsonValueKind.Object &&
-                             item.TryGetProperty("tenant_id", out var tenant) &&
+                             item.TryGetProperty(HisHopeProtocolConstants.Claims.TenantId, out var tenant) &&
                              tenant.ValueKind == JsonValueKind.String &&
                              tenant.GetString() is { } key)
                         yield return key;

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -167,7 +168,7 @@ public static class IamTenantAccessGuard
             filter.AllowedTenantKeys is { Count: > 0 } targetTenants &&
             crossTenantPolicy is ConfigurableCrossTenantAccessPolicy configurablePolicy)
         {
-            var sourceTenant = user.FindFirst("tenant_id")?.Value;
+            var sourceTenant = user.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value;
             if (!string.IsNullOrWhiteSpace(sourceTenant))
             {
                 foreach (var targetTenant in targetTenants)
@@ -205,7 +206,8 @@ public static class IamTenantAccessGuard
         Guid? scopeId,
         IConglomerateTenantRegistry? registry,
         HttpContext? http,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? permissionAction = "admin.users.write")
     {
         var filter = await IamTenantScopeResolver.ResolveAsync(db, user, scopeId, registry, ct);
         if (ForbidIfDenied(filter) is { } denied)
@@ -214,7 +216,7 @@ public static class IamTenantAccessGuard
         if (registry?.IsEnabled == true && http is not null)
         {
             var elevationError = await SupportElevationGuard.EnsureCrossTenantMutationAllowedAsync(
-                http, db, registry, filter, ct);
+                http, db, registry, filter, ct, permissionAction);
             if (elevationError is not null)
                 return (filter, elevationError);
         }

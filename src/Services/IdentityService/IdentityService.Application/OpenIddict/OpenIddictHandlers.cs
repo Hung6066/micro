@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.Interfaces;
@@ -110,7 +111,7 @@ public sealed class CustomHandleClientCredentialsRequest :
         identity.SetClaim("authorization_version", workloadRole.CreatedAt.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var workloadSessionId = Guid.NewGuid().ToString("N");
         identity.SetClaim("session_id", workloadSessionId);
-        identity.SetClaim("permissions", string.Join(',', permissions));
+        identity.SetClaim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(',', permissions));
         if (boundary is not null)
             identity.SetClaim("authorization_constraints", boundary.ResourceConstraintsJson);
 
@@ -124,7 +125,7 @@ public sealed class CustomHandleClientCredentialsRequest :
                     scope => scope.ParentId, parent => parent.Id, (_, parent) => parent.Key)
                 .SingleOrDefaultAsync(context.CancellationToken);
         if (!string.IsNullOrWhiteSpace(tenantKey))
-            identity.SetClaim("tenant_id", tenantKey);
+            identity.SetClaim(HisHopeProtocolConstants.Claims.TenantId, tenantKey);
         var workloadPolicies = await ResourcePolicyClaimBuilder.BuildAsync(
             _dbContext, workloadRole.ScopeId,
             [workloadRole.Key, workloadRole.Audience, context.ClientId],
@@ -259,10 +260,10 @@ public sealed class CustomHandleTokenExchangeRequest :
         var exchangedSessionId = Guid.NewGuid().ToString("N");
         identity.SetClaim("session_id", exchangedSessionId);
         identity.SetClaim("authorization_version", role.CreatedAt.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        identity.SetClaim("permissions", string.Join(',', permissions));
-        var sourceTenant = source.FindFirst("tenant_id")?.Value;
+        identity.SetClaim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(',', permissions));
+        var sourceTenant = source.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value;
         if (!string.IsNullOrWhiteSpace(sourceTenant))
-            identity.SetClaim("tenant_id", sourceTenant);
+            identity.SetClaim(HisHopeProtocolConstants.Claims.TenantId, sourceTenant);
         var exchangedPolicies = await ResourcePolicyClaimBuilder.BuildAsync(
             _dbContext, role.ScopeId, [role.Key, role.Audience, clientId], context.CancellationToken);
         if (exchangedPolicies is not null)
@@ -532,7 +533,7 @@ public class CustomPopulateTokenClaims :
                     }
                     if (workloadPermissions.Length > 0)
                     {
-                        var permissionsClaim = new Claim("permissions", string.Join(",", workloadPermissions));
+                        var permissionsClaim = new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", workloadPermissions));
                         permissionsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
                         identity.AddClaim(permissionsClaim);
                     }
@@ -580,7 +581,7 @@ public class CustomPopulateTokenClaims :
             .Get<string[]>() ?? [];
         if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
         {
-            var superAdminClaim = new Claim("super_admin", "true");
+            var superAdminClaim = new Claim(HisHopeProtocolConstants.Claims.SuperAdmin, "true");
             superAdminClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
             identity.AddClaim(superAdminClaim);
             if (_configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false))
@@ -598,8 +599,8 @@ public class CustomPopulateTokenClaims :
         // after a successful MFA challenge. Do not infer "mfa" merely because
         // the account is enrolled: that would misrepresent an unchallenged
         // login and could weaken downstream step-up policy decisions.
-        if (!identity.FindAll("amr").Any())
-            identity.AddClaim(new Claim("amr", "pwd"));
+        if (!identity.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any())
+            identity.AddClaim(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, "pwd"));
 
         var legacyClaims = await _userManager.GetClaimsAsync(user);
         var legacyFacility = legacyClaims.FirstOrDefault(c => c.Type == "facility_id")?.Value;
@@ -720,7 +721,7 @@ public class CustomPopulateTokenClaims :
             permissions = PrivilegedIdentityPermissionBoundary.Filter(permissions).ToList();
         if (permissions.Count > 0)
         {
-            var permissionsClaim = new Claim("permissions", string.Join(",", permissions));
+            var permissionsClaim = new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", permissions));
             permissionsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
             identity.AddClaim(permissionsClaim);
         }
@@ -735,7 +736,7 @@ public class CustomPopulateTokenClaims :
         CancellationToken cancellationToken)
     {
         var memberships = (await _userManager.GetClaimsAsync(user))
-            .Where(claim => claim.Type == "tenant_membership")
+            .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
             .Select(claim => claim.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -745,13 +746,13 @@ public class CustomPopulateTokenClaims :
             return;
 
         var primaryTenant = memberships[0];
-        var tenantClaim = new Claim("tenant_id", primaryTenant);
+        var tenantClaim = new Claim(HisHopeProtocolConstants.Claims.TenantId, primaryTenant);
         tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
         identity.AddClaim(tenantClaim);
 
         foreach (var membership in memberships)
         {
-            var membershipClaim = new Claim("tenant_membership", membership);
+            var membershipClaim = new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, membership);
             membershipClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
             identity.AddClaim(membershipClaim);
         }
@@ -790,7 +791,7 @@ public class CustomPopulateTokenClaims :
         }
 
         var memberships = (await _userManager.GetClaimsAsync(user))
-            .Where(claim => claim.Type == "tenant_membership")
+            .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
             .Select(claim => claim.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -810,7 +811,7 @@ public class CustomPopulateTokenClaims :
             return false;
         }
 
-        var tenantClaim = new Claim("tenant_id", clientTenant);
+        var tenantClaim = new Claim(HisHopeProtocolConstants.Claims.TenantId, clientTenant);
         tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
         identity.AddClaim(tenantClaim);
 

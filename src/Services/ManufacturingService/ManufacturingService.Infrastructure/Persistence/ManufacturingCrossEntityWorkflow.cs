@@ -1,8 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using His.Hope.Contracts.Manufacturing;
+using His.Hope.AspNetCore.Tenancy;
 
 public sealed partial class PostgresManufacturingStore
 {
+    public CrossEntityWorkflowTraceDto? GetCrossEntityWorkflow(string entityType, Guid entityId) =>
+        GetCrossEntityWorkflow(HisHopeTenantScope.Current ?? throw new InvalidOperationException("Tenant context is required."), entityType, entityId);
+
     public CrossEntityWorkflowTraceDto? GetCrossEntityWorkflow(string tenantKey, string entityType, Guid entityId)
     {
         using var db = dbFactory.CreateDbContext();
@@ -195,7 +199,7 @@ public sealed partial class PostgresManufacturingStore
 
     private static string ResolveStepState(string entityType, string status, int index, int lastCompleteIndex, bool isAnchor)
     {
-        if (status is "Cancelled" or "Rejected" or "Fail")
+        if (status is ManufacturingStatusCodes.Cancelled or ManufacturingStatusCodes.Rejected or "Fail")
             return "cancelled";
         if (index <= lastCompleteIndex)
             return "complete";
@@ -207,11 +211,11 @@ public sealed partial class PostgresManufacturingStore
     private static bool IsTerminalStatus(string entityType, string status) =>
         (entityType, status) switch
         {
-            ("purchase-order", "Approved" or "PartiallyReceived" or "Closed" or "Cancelled") => true,
-            ("lot", "Released" or "Rejected") => true,
-            ("quality-inspection", "Pass" or "Rejected" or "Fail") => true,
-            ("production-batch", "Completed" or "Cancelled") => true,
-            _ when status is "Completed" or "Closed" or "Pass" or "Released" => true,
+            ("purchase-order", ManufacturingStatusCodes.Approved or "PartiallyReceived" or ManufacturingStatusCodes.Closed or ManufacturingStatusCodes.Cancelled) => true,
+            ("lot", ManufacturingStatusCodes.Released or ManufacturingStatusCodes.Rejected) => true,
+            ("quality-inspection", "Pass" or ManufacturingStatusCodes.Rejected or "Fail") => true,
+            ("production-batch", ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Cancelled) => true,
+            _ when status is ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Closed or "Pass" or ManufacturingStatusCodes.Released => true,
             _ => false,
         };
 }

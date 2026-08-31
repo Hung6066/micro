@@ -460,8 +460,11 @@ patchesStrategicMerge:
   - identity-runtime-seccomp-patch.yaml
   - runtime-default-workload-patch.yaml
   - service-runtime-fix-patch.yaml
-  - enterprise-runtime-security-patch.yaml
+  - bff-redis-tls-ca-patch.yaml
   - k3s-local-backend-auth-patch.yaml
+  # Final production security contract must be applied after the local K3s
+  # compatibility profile so it cannot re-enable HTTP JWT discovery.
+  - enterprise-runtime-security-patch.yaml
   - systemdashboard-bff-rbac-patch.yaml
   - pharmacy-redis-tls-ca-patch.yaml
   - bff-runtime-contract-env-patch.yaml

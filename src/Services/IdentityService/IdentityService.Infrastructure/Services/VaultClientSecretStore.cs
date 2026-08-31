@@ -18,6 +18,7 @@ public class VaultClientSecretStore
     private readonly string _vaultPathPrefix;
     private readonly string _vaultSecretsMount;
     private readonly IVaultTokenProvider _tokenProvider;
+    private readonly IVaultSecretProvider? _secretProvider;
     private readonly IHostEnvironment _environment;
     private readonly string? _developmentSecretSeed;
 
@@ -26,11 +27,13 @@ public class VaultClientSecretStore
         ILogger<VaultClientSecretStore> logger,
         IHostEnvironment environment,
         IVaultTokenProvider tokenProvider,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IVaultSecretProvider? secretProvider = null)
     {
         _config = config;
         _logger = logger;
         _tokenProvider = tokenProvider;
+        _secretProvider = secretProvider;
         _environment = environment;
         _developmentSecretSeed = config["Vault:DevelopmentSecretSeed"];
         _vaultSecretsMount = config["Vault:SecretsMount"] ?? "secret";
@@ -81,7 +84,16 @@ public class VaultClientSecretStore
             return cached.Value;
         }
 
-        if (_vaultClient is not null)
+        if (_secretProvider is not null && _vaultClient is not null)
+        {
+            var secret = await _secretProvider.GetAsync(SecretLogicalPath(clientId), "secret", ct);
+            if (!string.IsNullOrWhiteSpace(secret))
+            {
+                _cache[clientId] = new CachedSecret(secret, DateTime.UtcNow.AddMinutes(5));
+                return secret;
+            }
+        }
+        else if (_vaultClient is not null)
         {
             await AuthenticateAsync(ct);
             using var response = await _vaultClient.GetAsync(SecretPath(clientId), ct);
@@ -118,7 +130,11 @@ public class VaultClientSecretStore
     public async Task StoreSecretAsync(string clientId, string secret, CancellationToken ct = default)
     {
         _cache[clientId] = new CachedSecret(secret, DateTime.UtcNow.AddMinutes(5));
-        if (_vaultClient is not null)
+        if (_secretProvider is not null && _vaultClient is not null)
+        {
+            await _secretProvider.PutAsync(SecretLogicalPath(clientId), "secret", secret, ct);
+        }
+        else if (_vaultClient is not null)
         {
             await AuthenticateAsync(ct);
             var payload = JsonSerializer.Serialize(new { data = new { secret } });
@@ -142,7 +158,11 @@ public class VaultClientSecretStore
     public async Task RevokeSecretAsync(string clientId, CancellationToken ct = default)
     {
         _cache.TryRemove(clientId, out _);
-        if (_vaultClient is not null)
+        if (_secretProvider is not null && _vaultClient is not null)
+        {
+            await _secretProvider.DeleteAsync(SecretLogicalPath(clientId), ct);
+        }
+        else if (_vaultClient is not null)
         {
             await AuthenticateAsync(ct);
             using var response = await _vaultClient.DeleteAsync(SecretPath(clientId), ct);
@@ -159,12 +179,14 @@ public class VaultClientSecretStore
         _vaultClient.DefaultRequestHeaders.Add("X-Vault-Token", await _tokenProvider.GetTokenAsync(ct));
     }
 
-    private record CachedSecret(string Value, DateTime ExpiresAt)
+    private sealed record CachedSecret(string Value, DateTime ExpiresAt)
     {
         public bool IsExpired => DateTime.UtcNow > ExpiresAt;
     }
 
     private string SecretPath(string clientId) => $"/v1/{_vaultSecretsMount}/data/{_vaultPathPrefix}/{Uri.EscapeDataString(clientId)}";
+
+    private string SecretLogicalPath(string clientId) => $"{_vaultPathPrefix}/{clientId}";
 
     private static string? FirstConfigured(params string?[] values) => values.FirstOrDefault(value =>
         !string.IsNullOrWhiteSpace(value) && !(value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}')));

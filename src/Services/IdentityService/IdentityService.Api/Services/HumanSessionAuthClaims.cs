@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -16,7 +17,7 @@ internal static class HumanSessionAuthClaims
         var permissions = await identityService.GetEffectivePermissionsAsync(user.Id, cancellationToken);
         var userClaims = await userManager.GetClaimsAsync(user);
         var tenantMemberships = userClaims
-            .Where(claim => claim.Type == "tenant_membership")
+            .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
             .Select(claim => claim.Value)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -24,11 +25,11 @@ internal static class HumanSessionAuthClaims
 
         var additionalClaims = new List<Claim>();
         foreach (var membership in tenantMemberships)
-            additionalClaims.Add(new Claim("tenant_membership", membership));
+            additionalClaims.Add(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, membership));
 
         if (tenantMemberships.Length > 0)
         {
-            additionalClaims.Add(new Claim("tenant_id", tenantMemberships[0]));
+            additionalClaims.Add(new Claim(HisHopeProtocolConstants.Claims.TenantId, tenantMemberships[0]));
             if (tenantMemberships.Length > 1)
                 additionalClaims.Add(new Claim("tenant_memberships", string.Join(",", tenantMemberships)));
         }

@@ -47,7 +47,7 @@ public sealed class ManufacturingAuditSaveChangesInterceptor(IHttpContextAccesso
 
             var isDeleted = entry.Metadata.FindProperty("IsDeleted") is not null
                 && entry.Property("IsDeleted").CurrentValue as bool? == true;
-            var action = isDeleted ? "Deleted" : entry.State == EntityState.Added ? "Created" : "Updated";
+            var action = isDeleted ? "Deleted" : entry.State == EntityState.Added ? ManufacturingStatusCodes.Created : "Updated";
             var actor = ResolveActor(entry);
             var changedProperties = string.Join(",", entry.Properties
                 .Where(property => entry.State == EntityState.Added || property.IsModified)
@@ -71,7 +71,7 @@ public sealed class ManufacturingAuditSaveChangesInterceptor(IHttpContextAccesso
 
     private string ResolveActor(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry)
     {
-        return httpContextAccessor.HttpContext?.User.FindFirst("sub")?.Value
+        return httpContextAccessor.HttpContext?.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
             ?? entry.Property("UpdatedBy").CurrentValue as string
             ?? entry.Property("CreatedBy").CurrentValue as string
             ?? "system";

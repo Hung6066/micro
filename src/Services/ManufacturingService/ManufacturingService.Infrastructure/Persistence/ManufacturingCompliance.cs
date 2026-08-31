@@ -20,7 +20,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingComplianc
         var key = request.ArtifactKey.Trim();
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Content) || request.Version <= 0)
             return (null, "invalid_sop_artifact");
-        if (request.Status is not ("Draft" or "Submitted")) return (null, "invalid_sop_artifact_status");
+        if (request.Status is not (ManufacturingStatusCodes.Draft or ManufacturingStatusCodes.Submitted)) return (null, "invalid_sop_artifact_status");
         using var db = dbFactory.CreateDbContext();
         if (db.SopArtifacts.Any(x => x.TenantKey == tenantKey && x.ArtifactKey == key && x.Version == request.Version)) return (null, "sop_artifact_version_exists");
         var entity = new ManufacturingSopArtifactEntity
@@ -38,16 +38,16 @@ public sealed partial class PostgresManufacturingStore : IManufacturingComplianc
     public (SopArtifactDto? Artifact, string? Error) ChangeSopArtifactStatus(Guid artifactId, string tenantKey, string targetStatus, SopArtifactLifecycleRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_sop_artifact_actor");
-        if (targetStatus is not ("Approved" or "Retired")) return (null, "invalid_sop_artifact_transition");
+        if (targetStatus is not (ManufacturingStatusCodes.Approved or "Retired")) return (null, "invalid_sop_artifact_transition");
         using var db = dbFactory.CreateDbContext();
         var entity = db.SopArtifacts.SingleOrDefault(x => x.Id == artifactId && x.TenantKey == tenantKey);
         if (entity is null) return (null, "sop_artifact_not_found");
-        if (targetStatus == "Approved" && entity.Status != "Submitted") return (null, "invalid_sop_artifact_transition");
-        if (targetStatus == "Retired" && entity.Status != "Approved") return (null, "invalid_sop_artifact_transition");
+        if (targetStatus == ManufacturingStatusCodes.Approved && entity.Status != ManufacturingStatusCodes.Submitted) return (null, "invalid_sop_artifact_transition");
+        if (targetStatus == "Retired" && entity.Status != ManufacturingStatusCodes.Approved) return (null, "invalid_sop_artifact_transition");
         entity.Status = targetStatus;
         entity.EffectiveFrom = request.EffectiveFrom ?? entity.EffectiveFrom;
         entity.EffectiveTo = request.EffectiveTo ?? entity.EffectiveTo;
-        if (targetStatus == "Approved") { entity.ApprovedBy = request.Actor.Trim(); entity.ApprovedAt = DateTimeOffset.UtcNow; }
+        if (targetStatus == ManufacturingStatusCodes.Approved) { entity.ApprovedBy = request.Actor.Trim(); entity.ApprovedAt = DateTimeOffset.UtcNow; }
         db.SaveChanges();
         return (ToDto(entity), null);
     }
@@ -56,7 +56,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingComplianc
     {
         if (string.IsNullOrWhiteSpace(actor)) return (null, "invalid_sop_artifact_actor");
         using var db = dbFactory.CreateDbContext();
-        var artifact = db.SopArtifacts.AsNoTracking().SingleOrDefault(x => x.Id == artifactId && x.TenantKey == tenantKey && x.Status == "Approved");
+        var artifact = db.SopArtifacts.AsNoTracking().SingleOrDefault(x => x.Id == artifactId && x.TenantKey == tenantKey && x.Status == ManufacturingStatusCodes.Approved);
         if (artifact is null) return (null, "sop_artifact_not_found_or_not_approved");
         var normalizedActor = actor.Trim();
         if (db.SopArtifactAcknowledgments.Any(x => x.SopArtifactId == artifactId && x.TenantKey == tenantKey && x.Actor == normalizedActor)) return (null, "sop_artifact_already_acknowledged");
@@ -69,14 +69,14 @@ public sealed partial class PostgresManufacturingStore : IManufacturingComplianc
     public (BusinessSignatureDto? Signature, string? Error) CreateBusinessSignature(string tenantKey, string actor, CreateBusinessSignatureRequest request)
     {
         if (request.EntityId == Guid.Empty || string.IsNullOrWhiteSpace(request.EntityType) || string.IsNullOrWhiteSpace(request.Action) || string.IsNullOrWhiteSpace(request.Reason))
-            return (null, "invalid_business_signature");
+            return (null, ManufacturingErrorCodes.InvalidBusinessSignature);
         if (request.SignatureMethod is not ("AuthenticatedSession" or "Mfa" or "Passkey")) return (null, "invalid_signature_method");
         using var db = dbFactory.CreateDbContext();
         var normalizedActor = actor.Trim();
         var normalizedType = request.EntityType.Trim();
         var normalizedAction = request.Action.Trim();
         if (db.BusinessSignatures.Any(x => x.TenantKey == tenantKey && x.EntityType == normalizedType && x.EntityId == request.EntityId && x.Action == normalizedAction && x.Actor == normalizedActor))
-            return (null, "business_signature_already_exists");
+            return (null, ManufacturingErrorCodes.BusinessSignatureAlreadyExists);
         var signedAt = DateTimeOffset.UtcNow;
         var hash = Checksum($"{tenantKey}|{normalizedType}|{request.EntityId:D}|{normalizedAction}|{normalizedActor}|{signedAt:O}|{request.Reason.Trim()}");
         var entity = new ManufacturingBusinessSignatureEntity
@@ -113,7 +113,7 @@ public sealed class ManufacturingSopArtifactEntity
     public int Version { get; set; }
     public string Content { get; set; } = "";
     public string ContentType { get; set; } = "text/markdown";
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = ManufacturingStatusCodes.Draft;
     public string Checksum { get; set; } = "";
     public DateTimeOffset? EffectiveFrom { get; set; }
     public DateTimeOffset? EffectiveTo { get; set; }

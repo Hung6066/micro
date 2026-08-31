@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
@@ -75,7 +76,7 @@ public static class AuthorizationChangeRequestEndpoints
         HttpContext http,
         CancellationToken ct)
     {
-        if (!AuthorizationChangeRequestWorkflow.HasMfa(http)) return Results.Forbid();
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
         var resourceType = request.ResourceType?.Trim() ?? string.Empty;
         var action = request.Action?.Trim().ToLowerInvariant() ?? string.Empty;
         if (request.ResourceId == Guid.Empty ||
@@ -118,9 +119,9 @@ public static class AuthorizationChangeRequestEndpoints
         HttpContext http,
         CancellationToken ct)
     {
-        if (!AuthorizationChangeRequestWorkflow.HasMfa(http)) return Results.Forbid();
-        var item = await db.AuthorizationChangeRequests.FirstOrDefaultAsync(value => value.Id == id, ct);
-        if (item is null) return Results.NotFound();
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+        var item = Guard.Against.NotFound(
+            await db.AuthorizationChangeRequests.FirstOrDefaultAsync(value => value.Id == id, ct), "AuthorizationChangeRequest", id);
         if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
             return Results.Conflict(new { errorCode = "authorization_change_not_pending" });
         var approver = AuthorizationChangeRequestWorkflow.Actor(http);
@@ -141,9 +142,9 @@ public static class AuthorizationChangeRequestEndpoints
         HttpContext http,
         CancellationToken ct)
     {
-        if (!AuthorizationChangeRequestWorkflow.HasMfa(http)) return Results.Forbid();
-        var item = await db.AuthorizationChangeRequests.FirstOrDefaultAsync(value => value.Id == id, ct);
-        if (item is null) return Results.NotFound();
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+        var item = Guard.Against.NotFound(
+            await db.AuthorizationChangeRequests.FirstOrDefaultAsync(value => value.Id == id, ct), "AuthorizationChangeRequest", id);
         if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
             return Results.Conflict(new { errorCode = "authorization_change_not_pending" });
         var actor = AuthorizationChangeRequestWorkflow.Actor(http);
@@ -184,10 +185,7 @@ public static class AuthorizationChangeRequestEndpoints
 internal static class AuthorizationChangeRequestWorkflow
 {
     internal static string Actor(HttpContext http) =>
-        http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
-
-    internal static bool HasMfa(HttpContext http) =>
-        http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase));
+        http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
 
     internal static bool TryGetRequestId(HttpContext http, out Guid requestId)
     {

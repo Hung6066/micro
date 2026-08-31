@@ -7,6 +7,7 @@ using His.Hope.AspNetCore;
 using His.Hope.Configuration;
 using His.Hope.Observability;
 using His.Hope.Infrastructure.Caching;
+using His.Hope.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -25,6 +26,7 @@ public static class DependencyInjection
     {
         var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(configuration, serviceName);
         services.AddHisHopeRuntimeConfiguration(configuration, serviceName);
+        services.AddHisHopeServiceToServiceAuthentication(configuration);
         services.AddHisHopeAspNetCore();
         services.AddHealthChecks();
         services.AddObservability(options =>
@@ -41,7 +43,7 @@ public static class DependencyInjection
 
         var redis = RedisConnectionFactory.Connect(redisConnection, configuration);
         services.AddSingleton<IConnectionMultiplexer>(redis);
-        var dataProtectionKeyName = configuration["DataProtection:KeyName"]
+        var dataProtectionKeyName = configuration[HisHopeConfigurationKeys.DataProtectionKeyName]
             ?? "HisHope:IdentityService:DataProtection:Keys";
         services.AddDataProtection()
             .SetApplicationName("His.Hope.IdentityService")
@@ -133,7 +135,7 @@ public static class DependencyInjection
 
     public static WebApplication MapBffHealth(this WebApplication app)
     {
-        app.MapHealthChecks("/health").AllowAnonymous();
+        app.MapHisHopeHealthEndpoints();
         return app;
     }
 }

@@ -5,6 +5,7 @@ using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.SharedKernel.Authorization;
 using His.Hope.Authorization;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
@@ -148,7 +149,7 @@ public class JwtTokenGenerator
         // SECURITY: Add amr (Authentication Methods References) claim for MFA
         if (amrValues is { Count: > 0 })
         {
-            claims.AddRange(amrValues.Select(amr => new Claim("amr", amr)));
+            claims.AddRange(amrValues.Select(amr => new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, amr)));
         }
 
         // Add role claims for RBAC enforcement
@@ -158,7 +159,7 @@ public class JwtTokenGenerator
             .Get<string[]>() ?? [];
         if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
         {
-            claims.Add(new Claim("super_admin", "true"));
+            claims.Add(new Claim(HisHopeProtocolConstants.Claims.SuperAdmin, "true"));
             if (_configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false))
                 claims.Add(new Claim(PortalClassConstants.Claim, PortalClassConstants.PrivilegedOperator));
         }
@@ -166,7 +167,7 @@ public class JwtTokenGenerator
         // SECURITY: Add explicit permission claims for fine-grained authorization
         if (permissions is { Count: > 0 })
         {
-            claims.Add(new Claim("permissions", string.Join(",", permissions)));
+            claims.Add(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", permissions)));
         }
 
         if (additionalClaims is not null)
@@ -212,6 +213,13 @@ public class JwtTokenGenerator
             }
         }
 
+        // Keep authentication methods in the interoperable JWT array form.
+        // Some token handlers do not preserve a List<string> value emitted by
+        // the generic duplicate-claim path, which would silently remove MFA
+        // assurance from a validated token.
+        if (amrValues is { Count: > 0 })
+            payload[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod] = amrValues.ToArray();
+
         var descriptor = new SecurityTokenDescriptor
         {
             Issuer = issuer,
@@ -249,6 +257,7 @@ public class JwtTokenGenerator
     {
         if (string.IsNullOrEmpty(token)) return null;
         var handler = new JwtSecurityTokenHandler();
+        handler.MapInboundClaims = false;
         try
         {
             handler.ReadJwtToken(token);
@@ -290,11 +299,11 @@ public class JwtTokenGenerator
         var rawSubject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         if (!string.IsNullOrWhiteSpace(rawSubject) &&
             principal.FindFirst(ClaimTypes.NameIdentifier) is null &&
-            principal.FindFirst("sub") is null)
+            principal.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) is null)
         {
             var identity = principal.Identity as ClaimsIdentity;
             identity?.AddClaim(new Claim(ClaimTypes.NameIdentifier, rawSubject));
-            identity?.AddClaim(new Claim("sub", rawSubject));
+            identity?.AddClaim(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject, rawSubject));
         }
 
         return principal;

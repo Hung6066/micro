@@ -7,6 +7,7 @@ using His.Hope.IdentityService.Api.Composition;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
+using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.ServiceDefaults;
 using His.Hope.IdentityService.Testing;
@@ -152,6 +153,10 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             , ["Authentication:Google:ClientSecret"] = "integration-google-secret"
             , ["Authentication:LegacyAuthSunset"] = "Sat, 01 Jan 2028 00:00:00 GMT"
             , ["Assurance:PolicyPath"] = ResolveAssurancePolicyPath()
+            // This fixture models the legacy single-tenant API. Conglomerate
+            // isolation is covered by dedicated registry/authorization tests;
+            // keep endpoint tests independent from host appsettings.
+            , ["Conglomerate:Enabled"] = "false"
         });
         builder.AddIdentityService();
         // AddIdentityService loads the API appsettings after the test overlay;
@@ -165,6 +170,7 @@ public class IdentityServiceTestFixture : IAsyncLifetime
         builder.Configuration["RateLimiting:TrustForwardedKey"] = "true";
         builder.Configuration["RateLimiting:MaxRequestsPerIp"] = "10000";
         builder.Configuration["RateLimiting:MaxRequestsPerUser"] = "5000";
+        builder.Configuration["Conglomerate:Enabled"] = "false";
         builder.Configuration["Identity:SuperAdmin:UserIds:0"] = IdentityTestData.AdminId.ToString("D");
         builder.Configuration["Authentication:OidcClients:his-hope-test:RedirectUris:0"] = "http://localhost:4200/auth/callback";
         builder.Configuration["Authentication:OidcClients:his-hope-test:PostLogoutRedirectUris:0"] = "http://localhost:4200/auth/login";
@@ -390,7 +396,55 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             if (regResponse.IsSuccessStatusCode)
                 await session.LoginAsync("test-user@test.test", IdentityTestCredentials.Password);
         }
+        else
+        {
+            // Mutation integration tests model the real step-up contract with a
+            // freshly issued MFA-assured bearer token; production guards remain enabled.
+            session.SetBearerToken(await CreateFreshMfaAdminTokenAsync());
+        }
         return session;
+    }
+
+    public async Task<string> CreateFreshMfaAdminTokenAsync()
+    {
+        await using var scope = _app!.Services.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var tokenGenerator = scope.ServiceProvider.GetRequiredService<JwtTokenGenerator>();
+        var user = await userManager.FindByEmailAsync(IdentityTestData.AdminEmail)
+            ?? throw new InvalidOperationException("Integration admin was not seeded.");
+        var roles = await userManager.GetRolesAsync(user);
+        var roleIds = await db.Roles
+            .Where(role => roles.Contains(role.Name!))
+            .Select(role => role.Id)
+            .ToListAsync();
+        var permissions = await db.RolePermissions
+            .Where(link => roleIds.Contains(link.RoleId))
+            .Select(link => link.PermissionCode)
+            .Distinct()
+            .ToListAsync();
+        var userClaims = await userManager.GetClaimsAsync(user);
+        var additionalClaims = userClaims
+            .Where(claim => claim.Type is "tenant_membership" or "tenant_id" or "tenant_memberships" or "facility_id" or "cross_facility" or "portal_class")
+            .Concat(userClaims
+                .Where(claim => claim.Type == "tenant_membership")
+                .Select((claim, index) => index == 0 ? new Claim("tenant_id", claim.Value) : null)
+                .Where(claim => claim is not null)!
+                .Cast<Claim>())
+            .Append(new Claim("portal_class", His.Hope.IdentityService.Application.Conglomerate.ConglomerateConstants.PortalClassOperator))
+            .Append(new Claim("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        var token = tokenGenerator.GenerateAccessToken(user, roles, permissions, ["pwd", "mfa"], additionalClaims).token;
+        var principal = tokenGenerator.GetPrincipalFromExpiredToken(token)
+            ?? throw new InvalidOperationException("Fresh MFA test token contract failed: token could not be parsed.");
+        if (!StepUpAuthenticationGuard.HasFreshMfa(principal))
+            throw new InvalidOperationException($"Fresh MFA test token contract failed: auth claims=[{string.Join(';', principal.Claims.Where(claim => claim.Type.Contains("amr", StringComparison.OrdinalIgnoreCase) || claim.Type.Contains("authentication", StringComparison.OrdinalIgnoreCase)).Select(claim => $"{claim.Type}={claim.Value}"))}]");
+        if (!principal.FindAll("tenant_membership").Any())
+            throw new InvalidOperationException("Fresh MFA test token contract failed: tenant membership claim is missing.");
+        if (!string.Equals(principal.FindFirst("portal_class")?.Value, "operator", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Fresh MFA test token contract failed: portal class=[{string.Join(';', principal.FindAll("portal_class").Select(claim => claim.Value))}]");
+        if (!principal.FindAll("super_admin").Any(claim => string.Equals(claim.Value, "true", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("Fresh MFA test token contract failed: super_admin claim is missing.");
+        return token;
     }
 
     private static string ResolveAssurancePolicyPath()
@@ -417,10 +471,12 @@ public class SessionClient : IDisposable
     private readonly HttpClient _client;
     private readonly List<Cookie> _cookies = new();
     private readonly string _authRateLimitKey = $"session-auth-{Guid.NewGuid():N}";
+    private string? _bearerToken;
 
     public HttpClient InnerClient => _client;
     public string? RateLimitKey { get; set; }
     public SessionClient(HttpClient client) => _client = client;
+    public void SetBearerToken(string token) => _bearerToken = token;
 
     public Task<HttpResponseMessage> LoginAsAdminAsync() =>
         LoginAsync(IdentityTestData.AdminEmail, IdentityTestData.DefaultPassword);
@@ -453,6 +509,7 @@ public class SessionClient : IDisposable
     public async Task<HttpResponseMessage> PostWithCookiesAsync(string url, object? body = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        ApplyBearer(request);
         foreach (var cookie in _cookies)
             request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
         var csrf = GetCookieValue("hishop_csrf");
@@ -468,6 +525,7 @@ public class SessionClient : IDisposable
     public async Task<HttpResponseMessage> GetWithCookiesAsync(string url)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        ApplyBearer(request);
         foreach (var cookie in _cookies)
             request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
         var csrf = GetCookieValue("hishop_csrf");
@@ -481,6 +539,7 @@ public class SessionClient : IDisposable
     public async Task<HttpResponseMessage> PutWithCookiesAsync(string url, object? body = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, url);
+        ApplyBearer(request);
         foreach (var cookie in _cookies)
             request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
         var csrf = GetCookieValue("hishop_csrf");
@@ -496,6 +555,7 @@ public class SessionClient : IDisposable
     public async Task<HttpResponseMessage> DeleteWithCookiesAsync(string url)
     {
         using var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        ApplyBearer(request);
         foreach (var cookie in _cookies)
             request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
         var csrf = GetCookieValue("hishop_csrf");
@@ -504,6 +564,12 @@ public class SessionClient : IDisposable
         if (RateLimitKey is not null)
             request.Headers.Add("X-RateLimit-Key", RateLimitKey);
         return await _client.SendAsync(request);
+    }
+
+    private void ApplyBearer(HttpRequestMessage request)
+    {
+        if (_bearerToken is not null)
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _bearerToken);
     }
 
     public void ApplySetCookieHeaders(HttpResponseMessage response)

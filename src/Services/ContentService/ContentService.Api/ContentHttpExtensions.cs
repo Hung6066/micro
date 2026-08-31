@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using His.Hope.AspNetCore.Tenancy;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.ContentService.Api;
 
@@ -9,10 +10,10 @@ internal static class ContentHttpExtensions
     public const string DefaultTenantKey = "customer-factory-x";
 
     public static string? GetUserId(this ClaimsPrincipal user) =>
-        user.FindFirst("sub")?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        user.FindFirst(HisHopeProtocolConstants.Claims.Subject)?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
     public static bool HasPermission(this ClaimsPrincipal user, string permissionCode) =>
-        user.FindAll("permissions")
+        user.FindAll(HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Any(value => string.Equals(value, permissionCode, StringComparison.OrdinalIgnoreCase));
 
@@ -54,7 +55,7 @@ internal static class ContentHttpExtensions
     }
 
     private static bool AllowContentCrossTenant(ClaimsPrincipal user, string requestedTenant, string tokenTenant) =>
-        string.Equals(user.GetPortalClass(), "operator", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(user.GetPortalClass(), HisHopeProtocolConstants.PortalClasses.Operator, StringComparison.OrdinalIgnoreCase) &&
         user.HasPermission(HisHopePermissions.Content.Manage);
 
 }

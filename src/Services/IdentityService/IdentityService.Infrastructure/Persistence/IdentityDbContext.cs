@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
+using His.Hope.IdentityService.Infrastructure.Provisioning;
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
@@ -52,6 +53,8 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<IamResourcePolicy> IamResourcePolicies => Set<IamResourcePolicy>();
     public DbSet<IamGroup> IamGroups => Set<IamGroup>();
     public DbSet<IamGroupMembership> IamGroupMemberships => Set<IamGroupMembership>();
+    public DbSet<TenantProvisioningEntity> TenantProvisionings => Set<TenantProvisioningEntity>();
+    public DbSet<TenantProvisioningOutboxEntity> TenantProvisioningOutbox => Set<TenantProvisioningOutboxEntity>();
     public new DbSet<IdentityUserClaim<Guid>> UserClaims => Set<IdentityUserClaim<Guid>>();
 
     // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
@@ -389,6 +392,22 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.CreatedBy).HasMaxLength(256);
             entity.Property(item => item.PublishedBy).HasMaxLength(256);
             entity.HasIndex(item => new { item.Key, item.Version }).IsUnique();
+        });
+        builder.Entity<TenantProvisioningEntity>(entity =>
+        {
+            entity.ToTable("tenant_provisioning"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.DataRegion).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.IdempotencyKey).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => x.IdempotencyKey).IsUnique();
+            entity.HasIndex(x => new { x.TenantKey, x.State });
+        });
+        builder.Entity<TenantProvisioningOutboxEntity>(entity =>
+        {
+            entity.ToTable("tenant_provisioning_outbox"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Content).IsRequired();
+            entity.HasIndex(x => x.ProcessedOn);
         });
 
         builder.Entity<AuthorizationPolicyBundleArtifact>(entity =>

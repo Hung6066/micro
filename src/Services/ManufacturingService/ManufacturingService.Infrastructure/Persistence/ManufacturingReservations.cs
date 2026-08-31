@@ -10,15 +10,18 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
     public (LotReservationDto? Reservation, string? Error) Reserve(string tenantKey, Guid lotId, CreateLotReservationRequest request)
     {
         using var db = dbFactory.CreateDbContext();
+        var strategy = db.Database.CreateExecutionStrategy();
+        return strategy.Execute<(LotReservationDto? Reservation, string? Error)>(() =>
+        {
         using var transaction = db.Database.BeginTransaction(IsolationLevel.Serializable);
         var now = DateTimeOffset.UtcNow;
         var lot = db.Lots.SingleOrDefault(x => x.Id == lotId);
-        if (lot is null) return (null, "lot_not_found");
+        if (lot is null) return (null, ManufacturingErrorCodes.LotNotFound);
         var duplicate = db.LotReservations.SingleOrDefault(x => x.TenantKey == tenantKey && x.ReferenceType == request.ReferenceType && x.ReferenceId == request.ReferenceId && x.LotId == lotId);
         if (duplicate is not null)
         {
             if (duplicate.Status == "Reserved" && duplicate.ExpiresAt is { } duplicateExpiry && duplicateExpiry <= now)
-                return (null, "reservation_expired");
+                return (null, ManufacturingErrorCodes.ReservationExpired);
             return (ToDto(duplicate), null);
         }
         var reserved = db.LotReservations.Where(x => x.TenantKey == tenantKey && x.LotId == lotId && x.Status == "Reserved" && (x.ExpiresAt == null || x.ExpiresAt > now)).Sum(x => (decimal?)x.Quantity) ?? 0;
@@ -51,25 +54,26 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
         {
             Id = Guid.NewGuid(), Type = "Manufacturing.InventoryReserved.v1",
             Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = entity.CreatedAt, correlationId = entity.Id, facilityId = request.FacilityId ?? "default", reservationId = entity.Id, lotId, tenantKey, quantity = entity.Quantity, referenceType = entity.ReferenceType, referenceId = entity.ReferenceId }),
-            OccurredOn = entity.CreatedAt.UtcDateTime, Status = "Pending"
+            OccurredOn = entity.CreatedAt.UtcDateTime, Status = ManufacturingStatusCodes.Pending
         });
         db.SaveChanges();
         transaction.Commit();
         return (ToDto(entity), null);
+        });
     }
 
     public (LotReservationDto? Reservation, string? Error) Release(string tenantKey, Guid reservationId)
     {
         using var db = dbFactory.CreateDbContext();
         var entity = db.LotReservations.SingleOrDefault(x => x.Id == reservationId);
-        if (entity is null) return (null, "reservation_not_found");
-        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        if (entity is null) return (null, ManufacturingErrorCodes.ReservationNotFound);
+        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
         if (entity.Status != "Reserved") return (ToDto(entity), null);
-        entity.Status = "Released";
+        entity.Status = ManufacturingStatusCodes.Released;
         db.InventoryTransactions.Add(new ManufacturingInventoryTransactionEntity
         {
             Id = Guid.NewGuid(), TenantKey = tenantKey, LotId = entity.LotId, TransactionType = "Unreserve",
-            Quantity = entity.Quantity, Uom = entity.Uom, FacilityId = "default", StockStatus = "Released",
+            Quantity = entity.Quantity, Uom = entity.Uom, FacilityId = "default", StockStatus = ManufacturingStatusCodes.Released,
             CorrelationId = entity.Id, OccurredAt = DateTimeOffset.UtcNow
         });
         db.SaveChanges();
@@ -88,7 +92,7 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         using var db = dbFactory.CreateDbContext();
-        var lots = db.Lots.AsNoTracking().Where(x => x.TenantKey == tenantKey && x.Sku == sku && x.Disposition == "Released" && (x.BestBefore == null || x.BestBefore >= today)).ToList();
+        var lots = db.Lots.AsNoTracking().Where(x => x.TenantKey == tenantKey && x.Sku == sku && x.Disposition == ManufacturingStatusCodes.Released && (x.BestBefore == null || x.BestBefore >= today)).ToList();
         var lotIds = lots.Select(x => x.Id).ToArray();
         var now = DateTimeOffset.UtcNow;
         var reserved = db.LotReservations.AsNoTracking().Where(x => lotIds.Contains(x.LotId) && x.Status == "Reserved" && (x.ExpiresAt == null || x.ExpiresAt > now))
@@ -102,6 +106,9 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
     public (SalesAllocationDto Allocation, string? Error) AllocateSales(string tenantKey, string sku, CreateSalesAllocationRequest request)
     {
         using var db = dbFactory.CreateDbContext();
+        var strategy = db.Database.CreateExecutionStrategy();
+        return strategy.Execute<(SalesAllocationDto Allocation, string? Error)>(() =>
+        {
         using var transaction = db.Database.BeginTransaction(IsolationLevel.Serializable);
         var result = AllocateSalesOnDb(db, tenantKey, sku, request);
         if (result.Error is not null)
@@ -109,6 +116,7 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
         db.SaveChanges();
         transaction.Commit();
         return result;
+        });
     }
 
     public IReadOnlyList<SalesAllocationDto> GetSalesAllocations(string tenantKey, string? sku, Guid? salesOrderId, int limit)
@@ -132,8 +140,11 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
     public (IReadOnlyList<SalesAllocationDto> Allocations, string? Error) AllocateCommerceOrder(CommerceOrderPlacedV1 order)
     {
         using var db = dbFactory.CreateDbContext();
+        var strategy = db.Database.CreateExecutionStrategy();
+        return strategy.Execute<(IReadOnlyList<SalesAllocationDto> Allocations, string? Error)>(() =>
+        {
         using var transaction = db.Database.BeginTransaction(IsolationLevel.Serializable);
-        const string eventType = "Commerce.OrderPlaced.v1";
+        const string eventType = CommerceMessagingContract.OrderPlacedRoutingKey;
         var aggregateId = order.OrderId.ToString();
         if (db.EventReceipts.Any(x => x.EventType == eventType && x.AggregateId == aggregateId))
             return ([], null);
@@ -165,6 +176,7 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
         db.SaveChanges();
         transaction.Commit();
         return (allocations, null);
+        });
     }
 
     private static (SalesAllocationDto Allocation, string? Error) AllocateSalesOnDb(
@@ -175,8 +187,8 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
     {
         var now = DateTimeOffset.UtcNow;
         if (string.IsNullOrWhiteSpace(sku) || request.SalesOrderId == Guid.Empty || request.Quantity <= 0)
-            return (new(tenantKey, sku, request.SalesOrderId, request.Quantity, 0, request.Quantity, [], now), "invalid_sales_allocation");
-        var lots = db.Lots.Where(x => x.TenantKey == tenantKey && x.Sku == sku && x.Disposition == "Released" && (x.BestBefore == null || x.BestBefore >= DateOnly.FromDateTime(now.UtcDateTime))).ToList()
+            return (new(tenantKey, sku, request.SalesOrderId, request.Quantity, 0, request.Quantity, [], now), ManufacturingErrorCodes.InvalidSalesAllocation);
+        var lots = db.Lots.Where(x => x.TenantKey == tenantKey && x.Sku == sku && x.Disposition == ManufacturingStatusCodes.Released && (x.BestBefore == null || x.BestBefore >= DateOnly.FromDateTime(now.UtcDateTime))).ToList()
             .OrderBy(x => x.BestBefore.HasValue ? 0 : 1).ThenBy(x => x.BestBefore).ThenBy(x => x.CreatedAt).ToList();
         var lotIds = lots.Select(x => x.Id).ToArray();
         var existing = db.LotReservations.Where(x => x.TenantKey == tenantKey && x.ReferenceType == "SalesOrder" && x.ReferenceId == request.SalesOrderId && lotIds.Contains(x.LotId) && x.Status == "Reserved").ToList();
@@ -188,7 +200,7 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
         var reservedByLot = db.LotReservations.Where(x => lotIds.Contains(x.LotId) && x.Status == "Reserved" && (x.ExpiresAt == null || x.ExpiresAt > now)).GroupBy(x => x.LotId).ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity));
         var available = lots.Sum(x => Math.Max(0, x.Quantity - reservedByLot.GetValueOrDefault(x.Id)));
         if (available < request.Quantity)
-            return (new(tenantKey, sku, request.SalesOrderId, request.Quantity, 0, request.Quantity, [], now), "insufficient_atp");
+            return (new(tenantKey, sku, request.SalesOrderId, request.Quantity, 0, request.Quantity, [], now), ManufacturingErrorCodes.InsufficientAtp);
         var reservations = new List<ManufacturingLotReservationEntity>();
         var remaining = request.Quantity;
         foreach (var lot in lots)
@@ -212,7 +224,7 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
             {
                 Id = Guid.NewGuid(), Type = "Manufacturing.SalesAllocationCreated.v1",
                 Content = JsonSerializer.Serialize(new { eventId = reservation.Id, schemaVersion = 1, occurredAt = now, correlationId = reservation.Id, facilityId = request.FacilityId ?? "default", reservationId = reservation.Id, lotId = lot.Id, tenantKey, sku, quantity, salesOrderId = request.SalesOrderId }),
-                OccurredOn = now.UtcDateTime, Status = "Pending"
+                OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending
             });
             remaining -= quantity;
             if (remaining <= 0) break;

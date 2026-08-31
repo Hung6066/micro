@@ -442,6 +442,12 @@ services:
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__AllowHttp: "true"
       Redis__ConnectionString: redis
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Consumers__TenantProvisioningEnabled: ${IDENTITY_TENANT_PROVISIONING_ENABLED:-true}
+      Outbox__TenantProvisioningEnabled: ${IDENTITY_TENANT_PROVISIONING_OUTBOX_ENABLED:-true}
       Vault__Address: ${VAULT_ADDR:-}
       Vault__Token: ${VAULT_TOKEN:-}
       Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-true}
@@ -887,6 +893,7 @@ services:
       EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Consumers__CommercePaymentEnabled: ${COMMERCE_PAYMENT_CONSUMER_ENABLED:-true}
       Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
       Vault__Address: ${VAULT_ADDR:-http://vault:8200}
       Vault__Token: ${VAULT_TOKEN:-}
@@ -1101,7 +1108,11 @@ services:
       TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
       TenantContext__LegacySelectorEnabled: ${TENANT_CONTEXT_LEGACY_SELECTOR_ENABLED:-true}
       TenantContext__LegacySelectorSunset: ${TENANT_CONTEXT_LEGACY_SELECTOR_SUNSET:-planned}
+      Persistence__RunMigrationsOnStartup: "true"
       ConnectionStrings__Redis: ${REDIS_URL:-redis:6379}
+      DataProtection__KeysPath: /var/lib/his-hope/manufacturing-data-protection-keys
+      DataProtection__CertificatePath: ${DATAPROTECTION_CERTIFICATE_PATH:-}
+      DataProtection__CertificatePassword: ${DATAPROTECTION_CERTIFICATE_PASSWORD:-}
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
       Jwt__RequireHttpsMetadata: "false"
@@ -1127,6 +1138,7 @@ services:
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
       - ../config/conglomerate:/app/config/conglomerate:ro
+      - manufacturing_dataprotection:/var/lib/his-hope/manufacturing-data-protection-keys
     restart: unless-stopped
     depends_on:
       postgres: { condition: service_healthy }
@@ -1154,12 +1166,17 @@ services:
       TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
       TenantContext__LegacySelectorEnabled: ${TENANT_CONTEXT_LEGACY_SELECTOR_ENABLED:-true}
       TenantContext__LegacySelectorSunset: ${TENANT_CONTEXT_LEGACY_SELECTOR_SUNSET:-planned}
+      Persistence__RunMigrationsOnStartup: "true"
       DataProtection__KeysPath: /var/lib/his-hope/commerce-data-protection-keys
+      DataProtection__CertificatePath: ${DATAPROTECTION_CERTIFICATE_PATH:-}
+      DataProtection__CertificatePassword: ${DATAPROTECTION_CERTIFICATE_PASSWORD:-}
       Outbox__Enabled: "true"
       EventBus__HostName: rabbitmq
       EventBus__Port: "5672"
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Consumers__PaymentAuthorizedCaptureEnabled: ${COMMERCE_PAYMENT_CAPTURE_CONSUMER_ENABLED:-true}
+      Consumers__PaymentCapturedShipmentEnabled: ${COMMERCE_SHIPMENT_CONSUMER_ENABLED:-true}
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
@@ -1205,6 +1222,7 @@ services:
       TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
       TenantContext__LegacySelectorEnabled: ${TENANT_CONTEXT_LEGACY_SELECTOR_ENABLED:-true}
       TenantContext__LegacySelectorSunset: ${TENANT_CONTEXT_LEGACY_SELECTOR_SUNSET:-planned}
+      Persistence__RunMigrationsOnStartup: "true"
       DataProtection__KeysPath: /var/lib/his-hope/content-data-protection-keys
       DataProtection__CertificatePath: ${DATAPROTECTION_CERTIFICATE_PATH:-}
       DataProtection__CertificatePassword: ${DATAPROTECTION_CERTIFICATE_PASSWORD:-}
@@ -1222,6 +1240,11 @@ services:
       Jwt__AdditionalAudiences__2: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Outbox__ContentPublishingEnabled: ${CONTENT_PUBLISHING_OUTBOX_ENABLED:-true}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
       - ../config/conglomerate:/app/config/conglomerate:ro
@@ -1541,7 +1564,8 @@ services:
       - /bin/sh
       - -c
       - |
-        dotnet dev-certs https --export-path /certs/server.pfx --password "${CERT_PASSWORD:-his-hope-dev}" --format Pfx &&
+        : "$${CERT_PASSWORD:?CERT_PASSWORD must be supplied by the runtime secret provider}" &&
+        dotnet dev-certs https --export-path /certs/server.pfx --password "$${CERT_PASSWORD}" --format Pfx &&
         dotnet dev-certs https --trust &&
         echo "Certificates generated"
     restart: "no"
@@ -1567,3 +1591,4 @@ volumes:
   postgres_restore_drill_data:
   commerce_dataprotection:
   content_dataprotection:
+  manufacturing_dataprotection:

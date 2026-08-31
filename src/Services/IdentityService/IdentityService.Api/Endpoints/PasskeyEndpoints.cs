@@ -476,7 +476,7 @@ public static class PasskeyEndpoints
     }
 
     private static string? GetUserId(HttpContext context) =>
-        context.User.FindFirst("sub")?.Value ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
     public sealed record PasskeyUserRequest(string? UserId, string? UserName);
     public sealed record PasskeyAssertionRequest(string UserId, AuthenticatorAssertionRawResponse Response, string? ReturnUrl);

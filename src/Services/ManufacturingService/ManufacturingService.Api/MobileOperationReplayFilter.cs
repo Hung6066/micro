@@ -17,7 +17,9 @@ internal sealed class MobileOperationReplayFilter : IEndpointFilter
             ?? context.HttpContext.Request.Headers["X-HisHope-Operation-Id"].FirstOrDefault()?.Trim();
         if (string.IsNullOrWhiteSpace(operationId)) return await next(context);
         if (operationId.Length > 200)
-            return Results.BadRequest(new { errorCode = "invalid_idempotency_key" });
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                extensions: new Dictionary<string, object?> { ["errorCode"] = "invalid_idempotency_key" });
 
         var tenant = context.HttpContext.ResolveActiveTenant() ?? "unknown";
         var subject = context.HttpContext.User.GetSubject() ?? "unknown";
@@ -28,7 +30,13 @@ internal sealed class MobileOperationReplayFilter : IEndpointFilter
         {
             context.HttpContext.Response.Headers["X-HisHope-Operation-Replay"] = "true";
             context.HttpContext.Response.Headers["Idempotency-Replayed"] = "true";
-            return Results.Conflict(new { errorCode = "operation_replayed", operationId });
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                extensions: new Dictionary<string, object?>
+                {
+                    ["errorCode"] = "operation_replayed",
+                    ["operationId"] = operationId
+                });
         }
 
         try { return await next(context); }

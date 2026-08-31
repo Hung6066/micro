@@ -7,11 +7,11 @@ public sealed partial class PostgresManufacturingStore : IManufacturingCapaStore
     {
         if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.ProblemDescription) || string.IsNullOrWhiteSpace(request.Owner)) return (null, "invalid_capa");
         using var db = dbFactory.CreateDbContext();
-        if (request.SupplierId.HasValue && !db.Suppliers.Any(x => x.Id == request.SupplierId.Value && x.TenantKey == tenantKey && x.Active)) return (null, "supplier_not_found");
-        if (request.DeviationId.HasValue && !db.Deviations.Any(x => x.Id == request.DeviationId.Value && x.TenantKey == tenantKey)) return (null, "deviation_not_found");
+        if (request.SupplierId.HasValue && !db.Suppliers.Any(x => x.Id == request.SupplierId.Value && x.TenantKey == tenantKey && x.Active)) return (null, ManufacturingErrorCodes.SupplierNotFound);
+        if (request.DeviationId.HasValue && !db.Deviations.Any(x => x.Id == request.DeviationId.Value && x.TenantKey == tenantKey)) return (null, ManufacturingErrorCodes.DeviationNotFound);
         var now = DateTimeOffset.UtcNow;
         var entity = new ManufacturingCapaEntity { Id = Guid.NewGuid(), TenantKey = tenantKey, DeviationId = request.DeviationId, SupplierId = request.SupplierId, Title = request.Title.Trim(), ProblemDescription = request.ProblemDescription.Trim(), RootCause = request.RootCause?.Trim() ?? "", CorrectiveAction = request.CorrectiveAction?.Trim() ?? "", PreventiveAction = request.PreventiveAction?.Trim() ?? "", Owner = request.Owner.Trim(), Status = "Open", DueAt = request.DueAt, CreatedAt = now };
-        db.Capas.Add(entity); AddAudit(db, tenantKey, "Capa", entity.Id, "Created", actor, entity.Title, now); db.SaveChanges(); return (ToDto(entity), null);
+        db.Capas.Add(entity); AddAudit(db, tenantKey, "Capa", entity.Id, ManufacturingStatusCodes.Created, actor, entity.Title, now); db.SaveChanges(); return (ToDto(entity), null);
     }
 
     public IReadOnlyList<CapaDto> GetCapas(string tenantKey, string? status, int limit)
@@ -23,16 +23,16 @@ public sealed partial class PostgresManufacturingStore : IManufacturingCapaStore
     {
         if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_capa_actor");
         using var db = dbFactory.CreateDbContext(); var entity = db.Capas.SingleOrDefault(x => x.Id == capaId && x.TenantKey == tenantKey); if (entity is null) return (null, "capa_not_found");
-        var next = request.Status.Trim(); var valid = (entity.Status, next) switch { ("Open", "InProgress") or ("InProgress", "Verified") or ("Verified", "Closed") => true, _ => false }; if (!valid) return (null, "invalid_capa_transition");
-        entity.Status = next; if (next == "Closed") entity.ClosedAt = DateTimeOffset.UtcNow; AddAudit(db, tenantKey, "Capa", entity.Id, next, request.Actor.Trim(), request.Notes?.Trim() ?? "", DateTimeOffset.UtcNow); db.SaveChanges(); return (ToDto(entity), null);
+        var next = request.Status.Trim(); var valid = (entity.Status, next) switch { ("Open", "InProgress") or ("InProgress", "Verified") or ("Verified", ManufacturingStatusCodes.Closed) => true, _ => false }; if (!valid) return (null, "invalid_capa_transition");
+        entity.Status = next; if (next == ManufacturingStatusCodes.Closed) entity.ClosedAt = DateTimeOffset.UtcNow; AddAudit(db, tenantKey, "Capa", entity.Id, next, request.Actor.Trim(), request.Notes?.Trim() ?? "", DateTimeOffset.UtcNow); db.SaveChanges(); return (ToDto(entity), null);
     }
 
     public (SupplierEvaluationDto? Evaluation, string? Error) CreateSupplierEvaluation(string tenantKey, CreateSupplierEvaluationRequest request, string actor)
     {
         if (request.Score is < 1 or > 5 || string.IsNullOrWhiteSpace(actor)) return (null, "invalid_supplier_evaluation");
-        using var db = dbFactory.CreateDbContext(); if (!db.Suppliers.Any(x => x.Id == request.SupplierId && x.TenantKey == tenantKey)) return (null, "supplier_not_found");
+        using var db = dbFactory.CreateDbContext(); if (!db.Suppliers.Any(x => x.Id == request.SupplierId && x.TenantKey == tenantKey)) return (null, ManufacturingErrorCodes.SupplierNotFound);
         var entity = new ManufacturingSupplierEvaluationEntity { Id = Guid.NewGuid(), TenantKey = tenantKey, SupplierId = request.SupplierId, Score = request.Score, QualityNotes = request.QualityNotes?.Trim(), DeliveryNotes = request.DeliveryNotes?.Trim(), Notes = request.Notes?.Trim(), EvaluatedBy = actor.Trim(), EvaluatedAt = DateTimeOffset.UtcNow };
-        db.SupplierEvaluations.Add(entity); AddAudit(db, tenantKey, "SupplierEvaluation", entity.Id, "Created", actor, $"score={entity.Score}", entity.EvaluatedAt); db.SaveChanges(); return (ToDto(entity), null);
+        db.SupplierEvaluations.Add(entity); AddAudit(db, tenantKey, "SupplierEvaluation", entity.Id, ManufacturingStatusCodes.Created, actor, $"score={entity.Score}", entity.EvaluatedAt); db.SaveChanges(); return (ToDto(entity), null);
     }
 
     public IReadOnlyList<SupplierEvaluationDto> GetSupplierEvaluations(string tenantKey, Guid? supplierId, int limit)

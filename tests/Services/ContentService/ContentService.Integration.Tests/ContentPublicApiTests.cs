@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Text.Encodings.Web;
 using His.Hope.Authorization;
 using His.Hope.ContentService.Api;
 using His.Hope.ContentService.Application;
+using His.Hope.ContentService.Domain;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +26,7 @@ public sealed class ContentPublicApiTests : IClassFixture<WebApplicationFactory<
             builder.UseSetting(
                 "ConnectionStrings:ContentDb",
                 Environment.GetEnvironmentVariable("DATABASE_CONTENT_URL")
-                    ?? "Host=localhost;Database=contentdb;Username=postgres;Password=postgres");
+                    ?? "Host=localhost;Port=5433;Database=contentdb;Username=postgres;Password=postgres");
         });
 
     [Fact]
@@ -119,7 +121,7 @@ public sealed class ContentManageApiTests : IClassFixture<WebApplicationFactory<
             builder.UseSetting(
                 "ConnectionStrings:ContentDb",
                 Environment.GetEnvironmentVariable("DATABASE_CONTENT_URL")
-                    ?? "Host=localhost;Database=contentdb;Username=postgres;Password=postgres");
+                    ?? "Host=localhost;Port=5433;Database=contentdb;Username=postgres;Password=postgres");
             builder.ConfigureServices(services =>
             {
                 services.AddAuthentication("Test")
@@ -146,6 +148,31 @@ public sealed class ContentManageApiTests : IClassFixture<WebApplicationFactory<
         var client = CreateClient(["content.manage"]);
         var response = await client.GetAsync("/api/v1/content/articles?tenantKey=customer-factory-x");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Manage_articles_enforces_publication_state_transitions()
+    {
+        var client = CreateClient(["content.manage"]);
+        var slug = $"transition-{Guid.NewGuid():N}";
+        var draft = new UpsertArticleRequest(
+            slug, "Transition", "Excerpt", "<p>Body</p>", "News", "https://example.test/image.jpg",
+            "en-US", ContentArticleStatuses.Draft, null, null, null, null);
+
+        var created = await client.PostAsJsonAsync("/api/v1/content/articles", draft);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var article = await created.Content.ReadFromJsonAsync<ArticleDto>();
+        Assert.NotNull(article);
+
+        var published = draft with { Status = ContentArticleStatuses.Published };
+        var publishResponse = await client.PutAsJsonAsync($"/api/v1/content/articles/{article!.Id}", published);
+        Assert.Equal(HttpStatusCode.OK, publishResponse.StatusCode);
+
+        var revertResponse = await client.PutAsJsonAsync(
+            $"/api/v1/content/articles/{article.Id}", draft);
+        Assert.Equal(HttpStatusCode.Conflict, revertResponse.StatusCode);
+        var problem = await revertResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("invalid_status_transition", problem.GetProperty("errorCode").GetString());
     }
 
     private HttpClient CreateClient(IEnumerable<string> permissions)

@@ -1,67 +1,69 @@
-using System.Security.Cryptography.X509Certificates;
 using His.Hope.Authorization;
-using His.Hope.AspNetCore.Tenancy;
 using His.Hope.CommerceService.Application;
 using His.Hope.CommerceService.Application.Orders;
 using His.Hope.CommerceService.Api;
-using His.Hope.CommerceService.Api.Middleware;
 using His.Hope.CommerceService.Infrastructure.Persistence;
-using His.Hope.Infrastructure.Caching;
-using His.Hope.Infrastructure.Security;
+using His.Hope.Configuration;
 using His.Hope.ServiceDefaults;
+using His.Hope.Secrets;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Options;
 using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
-using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "CommerceService");
-builder.Services.AddCommerceApplication();
-builder.Services.AddCommerceInfrastructure(builder.Configuration);
-builder.Services.AddHealthChecks().AddCheck(
-    "commerce-process",
-    () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(),
-    tags: ["live", "ready"]);
-builder.Services.AddSingleton<CommerceStore>();
-var redis = RedisConnectionFactory.Connect(
-    builder.Configuration.GetConnectionString("Redis")
-        ?? builder.Configuration["Redis:ConnectionString"]
-        ?? "localhost:6379",
-    builder.Configuration);
-builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
-// Persist the service's ASP.NET Core key ring so rolling restarts do not
-// invalidate antiforgery/session-protected payloads. The directory is backed
-// by a dedicated deployment volume (or an encrypted host mount in production).
-var dataProtection = builder.Services.AddDataProtection()
-    .SetApplicationName("His.Hope.CommerceService")
-    .PersistKeysToFileSystem(new DirectoryInfo(
-        builder.Configuration["DataProtection:KeysPath"]
-            ?? "/var/lib/his-hope/commerce-data-protection-keys"));
-var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
-if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath) && File.Exists(dataProtectionCertificatePath))
-{
-    dataProtection.ProtectKeysWithCertificate(new X509Certificate2(
-        dataProtectionCertificatePath,
-        builder.Configuration["DataProtection:CertificatePassword"]));
-}
-builder.Services.AddHisHopeDpopValidation();
-His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
-builder.Services.AddHisHopeAuthorization();
-builder.Services.AddAuthorizationBuilder().AddCommerceAuthorizationPolicies();
+builder.Services.AddCommerceServiceHost(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
-app.UseHisHopeServiceDefaults();
-app.UseDpopAuthorizationSchemeNormalization();
-app.UseAuthentication();
-app.UseDpopAccessTokenValidation();
-app.UseAuthorization();
-app.UseCommerceSecurity();
-app.UseHisHopeTenantScope();
+app.UseCommerceServiceHost();
+
+app.MapPost("/api/v1/commerce/webhooks/shipment-delivery", async (
+    HttpRequest request,
+    CommerceShipmentWorkflow workflow,
+    IOptions<ShipmentProviderOptions> options,
+    IVaultSecretProvider secrets,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(options.Value.WebhookSecretPath))
+        return Results.Problem("Shipment webhook is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    var signature = request.Headers["X-Webhook-Signature"].FirstOrDefault();
+    var body = await new StreamReader(request.Body).ReadToEndAsync(ct);
+    var secret = await secrets.GetAsync(options.Value.WebhookSecretPath, options.Value.WebhookSecretKey, ct);
+    if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(signature))
+        return Results.Unauthorized();
+    using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+    var expected = Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(body))).ToLowerInvariant();
+    if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(expected), Encoding.UTF8.GetBytes(signature.Trim().ToLowerInvariant())))
+        return Results.Unauthorized();
+    var payload = JsonSerializer.Deserialize<ShipmentDeliveryWebhook>(body, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    if (payload is null || string.IsNullOrWhiteSpace(payload.TenantKey) || string.IsNullOrWhiteSpace(payload.ProviderShipmentId))
+        return Results.BadRequest();
+    var delivered = await workflow.MarkDeliveredAsync(payload.TenantKey, payload.ProviderShipmentId, ct);
+    return delivered ? Results.NoContent() : Results.NotFound();
+}).AllowAnonymous();
 
 app.ValidateHisHopeTenantPlacement();
 
-await app.Services.MigrateCommerceDatabaseAsync();
+var runCommerceMigrations = builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+    builder.Configuration.GetValue("Persistence:MigrationOnly", false);
+if (runCommerceMigrations)
+{
+    await app.Services.MigrateCommerceDatabaseAsync();
+}
+else if (!app.Environment.IsDevelopment() &&
+         !string.Equals(app.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "CommerceService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
+}
+
+if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
+{
+    return;
+}
 
 // Seed only on first startup, then hydrate the process catalog from PostgreSQL.
 // Orders and catalog reads therefore remain stable across API restarts/replicas.
@@ -182,7 +184,9 @@ commerce.MapGet("/products/{productId:guid}", async (
 
     var catalog = await LoadCatalogAsync(catalogPersistence, tenantKey, context.RequestAborted);
     var product = store.GetProductForBuyer(tenantKey, priceTier, productId, catalog);
-    return product is null ? Results.NotFound() : Results.Ok(product);
+    return product is null
+        ? CommerceProblem(StatusCodes.Status404NotFound, "not_found")
+        : Results.Ok(product);
 })
 .RequireAuthorization(
     CommerceAuthorizationPolicies.BuyerRead,
@@ -264,7 +268,7 @@ commerce.MapPost("/orders", async (
     if (order is null)
         return (IResult)CommerceProblem(StatusCodes.Status400BadRequest, "cart_empty");
 
-    var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault();
+    var correlationId = context.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault();
     var @event = CommerceOrderEventFactory.Create(order, correlationId);
     var snapshot = new CommerceOrderSnapshot(
         order.Id,
@@ -348,6 +352,17 @@ orders.MapPatch("/{orderId:guid}/status", async (
     var tenantKey = CommerceHttpExtensions.ResolveCommerceTenant(context, isMutation: true);
     if (string.IsNullOrWhiteSpace(tenantKey))
         return Results.Forbid();
+
+    var existingOrder = await orderPersistence.GetOrderAsync(
+        orderId,
+        tenantKey,
+        context.RequestAborted);
+    if (existingOrder is null)
+        return CommerceProblem(StatusCodes.Status404NotFound, "not_found");
+
+    var normalizedStatus = CommerceOrderStatusPolicy.Normalize(request.Status);
+    if (!CommerceOrderStatusPolicy.CanTransition(existingOrder.Status, normalizedStatus))
+        return CommerceProblem(StatusCodes.Status409Conflict, "invalid_status_transition");
 
     var order = await orderPersistence.UpdateOrderStatusAsync(
         orderId,
@@ -534,4 +549,5 @@ rfqs.MapPatch("/{rfqId:guid}/respond", async (
     CommerceAuthorizationPolicies.OperatorFulfill,
     AuthorizationPolicyNames.Permissions.CommerceRfqRespond);
 
+app.MapHisHopeHealthEndpoints();
 app.Run();

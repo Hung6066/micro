@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Users.Commands;
 
@@ -31,11 +32,11 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
     {
         var user = await _userManager.Users
             .FirstOrDefaultAsync(u => u.Id == request.Id, cancellationToken)
-            ?? throw new KeyNotFoundException("User not found.");
+            ?? Guard.Against.NotFound<User>(null, "User", request.Id);
 
         if (!string.IsNullOrWhiteSpace(request.ConcurrencyToken) &&
             !string.Equals(request.ConcurrencyToken, user.ConcurrencyStamp, StringComparison.Ordinal))
-            throw new InvalidOperationException("CONCURRENCY_CONFLICT: The user was changed by another request.");
+                Guard.Against.Conflict(true, "CONCURRENCY_CONFLICT: The user was changed by another request.");
 
         // Update properties if provided
         if (request.FirstName is not null)
@@ -48,7 +49,7 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
         {
             var emailOwner = await _userManager.FindByEmailAsync(request.Email);
             if (emailOwner is not null && emailOwner.Id != user.Id)
-                throw new InvalidOperationException("Email already in use by another user.");
+                Guard.Against.Conflict(true, "Email already in use by another user.");
             user.Email = request.Email;
             user.UserName = request.Email; // Keep username in sync with email
             user.NormalizedEmail = _userManager.NormalizeEmail(request.Email);

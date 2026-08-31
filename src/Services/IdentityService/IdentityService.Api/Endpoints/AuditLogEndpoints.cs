@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Query;
@@ -73,7 +74,7 @@ public static class AuditLogEndpoints
             if (denied is not null) return denied;
 
             var authenticatedUserId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? httpContext.User.FindFirst("sub")?.Value
+                ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
                 ?? string.Empty;
             var userName = httpContext.User.Identity?.Name
                 ?? httpContext.User.FindFirst(ClaimTypes.Name)?.Value;
@@ -195,7 +196,7 @@ public static class AuditLogEndpoints
 
             db.AuditLogs.Add(new AuditLog
             {
-                UserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? string.Empty,
+                UserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? string.Empty,
                 UserName = http.User.Identity?.Name,
                 Action = "export",
                 ResourceType = "AuditLog",
@@ -229,10 +230,14 @@ public static class AuditLogEndpoints
                     .Where(item => item.Id == id)
                     .WhereTenantActor(db, tenantFilter.AllowedTenantKeys)
                     .AnyAsync(ct))
-                return Results.NotFound();
+                Guard.Against.NotFound(await db.AuditLogs.AsNoTracking()
+                    .Where(item => item.Id == id)
+                    .WhereTenantActor(db, tenantFilter.AllowedTenantKeys)
+                    .AnyAsync(ct) ? new object() : null, "AuditLog", id);
 
             var log = await mediator.Send(new GetAuditLogByIdQuery(id), ct);
-            return log is null ? Results.NotFound() : Results.Ok(log);
+            Guard.Against.NotFound(log, "AuditLog", id);
+            return Results.Ok(log);
         })
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
             .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);

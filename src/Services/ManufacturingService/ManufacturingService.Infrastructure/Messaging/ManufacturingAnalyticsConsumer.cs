@@ -1,9 +1,13 @@
 using System.Text;
 using System.Text.Json;
+using His.Hope.Contracts.Commerce;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Infrastructure.Messaging;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 
 public sealed class ManufacturingAnalyticsConsumer(
     IServiceScopeFactory scopeFactory,
@@ -23,16 +27,49 @@ public sealed class ManufacturingAnalyticsConsumer(
             HostName = configuration["EventBus:HostName"] ?? "rabbitmq",
             Port = configuration.GetValue("EventBus:Port", 5672),
             UserName = configuration["EventBus:UserName"] ?? "admin",
-            Password = configuration["EventBus:Password"] ?? "admin",
+            Password = EventBusSecurity.GetPassword(configuration),
             DispatchConsumersAsync = false
         };
 
         using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
-        const string exchange = "his-hope.manufacturing";
+        const string exchange = CommerceMessagingContract.ManufacturingExchange;
+        const string deadLetterExchange = HisHopeProtocolConstants.Messaging.DeadLetterExchange;
         const string queue = "manufacturing.analytics.v1";
+        const string deadLetterRoutingKey = "dlq.manufacturing.analytics";
+        using var probeChannel = connection.CreateModel();
+        var queueExists = true;
+        try
+        {
+            probeChannel.QueueDeclarePassive(queue);
+        }
+        catch (OperationInterruptedException)
+        {
+            queueExists = false;
+        }
+
+        using var channel = connection.CreateModel();
+        channel.ExchangeDeclare(deadLetterExchange, ExchangeType.Topic, durable: true, autoDelete: false);
         channel.ExchangeDeclare(exchange, ExchangeType.Topic, durable: true, autoDelete: false);
-        channel.QueueDeclare(queue, durable: true, exclusive: false, autoDelete: false);
+        if (queueExists)
+        {
+            // Preserve an existing queue during rolling deployment; its DLX is
+            // migrated by broker policy without deleting messages.
+            channel.QueueDeclare(queue, durable: true, exclusive: false, autoDelete: false);
+            logger.LogInformation("Existing queue {Queue} preserved during rolling deployment; broker DLX policy must remain configured", queue);
+        }
+        else
+        {
+            channel.QueueDeclare(
+                queue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object>
+                {
+                    ["x-dead-letter-exchange"] = deadLetterExchange,
+                    ["x-dead-letter-routing-key"] = deadLetterRoutingKey,
+                });
+        }
         channel.QueueBind(queue, exchange, "Manufacturing.#");
         channel.BasicQos(0, 10, false);
 
@@ -87,7 +124,8 @@ public sealed class ManufacturingAnalyticsConsumer(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to consume manufacturing event");
-                channel.BasicNack(args.DeliveryTag, multiple: false, requeue: true);
+                // The queue is DLX-backed; never requeue indefinitely and create a hot loop.
+                channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }
         };
 

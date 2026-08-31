@@ -10,7 +10,7 @@ public partial class StandardizeDataLifecycle : Migration
     private const string LifecycleSql = """
         DO $$ DECLARE item record; BEGIN
           FOR item IN SELECT table_schema, table_name FROM information_schema.tables
-            WHERE table_schema = current_schema() AND table_type = 'BASE TABLE' AND table_name <> '__EFMigrationsHistory' LOOP
+            WHERE table_schema NOT IN ('pg_catalog', 'information_schema') AND table_type = 'BASE TABLE' AND table_name <> '__EFMigrationsHistory' LOOP
             EXECUTE format('ALTER TABLE %I.%I ADD COLUMN IF NOT EXISTS created_at timestamptz', item.table_schema, item.table_name);
             EXECUTE format('ALTER TABLE %I.%I ADD COLUMN IF NOT EXISTS created_by varchar(256)', item.table_schema, item.table_name);
             EXECUTE format('ALTER TABLE %I.%I ADD COLUMN IF NOT EXISTS updated_at timestamptz', item.table_schema, item.table_name);

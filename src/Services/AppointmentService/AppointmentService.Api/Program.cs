@@ -1,4 +1,5 @@
 using His.Hope.AspNetCore;
+using His.Hope.Configuration;
 using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
@@ -18,6 +19,7 @@ using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.Contracts;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.HealthChecks;
@@ -38,7 +40,6 @@ using Serilog;
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "AppointmentService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -65,10 +66,8 @@ builder.Services.AddGrpc(options =>
     options.Interceptors.Add<GrpcServerInterceptor>();
 });
 
-builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
-{
-    o.Address = new Uri("http://localhost:5013");
-})
+var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "appointment-service");
+builder.Services.AddHisHopeGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(runtimeEndpoints, "patient-grpc")
 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
     EnableMultipleHttp2Connections = true,
@@ -81,15 +80,7 @@ builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
     return new HisHopeResilienceHandler(pipelines.CreateHttp("patient-grpc-client"));
 });
 
-builder.Services.AddRabbitMQEventBus(options =>
-{
-    options.HostName = builder.Configuration.GetValue("EventBus:HostName", "localhost")!;
-    options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
-    options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
-    options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
-    options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
-});
+builder.Services.AddHisHopeLegacyRabbitMqEventBus(builder.Configuration);
 
 builder.Services.AddOutbox<AppointmentDbContext>();
 
@@ -99,7 +90,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
         builder.Configuration.GetValue("EventBus:UserName", "admin")!,
-        builder.Configuration.GetValue("EventBus:Password", "admin")!,
+        His.Hope.Infrastructure.Messaging.EventBusSecurity.GetPassword(builder.Configuration),
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
@@ -137,18 +128,16 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    // Local development convenience only. Production schema is migration-owned.
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
-    db.Database.EnsureCreated();
-}
-else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
          builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+      await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+else if (!app.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "AppointmentService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
@@ -350,7 +339,6 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
                 name = e.Key,
                 status = e.Value.Status.ToString(),
                 description = e.Value.Description,
-                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
         });

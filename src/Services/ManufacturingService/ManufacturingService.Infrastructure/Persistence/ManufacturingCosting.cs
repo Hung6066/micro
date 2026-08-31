@@ -8,8 +8,8 @@ public sealed partial class PostgresManufacturingStore
     if (request.LaborCost < 0 || request.OverheadCost < 0 || string.IsNullOrWhiteSpace(request.Currency) || request.Currency.Trim().Length != 3) return (null, "invalid_batch_cost");
         using var db = dbFactory.CreateDbContext();
         var batch = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId);
-        if (batch is null) return (null, "production_batch_not_found");
-        if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (batch is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
+        if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantScopeDenied);
         var inputs = db.ProductionBatchInputs.AsNoTracking().Where(x => x.ProductionBatchId == batchId).Join(db.Lots.AsNoTracking(), x => x.LotId, x => x.Id, (input, lot) => new { input.Quantity, lot.Sku }).ToList();
         var skus = inputs.Select(x => x.Sku).Distinct().ToArray();
     var prices = db.PurchaseOrderLines.AsNoTracking()

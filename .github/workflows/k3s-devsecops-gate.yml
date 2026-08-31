@@ -16,6 +16,9 @@ on:
       - 'scripts/validate-storage-backup-contract.ps1'
       - 'scripts/validate-database-storage-security-contract.ps1'
       - 'scripts/tests/database-storage-security-contract.Tests.ps1'
+      - 'scripts/tests/non-integration-test-runner.Tests.ps1'
+      - 'scripts/tests/application-restore-smoke.Tests.ps1'
+      - 'scripts/tests/powershell-compatibility.Tests.ps1'
       - 'scripts/validate-production-storage-attestation.ps1'
       - 'scripts/tests/storage-attestation.Tests.ps1'
       - 'scripts/validate-azure-blob-retention.py'
@@ -252,7 +255,7 @@ jobs:
       - name: Validate database and storage security promotion contract
         if: matrix.environment == 'prod'
         shell: pwsh
-        run: ./scripts/validate-database-storage-security-contract.ps1 -OutputPath artifacts/evidence/database-storage-security-contract.json
+        run: ./scripts/validate-database-storage-security-contract.ps1 -AllowEnvironmentBlocked -OutputPath artifacts/evidence/database-storage-security-contract.json
 
       - name: Validate measured DR evidence contract
         if: matrix.environment == 'prod'

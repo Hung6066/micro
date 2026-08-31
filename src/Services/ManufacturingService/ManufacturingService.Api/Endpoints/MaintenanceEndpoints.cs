@@ -28,7 +28,7 @@ internal static class MaintenanceEndpoints
                 api.MapPost("/machines", (CreateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Status))
-                        return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_machine");
+                        return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidMachine);
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
                     try { return Results.Created("/api/v1/manufacturing/machines", store.CreateMachine(request)); }
                     catch (InvalidOperationException ex) when (ex.Message == "machine_code_exists")
@@ -49,11 +49,11 @@ internal static class MaintenanceEndpoints
                     var result = store.CreateMachineCalibration(machineId, request, tenantKey);
                     return result.Error switch
                     {
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "invalid_machine_calibration" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
-                        "machine_calibration_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
+                        ManufacturingErrorCodes.MachineCalibrationExists => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ when result.Calibration is not null => Results.Created($"/api/v1/manufacturing/machines/{machineId}/calibrations/{result.Calibration.Id}", result.Calibration),
-                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
+                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.MachineNotFound)
                     };
                 });
 
@@ -64,9 +64,9 @@ internal static class MaintenanceEndpoints
                     var result = store.RecordMaintenance(machineId, request, tenantKey);
                     return result.Error switch
                     {
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         _ when result.Machine is not null => Results.Ok(result.Machine),
-                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
+                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.MachineNotFound)
                     };
                 });
 
@@ -84,11 +84,11 @@ internal static class MaintenanceEndpoints
                     var result = store.RecordMachineTelemetry(machineId, request, tenantKey);
                     return result.Error switch
                     {
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "invalid_machine_telemetry" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         _ when result.Telemetry is not null && result.Duplicate => Results.Ok(result.Telemetry),
                         _ when result.Telemetry is not null => Results.Created($"/api/v1/manufacturing/machines/{machineId}/telemetry/{result.Telemetry.EventId}", result.Telemetry),
-                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
+                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.MachineNotFound)
                     };
                 });
 
@@ -113,9 +113,9 @@ internal static class MaintenanceEndpoints
                     var result = store.CreateMaintenancePlan(machineId, request, tenantKey);
                     return result.Error switch
                     {
-                        "machine_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_scope_denied" => Results.Forbid(),
-                        "invalid_maintenance_plan" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.MachineNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
+                        ManufacturingErrorCodes.InvalidMaintenancePlan => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         "maintenance_plan_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ => Results.Created($"/api/v1/manufacturing/machines/{machineId}/maintenance-plans/{result.Plan!.Id}", result.Plan)
                     };
@@ -137,11 +137,11 @@ internal static class MaintenanceEndpoints
                     var result = store.CreateMaintenanceWorkOrder(machineId, request, tenantKey);
                     return result.Error switch
                     {
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "invalid_maintenance_work_order" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         "maintenance_work_order_open" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ when result.WorkOrder is not null => Results.Created($"/api/v1/manufacturing/maintenance-work-orders/{result.WorkOrder.Id}", result.WorkOrder),
-                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
+                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.MachineNotFound)
                     };
                 });
 
@@ -152,11 +152,11 @@ internal static class MaintenanceEndpoints
                     var result = store.CompleteMaintenanceWorkOrder(machineId, workOrderId, request, tenantKey);
                     return result.Error switch
                     {
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "invalid_maintenance_completion" or "maintenance_work_order_not_open" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                         "maintenance_work_order_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
                         _ when result.WorkOrder is not null => Results.Ok(result.WorkOrder),
-                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
+                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.MachineNotFound)
                     };
                 });
 
@@ -174,11 +174,11 @@ internal static class MaintenanceEndpoints
                     var result = store.CreateDowntime(machineId, request, tenantKey);
                     return result.Error switch
                     {
-                        "tenant_scope_denied" => Results.Forbid(),
-                        "invalid_downtime" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
+                        ManufacturingErrorCodes.InvalidDowntime => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         "machine_downtime_open" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ when result.Downtime is not null => Results.Created($"/api/v1/manufacturing/machines/{machineId}/downtimes/{result.Downtime.Id}", result.Downtime),
-                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
+                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.MachineNotFound)
                     };
                 });
 
@@ -189,18 +189,18 @@ internal static class MaintenanceEndpoints
                     var result = store.ResolveDowntime(machineId, downtimeId, request, tenantKey);
                     return result.Error switch
                     {
-                        "tenant_scope_denied" => Results.Forbid(),
-                        "invalid_downtime_end" or "downtime_not_open" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
-                        "downtime_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
+                        "invalid_downtime_end" or ManufacturingErrorCodes.DowntimeNotOpen => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
+                        ManufacturingErrorCodes.DowntimeNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
                         _ when result.Downtime is not null => Results.Ok(result.Downtime),
-                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
+                        _ => ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.MachineNotFound)
                     };
                 });
 
                 api.MapPatch("/machines/{machineId:guid}", (Guid machineId, UpdateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateMachine(machineId, request, tenantKey);
-                    return result.Error switch { "machine_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "machine_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Machine) };
+                    return result.Error switch { ManufacturingErrorCodes.MachineNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "machine_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Machine) };
                 });
 
         return api;

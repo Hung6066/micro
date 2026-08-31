@@ -4,7 +4,6 @@ using System.Text.Json;
 using His.Hope.Infrastructure;
 using His.Hope.Contracts.Identity;
 using His.Hope.Infrastructure.Audit;
-using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Observability;
 using His.Hope.IdentityService.Application.Interfaces;
@@ -166,13 +165,11 @@ internal class DbHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.IHe
 // Health check for Redis connectivity
 internal class RedisHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
 {
-    private readonly string _connectionString;
-    private readonly IConfiguration _configuration;
+    private readonly IConnectionMultiplexer _redis;
 
-    public RedisHealthCheck(string connectionString, IConfiguration configuration)
+    public RedisHealthCheck(IConnectionMultiplexer redis)
     {
-        _connectionString = connectionString;
-        _configuration = configuration;
+        _redis = redis;
     }
 
     public async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
@@ -181,11 +178,10 @@ internal class RedisHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.
     {
         try
         {
-            var options = RedisConnectionFactory.CreateOptions(_connectionString, _configuration);
-            options.ConnectTimeout = 3000;
-            using var redis = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(options);
-            var db = redis.GetDatabase();
+            ct.ThrowIfCancellationRequested();
+            var db = _redis.GetDatabase();
             await db.PingAsync();
+            ct.ThrowIfCancellationRequested();
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Redis OK");
         }
         catch (Exception ex)

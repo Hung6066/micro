@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using His.Hope.Bff.Core.Authentication;
 using StackExchange.Redis;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.IdentityService.Api.Security;
 
@@ -12,7 +13,7 @@ internal static class BffSessionGuard
         SessionTokenProtector tokenProtector,
         bool requireAuthenticatedPrincipal = true)
     {
-        var sessionId = httpContext.Request.Cookies["hishop_sid"];
+        var sessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
         if (string.IsNullOrWhiteSpace(sessionId))
             return requireAuthenticatedPrincipal
                 ? Results.Unauthorized()
@@ -58,7 +59,7 @@ internal static class BffSessionGuard
         if (requireAuthenticatedPrincipal)
         {
             var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? httpContext.User.FindFirstValue("sub");
+                ?? httpContext.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
             if (string.IsNullOrWhiteSpace(userId) ||
                 !string.Equals(userId, session.UserId, StringComparison.OrdinalIgnoreCase))
                 return Results.Forbid();

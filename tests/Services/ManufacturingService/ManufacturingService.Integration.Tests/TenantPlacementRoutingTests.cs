@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Testcontainers.PostgreSql;
 using Xunit;
 
+[Collection("ManufacturingIntegration")]
 public sealed class TenantPlacementRoutingTests : IAsyncLifetime
 {
     private PostgreSqlContainer? _container;

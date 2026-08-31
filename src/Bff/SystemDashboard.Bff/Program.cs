@@ -12,7 +12,9 @@ using His.Hope.Bff.Core.Authentication;
 using His.Hope.Observability;
 using His.Hope.Observability.OpenTelemetry;
 using His.Hope.Resilience;
+using His.Hope.ServiceDefaults;
 using His.Hope.Configuration;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using SystemDashboard.Bff.Aggregators;
@@ -42,7 +44,7 @@ builder.Services.AddDataProtection()
     .SetApplicationName("His.Hope.IdentityService")
     .PersistKeysToStackExchangeRedis(
         redis,
-        builder.Configuration["DataProtection:KeyName"]
+        builder.Configuration[HisHopeConfigurationKeys.DataProtectionKeyName]
             ?? "HisHope:IdentityService:DataProtection:Keys");
 builder.Services.AddSingleton<SessionTokenProtector>();
 
@@ -82,8 +84,11 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
             .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .WithHeaders("Accept", "Authorization", "Content-Type", "If-Match", "If-None-Match",
-                "X-Correlation-ID", "X-CSRF-Token", "X-Requested-With")
-            .WithExposedHeaders("ETag", "X-Correlation-ID")
+                HisHopeProtocolConstants.Headers.CorrelationId,
+                HisHopeProtocolConstants.Headers.CsrfToken,
+                HisHopeProtocolConstants.Headers.RequestedWith)
+            .WithExposedHeaders(HisHopeProtocolConstants.Headers.EntityTag,
+                HisHopeProtocolConstants.Headers.CorrelationId)
             .AllowCredentials();
     });
 });
@@ -111,27 +116,23 @@ builder.Services.AddHostedService<AuditEventWriter>();
 builder.Services.AddMemoryCache();
 
 // Consul service discovery with retry + circuit breaker
-builder.Services.AddHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>(client =>
+builder.Services.AddHisHopeExternalHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>("consul-discovery", client =>
 {
     var consulAddress = builder.Configuration["Consul:Address"] ?? "http://localhost:8500";
     client.BaseAddress = new Uri(consulAddress);
     client.Timeout = TimeSpan.FromSeconds(10);
-})
-.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
-    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("consul-discovery")));
+});
 
 // Loki log querying with retry + circuit breaker
-builder.Services.AddHttpClient<ILogQueryService, LokiQueryService>((sp, client) =>
+builder.Services.AddHisHopeExternalHttpClient<ILogQueryService, LokiQueryService>("loki", (sp, client) =>
 {
     var options = sp.GetRequiredService<IOptions<LokiOptions>>();
     client.BaseAddress = new Uri(options.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
-})
-.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
-    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("loki")));
+});
 
 // Prometheus metrics querying with retry + circuit breaker
-builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>((sp, client) =>
+builder.Services.AddHisHopeExternalHttpClient<IPrometheusQueryService, PrometheusQueryService>("prometheus", (sp, client) =>
 {
     var endpoints = sp.GetRequiredService<ServiceEndpointOptions>();
     if (endpoints.TryGet("prometheus", out var prometheusUri))
@@ -139,13 +140,11 @@ builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>(
         client.BaseAddress = prometheusUri;
     }
     client.Timeout = TimeSpan.FromSeconds(15);
-})
-.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
-    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("prometheus")));
+});
 
 // Kubernetes Metrics API is the source of truth for pod CPU/memory in K3s.
 // Prometheus remains the fallback used by Compose/VM deployments.
-builder.Services.AddHttpClient<IKubernetesPodMetricsService, KubernetesPodMetricsService>(client =>
+builder.Services.AddHisHopeExternalHttpClient<IKubernetesPodMetricsService, KubernetesPodMetricsService>("kubernetes.metrics", client =>
 {
     // Use the cluster-local FQDN. Some CoreDNS configurations do not resolve
     // the shortened `kubernetes.default.svc` name from every pod search path.
@@ -155,32 +154,35 @@ builder.Services.AddHttpClient<IKubernetesPodMetricsService, KubernetesPodMetric
 .ConfigurePrimaryHttpMessageHandler(KubernetesApiHttpHandler.Create);
 
 // Jaeger trace querying with retry + circuit breaker
-builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, client) =>
+builder.Services.AddHisHopeExternalHttpClient<IJaegerQueryService, JaegerQueryService>("jaeger", (sp, client) =>
 {
     var jaegerOptions = sp.GetRequiredService<IOptions<JaegerOptions>>();
     client.BaseAddress = new Uri(jaegerOptions.Value.QueryUrl);
     client.Timeout = TimeSpan.FromSeconds(15);
-})
-.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
-    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("jaeger")));
+});
 
 // AlertManager alert querying with retry + circuit breaker
-builder.Services.AddHttpClient<IAlertManagerService, AlertManagerService>((sp, client) =>
+builder.Services.AddHisHopeExternalHttpClient<IAlertManagerService, AlertManagerService>("alertmanager", (sp, client) =>
 {
     var amOptions = sp.GetRequiredService<IOptions<AlertManagerOptions>>();
     client.BaseAddress = new Uri(amOptions.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
-})
-.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
-    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("alertmanager")));
+});
 
 // Logs aggregator
 builder.Services.AddSingleton<ILogsAggregator, LogsAggregator>();
 
 // Named HttpClient for direct health checks (fallback when Consul has no data)
-builder.Services.AddHttpClient("health-check", client =>
+builder.Services.AddHisHopeExternalHttpClient("health-check", "health-check", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(3);
+});
+
+builder.Services.AddHisHopeExternalHttpClient("elasticsearch-audit", "elasticsearch-audit", (sp, client) =>
+{
+    var options = sp.GetRequiredService<IOptions<ElasticsearchOptions>>();
+    client.BaseAddress = new Uri(options.Value.Url);
+    client.Timeout = TimeSpan.FromSeconds(10);
 });
 
 // Resource aggregator
@@ -233,7 +235,7 @@ app.UseHisHopeAspNetCore();
 // authorization works consistently across ports.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+    if (context.Request.Cookies.TryGetValue(HisHopeProtocolConstants.Cookies.BrowserSession, out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
@@ -273,7 +275,9 @@ app.UseAuthorization();
 app.UseRateLimiting();
 app.UseMiddleware<DashboardAuditMiddleware>();
 
-app.MapHealthChecks("/health");
+// Liveness/readiness probes must remain reachable without a user session;
+// protected dashboard data is exposed only through controller routes.
+app.MapHisHopeHealthEndpoints();
 app.MapControllers();
 app.MapHub<LogStreamHub>("/ws/logshub").RequireAuthorization("Permission:dashboard.view");
 app.MapHub<AlertHub>("/ws/alerthub").RequireAuthorization("Permission:dashboard.view");

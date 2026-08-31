@@ -1,4 +1,5 @@
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
 
@@ -7,7 +8,7 @@ public sealed class ManufacturingOutboxDispatcher(
     IConfiguration configuration,
     ILogger<ManufacturingOutboxDispatcher> logger) : BackgroundService
 {
-    private const string Exchange = "his-hope.manufacturing";
+    private const string Exchange = His.Hope.Contracts.Commerce.CommerceMessagingContract.ManufacturingExchange;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -54,7 +55,7 @@ public sealed class ManufacturingOutboxDispatcher(
     {
         await using var db = await dbFactory.CreateDbContextForConnectionAsync(connectionName, cancellationToken);
         var message = await db.OutboxMessages
-            .Where(x => x.Status == "Pending")
+            .Where(x => x.Status == ManufacturingStatusCodes.Pending)
             .OrderBy(x => x.OccurredOn)
             .FirstOrDefaultAsync(cancellationToken);
         if (message is null) return false;
@@ -70,7 +71,7 @@ public sealed class ManufacturingOutboxDispatcher(
                 HostName = configuration.GetValue("EventBus:HostName", "rabbitmq"),
                 Port = configuration.GetValue("EventBus:Port", 5672),
                 UserName = configuration.GetValue("EventBus:UserName", "admin"),
-                Password = configuration.GetValue("EventBus:Password", "admin"),
+                Password = EventBusSecurity.GetPassword(configuration),
                 DispatchConsumersAsync = true
             };
             using var connection = factoryOptions.CreateConnection();
@@ -82,7 +83,7 @@ public sealed class ManufacturingOutboxDispatcher(
             properties.Type = message.Type;
             channel.BasicPublish(Exchange, message.Type, properties, System.Text.Encoding.UTF8.GetBytes(message.Content));
 
-            message.Status = "Completed";
+            message.Status = ManufacturingStatusCodes.Completed;
             message.ProcessedOn = DateTime.UtcNow;
             message.Error = null;
             await db.SaveChangesAsync(cancellationToken);
@@ -94,7 +95,7 @@ public sealed class ManufacturingOutboxDispatcher(
         }
         catch (Exception ex)
         {
-            message.Status = "Pending";
+            message.Status = ManufacturingStatusCodes.Pending;
             message.Error = ex.Message[..Math.Min(ex.Message.Length, 1000)];
             await db.SaveChangesAsync(cancellationToken);
             logger.LogWarning(

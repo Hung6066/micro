@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using His.Hope.SharedKernel.Domain.Exceptions;
 using His.Hope.Contracts;
 
 namespace His.Hope.AspNetCore.ProblemDetails;
@@ -17,7 +18,10 @@ internal sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<
         {
             var status = exception switch
             {
+                NotFoundException => StatusCodes.Status404NotFound,
                 KeyNotFoundException => StatusCodes.Status404NotFound,
+                ConflictException => StatusCodes.Status409Conflict,
+                DomainException => StatusCodes.Status422UnprocessableEntity,
                 UnauthorizedAccessException => StatusCodes.Status403Forbidden,
                 ArgumentException => StatusCodes.Status400BadRequest,
                 _ => StatusCodes.Status500InternalServerError

@@ -12,7 +12,7 @@ public partial class StandardizeDataLifecycle : Migration
           FOR item IN
             SELECT table_schema, table_name, column_name
             FROM information_schema.columns
-            WHERE table_schema = current_schema()
+            WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
               AND column_name ~ '[A-Z]'
               AND table_name <> '__EFMigrationsHistory'
           LOOP

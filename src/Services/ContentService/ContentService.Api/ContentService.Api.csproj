@@ -6,6 +6,7 @@
     <RootNamespace>His.Hope.ContentService.Api</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\ContentService.Domain\ContentService.Domain.csproj" />
     <ProjectReference Include="..\ContentService.Application\ContentService.Application.csproj" />
     <ProjectReference Include="..\ContentService.Infrastructure\ContentService.Infrastructure.csproj" />

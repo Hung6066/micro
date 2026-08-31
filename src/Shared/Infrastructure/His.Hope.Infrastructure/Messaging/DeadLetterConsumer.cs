@@ -1,5 +1,6 @@
 using System.Data;
 using System.Diagnostics.Metrics;
+using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,12 +11,14 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 
+using His.Hope.SharedKernel.Protocol;
+
 namespace His.Hope.Infrastructure.Messaging;
 
-public class DeadLetterConsumer<TDbContext> : BackgroundService
+public partial class DeadLetterConsumer<TDbContext> : BackgroundService
     where TDbContext : DbContext
 {
-    private const string DlxExchangeName = "his-hope.dlx";
+    private const string DlxExchangeName = HisHopeProtocolConstants.Messaging.DeadLetterExchange;
     private const string DlqQueueName = "his-hope.dlq";
     private const string AutoReprocessCountHeader = "x-auto-reprocess-count";
 
@@ -74,7 +77,7 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("DeadLetterConsumer starting for {DbContext}", typeof(TDbContext).Name);
+        LogStarting(_logger, typeof(TDbContext).Name);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -88,12 +91,12 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
             }
             catch (BrokerUnreachableException ex)
             {
-                _logger.LogWarning(ex, "RabbitMQ broker unreachable, retrying in 10 seconds");
+                LogBrokerUnreachable(_logger, ex);
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error in DeadLetterConsumer, retrying in 10 seconds");
+                LogUnexpectedError(_logger, ex);
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
         }
@@ -129,9 +132,7 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
 
         channel.BasicConsume(DlqQueueName, autoAck: false, consumer: consumer);
 
-        _logger.LogInformation(
-            "DeadLetterConsumer listening on queue {DlqQueue} bound to exchange {DlxExchange}",
-            DlqQueueName, DlxExchangeName);
+        LogListening(_logger, DlqQueueName, DlxExchangeName);
 
         // Block until cancellation
         try
@@ -166,7 +167,7 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
         {
             deathEntry = entry;
             if (entry.TryGetValue("count", out var countVal))
-                retryCount = Convert.ToInt32(countVal);
+                retryCount = Convert.ToInt32(countVal, CultureInfo.InvariantCulture);
         }
 
         // Use our custom auto-reprocess count if present (tracks total reprocess attempts)
@@ -175,16 +176,13 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
             h.TryGetValue(AutoReprocessCountHeader, out var arCount) &&
             arCount is not null)
         {
-            autoReprocessCount = Convert.ToInt32(arCount);
+            autoReprocessCount = Convert.ToInt32(arCount, CultureInfo.InvariantCulture);
         }
 
         var effectiveCount = Math.Max(autoReprocessCount, retryCount);
 
-        _logger.LogCritical(
-            "DEAD LETTER MESSAGE - Exchange: {Exchange}, RoutingKey: {RoutingKey}, " +
-            "Type: {MessageType}, Id: {MessageId}, RetryCount: {RetryCount}, " +
-            "AutoReprocessCount: {AutoReprocessCount}, EffectiveCount: {EffectiveCount}, BodyLength: {BodyLength}",
-            exchange, routingKey, messageType, messageId, retryCount, autoReprocessCount, effectiveCount, messageBody.Length);
+        LogDeadLetter(_logger, exchange, routingKey, messageType, messageId, retryCount,
+            autoReprocessCount, effectiveCount, messageBody.Length);
 
         // Auto-reprocess if enabled and under max retry count
         if (_autoReprocessEnabled && effectiveCount < _maxRetryCount)
@@ -218,7 +216,7 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
 
                 // Apply delay via per-message TTL
                 if (_delayMinutes > 0)
-                    publishProps.Expiration = (_delayMinutes * 60 * 1000).ToString();
+                    publishProps.Expiration = (_delayMinutes * 60 * 1000).ToString(CultureInfo.InvariantCulture);
 
                 channel.BasicPublish(
                     exchange: originalExchange ?? "his-hope.events",
@@ -232,11 +230,7 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
                     new KeyValuePair<string, object?>("service", _serviceName),
                     new KeyValuePair<string, object?>("status", "succeeded"));
 
-                _logger.LogWarning(
-                    "Auto-reprocessed dead letter message {MessageId} back to " +
-                    "exchange {Exchange} with routing key {RoutingKey} " +
-                    "(attempt {NewCount}/{MaxRetryCount})",
-                    messageId, originalExchange ?? "his-hope.events",
+                LogAutoReprocessed(_logger, messageId, originalExchange ?? "his-hope.events",
                     originalRoutingKey ?? "#", newReprocessCount, _maxRetryCount);
 
                 return;
@@ -247,9 +241,7 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
                     new KeyValuePair<string, object?>("service", _serviceName),
                     new KeyValuePair<string, object?>("status", "failed"));
 
-                _logger.LogError(ex,
-                    "Failed to auto-reprocess dead letter message {MessageId}, " +
-                    "message will remain in DLQ", messageId);
+                LogAutoReprocessFailed(_logger, ex, messageId);
 
                 channel.BasicNack(args.DeliveryTag, false, requeue: false);
                 return;
@@ -263,10 +255,7 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
                 new KeyValuePair<string, object?>("service", _serviceName),
                 new KeyValuePair<string, object?>("status", "exceeded"));
 
-            _logger.LogWarning(
-                "Dead letter message {MessageId} exceeded max auto-reprocess count " +
-                "({EffectiveCount}/{MaxRetryCount}), persisting to database",
-                messageId, effectiveCount, _maxRetryCount);
+            LogRetryLimitExceeded(_logger, messageId, effectiveCount, _maxRetryCount);
         }
 
         try
@@ -305,14 +294,11 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
 
             await cmd.ExecuteNonQueryAsync(stoppingToken);
 
-            _logger.LogInformation(
-                "Dead letter message {MessageId} persisted to database", messageId);
+            LogPersisted(_logger, messageId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Failed to persist dead letter message {MessageId} to database, " +
-                "message will remain in DLQ for retry", messageId);
+            LogPersistFailed(_logger, ex, messageId);
 
             channel.BasicNack(args.DeliveryTag, false, requeue: false);
             return;
@@ -352,4 +338,48 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
         param.Value = value ?? DBNull.Value;
         cmd.Parameters.Add(param);
     }
+
+    [LoggerMessage(EventId = 4201, Level = LogLevel.Information,
+        Message = "DeadLetterConsumer starting for {DbContext}")]
+    private static partial void LogStarting(ILogger logger, string dbContext);
+
+    [LoggerMessage(EventId = 4202, Level = LogLevel.Warning,
+        Message = "RabbitMQ broker unreachable, retrying in 10 seconds")]
+    private static partial void LogBrokerUnreachable(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 4203, Level = LogLevel.Error,
+        Message = "Unexpected error in DeadLetterConsumer, retrying in 10 seconds")]
+    private static partial void LogUnexpectedError(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 4204, Level = LogLevel.Information,
+        Message = "DeadLetterConsumer listening on queue {DlqQueue} bound to exchange {DlxExchange}")]
+    private static partial void LogListening(ILogger logger, string dlqQueue, string dlxExchange);
+
+    [LoggerMessage(EventId = 4205, Level = LogLevel.Critical,
+        Message = "DEAD LETTER MESSAGE - Exchange: {Exchange}, RoutingKey: {RoutingKey}, Type: {MessageType}, Id: {MessageId}, RetryCount: {RetryCount}, AutoReprocessCount: {AutoReprocessCount}, EffectiveCount: {EffectiveCount}, BodyLength: {BodyLength}")]
+    private static partial void LogDeadLetter(ILogger logger, string exchange, string routingKey,
+        string messageType, string messageId, int retryCount, int autoReprocessCount,
+        int effectiveCount, int bodyLength);
+
+    [LoggerMessage(EventId = 4206, Level = LogLevel.Warning,
+        Message = "Auto-reprocessed dead letter message {MessageId} back to exchange {Exchange} with routing key {RoutingKey} (attempt {NewCount}/{MaxRetryCount})")]
+    private static partial void LogAutoReprocessed(ILogger logger, string messageId, string exchange,
+        string routingKey, int newCount, int maxRetryCount);
+
+    [LoggerMessage(EventId = 4207, Level = LogLevel.Error,
+        Message = "Failed to auto-reprocess dead letter message {MessageId}, message will remain in DLQ")]
+    private static partial void LogAutoReprocessFailed(ILogger logger, Exception exception, string messageId);
+
+    [LoggerMessage(EventId = 4208, Level = LogLevel.Warning,
+        Message = "Dead letter message {MessageId} exceeded max auto-reprocess count ({EffectiveCount}/{MaxRetryCount}), persisting to database")]
+    private static partial void LogRetryLimitExceeded(ILogger logger, string messageId, int effectiveCount,
+        int maxRetryCount);
+
+    [LoggerMessage(EventId = 4209, Level = LogLevel.Information,
+        Message = "Dead letter message {MessageId} persisted to database")]
+    private static partial void LogPersisted(ILogger logger, string messageId);
+
+    [LoggerMessage(EventId = 4210, Level = LogLevel.Error,
+        Message = "Failed to persist dead letter message {MessageId} to database, message will remain in DLQ for retry")]
+    private static partial void LogPersistFailed(ILogger logger, Exception exception, string messageId);
 }

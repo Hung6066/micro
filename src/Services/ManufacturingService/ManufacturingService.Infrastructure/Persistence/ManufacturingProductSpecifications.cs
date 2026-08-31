@@ -8,8 +8,8 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
     {
         if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.ProductSku) ||
             string.IsNullOrWhiteSpace(request.Packaging) || string.IsNullOrWhiteSpace(request.QcSpec) ||
-            request.TargetMoisturePercent is < 0 or > 100 || request.ShelfLifeDays <= 0 || request.Status != "Draft")
-            return (null, "invalid_product_specification");
+            request.TargetMoisturePercent is < 0 or > 100 || request.ShelfLifeDays <= 0 || request.Status != ManufacturingStatusCodes.Draft)
+            return (null, ManufacturingErrorCodes.InvalidProductSpecification);
 
         using var db = dbFactory.CreateDbContext();
         var now = DateTimeOffset.UtcNow;
@@ -17,10 +17,10 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
         {
             Id = Guid.NewGuid(), TenantKey = request.TenantKey.Trim(), ProductSku = request.ProductSku.Trim(),
             TargetMoisturePercent = request.TargetMoisturePercent, Packaging = request.Packaging.Trim(),
-            ShelfLifeDays = request.ShelfLifeDays, QcSpec = request.QcSpec.Trim(), Status = "Draft", CreatedAt = now
+            ShelfLifeDays = request.ShelfLifeDays, QcSpec = request.QcSpec.Trim(), Status = ManufacturingStatusCodes.Draft, CreatedAt = now
         };
         db.ProductSpecifications.Add(entity);
-        AddProductSpecificationEvent(db, entity, "Created", "system", now);
+        AddProductSpecificationEvent(db, entity, ManufacturingStatusCodes.Created, "system", now);
         db.SaveChanges();
         return (ToDto(entity), null);
     }
@@ -40,21 +40,21 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
         if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_product_specification_actor");
         using var db = dbFactory.CreateDbContext();
         var entity = db.ProductSpecifications.SingleOrDefault(x => x.Id == specificationId);
-        if (entity is null) return (null, "product_specification_not_found");
-        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (entity is null) return (null, ManufacturingErrorCodes.ProductSpecificationNotFound);
+        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantScopeDenied);
         var valid = (entity.Status, targetStatus) switch
         {
-            ("Draft", "Approved") => true,
-            ("Approved", "Retired") => true,
+            (ManufacturingStatusCodes.Draft, ManufacturingStatusCodes.Approved) => true,
+            (ManufacturingStatusCodes.Approved, "Retired") => true,
             _ => false
         };
         if (!valid) return (null, "invalid_product_specification_transition");
-        if (targetStatus == "Approved" && db.ProductSpecifications.Any(x => x.TenantKey == tenantKey && x.ProductSku == entity.ProductSku && x.Status == "Approved" && x.Id != entity.Id))
-            return (null, "active_product_specification_exists");
+        if (targetStatus == ManufacturingStatusCodes.Approved && db.ProductSpecifications.Any(x => x.TenantKey == tenantKey && x.ProductSku == entity.ProductSku && x.Status == ManufacturingStatusCodes.Approved && x.Id != entity.Id))
+            return (null, ManufacturingErrorCodes.ActiveProductSpecificationExists);
 
         var now = DateTimeOffset.UtcNow;
         entity.Status = targetStatus;
-        if (targetStatus == "Approved") { entity.ApprovedBy = request.Actor.Trim(); entity.ApprovedAt = now; }
+        if (targetStatus == ManufacturingStatusCodes.Approved) { entity.ApprovedBy = request.Actor.Trim(); entity.ApprovedAt = now; }
         AddProductSpecificationEvent(db, entity, targetStatus, request.Actor.Trim(), now);
         db.SaveChanges();
         return (ToDto(entity), null);
@@ -67,7 +67,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
         {
             Id = eventId, Type = $"Manufacturing.ProductSpecification{action}.v1",
             Content = JsonSerializer.Serialize(new { eventId, schemaVersion = 1, occurredAt, correlationId = entity.Id, specificationId = entity.Id, tenantKey = entity.TenantKey, productSku = entity.ProductSku, status = entity.Status, actor }),
-            OccurredOn = occurredAt.UtcDateTime, Status = "Pending"
+            OccurredOn = occurredAt.UtcDateTime, Status = ManufacturingStatusCodes.Pending
         });
     }
 

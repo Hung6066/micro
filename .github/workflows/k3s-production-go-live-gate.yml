@@ -37,6 +37,7 @@ jobs:
           KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
           AZURE_PRODUCTION_ENV_B64: ${{ secrets.AZURE_PRODUCTION_ENV_B64 }}
           PRODUCTION_STORAGE_ATTESTATION_B64: ${{ secrets.PRODUCTION_STORAGE_ATTESTATION_B64 }}
+          PRODUCTION_STORAGE_ATTESTATION_SHA256: ${{ secrets.PRODUCTION_STORAGE_ATTESTATION_SHA256 }}
           ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -48,6 +49,9 @@ jobs:
           }
           if ([string]::IsNullOrWhiteSpace($env:PRODUCTION_STORAGE_ATTESTATION_B64)) {
             throw 'PRODUCTION_STORAGE_ATTESTATION_B64 is required in the protected production environment.'
+          }
+          if ($env:PRODUCTION_STORAGE_ATTESTATION_SHA256 -notmatch '^[A-Fa-f0-9]{64}$') {
+            throw 'PRODUCTION_STORAGE_ATTESTATION_SHA256 must be a 64-character SHA-256 digest in the protected production environment.'
           }
           if ([string]::IsNullOrWhiteSpace($env:ANSIBLE_SSH_PRIVATE_KEY)) {
             throw 'ANSIBLE_SSH_PRIVATE_KEY is required for the read-only backup host audit.'
@@ -74,7 +78,8 @@ jobs:
         shell: pwsh
         env:
           ATTESTATION_PATH: ${{ steps.runtime-inputs.outputs.attestation }}
-        run: ./scripts/validate-production-storage-attestation.ps1 -AttestationPath $env:ATTESTATION_PATH -OutputPath artifacts/evidence/production-storage-attestation.json
+          ATTESTATION_SHA256: ${{ secrets.PRODUCTION_STORAGE_ATTESTATION_SHA256 }}
+        run: ./scripts/validate-production-storage-attestation.ps1 -AttestationPath $env:ATTESTATION_PATH -ExpectedSha256 $env:ATTESTATION_SHA256 -OutputPath artifacts/evidence/production-storage-attestation.json
 
       - name: Validate release invariants and live cluster
         id: release_gate
@@ -206,7 +211,10 @@ jobs:
         id: database_storage_security
         continue-on-error: true
         shell: pwsh
-        run: ./scripts/validate-database-storage-security-contract.ps1 -ProductionOverlay k8s/overlays/prod-shared-storage -OutputPath artifacts/evidence/production-database-storage-security.json
+        env:
+          ATTESTATION_PATH: ${{ steps.runtime-inputs.outputs.attestation }}
+          ATTESTATION_SHA256: ${{ secrets.PRODUCTION_STORAGE_ATTESTATION_SHA256 }}
+        run: ./scripts/validate-database-storage-security-contract.ps1 -ProductionOverlay k8s/overlays/prod-shared-storage -AttestationPath $env:ATTESTATION_PATH -ExpectedAttestationSha256 $env:ATTESTATION_SHA256 -OutputPath artifacts/evidence/production-database-storage-security.json
 
       - name: Validate CNPG backup platform contract
         id: cnpg_backup
@@ -245,6 +253,7 @@ jobs:
             [pscustomobject]@{ name = 'linkerd-mtls'; outcome = '${{ steps.linkerd_mtls.outcome }}' }
             [pscustomobject]@{ name = 'remaining'; outcome = '${{ steps.remaining.outcome }}' }
             [pscustomobject]@{ name = 'error-budget'; outcome = '${{ steps.error_budget.outcome }}' }
+            [pscustomobject]@{ name = 'observability-runtime'; outcome = '${{ steps.observability_runtime.outcome }}' }
             [pscustomobject]@{ name = 'alertmanager-e2e'; outcome = '${{ steps.alertmanager_e2e.outcome }}' }
             [pscustomobject]@{ name = 'azure-backup'; outcome = '${{ steps.azure_backup.outcome }}' }
             [pscustomobject]@{ name = 'database-storage-security'; outcome = '${{ steps.database_storage_security.outcome }}' }

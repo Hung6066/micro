@@ -1,14 +1,15 @@
 const { expect } = require('@playwright/test');
 const { getE2eCredentials } = require('../config/credentials');
 
-const { email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD } = getE2eCredentials();
-
 /**
  * Logs into the current application through the Identity Service SSO flow.
  * The application owns only the SSO button; credentials are entered only on
  * the Identity Service page when the local test environment exposes it.
  */
 async function signInThroughIdentity(page, baseUrl, options = {}) {
+  const credentials = options.email && options.password
+    ? { email: options.email, password: options.password }
+    : getE2eCredentials();
   const dashboardPath = options.dashboardPath || '/en/dashboard';
   const loginPath = dashboardPath.replace(/\/[^/]+$/, '/auth/login');
   const routePattern = path => {
@@ -119,8 +120,8 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
 
   if (await email.isVisible().catch(() => false)) {
     await expect(email).toBeVisible({ timeout: 15000 });
-    await email.fill(options.email || DEFAULT_EMAIL);
-    await page.locator('input[type="password"]').first().fill(options.password || DEFAULT_PASSWORD);
+    await email.fill(credentials.email);
+    await page.locator('input[type="password"]').first().fill(credentials.password);
     // Identity's credential submit performs a full-document redirect. Avoid
     // waiting on the old document's load lifecycle; the URL gate below is
     // authoritative and is more stable in Docker Chromium.
@@ -154,8 +155,8 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
       if (await retryContinue.isVisible().catch(() => false)) {
         await retryContinue.click({ noWaitAfter: true });
       } else {
-        await retryEmail.fill(options.email || DEFAULT_EMAIL);
-        await page.locator('input[type="password"]').first().fill(options.password || DEFAULT_PASSWORD);
+        await retryEmail.fill(credentials.email);
+        await page.locator('input[type="password"]').first().fill(credentials.password);
         await page.locator('button[type="submit"]').first().click({ noWaitAfter: true });
       }
     }
@@ -187,8 +188,8 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
       if (await recoveryContinue.isVisible().catch(() => false)) {
         await recoveryContinue.click({ noWaitAfter: true });
       } else {
-        await recoveryEmail.fill(options.email || DEFAULT_EMAIL);
-        await page.locator('input[type="password"]').first().fill(options.password || DEFAULT_PASSWORD);
+        await recoveryEmail.fill(credentials.email);
+        await page.locator('input[type="password"]').first().fill(credentials.password);
         await page.locator('button[type="submit"]').first().click({ noWaitAfter: true });
       }
     } else {

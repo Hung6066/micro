@@ -32,6 +32,17 @@ public class SecurityHeadersMiddleware
         // Prevents the page from being rendered in a frame/iframe
         headers["X-Frame-Options"] = "DENY";
 
+        // Upstream proxies/services can append the same defense-in-depth
+        // headers while this request is being forwarded. Register a final
+        // response callback so the browser receives one canonical value
+        // instead of an invalid-looking `DENY,DENY` combination.
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            context.Response.Headers["X-Frame-Options"] = "DENY";
+            return Task.CompletedTask;
+        });
+
         // === Referrer Policy ===
         // Only send the origin as the Referer header when navigating cross-origin
         // SECURITY: Prevents leaking full URLs in Referer header (HIPAA PHI protection)
@@ -78,6 +89,10 @@ public class SecurityHeadersMiddleware
         //   script-src 'self' 'nonce-{nonce}'
         headers["Content-Security-Policy"] =
             "default-src 'self'; " +
+            "base-uri 'self'; " +
+            "object-src 'none'; " +
+            "frame-ancestors 'none'; " +
+            "form-action 'self'; " +
             "script-src 'self'; " +
             "style-src 'self' https://fonts.googleapis.com; " +
             "font-src 'self' https://fonts.gstatic.com; " +

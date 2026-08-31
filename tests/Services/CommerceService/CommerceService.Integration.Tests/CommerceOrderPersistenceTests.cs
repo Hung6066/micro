@@ -81,6 +81,13 @@ public sealed class CommerceOrderPersistenceTests : IAsyncLifetime
         updated!.Status.Should().Be("confirmed");
     }
 
+    [Fact]
+    public void Order_status_policy_rejects_skipping_a_state()
+    {
+        CommerceOrderStatusPolicy.CanTransition("pending", "shipped").Should().BeFalse();
+        CommerceOrderStatusPolicy.CanTransition("confirmed", "shipped").Should().BeTrue();
+    }
+
     private sealed class TestCommerceDbContextFactory(string connectionString)
         : IDbContextFactory<CommerceDbContext>
     {

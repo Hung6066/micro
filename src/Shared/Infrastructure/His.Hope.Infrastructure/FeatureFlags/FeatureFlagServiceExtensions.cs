@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using His.Hope.Configuration;
 using Microsoft.Extensions.Logging;
 using Unleash;
 
@@ -26,7 +27,7 @@ public static class FeatureFlagServiceExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var unleashSection = configuration.GetSection("FeatureManagement:Unleash");
+        var unleashSection = configuration.GetSection(HisHopeConfigurationKeys.FeatureManagementUnleash);
 
         var unleashUrl = unleashSection["ApiUrl"] ?? DefaultUnleashUrl;
         var unleashApiToken = unleashSection["ApiToken"] ?? string.Empty;

@@ -11,6 +11,17 @@ namespace His.Hope.Resilience;
 
 public static class HisHopeResilienceExtensions
 {
+    public static IHttpClientBuilder UseHisHopeResilience(
+        this IHttpClientBuilder builder,
+        string operationName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationName);
+        return builder.AddHttpMessageHandler(serviceProvider =>
+            new HisHopeResilienceHandler(
+                serviceProvider.GetRequiredService<HisHopeResiliencePipelines>()
+                    .CreateHttp(operationName)));
+    }
+
     public static IServiceCollection AddHisHopeResilience(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<HisHopeResilienceOptions>().Bind(configuration.GetSection("Resilience"));

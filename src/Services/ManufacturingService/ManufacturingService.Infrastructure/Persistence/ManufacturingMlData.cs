@@ -11,7 +11,7 @@ public sealed class ManufacturingMlDataStore(IDbContextFactory<ManufacturingDbCo
             return (null, "invalid_operation_measurement");
         using var db = dbFactory.CreateDbContext();
         var batch = db.ProductionBatches.SingleOrDefault(x => x.Id == request.ProductionBatchId && x.TenantKey == tenantKey);
-        if (batch is null) return (null, "production_batch_not_found");
+        if (batch is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
         var entity = new ManufacturingOperationMeasurementEntity
         {
             Id = Guid.NewGuid(), TenantKey = tenantKey, ProductionBatchId = request.ProductionBatchId,
@@ -25,7 +25,7 @@ public sealed class ManufacturingMlDataStore(IDbContextFactory<ManufacturingDbCo
         db.OutboxMessages.Add(new ManufacturingOutboxMessageEntity
         {
             Id = entity.Id, Type = "Manufacturing.OperationMeasurementRecorded.v1", OccurredOn = entity.MeasuredAt.UtcDateTime,
-            Status = "Pending", Content = JsonSerializer.Serialize(new { eventId = entity.Id, eventType = "Manufacturing.OperationMeasurementRecorded.v1", schemaVersion = 1, occurredAt = entity.MeasuredAt, aggregateId = entity.ProductionBatchId, tenantKey, source = entity.Source })
+            Status = ManufacturingStatusCodes.Pending, Content = JsonSerializer.Serialize(new { eventId = entity.Id, eventType = "Manufacturing.OperationMeasurementRecorded.v1", schemaVersion = 1, occurredAt = entity.MeasuredAt, aggregateId = entity.ProductionBatchId, tenantKey, source = entity.Source })
         });
         db.SaveChanges();
         return (ToDto(entity), null);

@@ -15,8 +15,16 @@ public static class RedisConnectionFactory
         options.SyncTimeout = Math.Min(options.SyncTimeout, 5000);
 
         var caPath = configuration["Redis:TlsCaFile"];
-        if (string.IsNullOrWhiteSpace(caPath) || !File.Exists(caPath))
+        if (string.IsNullOrWhiteSpace(caPath))
             return options;
+
+        // A configured production CA is a security contract, not an optional
+        // hint. Do not silently downgrade to the platform trust store or to
+        // plaintext when the CA mount/connection scheme is wrong.
+        if (!File.Exists(caPath))
+            throw new InvalidOperationException($"Redis TLS CA file '{caPath}' is missing.");
+        if (!options.Ssl)
+            throw new InvalidOperationException("Redis TLS CA is configured but the Redis connection is not using TLS.");
 
         var caCertificate = new X509Certificate2(caPath);
         options.CertificateValidation += (_, certificate, _, errors) =>

@@ -9,6 +9,7 @@ using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using StackExchange.Redis;
 using His.Hope.Contracts.Identity;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -184,7 +185,7 @@ public static class AccountRecoveryEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var currentSessionId = httpContext.Request.Cookies["hishop_sid"];
+            var currentSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             var sessionIds = await sessionTracker.GetUserSessionsAsync(userId.Value.ToString());
             var db = redis.GetDatabase();
             var sessions = new List<SessionInfo>();
@@ -232,7 +233,7 @@ public static class AccountRecoveryEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var currentSessionId = httpContext.Request.Cookies["hishop_sid"];
+            var currentSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             if (sessionId == currentSessionId)
                 return Results.Problem(statusCode: 400,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.CurrentSessionCannotBeRevoked });
@@ -254,7 +255,7 @@ public static class AccountRecoveryEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var currentSessionId = httpContext.Request.Cookies["hishop_sid"];
+            var currentSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             var sessionIds = await sessionTracker.GetUserSessionsAsync(userId.Value.ToString());
             var db = redis.GetDatabase();
             var keys = sessionIds
@@ -281,7 +282,7 @@ public static class AccountRecoveryEndpoints
     private static Guid? GetUserId(HttpContext httpContext)
     {
         var claim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)
-                    ?? httpContext.User.FindFirst("sub");
+                    ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
         return claim is not null && Guid.TryParse(claim.Value, out var id) ? id : null;
     }
 }

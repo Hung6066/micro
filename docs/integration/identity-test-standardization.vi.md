@@ -23,7 +23,7 @@ Bổ sung sau snapshot: test nhánh device posture, role concurrency, admin inci
 | Unit | `scripts/run-identity-tests.ps1` | `-ResultsDirectory <dir>` | Không tạo container |
 | Integration/Docker | `scripts/run-identity-tests-docker.ps1` | `-Network bridge -Filter 'FullyQualifiedName~...'` | PostgreSQL/Redis + disposable network exact names |
 | Cleanup after interrupted Docker run | `scripts/cleanup-identity-test-docker.ps1` | `-RunId <10-hex-id>` hoặc `-IncludeRunning` khi đã xác nhận run bị bỏ rơi | Chỉ resource `identity-docker-*`, không quét container ứng dụng |
-| E2E/browser | `scripts/run-e2e-docker.ps1` | `-Spec 'specs/adaptive-mfa.spec.js'` | Browser `--rm` |
+| E2E/browser | `scripts/run-e2e-docker.ps1` | `-Config 'playwright.config.js' -Spec 'specs/adaptive-mfa.spec.js'` | Browser `--rm` |
 | Coverage | `scripts/validate-identity-coverage.ps1` | `-CoverageRoot <dir>` | Không tạo container |
 
 ## Quality-gate matrix
@@ -99,3 +99,16 @@ Nếu secret không có hoặc không khớp tenant, trạng thái phải giữ 
 1. Chạy authenticated SSO E2E với credential tenant được cấp qua secret manager.
 2. Thay automated OIDC/pentest evidence bằng signed external assessor evidence trước regulated production go-live.
 3. Chỉ đánh dấu release gate hoàn tất khi cả hai điều kiện trên có runtime evidence.
+
+## Public manufacturing E2E
+
+Các suite public không cần credential và có thể chạy độc lập:
+
+```powershell
+.\scripts\run-e2e-docker.ps1 -Config 'manufacturing-buyer.playwright.config.mjs'
+.\scripts\run-e2e-docker.ps1 -Config 'manufacturing-operator-public.playwright.config.mjs'
+```
+
+Runner dùng dependency directory tạm riêng cho từng container để các suite chạy
+song song không ghi đè `node_modules`. Suite authenticated vẫn bắt buộc
+`E2E_EMAIL` và `E2E_PASSWORD` từ secret storage; không dùng credential mặc định.

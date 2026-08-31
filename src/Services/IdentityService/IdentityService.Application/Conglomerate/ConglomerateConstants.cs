@@ -1,3 +1,5 @@
+using His.Hope.SharedKernel.Protocol;
+
 namespace His.Hope.IdentityService.Application.Conglomerate;
 
 public static class ConglomerateConstants
@@ -9,11 +11,11 @@ public static class ConglomerateConstants
     public const string PortalClassCustomerOperator = "customer_operator";
     public const string PortalClassEndUser = "end_user";
 
-    public const string ClaimPortalClass = "portal_class";
-    public const string ClaimTenantClass = "tenant_class";
+    public const string ClaimPortalClass = HisHopeProtocolConstants.Claims.PortalClass;
+    public const string ClaimTenantClass = HisHopeProtocolConstants.Claims.TenantClass;
 
     public const string HqCustomerVisibilityAll = "all";
     public const string HqCustomerVisibilityNone = "none";
 
-    public const string SupportElevationHeader = "X-Support-Elevation-Id";
+    public const string SupportElevationHeader = HisHopeProtocolConstants.Headers.SupportElevationId;
 }

@@ -10,11 +10,11 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         var orderPolicyError = ProductionPolicy.ValidateOrder(new ProductionOrderValidationInput(request.OrderNumber, request.ProductSku, request.RecipeId, request.TargetQuantity, request.OutputUom));
         if (orderPolicyError is not null) return (null, orderPolicyError);
         using var db = dbFactory.CreateDbContext();
-        if (db.ProductionOrders.Any(x => x.TenantKey == tenantKey && x.OrderNumber == request.OrderNumber.Trim())) return (null, "production_order_exists");
+        if (db.ProductionOrders.Any(x => x.TenantKey == tenantKey && x.OrderNumber == request.OrderNumber.Trim())) return (null, ManufacturingErrorCodes.ProductionOrderExists);
         var recipe = db.Recipes.SingleOrDefault(x => x.Id == request.RecipeId);
-        if (recipe is null) return (null, "recipe_not_found");
-        if (!recipe.Active || !recipe.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "recipe_unavailable");
-        if (!recipe.ProductSku.Equals(request.ProductSku, StringComparison.OrdinalIgnoreCase)) return (null, "recipe_product_mismatch");
+        if (recipe is null) return (null, ManufacturingErrorCodes.RecipeNotFound);
+        if (!recipe.Active || !recipe.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.RecipeUnavailable);
+        if (!recipe.ProductSku.Equals(request.ProductSku, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.RecipeProductMismatch);
         var entity = new ManufacturingProductionOrderEntity
         {
             Id = Guid.NewGuid(), TenantKey = tenantKey, OrderNumber = request.OrderNumber.Trim(), ProductSku = recipe.ProductSku,
@@ -30,16 +30,16 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext();
         var entity = db.ProductionOrders.SingleOrDefault(x => x.Id == orderId);
-        if (entity is null) return (null, "production_order_not_found");
-        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        if (entity is null) return (null, ManufacturingErrorCodes.ProductionOrderNotFound);
+        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
         if (entity.Status != "Planned") return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
-        entity.Status = "Released";
+        entity.Status = ManufacturingStatusCodes.Released;
         entity.ReleasedAt = DateTimeOffset.UtcNow;
         db.OutboxMessages.Add(new ManufacturingOutboxMessageEntity
         {
             Id = Guid.NewGuid(), Type = "Manufacturing.ProductionOrderReleased.v1",
             Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = entity.ReleasedAt, correlationId = entity.Id, facilityId = "default", productionOrderId = entity.Id, tenantKey, productSku = entity.ProductSku, recipeId = entity.RecipeId, recipeVersion = entity.RecipeVersion, targetQuantity = entity.TargetQuantity }),
-            OccurredOn = entity.ReleasedAt.Value.UtcDateTime, Status = "Pending"
+            OccurredOn = entity.ReleasedAt.Value.UtcDateTime, Status = ManufacturingStatusCodes.Pending
         });
         db.SaveChanges();
         return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
@@ -48,9 +48,9 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
     public (ProductionOrderDto? Order, string? Error) CancelOrder(string tenantKey, Guid orderId)
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.ProductionOrders.SingleOrDefault(x => x.Id == orderId && x.TenantKey == tenantKey);
-        if (entity is null) return (null, "production_order_not_found");
-        if (entity.Status is "Completed" or "Cancelled") return (null, "production_order_not_cancellable");
-        entity.Status = "Cancelled"; db.SaveChanges(); return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
+        if (entity is null) return (null, ManufacturingErrorCodes.ProductionOrderNotFound);
+        if (entity.Status is ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Cancelled) return (null, "production_order_not_cancellable");
+        entity.Status = ManufacturingStatusCodes.Cancelled; db.SaveChanges(); return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
     }
 
     public IReadOnlyList<ProductionOrderDto> GetOrders(string tenantKey, string? status, int limit)
@@ -79,36 +79,36 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext();
         var order = db.ProductionOrders.SingleOrDefault(x => x.Id == request.ProductionOrderId);
-        if (order is null) return (null, "production_order_not_found");
-        if (!order.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        if (order is null) return (null, ManufacturingErrorCodes.ProductionOrderNotFound);
+        if (!order.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
         var plannedQuantity = request.PlannedQuantity ?? order.TargetQuantity;
         var batchPolicyError = ProductionPolicy.ValidateBatch(new ProductionBatchValidationInput(order.Status, request.BatchNumber, plannedQuantity));
         if (batchPolicyError is not null) return (null, batchPolicyError);
-        if (db.ProductionBatches.Any(x => x.TenantKey == tenantKey && x.BatchNumber == request.BatchNumber.Trim())) return (null, "production_batch_exists");
+        if (db.ProductionBatches.Any(x => x.TenantKey == tenantKey && x.BatchNumber == request.BatchNumber.Trim())) return (null, ManufacturingErrorCodes.ProductionBatchExists);
         var entity = new ManufacturingProductionBatchEntity
         {
             Id = Guid.NewGuid(), TenantKey = tenantKey, ProductionOrderId = order.Id, BatchNumber = request.BatchNumber.Trim(),
-            Status = "Created", PlannedQuantity = plannedQuantity, ActualOutputQuantity = 0,
+            Status = ManufacturingStatusCodes.Created, PlannedQuantity = plannedQuantity, ActualOutputQuantity = 0,
             MachineId = request.MachineId, CreatedAt = DateTimeOffset.UtcNow
         };
         if (entity.MachineId.HasValue)
         {
             var machine = db.Machines.SingleOrDefault(x => x.Id == entity.MachineId.Value);
-            if (machine is null) return (null, "machine_not_found");
-            if (!machine.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase) || !machine.Active) return (null, "machine_unavailable");
+            if (machine is null) return (null, ManufacturingErrorCodes.MachineNotFound);
+            if (!machine.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase) || !machine.Active) return (null, ManufacturingErrorCodes.MachineUnavailable);
         }
         if (request.Inputs is { Count: > 0 })
         {
-            if (request.Inputs.GroupBy(x => x.LotId).Any(x => x.Count() > 1)) return (null, "input_reservation_mismatch");
+            if (request.Inputs.GroupBy(x => x.LotId).Any(x => x.Count() > 1)) return (null, ManufacturingErrorCodes.InputReservationMismatch);
             foreach (var input in request.Inputs)
             {
                 var lot = db.Lots.SingleOrDefault(x => x.Id == input.LotId);
                 if (lot is null) return (null, "input_lot_not_found");
-                if (!lot.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
-                if (!lot.Disposition.Equals("Released", StringComparison.OrdinalIgnoreCase)) return (null, "input_lot_not_released");
+                if (!lot.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
+                if (!lot.Disposition.Equals(ManufacturingStatusCodes.Released, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.InputLotNotReleased);
                 var reservation = db.LotReservations.SingleOrDefault(x => x.Id == input.ReservationId && x.LotId == input.LotId);
-                if (reservation is null || !reservation.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "input_reservation_mismatch");
-                if (reservation.Status != "Reserved" || input.Quantity > reservation.Quantity) return (null, "input_reservation_unavailable");
+                if (reservation is null || !reservation.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.InputReservationMismatch);
+                if (reservation.Status != "Reserved" || input.Quantity > reservation.Quantity) return (null, ManufacturingErrorCodes.InputReservationUnavailable);
             }
         }
         db.ProductionBatches.Add(entity);
@@ -119,7 +119,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                 Id = Guid.NewGuid(), ProductionBatchId = entity.Id, LotId = input.LotId, ReservationId = input.ReservationId, Quantity = input.Quantity
             }));
         }
-        EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, "", "Created", "system", entity.CreatedAt);
+        EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, "", ManufacturingStatusCodes.Created, "system", entity.CreatedAt);
         db.SaveChanges();
         return (ToDto(entity, [], request.Inputs?.Select(x => new ManufacturingProductionBatchInputEntity { LotId = x.LotId, ReservationId = x.ReservationId, Quantity = x.Quantity }) ?? []), null);
     }
@@ -140,21 +140,21 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext();
         var entity = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId);
-        if (entity is null) return (null, "production_batch_not_found");
-        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        if (entity is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
+        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
         var order = db.ProductionOrders.Single(x => x.Id == entity.ProductionOrderId);
         var machineAvailable = entity.MachineId is null;
-        if (targetStatus == "Started" && entity.MachineId is { } machineId)
+        if (targetStatus == ManufacturingStatusCodes.Started && entity.MachineId is { } machineId)
         {
             var machine = db.Machines.SingleOrDefault(x => x.Id == machineId);
             machineAvailable = machine is not null && machine.Active && machine.Status.Equals("Available", StringComparison.OrdinalIgnoreCase);
         }
         var operations = db.OperationExecutions.Where(x => x.ProductionBatchId == batchId).ToList();
-        if (targetStatus == "Completed")
+        if (targetStatus == ManufacturingStatusCodes.Completed)
         {
             var recipe = db.Recipes.SingleOrDefault(x => x.Id == order.RecipeId);
             var reviewedOperationIds = db.LossReviews
-                .Where(x => x.TenantKey == tenantKey && x.ProductionBatchId == batchId && x.Decision == "Approved")
+                .Where(x => x.TenantKey == tenantKey && x.ProductionBatchId == batchId && x.Decision == ManufacturingStatusCodes.Approved)
                 .Select(x => x.OperationExecutionId)
                 .ToHashSet();
             var hasUnreviewedLoss = recipe is not null && operations.Any(operation =>
@@ -167,16 +167,16 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             entity.Status,
             targetStatus,
             operations.Count > 0,
-            operations.Where(x => x.Required).All(x => x.Status == "Completed"),
-            operations.Where(x => x.Required).All(x => x.Status == "Completed" && x.QcStatus == "Pass"),
+            operations.Where(x => x.Required).All(x => x.Status == ManufacturingStatusCodes.Completed),
+            operations.Where(x => x.Required).All(x => x.Status == ManufacturingStatusCodes.Completed && x.QcStatus == "Pass"),
             machineAvailable));
         if (transitionError is not null) return (null, transitionError);
         var previousStatus = entity.Status;
         entity.Status = targetStatus;
-        if (targetStatus == "Started") order.Status = "InProgress";
-        if (targetStatus == "Completed") order.Status = "Completed";
-        if (targetStatus == "Started" && entity.StartedAt is null) entity.StartedAt = DateTimeOffset.UtcNow;
-        if (targetStatus == "Completed")
+        if (targetStatus == ManufacturingStatusCodes.Started) order.Status = "InProgress";
+        if (targetStatus == ManufacturingStatusCodes.Completed) order.Status = ManufacturingStatusCodes.Completed;
+        if (targetStatus == ManufacturingStatusCodes.Started && entity.StartedAt is null) entity.StartedAt = DateTimeOffset.UtcNow;
+        if (targetStatus == ManufacturingStatusCodes.Completed)
         {
             entity.CompletedAt = DateTimeOffset.UtcNow;
             if (entity.OutputLotId is null)
@@ -186,18 +186,18 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                     Id = Guid.NewGuid(), TenantKey = tenantKey, Sku = order.ProductSku,
                     Quantity = entity.ActualOutputQuantity, Uom = order.OutputUom, Disposition = "Quarantined",
                     LotCode = $"LOT-{entity.CompletedAt.Value:yyyyMMdd}-{Guid.NewGuid():N}", LotType = "FinishedGood",
-                    QualityStatus = "Pending", CreatedBy = "system", CreatedAt = entity.CompletedAt.Value
+                    QualityStatus = ManufacturingStatusCodes.Pending, CreatedBy = "system", CreatedAt = entity.CompletedAt.Value
                 };
                 var batchInputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList();
                 var inputLots = batchInputs.Count == 0 ? new List<ManufacturingLotEntity>() : db.Lots.Where(x => batchInputs.Select(i => i.LotId).Contains(x.Id)).ToList();
                 var reservedInputQuantity = batchInputs.Sum(x => x.Quantity);
                 if (reservedInputQuantity > 0 && entity.ActualOutputQuantity > reservedInputQuantity)
-                    return (null, "input_quantity_insufficient");
+                    return (null, ManufacturingErrorCodes.InputQuantityInsufficient);
                 foreach (var batchInput in batchInputs)
                 {
                     var lot = inputLots.Single(x => x.Id == batchInput.LotId);
                     var reservation = db.LotReservations.Single(x => x.Id == batchInput.ReservationId);
-                    if (reservation.Status != "Reserved" || batchInput.Quantity > lot.Quantity) return (null, "input_reservation_unavailable");
+                    if (reservation.Status != "Reserved" || batchInput.Quantity > lot.Quantity) return (null, ManufacturingErrorCodes.InputReservationUnavailable);
                     lot.Quantity -= batchInput.Quantity;
                     reservation.Status = "Consumed";
                 }
@@ -215,7 +215,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                 db.Transformations.Add(transformation);
                 db.QualityInspections.Add(new ManufacturingQualityInspectionEntity
                 {
-                    Id = Guid.NewGuid(), LotId = outputLot.Id, TenantKey = tenantKey, Status = "Pending",
+                    Id = Guid.NewGuid(), LotId = outputLot.Id, TenantKey = tenantKey, Status = ManufacturingStatusCodes.Pending,
                     MoisturePercent = 0, Inspector = "system:production", Notes = "Awaiting finished-goods quality inspection",
                     InspectedAt = outputLot.CreatedAt
                 });
@@ -240,7 +240,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                 {
                     Id = Guid.NewGuid(), Type = "Manufacturing.ProductionOutputLotCreated.v1",
                     Content = JsonSerializer.Serialize(new { eventId = transformation.Id, schemaVersion = 1, occurredAt = outputLot.CreatedAt, correlationId = entity.Id, facilityId = "default", productionBatchId = entity.Id, transformationId = transformation.Id, outputLotId = outputLot.Id, tenantKey, productSku = order.ProductSku, quantity = outputLot.Quantity, uom = outputLot.Uom }),
-                    OccurredOn = outputLot.CreatedAt.UtcDateTime, Status = "Pending"
+                    OccurredOn = outputLot.CreatedAt.UtcDateTime, Status = ManufacturingStatusCodes.Pending
                 });
             }
         }
@@ -248,7 +248,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         {
             Id = Guid.NewGuid(), Type = $"Manufacturing.ProductionBatch{targetStatus}.v1",
             Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = DateTimeOffset.UtcNow, correlationId = entity.Id, facilityId = "default", productionBatchId = entity.Id, tenantKey, status = targetStatus }),
-            OccurredOn = DateTime.UtcNow, Status = "Pending"
+            OccurredOn = DateTime.UtcNow, Status = ManufacturingStatusCodes.Pending
         });
         EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, previousStatus, targetStatus, "system", DateTimeOffset.UtcNow);
         db.SaveChanges();
@@ -258,11 +258,11 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
     public (ProductionBatchDto? Batch, string? Error) CancelBatch(string tenantKey, Guid batchId)
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId && x.TenantKey == tenantKey);
-        if (entity is null) return (null, "production_batch_not_found");
-        if (entity.Status is "Completed" or "Cancelled") return (null, "production_batch_not_cancellable");
+        if (entity is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
+        if (entity.Status is ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Cancelled) return (null, ManufacturingErrorCodes.ProductionBatchNotCancellable);
         var previousStatus = entity.Status;
-        entity.Status = "Cancelled";
-        EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, previousStatus, "Cancelled", "system", DateTimeOffset.UtcNow);
+        entity.Status = ManufacturingStatusCodes.Cancelled;
+        EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, previousStatus, ManufacturingStatusCodes.Cancelled, "system", DateTimeOffset.UtcNow);
         db.SaveChanges(); var operations = db.OperationExecutions.Where(x => x.ProductionBatchId == entity.Id).ToList(); var inputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList(); return (ToDto(entity, operations, inputs), null);
     }
 
@@ -270,20 +270,20 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext();
         var batch = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId);
-        if (batch is null) return (null, "production_batch_not_found");
-        if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        if (batch is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
+        if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
         var order = db.ProductionOrders.SingleOrDefault(x => x.Id == batch.ProductionOrderId);
         var recipe = order is null ? null : db.Recipes.SingleOrDefault(x => x.Id == order.RecipeId);
         var operationPolicyError = ProductionPolicy.ValidateOperation(
             new ProductionBatchValidationInput(batch.Status, "batch", batch.PlannedQuantity),
             new OperationMeasurementValidationInput(request.Sequence, request.ProcessStep, request.Operator, request.InputQuantity, request.OutputQuantity, request.QcStatus));
         if (operationPolicyError is not null) return (null, operationPolicyError);
-        if (db.OperationExecutions.Any(x => x.ProductionBatchId == batchId && x.Sequence == request.Sequence)) return (null, "operation_sequence_exists");
+        if (db.OperationExecutions.Any(x => x.ProductionBatchId == batchId && x.Sequence == request.Sequence)) return (null, ManufacturingErrorCodes.OperationSequenceExists);
         var entity = new ManufacturingOperationExecutionEntity
         {
             Id = Guid.NewGuid(), ProductionBatchId = batchId, Sequence = request.Sequence, ProcessStep = request.ProcessStep.Trim(),
             Operator = request.Operator.Trim(), InputQuantity = request.InputQuantity, OutputQuantity = request.OutputQuantity,
-            LossQuantity = request.InputQuantity - request.OutputQuantity, Status = "Completed", Required = request.Required,
+            LossQuantity = request.InputQuantity - request.OutputQuantity, Status = ManufacturingStatusCodes.Completed, Required = request.Required,
             QcStatus = request.QcStatus.Trim(), StartedAt = request.StartedAt ?? DateTimeOffset.UtcNow, CompletedAt = DateTimeOffset.UtcNow
         };
         batch.ActualOutputQuantity += entity.OutputQuantity;
@@ -292,7 +292,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         {
             Id = Guid.NewGuid(), Type = "Manufacturing.OperationMeasurementRecorded.v1",
             Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = entity.CompletedAt, correlationId = entity.Id, facilityId = "default", productionBatchId = batchId, operationId = entity.Id, processStep = entity.ProcessStep, inputQuantity = entity.InputQuantity, outputQuantity = entity.OutputQuantity, lossQuantity = entity.LossQuantity, qcStatus = entity.QcStatus, tenantKey }),
-            OccurredOn = entity.CompletedAt.Value.UtcDateTime, Status = "Pending"
+            OccurredOn = entity.CompletedAt.Value.UtcDateTime, Status = ManufacturingStatusCodes.Pending
         });
         var operationYield = entity.InputQuantity == 0 ? 0 : entity.OutputQuantity / entity.InputQuantity * 100;
         if (recipe is not null && operationYield < recipe.TargetYieldPercent)
@@ -301,7 +301,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             {
                 Id = Guid.NewGuid(), Type = "Manufacturing.LossThresholdExceeded.v1",
                 Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = entity.CompletedAt, correlationId = entity.Id, productionBatchId = batchId, operationId = entity.Id, tenantKey, targetYieldPercent = recipe.TargetYieldPercent, actualYieldPercent = decimal.Round(operationYield, 2), lossQuantity = entity.LossQuantity, requiresSupervisorReview = true }),
-                OccurredOn = entity.CompletedAt.Value.UtcDateTime, Status = "Pending"
+                OccurredOn = entity.CompletedAt.Value.UtcDateTime, Status = ManufacturingStatusCodes.Pending
             });
         }
         db.SaveChanges();
@@ -354,7 +354,7 @@ public sealed class ManufacturingProductionBatchEntity
     public string TenantKey { get; set; } = "";
     public Guid ProductionOrderId { get; set; }
     public string BatchNumber { get; set; } = "";
-    public string Status { get; set; } = "Created";
+    public string Status { get; set; } = ManufacturingStatusCodes.Created;
     public decimal PlannedQuantity { get; set; }
     public decimal ActualOutputQuantity { get; set; }
     public Guid? MachineId { get; set; }
@@ -399,9 +399,9 @@ public sealed class ManufacturingOperationExecutionEntity
     public decimal InputQuantity { get; set; }
     public decimal OutputQuantity { get; set; }
     public decimal LossQuantity { get; set; }
-    public string Status { get; set; } = "Completed";
+    public string Status { get; set; } = ManufacturingStatusCodes.Completed;
     public bool Required { get; set; } = true;
-    public string QcStatus { get; set; } = "Pending";
+    public string QcStatus { get; set; } = ManufacturingStatusCodes.Pending;
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
 }

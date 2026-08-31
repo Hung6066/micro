@@ -6,26 +6,20 @@ using His.Hope.AspNetCore.Tenancy;
 using His.Hope.ContentService.Api;
 using His.Hope.ContentService.Application;
 using His.Hope.ContentService.Infrastructure;
-using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Middleware;
+using His.Hope.Configuration;
 using His.Hope.ServiceDefaults;
 using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
-using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
 builder.Services.AddContentInfrastructure(builder.Configuration);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ContentService");
+builder.Services.AddHisHopeServicePlatform(builder.Configuration, "content-service");
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ContentDbContext>("content-db");
-var redis = RedisConnectionFactory.Connect(
-    builder.Configuration.GetConnectionString("Redis")
-        ?? builder.Configuration["Redis:ConnectionString"]
-        ?? "localhost:6379",
-    builder.Configuration);
-builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 // Keep the Content key ring stable across container replacement. The
 // directory is backed by a dedicated deployment volume (or an encrypted host
 // mount in production).
@@ -35,11 +29,22 @@ var dataProtection = builder.Services.AddDataProtection()
         builder.Configuration["DataProtection:KeysPath"]
             ?? "/var/lib/his-hope/content-data-protection-keys"));
 var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
-if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath) && File.Exists(dataProtectionCertificatePath))
+if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath))
 {
+    if (!File.Exists(dataProtectionCertificatePath))
+    {
+        throw new InvalidOperationException(
+            $"DataProtection certificate was configured but not found: {dataProtectionCertificatePath}");
+    }
+
     dataProtection.ProtectKeysWithCertificate(new X509Certificate2(
         dataProtectionCertificatePath,
         builder.Configuration["DataProtection:CertificatePassword"]));
+}
+else if (!builder.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "ContentService requires DataProtection:CertificatePath outside Development.");
 }
 builder.Services.AddHisHopeDpopValidation();
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
@@ -48,6 +53,7 @@ builder.Services.AddAuthorizationBuilder()
     .AddContentAuthorizationPolicies();
 
 var app = builder.Build();
+app.UseGlobalExceptionHandler();
 app.UseHisHopeServiceDefaults();
 app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
@@ -57,7 +63,23 @@ app.UseHisHopeTenantScope();
 
 app.ValidateHisHopeTenantPlacement();
 
-app.Services.MigrateContentDatabase();
+var runContentMigrations = builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+    builder.Configuration.GetValue("Persistence:MigrationOnly", false);
+if (runContentMigrations)
+{
+    app.Services.MigrateContentDatabase();
+}
+else if (!app.Environment.IsDevelopment() &&
+         !string.Equals(app.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        "ContentService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
+}
+
+if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
+{
+    return;
+}
 
 var uploadRoot = Path.Combine(app.Environment.ContentRootPath, "uploads");
 Directory.CreateDirectory(uploadRoot);
@@ -309,10 +331,13 @@ content.MapPut("/articles/{articleId:guid}", (
     var tenantKey = ContentHttpExtensions.ResolveManageTenant(context, isMutation: true);
     if (string.IsNullOrWhiteSpace(tenantKey))
         return Results.Forbid();
-    if (store.GetArticle(articleId, tenantKey) is null)
+    var existingArticle = store.GetArticle(articleId, tenantKey);
+    if (existingArticle is null)
         return ContentProblem(StatusCodes.Status404NotFound, "not_found");
     if (ContentPolicies.ValidateArticleStatus(request.Status) is not null)
         return ContentProblem(StatusCodes.Status400BadRequest, "invalid_status");
+    if (!ContentPolicies.CanTransitionArticleStatus(existingArticle.Status, request.Status))
+        return ContentProblem(StatusCodes.Status409Conflict, "invalid_status_transition");
     return Results.Ok(store.UpsertArticle(articleId, tenantKey, request));
 })
 .RequireAuthorization(
@@ -403,4 +428,5 @@ content.MapPost("/media/upload", async (
     ContentAuthorizationPolicies.Manage,
     AuthorizationPolicyNames.Permissions.ContentManage);
 
+app.MapHisHopeHealthEndpoints();
 app.Run();

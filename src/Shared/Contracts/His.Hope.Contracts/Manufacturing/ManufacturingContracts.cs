@@ -1,14 +1,36 @@
 namespace His.Hope.Contracts.Manufacturing;
 
+/// <summary>
+/// Stable defaults used by manufacturing wire contracts. Domain transition
+/// rules remain owned by ManufacturingService.Domain.
+/// </summary>
+public static class ManufacturingContractDefaults
+{
+    public const string ReleasedDisposition = "Released";
+    public const string PendingQualityStatus = "Pending";
+    public const string DraftStatus = "Draft";
+    public const string ApprovedStatus = "Approved";
+    public const string UnspecifiedLotType = "Unspecified";
+    public const string ProductionProcessStep = "production";
+    public const string SystemActor = "system";
+    public const string UnknownChannel = "unknown";
+    public const string SalesSource = "Sales";
+    public const string SalesSourceLower = "sales";
+    public const string AuthenticatedSessionSignature = "AuthenticatedSession";
+    public const string AvailableMachineStatus = "Available";
+    public const string PassResult = "Pass";
+    public const string PreventiveMaintenanceType = "Preventive";
+}
+
 public sealed record CreateLotRequest(
     string TenantKey,
     string Sku,
     decimal Quantity,
     string Uom,
-    string Disposition = "Released",
+    string Disposition = ManufacturingContractDefaults.ReleasedDisposition,
     DateOnly? BestBefore = null,
     string? LotCode = null,
-    string LotType = "Unspecified",
+    string LotType = ManufacturingContractDefaults.UnspecifiedLotType,
     string? OriginCountryCode = null,
     DateOnly? ManufacturedOn = null,
     string? FacilityCode = null,
@@ -16,7 +38,7 @@ public sealed record CreateLotRequest(
     string? CertificateOfAnalysisReference = null,
     string? SourceLotCode = null,
     string? RecordedBy = null);
-public sealed record CreateTransformationRequest(string TenantKey, string OutputSku, decimal OutputQuantity, string OutputUom, IReadOnlyList<TransformationInput> Inputs, string ProcessStep = "production", Guid? RecipeId = null, Guid? MachineId = null);
+public sealed record CreateTransformationRequest(string TenantKey, string OutputSku, decimal OutputQuantity, string OutputUom, IReadOnlyList<TransformationInput> Inputs, string ProcessStep = ManufacturingContractDefaults.ProductionProcessStep, Guid? RecipeId = null, Guid? MachineId = null);
 public sealed record TransformationInput(Guid LotId, decimal Quantity, Guid? ReservationId = null);
 public sealed record LotDto(
     Guid Id,
@@ -36,7 +58,7 @@ public sealed record LotDto(
     string? StorageLocationCode = null,
     string? CertificateOfAnalysisReference = null,
     string? SourceLotCode = null,
-    string QualityStatus = "Pending",
+    string QualityStatus = ManufacturingContractDefaults.PendingQualityStatus,
     string? CreatedBy = null,
     DateTimeOffset? UpdatedAt = null);
 public sealed record LotStatusHistoryDto(Guid Id, Guid LotId, string TenantKey, string FromDisposition, string ToDisposition, string Actor, string? ReasonCode, string? EvidenceReference, Guid CorrelationId, DateTimeOffset OccurredAt);
@@ -80,13 +102,13 @@ public sealed record QualityInspectionDto(Guid Id, Guid LotId, string TenantKey,
 public sealed record CreateQualitySampleRequest(Guid InspectionId, string SampleCode, string CollectedBy, DateTimeOffset? CollectedAt = null, string? Location = null, string? Notes = null);
 public sealed record QualitySampleDto(Guid Id, Guid InspectionId, Guid LotId, string TenantKey, string SampleCode, string CollectedBy, DateTimeOffset CollectedAt, string Disposition, string? DispositionReason, string? DisposedBy, DateTimeOffset? DisposedAt, string? Location, string? Notes, DateTimeOffset CreatedAt);
 public sealed record QualitySampleDispositionRequest(string Disposition, string Actor, string? Reason = null);
-public sealed record CreateInspectionPlanVersionRequest(string TenantKey, string PlanCode, string ProductSku, int Version, string SamplingMethod, string SamplingFrequency, string AcceptanceCriteria, string Status = "Draft", DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null, string? CreatedBy = null);
+public sealed record CreateInspectionPlanVersionRequest(string TenantKey, string PlanCode, string ProductSku, int Version, string SamplingMethod, string SamplingFrequency, string AcceptanceCriteria, string Status = ManufacturingContractDefaults.DraftStatus, DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null, string? CreatedBy = null);
 public sealed record InspectionPlanLifecycleRequest(string Actor, DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null);
 public sealed record InspectionPlanVersionDto(Guid Id, string TenantKey, string PlanCode, string ProductSku, int Version, string SamplingMethod, string SamplingFrequency, string AcceptanceCriteria, string Status, DateTimeOffset? EffectiveFrom, DateTimeOffset? EffectiveTo, string? ApprovedBy, DateTimeOffset? ApprovedAt, string? CreatedBy, DateTimeOffset CreatedAt);
-public sealed record CreateProductSpecificationRequest(string TenantKey, string ProductSku, decimal TargetMoisturePercent, string Packaging, int ShelfLifeDays, string QcSpec, string Status = "Draft");
+public sealed record CreateProductSpecificationRequest(string TenantKey, string ProductSku, decimal TargetMoisturePercent, string Packaging, int ShelfLifeDays, string QcSpec, string Status = ManufacturingContractDefaults.DraftStatus);
 public sealed record ProductSpecificationLifecycleRequest(string Actor);
 public sealed record ProductSpecificationDto(Guid Id, string TenantKey, string ProductSku, decimal TargetMoisturePercent, string Packaging, int ShelfLifeDays, string QcSpec, string Status, string? ApprovedBy, DateTimeOffset? ApprovedAt, DateTimeOffset CreatedAt);
-public sealed record CreateRecipeRequest(string TenantKey, string ProductSku, int Version, string ProcessStep, string OutputUom, decimal TargetYieldPercent, IReadOnlyList<RecipeComponentRequest>? Components = null, bool Active = true, string Status = "Approved", DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null, Guid? ProductSpecificationId = null);
+public sealed record CreateRecipeRequest(string TenantKey, string ProductSku, int Version, string ProcessStep, string OutputUom, decimal TargetYieldPercent, IReadOnlyList<RecipeComponentRequest>? Components = null, bool Active = true, string Status = ManufacturingContractDefaults.ApprovedStatus, DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null, Guid? ProductSpecificationId = null);
 public sealed record RecipeComponentRequest(string IngredientSku, decimal Quantity, string Uom);
 public sealed record RecipeDto(Guid Id, string TenantKey, string ProductSku, int Version, string ProcessStep, string OutputUom, decimal TargetYieldPercent, bool Active, string Status, DateTimeOffset? EffectiveFrom, DateTimeOffset? EffectiveTo, string? ApprovedBy, DateTimeOffset? ApprovedAt, IReadOnlyList<RecipeComponentDto> Components, DateTimeOffset CreatedAt, Guid? ProductSpecificationId = null);
 public sealed record RecipeLifecycleRequest(string Actor, DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null);
@@ -94,20 +116,20 @@ public sealed record RecipeComponentDto(string IngredientSku, decimal Quantity, 
 public sealed record CreateDeviationRequest(string Type, string Description, string Impact, string RequestedBy);
 public sealed record DeviationActionRequest(string Actor, string? Notes = null);
 public sealed record ManufacturingDeviationDto(Guid Id, string TenantKey, Guid ProductionBatchId, string Type, string Description, string Impact, string Status, string RequestedBy, string? ApprovedBy, string? ResolutionNotes, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt, DateTimeOffset? ClosedAt);
-public sealed record CreateSopArtifactRequest(string ArtifactKey, string Title, int Version, string Content, string ContentType = "text/markdown", string Status = "Draft", DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null, string? CreatedBy = null);
+public sealed record CreateSopArtifactRequest(string ArtifactKey, string Title, int Version, string Content, string ContentType = "text/markdown", string Status = ManufacturingContractDefaults.DraftStatus, DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null, string? CreatedBy = null);
 public sealed record SopArtifactLifecycleRequest(string Actor, DateTimeOffset? EffectiveFrom = null, DateTimeOffset? EffectiveTo = null);
 public sealed record SopArtifactDto(Guid Id, string TenantKey, string ArtifactKey, string Title, int Version, string Content, string ContentType, string Status, string Checksum, DateTimeOffset? EffectiveFrom, DateTimeOffset? EffectiveTo, string? ApprovedBy, DateTimeOffset? ApprovedAt, string? CreatedBy, DateTimeOffset CreatedAt);
 public sealed record SopArtifactAcknowledgmentRequest(string? Notes = null);
 public sealed record SopArtifactAcknowledgmentDto(Guid Id, Guid SopArtifactId, string TenantKey, string Actor, string? Notes, DateTimeOffset AcknowledgedAt);
-public sealed record CreateBusinessSignatureRequest(string EntityType, Guid EntityId, string Action, string Reason, string? EvidenceReference = null, string SignatureMethod = "AuthenticatedSession");
+public sealed record CreateBusinessSignatureRequest(string EntityType, Guid EntityId, string Action, string Reason, string? EvidenceReference = null, string SignatureMethod = ManufacturingContractDefaults.AuthenticatedSessionSignature);
 public sealed record BusinessSignatureDto(Guid Id, string TenantKey, string EntityType, Guid EntityId, string Action, string Reason, string? EvidenceReference, string Actor, string SignatureMethod, string SignatureHash, DateTimeOffset SignedAt);
-public sealed record CreateMachineRequest(string TenantKey, string Code, string Name, string Status = "Available", DateTimeOffset? LastMaintenanceAt = null, DateTimeOffset? NextMaintenanceAt = null, bool Active = true);
+public sealed record CreateMachineRequest(string TenantKey, string Code, string Name, string Status = ManufacturingContractDefaults.AvailableMachineStatus, DateTimeOffset? LastMaintenanceAt = null, DateTimeOffset? NextMaintenanceAt = null, bool Active = true);
 public sealed record UpdateMachineRequest(string Code, string Name, string Status, DateTimeOffset? NextMaintenanceAt, bool Active);
-public sealed record RecordMaintenanceRequest(DateTimeOffset MaintainedAt, DateTimeOffset? NextMaintenanceAt, string Status = "Available");
+public sealed record RecordMaintenanceRequest(DateTimeOffset MaintainedAt, DateTimeOffset? NextMaintenanceAt, string Status = ManufacturingContractDefaults.AvailableMachineStatus);
 public sealed record MachineDto(Guid Id, string TenantKey, string Code, string Name, string Status, DateTimeOffset? LastMaintenanceAt, DateTimeOffset? NextMaintenanceAt, bool Active, DateTimeOffset CreatedAt);
-public sealed record CreateMachineCalibrationRequest(string CalibrationType, string CertificateNumber, DateTimeOffset CalibratedAt, DateTimeOffset NextDueAt, string Result = "Pass", string? Provider = null, string? EvidenceReference = null, string? Notes = null, string? CreatedBy = null);
+public sealed record CreateMachineCalibrationRequest(string CalibrationType, string CertificateNumber, DateTimeOffset CalibratedAt, DateTimeOffset NextDueAt, string Result = ManufacturingContractDefaults.PassResult, string? Provider = null, string? EvidenceReference = null, string? Notes = null, string? CreatedBy = null);
 public sealed record MachineCalibrationDto(Guid Id, Guid MachineId, string TenantKey, string CalibrationType, string CertificateNumber, DateTimeOffset CalibratedAt, DateTimeOffset NextDueAt, string Result, string? Provider, string? EvidenceReference, string? Notes, string? CreatedBy, DateTimeOffset CreatedAt);
-public sealed record CreateMaintenanceWorkOrderRequest(DateTimeOffset DueAt, string MaintenanceType = "Preventive", string? AssignedTo = null, string? Notes = null);
+public sealed record CreateMaintenanceWorkOrderRequest(DateTimeOffset DueAt, string MaintenanceType = ManufacturingContractDefaults.PreventiveMaintenanceType, string? AssignedTo = null, string? Notes = null);
 public sealed record CompleteMaintenanceWorkOrderRequest(string Technician, DateTimeOffset CompletedAt, DateTimeOffset? NextMaintenanceAt = null, string? Evidence = null);
 public sealed record MaintenanceWorkOrderDto(Guid Id, Guid MachineId, string TenantKey, string Status, string MaintenanceType, DateTimeOffset DueAt, string? AssignedTo, string? Notes, string? Technician, DateTimeOffset? CompletedAt, string? Evidence, DateTimeOffset CreatedAt);
 public sealed record CreateMaintenancePlanRequest(Guid MachineId, string PlanCode, string MaintenanceType, int FrequencyDays, DateTimeOffset NextDueAt, string? Checklist = null, string? AssignedTo = null, bool Active = true, string? CreatedBy = null);
@@ -117,7 +139,7 @@ public sealed record RecordMachineTelemetryRequest(Guid EventId, DateTimeOffset 
 public sealed record MachineTelemetryDto(Guid Id, Guid EventId, Guid MachineId, string TenantKey, string Source, string? State, string? MeterName, decimal? MeterValue, long? Sequence, DateTimeOffset ObservedAt, DateTimeOffset ReceivedAt);
 public sealed record RecordOperationMeasurementRequest(Guid ProductionBatchId, Guid? OperationExecutionId, Guid? MachineId, Guid? LotId, string MeasurementType, decimal Value, string Uom, DateTimeOffset MeasuredAt, string? Source = null, long? Sequence = null, string? Notes = null);
 public sealed record OperationMeasurementDto(Guid Id, string TenantKey, Guid ProductionBatchId, Guid? OperationExecutionId, Guid? MachineId, Guid? LotId, string MeasurementType, decimal Value, string Uom, DateTimeOffset MeasuredAt, string RecordedBy, string Source, long? Sequence, string? Notes, DateTimeOffset CreatedAt);
-public sealed record RecordSalesActualRequest(string ProductSku, DateOnly PeriodStart, DateOnly PeriodEnd, decimal Quantity, string Uom, string Channel = "unknown", string? Region = null, string Source = "sales", string Actor = "system");
+public sealed record RecordSalesActualRequest(string ProductSku, DateOnly PeriodStart, DateOnly PeriodEnd, decimal Quantity, string Uom, string Channel = ManufacturingContractDefaults.UnknownChannel, string? Region = null, string Source = ManufacturingContractDefaults.SalesSourceLower, string Actor = ManufacturingContractDefaults.SystemActor);
 public sealed record SalesActualDto(Guid Id, string TenantKey, string ProductSku, DateOnly PeriodStart, DateOnly PeriodEnd, decimal Quantity, string Uom, string Channel, string? Region, string Source, string Actor, DateTimeOffset CreatedAt);
 public sealed record MlFeatureSnapshotRequest(string DatasetKey, string EntityType, Guid EntityId, DateTimeOffset AsOf, string FeaturesJson, string? LabelJson = null, string? SourceEventIdsJson = null, string? Split = null, int SchemaVersion = 1);
 public sealed record MlFeatureSnapshotDto(Guid Id, string TenantKey, string DatasetKey, string EntityType, Guid EntityId, DateTimeOffset AsOf, string FeaturesJson, string? LabelJson, string? SourceEventIdsJson, string Split, int SchemaVersion, DateTimeOffset CreatedAt);
@@ -131,7 +153,7 @@ public sealed record CreateProductionBatchRequest(Guid ProductionOrderId, string
 public sealed record ProductionInputRequest(Guid LotId, Guid ReservationId, decimal Quantity);
 public sealed record ProductionBatchDto(Guid Id, string TenantKey, Guid ProductionOrderId, string BatchNumber, string Status, decimal PlannedQuantity, decimal ActualOutputQuantity, Guid? MachineId, Guid? OutputLotId, DateTimeOffset CreatedAt, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt, IReadOnlyList<OperationExecutionDto> Operations, IReadOnlyList<ProductionInputDto> Inputs);
 public sealed record ProductionInputDto(Guid LotId, Guid ReservationId, decimal Quantity);
-public sealed record RecordOperationRequest(int Sequence, string ProcessStep, string Operator, decimal InputQuantity, decimal OutputQuantity, bool Required = true, string QcStatus = "Pending", DateTimeOffset? StartedAt = null);
+public sealed record RecordOperationRequest(int Sequence, string ProcessStep, string Operator, decimal InputQuantity, decimal OutputQuantity, bool Required = true, string QcStatus = ManufacturingContractDefaults.PendingQualityStatus, DateTimeOffset? StartedAt = null);
 public sealed record OperationExecutionDto(Guid Id, Guid ProductionBatchId, int Sequence, string ProcessStep, string Operator, decimal InputQuantity, decimal OutputQuantity, decimal LossQuantity, string Status, bool Required, string QcStatus, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt);
 public sealed record LossReviewRequest(string Decision, string Reviewer, string? Notes = null);
 public sealed record LossReviewDto(Guid Id, string TenantKey, Guid ProductionBatchId, Guid OperationExecutionId, string Decision, string Reviewer, string? Notes, DateTimeOffset ReviewedAt);

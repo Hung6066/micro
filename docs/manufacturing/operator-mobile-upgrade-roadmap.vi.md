@@ -199,9 +199,69 @@ Tài liệu này là backlog thực thi; không tuyên bố Manufacturing Servic
 - Audit i18n độc lập `scripts/audit-i18n-keys.ps1`: **112 referenced keys, missing 0**; validator phase hiện ghi nhận **196 mobile keys EN/VI, missing 0**.
 - Sau bổ sung cache/error contract, checklist động, sync recovery và queue hardening, unit suite hiện là **49/49 PASS**; production build tiếp tục **PASS**.
 - Live authenticated smoke cho các command lifecycle chưa được tuyên bố pass trong delta này; cần session/token có quyền Production Supervisor và batch dữ liệu thật. Nếu thiếu môi trường, ghi `environment-blocked`, không thay bằng build result.
+- Authenticated E2E đã hỗ trợ ma trận role qua secret `E2E_ROLE_MATRIX_JSON` (mỗi phần tử `{name,email,password}`), chạy cùng flow production dashboard và kiểm tra không còn key i18n thô; CI truyền secret này khi môi trường bảo vệ đã seed đủ từng role. Khi secret chưa có, test role matrix không được coi là evidence runtime đầy đủ.
 - Live Playwright tại `tests/e2e` với dev server `localhost:4310`: **2/4 PASS** (unauthenticated redirect, login entry); **2/4 ENVIRONMENT-BLOCKED/FAIL** vì tài khoản `admin@hishop.com` bị route guard trả `forbidden` do thiếu permission Manufacturing, nên các request dashboard không được phát sinh. Không hạ guard để làm xanh test; cần seed/assign đúng permission và backend healthy rồi chạy lại.
 - Shared foundation chỉ nhận bổ sung key i18n EN/VI cần thiết; không thay đổi styling/behavior của `hh-select` hoặc mobile layout để sửa riêng page operator.
 - Native validation: `operator-mobile/android/:app:assembleDebug` **BUILD SUCCESSFUL**, tạo `android/app/build/outputs/apk/debug/app-debug.apk` (~39 MB). `adb` không có trên host và không có emulator/device nên install, UI-tree, camera/push và logcat smoke là **ENVIRONMENT-BLOCKED**; không coi APK build là native runtime pass.
 - Certificate pin release boundary: placeholder `REPLACE_IN_RELEASE` đã được loại khỏi environment source; native pin được đọc từ runtime release configuration, còn release hash thực tế và rotation drill vẫn cần artifact bảo mật do môi trường triển khai cung cấp.
 - Manufacturing Service runtime: đã build lại image `docker-manufacturingservice@sha256:6916bbb233306982741c3035b262bb43d7ae9f62b12318afc7a863acb167e8e5` và recreate container `his-hope-manufacturing` bằng `docker/docker-compose.yml`; health `http://localhost:5050/health` trả `200`, container `healthy`. Request SOP không có bearer trả `401` trực tiếp và qua gateway, xác nhận auth boundary đang hoạt động. Evidence: `artifacts/evidence/manufacturing-service-rebuild-20260829.json`.
 - Auth runtime fix: mobile permission hydration đã chuyển từ admin-only `/api/v1/admin/me/permissions` sang `/api/v1/auth/me/permissions` (vẫn yêu cầu authenticated session); Identity Service đã build/recreate và healthy. Endpoint mới không bearer trả `401`; authenticated smoke cần chạy lại với session có tenant/permission thật.
+
+### Enterprise service architecture gate (2026-08-30)
+
+Pipeline backend hiện chạy thêm `scripts/validate-service-architecture.ps1`. Gate đọc toàn bộ
+project references dưới `src/Services` và fail khi dependency đi ngược chiều
+`Domain -> Application -> Infrastructure -> Api`.
+
+Baseline hiện tại: **45 service projects PASS dependency direction**. Đây là guardrail tự động,
+không thay thế review module depth, authorization hoặc runtime evidence.
+
+Persistence boundary gate đã mở rộng từ 6 lên **10 migration owners** (Appointment, Clinical,
+Billing, Pharmacy, Lab, Patient, Commerce, Content, Manufacturing và Identity), kiểm tra migration
+khởi tạo và migration owner được gọi trong API pipeline.
+
+Các service legacy (Appointment, Clinical, Billing, Pharmacy, Lab và Patient) đã loại bỏ hoàn toàn
+`EnsureCreated()` khỏi startup. Mọi môi trường phải dùng migration runner/job; thiếu
+`Persistence:RunMigrationsOnStartup` hoặc `Persistence:MigrationOnly` sẽ fail-fast thay vì khởi động
+với schema không được quản lý.
+
+Analyzer ở mức `latest-recommended` được kiểm tra tuần tự với baseline **2.620 warning**; lần chạy
+ổn định gần nhất ghi nhận **2.609 warning**, nên gate không tăng warning. Vì vậy chưa bật
+`TreatWarningsAsErrors` toàn cục; warning baseline sẽ được xử lý theo từng service và nâng ngưỡng
+dần trong các phase enterprise tiếp theo.
+
+### Validation delta (2026-08-31)
+
+- `dotnet build His.Hope.sln --no-restore --configuration Release`: **PASS, 0 errors**; analyzer gate tuần tự ghi nhận 2.609 warning (baseline 2.620).
+- Full matrix baseline trước seam mới: **1.790 PASS, 2 SKIPPED, 0 FAIL** (16 suite summaries,
+  1.792 tests). Hai test skip là external database routing chưa bật trong profile test; Identity integration riêng
+  cũng PASS **469/469**. Sau seam mới, từng project đã được chạy tuần tự để tránh MSBuild solution scheduler.
+- Sau khi tách Commerce host và chuẩn hóa Content publishing outbox, Content integration đã rebuild và PASS
+  **9/9**, Commerce PASS **13/13**, Manufacturing PASS **57/59** (2 external-routing skip). Solution-level
+  scheduler trên Windows từng abort với MSBuild `MSB4166`; vì vậy lần xác minh sau cùng chạy từng test project
+  tuần tự, không dùng kết quả abort làm bằng chứng pass.
+- Đã thêm `scripts/run-full-test-matrix.ps1` để chạy cố định 17 test projects tuần tự, fail-closed và ghi
+  `artifacts/evidence/full-test-matrix.json`. Khi chạy trong Codex host, RTK còn tự khởi động một test process
+  song song khiến Docker/Testcontainers tranh chấp; artifact sẽ giữ trạng thái fail thay vì báo pass giả.
+- Architecture, persistence, API conventions, authorization coverage, communication, transport và service-integration
+  gates đều **PASS**.
+- API security contract sau khi chuẩn hóa health endpoint dùng MapHisHopeHealthEndpoints(): **PASS**; health/live/ready
+  được anonymous ở shared ServiceDefaults, không lặp route trong từng BFF.
+- CI đã thêm `scripts/validate-analyzer-warning-baseline.ps1` với baseline `config/analyzer-warning-baseline.json`;
+  cảnh báo chỉ được tăng khi có cập nhật baseline có chủ đích.
+- EF-generated Identity migrations đã được đánh dấu generated và loại riêng CA1861 khỏi analyzer scope của migration
+  artifacts; các warning còn lại được theo dõi bằng baseline, không suppress cảnh báo trong application code.
+- Sáu API legacy (Appointment, Clinical, Billing, Pharmacy, Lab, Patient) đã loại bỏ hoàn toàn `EnsureCreated()` khỏi
+  startup; mọi schema change đi qua migration runner/job. Commerce outbox và PaymentCaptured consumer cũng dùng
+  `LoggerMessage` source generation cho hot-path logging.
+- Commerce host composition (DI, DataProtection, auth/DPoP và middleware pipeline) đã được đưa ra
+  `CommerceServiceHostExtensions`; `Program.cs` giữ lại endpoint composition và startup flow.
+- Messaging abstractions đã chuẩn hóa tên tham số tránh reserved keywords và sửa contract exception validation; shared
+  messaging project còn **0 analyzer warnings**.
+- `VaultKeyService` và `IdentityService` đã chuyển các log hot-path sang `LoggerMessage` source generation; không thay đổi API contract.
+- `DeadLetterConsumer` đã chuyển logging sang `LoggerMessage`, dùng `InvariantCulture` cho retry metadata và sửa
+  format logging trong resilience fallback; shared infrastructure còn **185 warnings**.
+- Runtime smoke local stack: gateway `/health` trả **200**, manufacturing `/api/v1/manufacturing/production-batches`
+  không bearer trả **401**; auth boundary đúng, còn authenticated operator data smoke cần token/permission thật.
+- Đây chưa phải production sign-off: authenticated operator live smoke vẫn cần tenant/permission seed thật; native
+  device/emulator, certificate rotation, external security/pentest và xử lý analyzer warnings còn là việc mở.

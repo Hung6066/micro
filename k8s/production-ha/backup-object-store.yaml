@@ -223,12 +223,51 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/name: minio
-  policyTypes: [Ingress]
+  policyTypes: [Ingress, Egress]
   # MinIO is a cluster-internal endpoint. The bucket policy remains
-  # least-privilege; access is constrained by the ClusterIP service and
-  # deployment-level namespace isolation.
+  # least-privilege; allow only MinIO's own namespace and the CNPG backup
+  # workload namespace. Do not expose the object store to arbitrary pods.
   ingress:
     -
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backup
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: minio
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: spire
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: spire-postgres
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backup
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: minio-backup-bucket
       ports:
         - protocol: TCP
           port: 9000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backup
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: minio
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

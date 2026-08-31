@@ -23,7 +23,7 @@ internal static class InventoryEndpoints
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey) || !store.LotBelongsToTenant(lotId, tenantKey))
-                        return ManufacturingProblem(StatusCodes.Status404NotFound, "lot_not_found");
+                        return ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.LotNotFound);
                 
                     var upstream = !string.Equals(direction, "downstream", StringComparison.OrdinalIgnoreCase);
                     return Results.Ok(store.GetGenealogy(lotId, upstream, tenantKey));
@@ -33,7 +33,7 @@ internal static class InventoryEndpoints
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey) || !store.LotBelongsToTenant(lotId, tenantKey))
-                        return ManufacturingProblem(StatusCodes.Status404NotFound, "lot_not_found");
+                        return ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.LotNotFound);
                     return Results.Ok(store.GetRecallImpact(lotId, tenantKey, Math.Clamp(maxLots ?? 500, 1, 5000)));
                 });
 
@@ -42,13 +42,13 @@ internal static class InventoryEndpoints
                     var tenantKey = TenantClaim(context);
                     return string.IsNullOrWhiteSpace(tenantKey)
                         ? Results.Forbid()
-                        : Results.Ok(await store.GetEpcisEventsAsync(tenantKey, from, to, Math.Clamp(limit ?? HisHopePaginationDefaults.ExportDefaultPageSize, 1, HisHopePaginationDefaults.ExportMaxPageSize), page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
+                        : Results.Ok(await store.GetEpcisEventsAsync(from, to, Math.Clamp(limit ?? HisHopePaginationDefaults.ExportDefaultPageSize, 1, HisHopePaginationDefaults.ExportMaxPageSize), page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
-                api.MapGet("/lots", async (string? tenantKey, string? sku, string? disposition, int? limit, int? page, HttpContext context, IManufacturingProductionStore store, CancellationToken cancellationToken) =>
+                api.MapGet("/lots", async (string? sku, string? disposition, int? limit, int? page, HttpContext context, IManufacturingProductionStore store, CancellationToken cancellationToken) =>
                 {
-                    if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid();
-                    return Results.Ok(await store.GetLotsAsync(scopedTenant, sku, disposition, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
+                    if (string.IsNullOrWhiteSpace(TenantClaim(context))) return Results.Forbid();
+                    return Results.Ok(await store.GetLotsAsync(sku, disposition, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
                 api.MapGet("/lots/{lotId:guid}/status-history", (Guid lotId, int? limit, int? page, HttpContext context, IManufacturingProductionStore store) =>
@@ -65,10 +65,10 @@ internal static class InventoryEndpoints
                     var result = store.SetLotDisposition(lotId, request.Disposition, tenantKey, request.Actor, request.ReasonCode, request.EvidenceReference, request.ExpectedUpdatedAt);
                     return result.Error switch
                     {
-                        "lot_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_scope_denied" => Results.Forbid(),
-                        "invalid_disposition" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
-                        "concurrency_conflict" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
+                        ManufacturingErrorCodes.LotNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
+                        ManufacturingErrorCodes.InvalidDisposition => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.ConcurrencyConflict => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ => Results.Ok(result.Lot)
                     };
                 });
@@ -90,10 +90,10 @@ internal static class InventoryEndpoints
                     var result = store.Reserve(tenantKey, lotId, request);
                     return result.Error switch
                     {
-                        "lot_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
-                        "lot_not_released" or "lot_expired" or "reservation_expired" or "invalid_reservation" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
-                        "reservation_exceeds_available" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
+                        ManufacturingErrorCodes.LotNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
+                        ManufacturingErrorCodes.LotNotReleased or ManufacturingErrorCodes.LotExpired or ManufacturingErrorCodes.ReservationExpired or "invalid_reservation" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
+                        ManufacturingErrorCodes.ReservationExceedsAvailable => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ => Results.Created($"/api/v1/manufacturing/lots/{lotId}/reservations/{result.Reservation!.Id}", result.Reservation)
                     };
                 });
@@ -105,8 +105,8 @@ internal static class InventoryEndpoints
                     var result = store.Release(tenantKey, reservationId);
                     return result.Error switch
                     {
-                        "reservation_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" => Results.Forbid(),
+                        ManufacturingErrorCodes.ReservationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch => Results.Forbid(),
                         _ => Results.Ok(result.Reservation)
                     };
                 });
@@ -118,8 +118,8 @@ internal static class InventoryEndpoints
                     var result = store.AllocateSales(tenantKey, sku, request);
                     return result.Error switch
                     {
-                        "invalid_sales_allocation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
-                        "insufficient_atp" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
+                        ManufacturingErrorCodes.InvalidSalesAllocation => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.InsufficientAtp => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                         _ => Results.Created($"/api/v1/manufacturing/sales/allocations/{sku}/{request.SalesOrderId}", result.Allocation)
                     };
                 });
@@ -134,7 +134,7 @@ internal static class InventoryEndpoints
                 {
                     if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Sku) ||
                         request.Quantity <= 0 || string.IsNullOrWhiteSpace(request.Uom))
-                        return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_lot");
+                        return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidLot);
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
                 
                     var lot = store.CreateLot(request);

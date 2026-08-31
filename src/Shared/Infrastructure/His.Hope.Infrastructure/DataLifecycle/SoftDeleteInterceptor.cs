@@ -93,7 +93,7 @@ public class SoftDeleteInterceptor : SaveChangesInterceptor
             return delegated.Value.ToString();
 
         var principal = _httpContextAccessor?.HttpContext?.User;
-        return principal?.FindFirst("sub")?.Value
+        return principal?.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
             ?? principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     }
 

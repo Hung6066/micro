@@ -34,7 +34,7 @@ internal static class WorkflowEndpoints
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var trace = store.GetCrossEntityWorkflow(tenantKey, entityType, entityId);
+                    var trace = store.GetCrossEntityWorkflow(entityType, entityId);
                     return trace is null
                         ? ManufacturingProblem(StatusCodes.Status404NotFound, "cross_workflow_not_found")
                         : Results.Ok(trace);
@@ -43,7 +43,6 @@ internal static class WorkflowEndpoints
         return api;
     }
 }
-
 
 
 

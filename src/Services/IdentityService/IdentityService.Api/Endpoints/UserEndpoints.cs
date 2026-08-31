@@ -11,6 +11,7 @@ using System.Text.Json;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Contracts.Identity;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -77,9 +78,8 @@ public static class UserEndpoints
             CancellationToken ct = default) =>
         {
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
-            var user = await mediator.Send(new GetUserByIdQuery(id), ct);
-            if (user is null)
-                return Results.NotFound();
+            var user = Guard.Against.NotFound(
+                await mediator.Send(new GetUserByIdQuery(id), ct), "User", id);
 
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
                 return accessError;
@@ -142,10 +142,6 @@ public static class UserEndpoints
                 await AdminAudit.LogAsync(audit, http, "UPDATE", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
             catch (InvalidOperationException ex)
             {
                 return Results.Problem(statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400,
@@ -169,17 +165,10 @@ public static class UserEndpoints
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
                 return accessError;
 
-            try
-            {
-                await mediator.Send(new DeactivateUserCommand(id), ct);
-                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
-                await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
-                return Results.NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
+            await mediator.Send(new DeactivateUserCommand(id), ct);
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
+            return Results.NoContent();
         })
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
             .WithTenantMutationScope();
@@ -197,17 +186,10 @@ public static class UserEndpoints
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
                 return accessError;
 
-            try
-            {
-                await mediator.Send(new ActivateUserCommand(id), ct);
-                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
-                await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
-                return Results.NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
+            await mediator.Send(new ActivateUserCommand(id), ct);
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
+            return Results.NoContent();
         })
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
             .WithTenantMutationScope();
@@ -243,10 +225,6 @@ public static class UserEndpoints
                     null, JsonSerializer.Serialize(new { roleIds = request.RoleIds }), ct);
                 await AdminAudit.LogAsync(audit, http, "ASSIGN_ROLES", "User", id.ToString(), ct);
                 return Results.Ok(user);
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
             }
             catch (InvalidOperationException ex)
             {

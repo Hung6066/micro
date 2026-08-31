@@ -5,7 +5,7 @@ namespace His.Hope.Configuration;
 
 public sealed class ServicePluginOptions
 {
-    public const string SectionName = "Plugins";
+    public const string SectionName = HisHopeConfigurationKeys.Plugins;
 
     public List<ServicePluginDefinition> Items { get; init; } = [];
 }
@@ -43,7 +43,23 @@ public sealed class ServicePluginRegistry : IServicePluginRegistry
             .Where(plugin => !string.IsNullOrWhiteSpace(plugin.Key))
             .GroupBy(plugin => plugin.Key.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(group => group.Last())
-            .ToDictionary(plugin => plugin.Key, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(
+                plugin => plugin.Key.Trim(),
+                plugin => new ServicePluginDefinition
+                {
+                    Key = plugin.Key.Trim(),
+                    DisplayName = plugin.DisplayName?.Trim() ?? string.Empty,
+                    Enabled = plugin.Enabled,
+                    Endpoint = NormalizePathOrUri(plugin.Endpoint),
+                    RoutePrefix = NormalizePath(plugin.RoutePrefix),
+                    DashboardRoute = NormalizePath(plugin.DashboardRoute),
+                    Permissions = plugin.Permissions
+                        .Where(permission => !string.IsNullOrWhiteSpace(permission))
+                        .Select(permission => permission.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray()
+                },
+                StringComparer.OrdinalIgnoreCase);
     }
 
     public IReadOnlyList<ServicePluginDefinition> All => _plugins.Values.ToArray();
@@ -52,9 +68,21 @@ public sealed class ServicePluginRegistry : IServicePluginRegistry
         _plugins.Values.Where(plugin => plugin.Enabled).ToArray();
 
     public ServicePluginDefinition? Get(string key) =>
-        _plugins.TryGetValue(key, out var plugin) ? plugin : null;
+        !string.IsNullOrWhiteSpace(key) && _plugins.TryGetValue(key.Trim(), out var plugin)
+            ? plugin
+            : null;
 
     public bool IsEnabled(string key) => Get(key)?.Enabled == true;
+
+    private static string? NormalizePath(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : $"/{value.Trim().Trim('/')}";
+
+    private static string? NormalizePathOrUri(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        return Uri.TryCreate(trimmed, UriKind.Absolute, out _) ? trimmed : NormalizePath(trimmed);
+    }
 }
 
 public static class ServicePluginRegistration
@@ -67,4 +95,5 @@ public static class ServicePluginRegistration
             new ServicePluginRegistry(configuration));
         return services;
     }
+
 }

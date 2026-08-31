@@ -64,7 +64,10 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         $sourceDirectory = Join-Path $root $sourceRoots[[string]$entry.name]
         if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf) -or
             -not (Test-Path -LiteralPath $sourceDirectory -PathType Container)) { continue }
+        # EF tooling may rewrite the model snapshot during a design-time build;
+        # freshness is about hand-authored migration source, not generated snapshots.
         $latestSource = Get-ChildItem -LiteralPath $sourceDirectory -Filter '*.cs' -File |
+            Where-Object { $_.Name -notmatch 'ModelSnapshot\.cs$' } |
             Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
         if ($null -ne $latestSource -and (Get-Item -LiteralPath $artifactPath).LastWriteTimeUtc -lt $latestSource.LastWriteTimeUtc) {
             $staleArtifacts.Add([string]$entry.script)
@@ -113,7 +116,7 @@ if ($rollbackMissing.Count -gt 0) {
 
 # Every API that owns an EF context must expose a one-shot migration-only mode
 # for the reviewed Kubernetes Job. This keeps DDL out of long-running API
-# replicas while preserving the existing development convenience path.
+# replicas and prevents any environment from silently creating an unmanaged schema.
 $migrationOnlySources = @(
     'src/Services/IdentityService/IdentityService.Api/Program.cs',
     'src/Services/IdentityService/IdentityService.Infrastructure/Persistence/IdentityDbInitializer.cs',
@@ -122,7 +125,10 @@ $migrationOnlySources = @(
     'src/Services/LabService/LabService.Api/Program.cs',
     'src/Services/BillingService/BillingService.Api/Program.cs',
     'src/Services/PatientService/PatientService.Api/Program.cs',
-    'src/Services/PharmacyService/PharmacyService.Api/Program.cs'
+    'src/Services/PharmacyService/PharmacyService.Api/Program.cs',
+    'src/Services/CommerceService/CommerceService.Api/Program.cs',
+    'src/Services/ContentService/ContentService.Api/Program.cs',
+    'src/Services/ManufacturingService/ManufacturingService.Api/Program.cs'
 )
 $missingMigrationOnly = [System.Collections.Generic.List[string]]::new()
 foreach ($relative in $migrationOnlySources) {
@@ -139,7 +145,7 @@ foreach ($relative in $migrationOnlySources) {
 if ($missingMigrationOnly.Count -gt 0) {
     Add-Check 'migration-only-runner' 'fail' "One-shot migration mode is missing from: $($missingMigrationOnly -join ', ')"
 } else {
-    Add-Check 'migration-only-runner' 'pass' 'All eight EF owners expose a migration-only exit path.'
+    Add-Check 'migration-only-runner' 'pass' 'All EF owners expose a migration-only exit path.'
 }
 
 $renderPath = Join-Path $root $RenderedProductionManifest
@@ -168,6 +174,14 @@ if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
         if ($_ -match '(?m)^\s*name:\s*(?:\S+-)?production-migrate-(?<name>[a-z-]+)\s*$') { $Matches['name'] }
     } | Sort-Object -Unique)
     $expectedJobs = @('appointment','billing','clinical','identity','lab','patient','pharmacy')
+    # If a production overlay starts deploying Commerce, Content or
+    # Manufacturing, require a matching one-shot migration Job before the
+    # deployment can pass the contract gate. These services are not currently
+    # part of the reviewed K8s production workload, so no speculative Jobs are
+    # generated here.
+    if ($apiDocuments -match '(?m)^\s*name:\s*commerce(?:-service)?\s*$') { $expectedJobs += 'commerce' }
+    if ($apiDocuments -match '(?m)^\s*name:\s*content(?:-service)?\s*$') { $expectedJobs += 'content' }
+    if ($apiDocuments -match '(?m)^\s*name:\s*manufacturing(?:-service)?\s*$') { $expectedJobs += 'manufacturing' }
     $missingJobs = @($expectedJobs | Where-Object { $jobNames -notcontains $_ })
     $invalidJobs = @($migrationJobs | Where-Object {
         $_ -notmatch '(?m)^\s*backoffLimit:\s*0\s*$' -or

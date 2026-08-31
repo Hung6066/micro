@@ -1,3 +1,5 @@
+using His.Hope.ManufacturingService.Domain;
+
 namespace His.Hope.ManufacturingService.Application;
 
 public sealed record ReservationValidationInput(
@@ -19,13 +21,13 @@ public static class ReservationPolicy
         if (input.RequestedQuantity <= 0 || input.ReferenceId == Guid.Empty || string.IsNullOrWhiteSpace(input.ReferenceType))
             return "invalid_reservation";
         if (!input.TenantKey.Equals(input.LotTenantKey, StringComparison.OrdinalIgnoreCase))
-            return "tenant_mismatch";
-        if (!input.Disposition.Equals("Released", StringComparison.OrdinalIgnoreCase))
-            return "lot_not_released";
+        return ManufacturingErrorCodes.TenantMismatch;
+        if (!input.Disposition.Equals(ManufacturingStatusCodes.Released, StringComparison.OrdinalIgnoreCase))
+            return ManufacturingErrorCodes.LotNotReleased;
         if (input.BestBefore is { } expiry && expiry < input.Today)
-            return "lot_expired";
+            return ManufacturingErrorCodes.LotExpired;
         if (input.ReservedQuantity + input.RequestedQuantity > input.LotQuantity)
-            return "reservation_exceeds_available";
+            return ManufacturingErrorCodes.ReservationExceedsAvailable;
         return null;
     }
 }

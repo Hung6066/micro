@@ -2,9 +2,11 @@ using System.Collections.Concurrent;
 using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using His.Hope.Configuration;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using His.Hope.Infrastructure.Caching;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Infrastructure.Abuse;
 
@@ -47,7 +49,7 @@ public sealed class PerUserRateLimitingMiddleware
         // Try to connect to Redis; fall back to in-memory if unavailable
         try
         {
-            var redisConnectionString = configuration.GetValue<string>("Redis:ConnectionString")
+            var redisConnectionString = configuration.GetValue<string>(HisHopeConfigurationKeys.RedisConnectionString)
                 ?? configuration.GetValue<string>("RateLimiting:RedisConnectionString")
                 ?? "localhost:6379";
             var options = RedisConnectionFactory.CreateOptions(redisConnectionString, configuration);
@@ -75,7 +77,7 @@ public sealed class PerUserRateLimitingMiddleware
 
         var clientIp = GetClientIp(context);
         // SECURITY: Use JWT 'sub' claim for user-based rate limiting when authenticated
-        var userId = context.User?.FindFirst("sub")?.Value;
+        var userId = context.User?.FindFirst(HisHopeProtocolConstants.Claims.Subject)?.Value;
         var ipKey = $"ratelimit:ip:{clientIp}";
 
         // Check IP-based limit

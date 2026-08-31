@@ -9,7 +9,9 @@ const MOBILE_AUTH_AVAILABLE =
 test.describe('@mobile-smoke His.Hope Mobile', () => {
   test('login screen renders the secure sign-in affordance', async ({ page }) => {
     await page.goto(`${MOBILE_URL}/auth/login`);
-    await expect(page.getByRole('heading')).toContainText(/clinical access|truy cập lâm sàng/i);
+    await expect(page.getByRole('heading')).toContainText(
+      /clinical access|manufacturing operator console|truy cập lâm sàng/i,
+    );
     await expect(
       page.getByRole('button', { name: /sign in securely|đăng nhập an toàn/i }),
     ).toBeVisible();

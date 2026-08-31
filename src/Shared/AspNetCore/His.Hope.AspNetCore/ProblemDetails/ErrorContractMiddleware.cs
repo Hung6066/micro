@@ -1,5 +1,6 @@
 using System.Text.Json;
 using His.Hope.Contracts;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -98,8 +99,8 @@ internal sealed class ErrorContractMiddleware(RequestDelegate next)
         };
         problem.Extensions[ApiProblemExtensions.ErrorCode] = errorCode;
         problem.Extensions[ApiProblemExtensions.CorrelationId] =
-            context.Response.Headers["X-Correlation-Id"].FirstOrDefault()
-            ?? context.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+            context.Response.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
+            ?? context.Request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
             ?? context.TraceIdentifier;
         problem.Extensions["traceId"] = context.TraceIdentifier;
         await context.Response.WriteAsJsonAsync(problem);

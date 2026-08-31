@@ -24,14 +24,18 @@ function Read-Text([string]$path) {
     return Get-Content -LiteralPath $path -Raw
 }
 
-function Invoke-NpmCapture([string]$arguments) {
-    $tempPath = [System.IO.Path]::GetTempFileName()
+function Invoke-NpmCapture([string[]]$arguments) {
+    $previousErrorActionPreference = $ErrorActionPreference
     try {
-        & cmd.exe /d /c "npm $arguments > `"$tempPath`" 2>&1"
+        # Angular writes progress diagnostics to stderr. Treat those as
+        # captured process output rather than terminating the validator under
+        # its fail-fast error policy.
+        $ErrorActionPreference = "Continue"
+        $output = @(& npm.cmd @arguments 2>&1 | ForEach-Object { $_.ToString() })
         $exitCode = $LASTEXITCODE
-        return [pscustomobject]@{ ExitCode = $exitCode; Output = (Get-Content -LiteralPath $tempPath -Raw) }
+        return [pscustomobject]@{ ExitCode = $exitCode; Output = ($output -join "`n") }
     }
-    finally { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+    finally { $ErrorActionPreference = $previousErrorActionPreference }
 }
 
 $htmlFiles = @(Get-ChildItem -LiteralPath $featureRoot -Recurse -Filter "*.html" -File | Where-Object { $_.FullName -notmatch "\\(node_modules|dist|\.angular)\\" })
@@ -100,9 +104,12 @@ Add-Result "P2" "Shared select boundary" (($htmlText -match "<hh-select\b") -and
 if (-not $SkipCommands) {
     Push-Location $appRoot
     try {
-        $lint = Invoke-NpmCapture "run lint"
+        $lint = Invoke-NpmCapture @("run", "lint")
         Add-Result "P0" "lint" ($lint.ExitCode -eq 0) "Operator-mobile lint completed."
-        $tests = Invoke-NpmCapture "test"
+        # Use the deterministic headless browser used by CI and local release
+        # validation. A bare `npm test` can select an interactive browser and
+        # produce a false negative on Windows/CI hosts without a display.
+        $tests = Invoke-NpmCapture @("test", "--", "--browsers=ChromeHeadless", "--watch=false")
         Add-Result "P1" "unit tests" (($tests.ExitCode -eq 0) -and ($tests.Output -match "TOTAL:\s+\d+ SUCCESS")) "Operator-mobile unit suite completed."
         $build = Invoke-NpmCapture "run build"
         Add-Result "P4" "production build" (($build.ExitCode -eq 0) -and ($build.Output -match "Application bundle generation complete")) "Operator-mobile and shared package build completed."
@@ -122,6 +129,7 @@ $evidence = [pscustomobject]@{
 $absoluteEvidence = Join-Path $repoRoot $EvidencePath
 $evidenceDir = Split-Path -Parent $absoluteEvidence
 New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
-$evidence | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $absoluteEvidence -Encoding utf8
-$evidence | ConvertTo-Json -Depth 5
+$evidenceJson = $evidence | ConvertTo-Json -Depth 5
+Set-Content -LiteralPath $absoluteEvidence -Value $evidenceJson -Encoding utf8
+$evidenceJson
 if ($failed.Count) { exit 1 }

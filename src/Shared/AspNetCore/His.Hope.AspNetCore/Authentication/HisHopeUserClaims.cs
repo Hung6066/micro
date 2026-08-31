@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.AspNetCore.Authentication;
 
@@ -15,12 +16,12 @@ public static class HisHopeUserClaims
     {
         var identity = principal?.Identity as ClaimsIdentity;
         var subject = principal?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? principal?.FindFirstValue("sub");
+            ?? principal?.FindFirstValue(HisHopeProtocolConstants.Claims.Subject);
         if (identity is null || string.IsNullOrWhiteSpace(subject))
             return;
 
-        if (principal!.FindFirst("sub") is null)
-            identity.AddClaim(new Claim("sub", subject));
+        if (principal!.FindFirst(HisHopeProtocolConstants.Claims.Subject) is null)
+            identity.AddClaim(new Claim(HisHopeProtocolConstants.Claims.Subject, subject));
         if (principal.FindFirst(ClaimTypes.NameIdentifier) is null)
             identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, subject));
     }
@@ -32,7 +33,7 @@ public static class HisHopeUserClaims
     /// </summary>
     public static string? GetSubject(this ClaimsPrincipal principal) =>
         principal.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? principal.FindFirstValue("sub");
+        ?? principal.FindFirstValue(HisHopeProtocolConstants.Claims.Subject);
 
     /// <summary>
     /// Gets the stable subject as a Guid when the API requires a user key.

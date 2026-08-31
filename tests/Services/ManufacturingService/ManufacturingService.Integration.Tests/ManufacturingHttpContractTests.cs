@@ -16,6 +16,7 @@ using Testcontainers.PostgreSql;
 using His.Hope.SharedKernel.Authorization;
 using Xunit;
 
+[Collection("ManufacturingIntegration")]
 public sealed class ManufacturingHttpContractTests : IAsyncLifetime
 {
     private PostgreSqlContainer? container;
@@ -60,6 +61,7 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         {
             var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
             await using var db = await dbFactory.CreateDbContextAsync();
+            await db.Database.MigrateAsync();
             await db.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO manufacturing_uoms (id, code, name, dimension, active, created_at)
                 VALUES ({Guid.NewGuid()}, {"kg-http"}, {"Kilogram (HTTP tests)"}, {"Mass"}, {true}, {DateTimeOffset.UtcNow})

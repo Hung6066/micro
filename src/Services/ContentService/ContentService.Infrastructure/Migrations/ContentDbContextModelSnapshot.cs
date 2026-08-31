@@ -26,19 +26,16 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("BodyHtml")
                         .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("body_html");
+                        .HasColumnType("text");
 
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("category");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -63,14 +60,12 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("Excerpt")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("excerpt");
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("ImageUrl")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("image_url");
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<bool?>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -81,51 +76,42 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("Locale")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("locale");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTimeOffset>("PublishedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("published_at");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SeoDescription")
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("seo_description");
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("SeoKeywords")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("seo_keywords");
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("SeoTitle")
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("seo_title");
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("slug");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("status");
+                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("tenant_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("title");
+                        .HasColumnType("character varying(500)");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -143,7 +129,53 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
 
                     b.HasIndex("TenantKey", "Status", "PublishedAt");
 
-                    b.ToTable("content_articles", (string)null);
+                    b.ToTable("content_articles", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("BodyHtml")
+                                .HasColumnName("body_html");
+
+                            t.Property("Category")
+                                .HasColumnName("category");
+
+                            t.Property("Excerpt")
+                                .HasColumnName("excerpt");
+
+                            t.Property("ImageUrl")
+                                .HasColumnName("image_url");
+
+                            t.Property("Locale")
+                                .HasColumnName("locale");
+
+                            t.Property("PublishedAt")
+                                .HasColumnName("published_at");
+
+                            t.Property("SeoDescription")
+                                .HasColumnName("seo_description");
+
+                            t.Property("SeoKeywords")
+                                .HasColumnName("seo_keywords");
+
+                            t.Property("SeoTitle")
+                                .HasColumnName("seo_title");
+
+                            t.Property("Slug")
+                                .HasColumnName("slug");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("Title")
+                                .HasColumnName("title");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
+                        });
 
                     b.HasAnnotation("HisHope:SoftDelete", true);
                 });
@@ -152,8 +184,7 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -178,14 +209,12 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("EyebrowKey")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("eyebrow_key");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("ImageUrl")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("image_url");
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<bool?>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -194,36 +223,30 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                         .HasColumnName("is_deleted");
 
                     b.Property<bool>("IsPublished")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_published");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("SlideKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("slide_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("sort_order");
+                        .HasColumnType("integer");
 
                     b.Property<string>("SubtitleKey")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("subtitle_key");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("tenant_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("TitleKey")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("title_key");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -238,7 +261,35 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
 
                     b.HasIndex("TenantKey", "SortOrder");
 
-                    b.ToTable("content_banners", (string)null);
+                    b.ToTable("content_banners", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("EyebrowKey")
+                                .HasColumnName("eyebrow_key");
+
+                            t.Property("ImageUrl")
+                                .HasColumnName("image_url");
+
+                            t.Property("IsPublished")
+                                .HasColumnName("is_published");
+
+                            t.Property("SlideKey")
+                                .HasColumnName("slide_key");
+
+                            t.Property("SortOrder")
+                                .HasColumnName("sort_order");
+
+                            t.Property("SubtitleKey")
+                                .HasColumnName("subtitle_key");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("TitleKey")
+                                .HasColumnName("title_key");
+                        });
 
                     b.HasAnnotation("HisHope:SoftDelete", true);
                 });
@@ -247,14 +298,12 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("content_type");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -279,8 +328,7 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("file_name");
+                        .HasColumnType("character varying(500)");
 
                     b.Property<bool?>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -291,18 +339,15 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("PublicUrl")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("public_url");
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint")
-                        .HasColumnName("size_bytes");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("tenant_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -314,14 +359,35 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                         .HasColumnName("updated_by");
 
                     b.Property<DateTimeOffset>("UploadedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("uploaded_at");
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "UploadedAt");
 
-                    b.ToTable("content_media_assets", (string)null);
+                    b.ToTable("content_media_assets", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("ContentType")
+                                .HasColumnName("content_type");
+
+                            t.Property("FileName")
+                                .HasColumnName("file_name");
+
+                            t.Property("PublicUrl")
+                                .HasColumnName("public_url");
+
+                            t.Property("SizeBytes")
+                                .HasColumnName("size_bytes");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("UploadedAt")
+                                .HasColumnName("uploaded_at");
+                        });
 
                     b.HasAnnotation("HisHope:SoftDelete", true);
                 });
@@ -330,8 +396,7 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -356,8 +421,7 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(320)
-                        .HasColumnType("character varying(320)")
-                        .HasColumnName("email");
+                        .HasColumnType("character varying(320)");
 
                     b.Property<bool?>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -366,14 +430,12 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                         .HasColumnName("is_deleted");
 
                     b.Property<DateTimeOffset>("SubscribedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("subscribed_at");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("tenant_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -389,7 +451,20 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.HasIndex("TenantKey", "Email")
                         .IsUnique();
 
-                    b.ToTable("content_newsletter_subscriptions", (string)null);
+                    b.ToTable("content_newsletter_subscriptions", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("Email")
+                                .HasColumnName("email");
+
+                            t.Property("SubscribedAt")
+                                .HasColumnName("subscribed_at");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
 
                     b.HasAnnotation("HisHope:SoftDelete", true);
                 });
@@ -398,20 +473,17 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("company_name");
+                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("ContactName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("contact_name");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -436,8 +508,7 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(320)
-                        .HasColumnType("character varying(320)")
-                        .HasColumnName("email");
+                        .HasColumnType("character varying(320)");
 
                     b.Property<bool?>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -448,32 +519,27 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)")
-                        .HasColumnName("message");
+                        .HasColumnType("character varying(4000)");
 
                     b.Property<string>("PartnershipType")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("partnership_type");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("phone");
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("status");
+                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("tenant_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -488,29 +554,125 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
 
                     b.HasIndex("TenantKey", "CreatedAt");
 
-                    b.ToTable("content_partnership_inquiries", (string)null);
+                    b.ToTable("content_partnership_inquiries", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("CompanyName")
+                                .HasColumnName("company_name");
+
+                            t.Property("ContactName")
+                                .HasColumnName("contact_name");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("Email")
+                                .HasColumnName("email");
+
+                            t.Property("Message")
+                                .HasColumnName("message");
+
+                            t.Property("PartnershipType")
+                                .HasColumnName("partnership_type");
+
+                            t.Property("Phone")
+                                .HasColumnName("phone");
+
+                            t.Property("Status")
+                                .HasColumnName("status");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+                        });
 
                     b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
-            modelBuilder.Entity("His.Hope.ContentService.Infrastructure.ContentStoryBlockEntity", b =>
+            modelBuilder.Entity("His.Hope.ContentService.Infrastructure.ContentPublishingOutboxEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<DateTimeOffset?>("ProcessedOn")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_on");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedOn");
+
+                    b.ToTable("content_publishing_outbox", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.ContentService.Infrastructure.ContentStoryBlockEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
                     b.Property<string>("BlockKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("block_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("BodyKey")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("body_key");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -535,8 +697,7 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                     b.Property<string>("ImageUrl")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("image_url");
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<bool?>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -545,30 +706,25 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
                         .HasColumnName("is_deleted");
 
                     b.Property<bool>("IsPublished")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_published");
+                        .HasColumnType("boolean");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("sort_order");
+                        .HasColumnType("integer");
 
                     b.Property<string>("TagKey")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("tag_key");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("tenant_key");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("TitleKey")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("title_key");
+                        .HasColumnType("character varying(200)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -583,7 +739,35 @@ namespace His.Hope.ContentService.Infrastructure.Migrations
 
                     b.HasIndex("TenantKey", "SortOrder");
 
-                    b.ToTable("content_story_blocks", (string)null);
+                    b.ToTable("content_story_blocks", null, t =>
+                        {
+                            t.Property("Id")
+                                .HasColumnName("id");
+
+                            t.Property("BlockKey")
+                                .HasColumnName("block_key");
+
+                            t.Property("BodyKey")
+                                .HasColumnName("body_key");
+
+                            t.Property("ImageUrl")
+                                .HasColumnName("image_url");
+
+                            t.Property("IsPublished")
+                                .HasColumnName("is_published");
+
+                            t.Property("SortOrder")
+                                .HasColumnName("sort_order");
+
+                            t.Property("TagKey")
+                                .HasColumnName("tag_key");
+
+                            t.Property("TenantKey")
+                                .HasColumnName("tenant_key");
+
+                            t.Property("TitleKey")
+                                .HasColumnName("title_key");
+                        });
 
                     b.HasAnnotation("HisHope:SoftDelete", true);
                 });

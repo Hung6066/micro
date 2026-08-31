@@ -14,14 +14,22 @@ public class SagaInstance
     /// <summary>CLR type name of the saga orchestrator.</summary>
     public string SagaType { get; set; } = string.Empty;
 
+    public string? TenantKey { get; set; }
+    public string? CorrelationId { get; set; }
+    public string? CausationId { get; set; }
+    public string? IdempotencyKey { get; set; }
+
     /// <summary>
     /// Current saga status.
     /// Valid values: Pending, Running, Completed, Failed, Compensating, Compensated.
     /// </summary>
-    public string Status { get; set; } = "Pending";
+    public string Status { get; set; } = SagaStatus.Pending;
 
     /// <summary>Index of the currently executing (or last completed) step.</summary>
     public int StepIndex { get; set; }
+
+    public int RetryCount { get; set; }
+    public long Version { get; set; }
 
     /// <summary>Serialized saga data payload as raw JSON.</summary>
     public string Data { get; set; } = "{}";
@@ -37,6 +45,8 @@ public class SagaInstance
 
     /// <summary>Last heartbeat timestamp for staleness detection.</summary>
     public DateTime LastHeartbeat { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
 
     /// <summary>
     /// Deserializes the Data JSON into the specified type.

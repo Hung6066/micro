@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
+[Collection("ManufacturingIntegration")]
 public sealed class ManufacturingMigrationContractTests
 {
     [Fact]

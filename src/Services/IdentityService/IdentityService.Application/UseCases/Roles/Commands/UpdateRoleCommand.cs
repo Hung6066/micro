@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Application.Authorization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Roles.Commands;
 
@@ -30,14 +31,14 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
         var role = await _context.Roles
             .Include(r => r.RolePermissions)
             .FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken)
-            ?? throw new KeyNotFoundException("Role not found.");
+            ?? Guard.Against.NotFound<Role>(null, "Role", request.Id);
 
         if (!string.IsNullOrWhiteSpace(request.ConcurrencyToken) &&
             !string.Equals(request.ConcurrencyToken, role.ConcurrencyStamp, StringComparison.Ordinal))
-            throw new InvalidOperationException("CONCURRENCY_CONFLICT: The role was changed by another request.");
+            Guard.Against.Conflict(true, "CONCURRENCY_CONFLICT: The role was changed by another request.");
 
         if (role.IsSystem)
-            throw new InvalidOperationException("System roles are immutable.");
+            Guard.Against.Conflict(true, "System roles are immutable.");
 
         // Update role properties
         role.Name = request.Name;

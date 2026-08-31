@@ -8,6 +8,7 @@ using His.Hope.DatabaseContinuityService;
 using His.Hope.Authorization;
 using His.Hope.Authorization.Requirements;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Contracts;
@@ -115,7 +116,7 @@ app.Use(async (context, next) =>
         var tokenProtector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
         var protectedJwt = context.Request.Headers["X-HisHope-Session-Token"].FirstOrDefault();
         if (string.IsNullOrWhiteSpace(protectedJwt) &&
-            context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+            context.Request.Cookies.TryGetValue(HisHopeProtocolConstants.Cookies.BrowserSession, out var sessionId) &&
             !string.IsNullOrWhiteSpace(sessionId))
         {
             var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
@@ -148,7 +149,7 @@ app.UseAuthentication();
 app.Use(async (context, next) =>
 {
     if (context.User.Identity?.IsAuthenticated != true &&
-        context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+        context.Request.Cookies.TryGetValue(HisHopeProtocolConstants.Cookies.BrowserSession, out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId))
     {
         var sessionJson = await sessionRedis.GetDatabase().StringGetAsync($"session:{sessionId}");
@@ -171,7 +172,7 @@ app.Use(async (context, next) =>
                     var claims = new List<Claim>();
                     if (root.TryGetProperty("UserId", out var userIdElement) && userIdElement.GetString() is { } userId)
                     {
-                        claims.Add(new Claim("sub", userId));
+                        claims.Add(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject, userId));
                         claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
                     }
                     var principalType = root.TryGetProperty("PrincipalType", out var principalTypeElement)
@@ -184,7 +185,7 @@ app.Use(async (context, next) =>
                         foreach (var permission in permissionsElement.EnumerateArray())
                         {
                             if (permission.GetString() is { Length: > 0 } value)
-                                claims.Add(new Claim("permissions", value));
+                                claims.Add(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, value));
                         }
                     }
                     context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "HisHopeSession"));
@@ -302,8 +303,8 @@ admin.MapPost("/backups", async (HttpContext http, ContinuityJobStore store, Vau
     {
         Operation = "backup",
         TargetEnvironment = "production",
-        ActorSubject = http.User.FindFirst("sub")?.Value ?? "admin",
-        CorrelationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier
+        ActorSubject = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "admin",
+        CorrelationId = http.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier
     };
     await store.EnqueueAsync(job, ct);
     return Results.Accepted($"/api/v1/admin/database-continuity/jobs/{job.JobId}", job);
@@ -321,8 +322,8 @@ admin.MapPost("/restore-drills", async (HttpContext http, ContinuityJobStore sto
         Operation = "restore-drill",
         TargetEnvironment = value.RestoreDrillTargetEnvironment,
         RestorePoint = DateTimeOffset.UtcNow,
-        ActorSubject = http.User.FindFirst("sub")?.Value ?? "admin",
-        CorrelationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier
+        ActorSubject = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "admin",
+        CorrelationId = http.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier
     };
     await store.EnqueueAsync(job, ct);
     return Results.Accepted($"/api/v1/admin/database-continuity/jobs/{job.JobId}", job);

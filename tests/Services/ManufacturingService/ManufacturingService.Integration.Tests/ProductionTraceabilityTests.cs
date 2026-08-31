@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 using Xunit;
 
+[Collection("ManufacturingIntegration")]
 public sealed class ProductionTraceabilityTests : IAsyncLifetime
 {
     private PostgreSqlContainer? container;

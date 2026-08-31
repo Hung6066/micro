@@ -46,7 +46,9 @@ thực hiện qua change đã phê duyệt với `-AllowProduction -Confirmation
 
 Production go-live workflow nhận file này qua protected environment secret
 `PRODUCTION_STORAGE_ATTESTATION_B64`; secret chỉ chứa JSON metadata/evidence
-reference, không chứa password, SAS, private key hoặc token.
+reference, không chứa password, SAS, private key hoặc token. Workflow còn
+nhận `PRODUCTION_STORAGE_ATTESTATION_SHA256` (64 ký tự hex) và từ chối
+artifact nếu digest không khớp.
 
 ## 3. Kubernetes CSI/database
 

@@ -17,6 +17,7 @@ using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Contracts;
 using His.Hope.Infrastructure.HealthChecks;
@@ -37,7 +38,6 @@ using Serilog;
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ClinicalService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -65,17 +65,7 @@ builder.Services.AddGrpc(options =>
     options.Interceptors.Add<GrpcServerInterceptor>();
 });
 
-builder.Services.AddRabbitMQEventBus(options =>
-{
-    options.HostName = builder.Configuration.GetValue("EventBus:HostName", "localhost")!;
-    options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
-    options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
-    options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
-    options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
-    options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
-    options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
-});
+builder.Services.AddHisHopeLegacyRabbitMqEventBus(builder.Configuration);
 
 // Comprehensive Health Checks
 builder.Services.AddHealthChecks()
@@ -84,7 +74,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
         builder.Configuration.GetValue("EventBus:UserName", "admin")!,
-        builder.Configuration.GetValue("EventBus:Password", "admin")!,
+        His.Hope.Infrastructure.Messaging.EventBusSecurity.GetPassword(builder.Configuration),
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
@@ -123,19 +113,17 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-// Development-only convenience for a local empty database. Production schema is
-// owned by the external CockroachDB migration workflow.
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ClinicalDbContext>();
-    db.Database.EnsureCreated();
-}
-else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+// Schema is owned by the external migration runner in every environment.
+if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
          builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+      await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+else if (!app.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "ClinicalService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
@@ -565,7 +553,6 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
                 status = e.Value.Status.ToString(),
                 description = e.Value.Description,
                 tags = e.Value.Tags,
-                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
         };
@@ -576,17 +563,35 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
 // Frontend error reporting endpoint - accepts error reports from Angular ErrorService
 app.MapPost("/api/v1/errors", async (HttpRequest request, ILogger<Program> logger) =>
 {
+    const int maxReportBytes = 8 * 1024;
+    if (request.ContentLength > maxReportBytes)
+        return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+
     try
     {
-        using var reader = new StreamReader(request.Body);
-        var body = await reader.ReadToEndAsync();
-        var clientIp = request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var correlationId = request.Headers["X-Correlation-Id"].FirstOrDefault() ?? "unknown";
-        var userAgent = request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
-        var method = request.Method;
+        // Read at most one byte beyond the accepted size. This also protects
+        // chunked requests, where Content-Length is absent and ReadToEndAsync
+        // would otherwise allocate an unbounded body before validation.
+        var bodyBuffer = new byte[maxReportBytes + 1];
+        var bodyLength = 0;
+        while (bodyLength < bodyBuffer.Length)
+        {
+            var read = await request.Body.ReadAsync(bodyBuffer.AsMemory(bodyLength));
+            if (read == 0) break;
+            bodyLength += read;
+        }
 
-        logger.LogWarning("Frontend error report | IP: {ClientIp} | CorrelationId: {CorrelationId} | Body: {Body} | UA: {UserAgent}",
-            clientIp, correlationId, body, userAgent);
+        if (bodyLength > maxReportBytes)
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+
+        var clientIp = request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var correlationId = request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? "unknown";
+        var userAgent = request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+
+        // Error payloads may contain patient/user data. Keep operational
+        // metadata for correlation but never write the untrusted body to logs.
+        logger.LogWarning("Frontend error report | IP: {ClientIp} | CorrelationId: {CorrelationId} | BodyLength: {BodyLength} | UA: {UserAgent}",
+            clientIp, correlationId, bodyLength, userAgent);
     }
     catch (Exception ex)
     {

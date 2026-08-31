@@ -7,10 +7,10 @@ namespace His.Hope.IdentityService.Infrastructure.Tests;
 public sealed class SupportElevationPermissionsTests
 {
     [Fact]
-    public void Empty_permission_document_allows_any_action()
+    public void Empty_permission_document_does_not_grant_any_action()
     {
         var elevation = new SupportElevation { PermissionsJson = "[]" };
-        Assert.True(SupportElevationPermissions.Allows(elevation, "admin.users.write"));
+        Assert.False(SupportElevationPermissions.Allows(elevation, "admin.users.write"));
     }
 
     [Fact]

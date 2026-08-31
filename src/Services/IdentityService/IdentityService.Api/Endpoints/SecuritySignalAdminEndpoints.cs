@@ -1,4 +1,5 @@
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.SharedKernel.Domain.Common;
 using His.Hope.Contracts.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -63,7 +64,7 @@ public static class SecuritySignalAdminEndpoints
             // FindAsync uses the primary-key lookup and returns null without
             // materializing the full outbox row when the id is absent.
             var entry = await db.SecuritySignalOutbox.FindAsync([id], ct);
-            if (entry is null) return Results.NotFound();
+            entry = Guard.Against.NotFound(entry, "SecuritySignalOutbox", id);
             entry.DispatchedAt = null;
             entry.AvailableAt = DateTime.UtcNow;
             entry.LastError = null;

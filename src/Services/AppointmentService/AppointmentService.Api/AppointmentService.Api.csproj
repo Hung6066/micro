@@ -7,6 +7,7 @@
     <PreserveCompilationContext>true</PreserveCompilationContext>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <Protobuf Include="..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
     <Protobuf Include="..\..\..\Shared\Protos\appointment.proto" GrpcServices="Both" Link="Protos\appointment.proto" />
   </ItemGroup>

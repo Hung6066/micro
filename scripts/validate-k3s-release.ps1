@@ -96,9 +96,20 @@ $overlayPath = Join-Path $repoRoot "k8s\overlays\$overlayName"
 if (-not (Test-Path -LiteralPath $overlayPath -PathType Container)) {
     Add-Check 'manifest-overlay' 'fail' "Overlay does not exist: $overlayPath"
 } else {
-    $rendered = & kubectl kustomize $overlayPath --load-restrictor LoadRestrictionsNone 2>&1
+    # Keep kubectl's stderr separate. PowerShell treats stderr emitted by a
+    # native command as a NativeCommandError under ErrorActionPreference=Stop,
+    # even when kustomize rendered successfully with a deprecation warning.
+    $previousNativeErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $rendered = & kubectl kustomize $overlayPath --load-restrictor LoadRestrictionsNone 2>&1
+        $renderWarnings = ($rendered | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() }) -join "`n"
+    } finally {
+        $ErrorActionPreference = $previousNativeErrorAction
+    }
     if ($LASTEXITCODE -ne 0) {
-        Add-Check 'manifest-render' 'fail' 'Kustomize render failed.'
+        $detail = if ([string]::IsNullOrWhiteSpace($renderWarnings)) { 'Kustomize render failed.' } else { "Kustomize render failed: $($renderWarnings.Trim())" }
+        Add-Check 'manifest-render' 'fail' $detail
     } else {
         $text = $rendered -join "`n"
         $images = @([regex]::Matches($text, '(?m)^\s*image:\s*(?<image>[^\s]+)') | ForEach-Object { $_.Groups['image'].Value } | Sort-Object -Unique)

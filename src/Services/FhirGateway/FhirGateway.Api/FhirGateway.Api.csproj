@@ -6,6 +6,7 @@
     <RootNamespace>His.Hope.FhirGateway.Api</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <Protobuf Include="..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
     <Protobuf Include="..\..\..\Shared\Protos\clinical.proto" GrpcServices="Client" Link="Protos\clinical.proto" />
   </ItemGroup>

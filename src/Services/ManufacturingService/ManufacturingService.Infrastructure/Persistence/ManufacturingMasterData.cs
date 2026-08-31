@@ -1,8 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
+using His.Hope.AspNetCore.Tenancy;
 
 public sealed class ManufacturingMasterDataStore(IDbContextFactory<ManufacturingDbContext> dbFactory) : IManufacturingMasterDataStore
 {
+    public IReadOnlyList<MaterialDto> GetMaterials(string? materialType, bool? active, int limit) =>
+        GetMaterials(HisHopeTenantScope.Current ?? throw new InvalidOperationException("Tenant context is required."), materialType, active, limit);
+
     public IReadOnlyList<UomDto> GetUoms(bool? active, int limit)
     {
         using var db = dbFactory.CreateDbContext(); var query = db.Uoms.AsNoTracking(); if (active.HasValue) query = query.Where(x => x.Active == active.Value);
@@ -22,7 +26,7 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
         using var db = dbFactory.CreateDbContext(); var entity = db.Uoms.SingleOrDefault(x => x.Id == uomId);
         if (entity is null) return (null, "uom_not_found");
         var code = request.Code.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Dimension)) return (null, "invalid_uom");
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Dimension)) return (null, ManufacturingErrorCodes.InvalidUom);
         if (db.Uoms.Any(x => x.Id != uomId && x.Code == code)) return (null, "uom_code_exists");
         entity.Code = code; entity.Name = request.Name.Trim(); entity.Dimension = request.Dimension.Trim(); entity.Active = request.Active; db.SaveChanges();
         return (new UomDto(entity.Id, entity.Code, entity.Name, entity.Dimension, entity.Active, entity.CreatedAt), null);
@@ -73,7 +77,7 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     public (MaterialDto? Material, string? Error) UpdateMaterial(string tenantKey, Guid materialId, UpdateMaterialRequest request)
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.Materials.SingleOrDefault(x => x.Id == materialId && x.TenantKey == tenantKey);
-        if (entity is null) return (null, "material_not_found");
+        if (entity is null) return (null, ManufacturingErrorCodes.MaterialNotFound);
         var uom = request.BaseUomCode.Trim().ToLowerInvariant(); if (!db.Uoms.Any(x => x.Code == uom && x.Active)) return (null, "uom_not_found");
         if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.MaterialType)) return (null, "invalid_material");
         entity.Name = request.Name.Trim(); entity.BaseUomCode = uom; entity.MaterialType = request.MaterialType.Trim(); entity.Active = request.Active; db.SaveChanges();
@@ -98,7 +102,7 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     public (ProductDto? Product, string? Error) UpdateProduct(string tenantKey, Guid productId, UpdateProductRequest request)
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.Products.SingleOrDefault(x => x.Id == productId && x.TenantKey == tenantKey);
-        if (entity is null) return (null, "product_not_found");
+        if (entity is null) return (null, ManufacturingErrorCodes.ProductNotFound);
         var uom = request.BaseUomCode.Trim().ToLowerInvariant(); if (!db.Uoms.Any(x => x.Code == uom && x.Active)) return (null, "uom_not_found");
         if (string.IsNullOrWhiteSpace(request.Name)) return (null, "invalid_product");
         entity.Name = request.Name.Trim(); entity.BaseUomCode = uom; entity.Active = request.Active; db.SaveChanges();
@@ -129,7 +133,7 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     public (SupplierQuotationDto? Quotation, string? Error) CreateSupplierQuotation(string tenantKey, CreateSupplierQuotationRequest request)
     {
         using var db = dbFactory.CreateDbContext(); var rfq = db.SupplierRfqs.SingleOrDefault(x => x.Id == request.SupplierRfqId && x.TenantKey == tenantKey); if (rfq is null) return (null, "supplier_rfq_not_found");
-        var supplier = db.Suppliers.SingleOrDefault(x => x.Id == request.SupplierId && x.TenantKey == tenantKey && x.Active); if (supplier is null) return (null, "supplier_not_found");
+        var supplier = db.Suppliers.SingleOrDefault(x => x.Id == request.SupplierId && x.TenantKey == tenantKey && x.Active); if (supplier is null) return (null, ManufacturingErrorCodes.SupplierNotFound);
         if (request.UnitPrice < 0 || request.LeadTimeDays < 0) return (null, "invalid_supplier_quotation");
         if (db.SupplierQuotations.Any(x => x.TenantKey == tenantKey && x.SupplierRfqId == request.SupplierRfqId && x.SupplierId == request.SupplierId)) return (null, "supplier_quotation_exists");
         var entity = new ManufacturingSupplierQuotationEntity { Id = Guid.NewGuid(), TenantKey = tenantKey, SupplierRfqId = rfq.Id, SupplierId = supplier.Id, UnitPrice = request.UnitPrice, Currency = request.Currency.Trim().ToUpperInvariant(), LeadTimeDays = request.LeadTimeDays, Notes = request.Notes?.Trim(), CreatedAt = DateTimeOffset.UtcNow };
@@ -156,15 +160,15 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.SupplierQuotations.SingleOrDefault(x => x.Id == quotationId && x.TenantKey == tenantKey);
         if (entity is null) return (null, "supplier_quotation_not_found");
-        var normalized = status.Trim(); if (normalized is not ("Submitted" or "Selected" or "Rejected" or "Closed")) return (null, "invalid_supplier_quotation_status");
-        if (normalized == "Selected") db.SupplierQuotations.Where(x => x.SupplierRfqId == entity.SupplierRfqId && x.TenantKey == tenantKey).ToList().ForEach(x => x.Status = x.Id == quotationId ? "Selected" : "Rejected"); else entity.Status = normalized;
+        var normalized = status.Trim(); if (normalized is not (ManufacturingStatusCodes.Submitted or "Selected" or ManufacturingStatusCodes.Rejected or ManufacturingStatusCodes.Closed)) return (null, "invalid_supplier_quotation_status");
+        if (normalized == "Selected") db.SupplierQuotations.Where(x => x.SupplierRfqId == entity.SupplierRfqId && x.TenantKey == tenantKey).ToList().ForEach(x => x.Status = x.Id == quotationId ? "Selected" : ManufacturingStatusCodes.Rejected); else entity.Status = normalized;
         db.SaveChanges(); return (new SupplierQuotationDto(entity.Id, entity.TenantKey, entity.SupplierRfqId, entity.SupplierId, entity.UnitPrice, entity.Currency, entity.LeadTimeDays, entity.Status, entity.Notes, entity.CreatedAt), null);
     }
 
     public (FacilityDto? Facility, string? Error) UpdateFacility(string tenantKey, Guid facilityId, UpdateFacilityRequest request)
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.Facilities.SingleOrDefault(x => x.Id == facilityId && x.TenantKey == tenantKey);
-        if (entity is null) return (null, "facility_not_found");
+        if (entity is null) return (null, ManufacturingErrorCodes.FacilityNotFound);
         var code = request.Code.Trim(); if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name)) return (null, "invalid_facility");
         if (db.Facilities.Any(x => x.Id != facilityId && x.TenantKey == tenantKey && x.Code == code)) return (null, "facility_code_exists");
         entity.Code = code; entity.Name = request.Name.Trim(); entity.Active = request.Active; db.SaveChanges(); return (ToDto(entity), null);
@@ -183,7 +187,7 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext();
         var facility = db.Facilities.SingleOrDefault(x => x.Id == request.FacilityId && x.TenantKey == request.TenantKey && x.Active);
-        if (facility is null) return (null, "facility_not_found");
+        if (facility is null) return (null, ManufacturingErrorCodes.FacilityNotFound);
         if (db.Warehouses.Any(x => x.TenantKey == request.TenantKey && x.Code == request.Code.Trim())) return (null, "warehouse_code_exists");
         var entity = new ManufacturingWarehouseEntity { Id = Guid.NewGuid(), TenantKey = request.TenantKey.Trim(), FacilityId = facility.Id, Code = request.Code.Trim(), Name = request.Name.Trim(), Active = request.Active, CreatedAt = DateTimeOffset.UtcNow };
         db.Warehouses.Add(entity); db.SaveChanges();
@@ -193,9 +197,9 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     public (WarehouseDto? Warehouse, string? Error) UpdateWarehouse(string tenantKey, Guid warehouseId, UpdateWarehouseRequest request)
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.Warehouses.SingleOrDefault(x => x.Id == warehouseId && x.TenantKey == tenantKey);
-        if (entity is null) return (null, "warehouse_not_found");
-        if (!db.Facilities.Any(x => x.Id == request.FacilityId && x.TenantKey == tenantKey && x.Active)) return (null, "facility_not_found");
-        var code = request.Code.Trim(); if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name)) return (null, "invalid_warehouse");
+        if (entity is null) return (null, ManufacturingErrorCodes.WarehouseNotFound);
+        if (!db.Facilities.Any(x => x.Id == request.FacilityId && x.TenantKey == tenantKey && x.Active)) return (null, ManufacturingErrorCodes.FacilityNotFound);
+        var code = request.Code.Trim(); if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name)) return (null, ManufacturingErrorCodes.InvalidWarehouse);
         if (db.Warehouses.Any(x => x.Id != warehouseId && x.TenantKey == tenantKey && x.Code == code)) return (null, "warehouse_code_exists");
         entity.FacilityId = request.FacilityId; entity.Code = code; entity.Name = request.Name.Trim(); entity.Active = request.Active; db.SaveChanges(); return (new WarehouseDto(entity.Id, entity.TenantKey, entity.FacilityId, entity.Code, entity.Name, entity.Active, entity.CreatedAt), null);
     }
@@ -213,7 +217,7 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext();
         var warehouse = db.Warehouses.SingleOrDefault(x => x.Id == request.WarehouseId && x.TenantKey == request.TenantKey && x.Active);
-        if (warehouse is null) return (null, "warehouse_not_found");
+        if (warehouse is null) return (null, ManufacturingErrorCodes.WarehouseNotFound);
         if (db.StorageLocations.Any(x => x.TenantKey == request.TenantKey && x.WarehouseId == request.WarehouseId && x.Code == request.Code.Trim())) return (null, "location_code_exists");
         var entity = new ManufacturingStorageLocationEntity { Id = Guid.NewGuid(), TenantKey = request.TenantKey.Trim(), WarehouseId = warehouse.Id, Code = request.Code.Trim(), Name = request.Name.Trim(), Active = request.Active, CreatedAt = DateTimeOffset.UtcNow };
         db.StorageLocations.Add(entity); db.SaveChanges();
@@ -224,7 +228,7 @@ public sealed class ManufacturingMasterDataStore(IDbContextFactory<Manufacturing
     {
         using var db = dbFactory.CreateDbContext(); var entity = db.StorageLocations.SingleOrDefault(x => x.Id == locationId && x.TenantKey == tenantKey);
         if (entity is null) return (null, "storage_location_not_found");
-        if (!db.Warehouses.Any(x => x.Id == request.WarehouseId && x.TenantKey == tenantKey && x.Active)) return (null, "warehouse_not_found");
+        if (!db.Warehouses.Any(x => x.Id == request.WarehouseId && x.TenantKey == tenantKey && x.Active)) return (null, ManufacturingErrorCodes.WarehouseNotFound);
         var code = request.Code.Trim(); if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(request.Name)) return (null, "invalid_storage_location");
         if (db.StorageLocations.Any(x => x.Id != locationId && x.TenantKey == tenantKey && x.WarehouseId == request.WarehouseId && x.Code == code)) return (null, "location_code_exists");
         entity.WarehouseId = request.WarehouseId; entity.Code = code; entity.Name = request.Name.Trim(); entity.Active = request.Active; db.SaveChanges(); return (new StorageLocationDto(entity.Id, entity.TenantKey, entity.WarehouseId, entity.Code, entity.Name, entity.Active, entity.CreatedAt), null);

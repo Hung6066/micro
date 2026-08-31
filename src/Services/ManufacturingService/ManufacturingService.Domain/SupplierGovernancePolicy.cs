@@ -2,7 +2,7 @@ namespace His.Hope.ManufacturingService.Domain;
 
 public static class SupplierGovernancePolicy
 {
-    private static readonly string[] ApprovalStatuses = ["Draft", "PendingApproval", "Approved", "Suspended", "Rejected"];
+    private static readonly string[] ApprovalStatuses = [ManufacturingStatusCodes.Draft, ManufacturingStatusCodes.PendingApproval, ManufacturingStatusCodes.Approved, ManufacturingStatusCodes.Suspended, ManufacturingStatusCodes.Rejected];
     private static readonly string[] RiskLevels = ["Low", "Standard", "High", "Critical"];
 
     public static string? ValidateProfile(string approvalStatus, string riskLevel, string? countryCode, string? contactEmail)
@@ -21,13 +21,13 @@ public static class SupplierGovernancePolicy
 
         return (currentStatus, nextStatus) switch
         {
-            ("Draft", "PendingApproval") or ("Draft", "Rejected") or
-            ("PendingApproval", "Approved") or ("PendingApproval", "Rejected") or
-            ("Approved", "Suspended") or ("Suspended", "Approved") or
-            ("Rejected", "Draft") => null,
+            (ManufacturingStatusCodes.Draft, ManufacturingStatusCodes.PendingApproval) or (ManufacturingStatusCodes.Draft, ManufacturingStatusCodes.Rejected) or
+            (ManufacturingStatusCodes.PendingApproval, ManufacturingStatusCodes.Approved) or (ManufacturingStatusCodes.PendingApproval, ManufacturingStatusCodes.Rejected) or
+            (ManufacturingStatusCodes.Approved, ManufacturingStatusCodes.Suspended) or (ManufacturingStatusCodes.Suspended, ManufacturingStatusCodes.Approved) or
+            (ManufacturingStatusCodes.Rejected, ManufacturingStatusCodes.Draft) => null,
             _ => "invalid_supplier_approval_transition"
         };
     }
 
-    public static bool IsPurchasable(string approvalStatus) => approvalStatus.Equals("Approved", StringComparison.OrdinalIgnoreCase);
+    public static bool IsPurchasable(string approvalStatus) => approvalStatus.Equals(ManufacturingStatusCodes.Approved, StringComparison.OrdinalIgnoreCase);
 }

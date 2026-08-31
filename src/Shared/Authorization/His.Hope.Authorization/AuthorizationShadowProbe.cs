@@ -34,7 +34,7 @@ public sealed class LoggingAuthorizationShadowProbe(
         if (_mode is not ("shadow" or "canary"))
             return;
 
-        var subject = context.Principal.FindFirst("sub")?.Value ?? context.Principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var subject = context.Principal.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? context.Principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var resource = context.Resource;
         bool? external = null;
         if (!string.IsNullOrWhiteSpace(subject) && resource is not null)

@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:e2f26f26169fd10d6f1b426e01c97397717b32e9d5ab4ee4a7d5497ed9403007 AS build
 WORKDIR /src
 COPY ["Services/ContentService/ContentService.Api/ContentService.Api.csproj", "Services/ContentService/ContentService.Api/"]
 COPY ["Services/ContentService/ContentService.Domain/ContentService.Domain.csproj", "Services/ContentService/ContentService.Domain/"]
@@ -14,7 +14,7 @@ COPY . .
 RUN dotnet restore "Services/ContentService/ContentService.Api/ContentService.Api.csproj"
 RUN dotnet publish "Services/ContentService/ContentService.Api/ContentService.Api.csproj" -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:b0beb9cc1dee1c1b0749796110d4734292071b814207ad0d4f40611f7db04f7b AS final
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:5016
 EXPOSE 5016

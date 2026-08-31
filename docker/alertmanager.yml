@@ -10,6 +10,6 @@ route:
 
 receivers:
   - name: 'default'
-    webhook_configs:
-      - url: 'http://systemdashboard-bff:5700/api/alerts/webhook'
-        send_resolved: true
+    # Local Compose exposes alerts through the authenticated dashboard GET API.
+    # Auto-remediation is wired only by the production Kubernetes receiver to
+    # the authenticated Remediation Operator endpoint.

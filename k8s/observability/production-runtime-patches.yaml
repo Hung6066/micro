@@ -1,4 +1,4 @@
-# Kustomize patches for the selected HA chart/StatefulSet. These patches are
+# Kustomize patches for the selected HA chart/Deployment. These patches are
 # intentionally not applied to the dev Deployment, which uses local-path RWO.
 apiVersion: apps/v1
 kind: Deployment
@@ -45,7 +45,7 @@ spec:
             name: grafana-production-config
 ---
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: alertmanager
   namespace: monitoring
@@ -98,6 +98,11 @@ spec:
                 secretKeyRef:
                   name: alertmanager-receivers
                   key: discord_webhook_url
+            - name: REMEDIATION_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: remediation_webhook_token
           volumeMounts:
             - name: observability-secrets
               mountPath: /mnt/secrets-store

@@ -3,16 +3,17 @@ using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Application;
 using His.Hope.ManufacturingService.Domain;
+using His.Hope.SharedKernel.Domain.Common;
 
 public sealed class ManufacturingProcurementStore(IDbContextFactory<ManufacturingDbContext> dbFactory) : IManufacturingProcurementStore
 {
     public SupplierDto CreateSupplier(CreateSupplierRequest request)
     {
-        var profileError = SupplierGovernancePolicy.ValidateProfile("Draft", request.RiskLevel, request.CountryCode?.Trim().ToUpperInvariant(), request.ContactEmail?.Trim());
+        var profileError = SupplierGovernancePolicy.ValidateProfile(ManufacturingStatusCodes.Draft, request.RiskLevel, request.CountryCode?.Trim().ToUpperInvariant(), request.ContactEmail?.Trim());
         if (profileError is not null) throw new InvalidOperationException(profileError);
         using var db = dbFactory.CreateDbContext();
         if (db.Suppliers.Any(x => x.TenantKey == request.TenantKey && x.Code == request.Code))
-            throw new InvalidOperationException("supplier_code_exists");
+            Guard.Against.Conflict(true, ManufacturingErrorCodes.SupplierCodeExists);
         var entity = new ManufacturingSupplierEntity
         {
             Id = Guid.NewGuid(), TenantKey = request.TenantKey.Trim(), Code = request.Code.Trim(),
@@ -20,7 +21,7 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
             LegalName = request.LegalName?.Trim() ?? request.Name.Trim(), TaxIdentificationNumber = request.TaxIdentificationNumber?.Trim(),
             ContactName = request.ContactName?.Trim(), ContactEmail = request.ContactEmail?.Trim(), ContactPhone = request.ContactPhone?.Trim(),
             CountryCode = request.CountryCode?.Trim().ToUpperInvariant(), Address = request.Address?.Trim(), RiskLevel = request.RiskLevel.Trim(),
-            ApprovalStatus = "Draft", CreatedBy = request.CreatedBy?.Trim() ?? "system", UpdatedAt = DateTimeOffset.UtcNow
+            ApprovalStatus = ManufacturingStatusCodes.Draft, CreatedBy = request.CreatedBy?.Trim() ?? "system", UpdatedAt = DateTimeOffset.UtcNow
         };
         db.Suppliers.Add(entity);
         db.SaveChanges();
@@ -37,13 +38,13 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
 
     public (SupplierDto? Supplier, string? Error) UpdateSupplier(string tenantKey, Guid supplierId, UpdateSupplierRequest request)
     {
-        var profileError = SupplierGovernancePolicy.ValidateProfile("Draft", request.RiskLevel, request.CountryCode?.Trim().ToUpperInvariant(), request.ContactEmail?.Trim());
+        var profileError = SupplierGovernancePolicy.ValidateProfile(ManufacturingStatusCodes.Draft, request.RiskLevel, request.CountryCode?.Trim().ToUpperInvariant(), request.ContactEmail?.Trim());
         if (profileError is not null) return (null, profileError);
         using var db = dbFactory.CreateDbContext();
         var supplier = db.Suppliers.SingleOrDefault(x => x.Id == supplierId);
-        if (supplier is null) return (null, "supplier_not_found");
-        if (!supplier.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
-        if (db.Suppliers.Any(x => x.Id != supplierId && x.TenantKey == tenantKey && x.Code == request.Code.Trim())) return (null, "supplier_code_exists");
+        if (supplier is null) return (null, ManufacturingErrorCodes.SupplierNotFound);
+        if (!supplier.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
+        if (db.Suppliers.Any(x => x.Id != supplierId && x.TenantKey == tenantKey && x.Code == request.Code.Trim())) return (null, ManufacturingErrorCodes.SupplierCodeExists);
         supplier.Code = request.Code.Trim();
         supplier.Name = request.Name.Trim();
         supplier.Active = request.Active;
@@ -64,8 +65,8 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
     {
         using var db = dbFactory.CreateDbContext();
         var supplier = db.Suppliers.SingleOrDefault(x => x.Id == supplierId);
-        if (supplier is null) return (null, "supplier_not_found");
-        if (!supplier.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        if (supplier is null) return (null, ManufacturingErrorCodes.SupplierNotFound);
+        if (!supplier.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
 
         var nextStatus = request.Status.Trim();
         var transitionError = SupplierGovernancePolicy.ValidateApprovalTransition(supplier.ApprovalStatus, nextStatus);
@@ -74,7 +75,7 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
         supplier.ApprovalStatus = nextStatus;
         supplier.LastReviewedAt = DateTimeOffset.UtcNow;
         supplier.UpdatedAt = supplier.LastReviewedAt;
-        if (nextStatus.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+        if (nextStatus.Equals(ManufacturingStatusCodes.Approved, StringComparison.OrdinalIgnoreCase))
         {
             supplier.ApprovedBy = actor;
             supplier.ApprovedAt = supplier.LastReviewedAt;
@@ -85,12 +86,12 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
                 db.SupplierMaterialApprovals.Add(new ManufacturingSupplierMaterialApprovalEntity
                 {
                     Id = Guid.NewGuid(), TenantKey = tenantKey, SupplierId = supplier.Id, MaterialSku = material.Sku,
-                    ApprovedUom = material.BaseUomCode, EffectiveFrom = supplier.ApprovedAt.Value, Status = "Approved",
+                    ApprovedUom = material.BaseUomCode, EffectiveFrom = supplier.ApprovedAt.Value, Status = ManufacturingStatusCodes.Approved,
                     Notes = "Auto-created from supplier approval", CreatedAt = supplier.ApprovedAt.Value, CreatedBy = actor
                 });
             }
         }
-        else if (!nextStatus.Equals("Suspended", StringComparison.OrdinalIgnoreCase))
+        else if (!nextStatus.Equals(ManufacturingStatusCodes.Suspended, StringComparison.OrdinalIgnoreCase))
         {
             supplier.ApprovedBy = null;
             supplier.ApprovedAt = null;
@@ -109,10 +110,10 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
     public (SupplierCertificateDto? Certificate, string? Error) CreateSupplierCertificate(string tenantKey, Guid supplierId, CreateSupplierCertificateRequest request, string actor)
     {
         if (string.IsNullOrWhiteSpace(request.CertificateType) || string.IsNullOrWhiteSpace(request.CertificateNumber) || string.IsNullOrWhiteSpace(request.Issuer) || request.ExpiresAt <= request.IssuedAt)
-            return (null, "invalid_supplier_certificate");
+            return (null, ManufacturingErrorCodes.InvalidSupplierCertificate);
         using var db = dbFactory.CreateDbContext();
         var supplier = db.Suppliers.SingleOrDefault(x => x.Id == supplierId && x.TenantKey == tenantKey);
-        if (supplier is null) return (null, "supplier_not_found");
+        if (supplier is null) return (null, ManufacturingErrorCodes.SupplierNotFound);
         if (db.SupplierCertificates.Any(x => x.TenantKey == tenantKey && x.SupplierId == supplierId && x.CertificateNumber == request.CertificateNumber.Trim()))
             return (null, "supplier_certificate_exists");
         var entity = new ManufacturingSupplierCertificateEntity
@@ -137,19 +138,19 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
     public (SupplierMaterialApprovalDto? Approval, string? Error) CreateSupplierMaterialApproval(string tenantKey, Guid supplierId, CreateSupplierMaterialApprovalRequest request, string actor)
     {
         if (string.IsNullOrWhiteSpace(request.MaterialSku) || string.IsNullOrWhiteSpace(request.ApprovedUom) || (request.EffectiveTo.HasValue && request.EffectiveTo.Value <= request.EffectiveFrom))
-            return (null, "invalid_supplier_material_approval");
+            return (null, ManufacturingErrorCodes.InvalidSupplierMaterialApproval);
         using var db = dbFactory.CreateDbContext();
         var supplier = db.Suppliers.AsNoTracking().SingleOrDefault(x => x.Id == supplierId && x.TenantKey == tenantKey);
-        if (supplier is null) return (null, "supplier_not_found");
+        if (supplier is null) return (null, ManufacturingErrorCodes.SupplierNotFound);
         var materialSku = request.MaterialSku.Trim();
-        if (!db.Materials.Any(x => x.TenantKey == tenantKey && x.Sku == materialSku && x.Active)) return (null, "material_not_found");
+        if (!db.Materials.Any(x => x.TenantKey == tenantKey && x.Sku == materialSku && x.Active)) return (null, ManufacturingErrorCodes.MaterialNotFound);
         if (db.SupplierMaterialApprovals.Any(x => x.TenantKey == tenantKey && x.SupplierId == supplierId && x.MaterialSku == materialSku))
             return (null, "supplier_material_approval_exists");
         var entity = new ManufacturingSupplierMaterialApprovalEntity
         {
             Id = Guid.NewGuid(), TenantKey = tenantKey, SupplierId = supplierId, MaterialSku = materialSku,
             ApprovedUom = request.ApprovedUom.Trim(), EffectiveFrom = request.EffectiveFrom,
-            EffectiveTo = request.EffectiveTo, Status = "Approved", Notes = request.Notes?.Trim(),
+            EffectiveTo = request.EffectiveTo, Status = ManufacturingStatusCodes.Approved, Notes = request.Notes?.Trim(),
             CreatedAt = DateTimeOffset.UtcNow, CreatedBy = string.IsNullOrWhiteSpace(actor) ? "system" : actor.Trim()
         };
         db.SupplierMaterialApprovals.Add(entity); db.SaveChanges();
@@ -167,12 +168,12 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
     {
         using var db = dbFactory.CreateDbContext();
         var supplier = db.Suppliers.SingleOrDefault(x => x.Id == request.SupplierId);
-        if (supplier is null) return (null, "supplier_not_found");
+        if (supplier is null) return (null, ManufacturingErrorCodes.SupplierNotFound);
         var lineCount = request.Lines?.Count ?? 0;
         var policyError = ProcurementPolicy.ValidatePurchaseOrder(new PurchaseOrderValidationInput(
             request.Status, request.TenantKey, supplier.TenantKey, supplier.Active, request.OrderNumber, lineCount));
         if (policyError is not null) return (null, policyError);
-        if (!SupplierGovernancePolicy.IsPurchasable(supplier.ApprovalStatus)) return (null, "supplier_not_approved");
+        if (!SupplierGovernancePolicy.IsPurchasable(supplier.ApprovalStatus)) return (null, ManufacturingErrorCodes.SupplierNotApproved);
         if (string.IsNullOrWhiteSpace(request.OrderNumber) || string.IsNullOrWhiteSpace(request.Currency) || request.Lines is null || request.Lines.Count == 0 || request.Lines.Any(x => string.IsNullOrWhiteSpace(x.MaterialSku) || string.IsNullOrWhiteSpace(x.Uom) || x.OrderedQuantity <= 0 || x.UnitPrice < 0)) return (null, "invalid_purchase_order");
         var lineError = ValidatePurchaseOrderLines(db, request.TenantKey, supplier.Id, request.Lines);
         if (lineError is not null) return (null, lineError);
@@ -231,10 +232,10 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
         using var db = dbFactory.CreateDbContext();
         var order = db.PurchaseOrders.Include(x => x.Lines).SingleOrDefault(x => x.Id == purchaseOrderId);
         if (order is null) return (null, "purchase_order_not_found");
-        if (!order.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
-        if (!order.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase)) return (null, "purchase_order_not_editable");
+        if (!order.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
+        if (!order.Status.Equals(ManufacturingStatusCodes.Draft, StringComparison.OrdinalIgnoreCase)) return (null, "purchase_order_not_editable");
         var supplier = db.Suppliers.SingleOrDefault(x => x.Id == request.SupplierId && x.TenantKey == tenantKey && x.Active);
-        if (supplier is null) return (null, "supplier_not_found");
+        if (supplier is null) return (null, ManufacturingErrorCodes.SupplierNotFound);
         if (string.IsNullOrWhiteSpace(request.OrderNumber) || string.IsNullOrWhiteSpace(request.Currency) || request.Lines is null || request.Lines.Count == 0 || request.Lines.Any(x => string.IsNullOrWhiteSpace(x.MaterialSku) || string.IsNullOrWhiteSpace(x.Uom) || x.OrderedQuantity <= 0 || x.UnitPrice < 0)) return (null, "invalid_purchase_order");
         var lineError = ValidatePurchaseOrderLines(db, tenantKey, supplier.Id, request.Lines);
         if (lineError is not null) return (null, lineError);
@@ -263,13 +264,13 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
             .Where(x => x.TenantKey == tenantKey && x.Active && normalizedSkus.Contains(x.Sku.ToUpper()))
             .Select(x => x.Sku)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (normalizedSkus.Any(x => !materialSkus.Contains(x))) return "material_not_found";
+        if (normalizedSkus.Any(x => !materialSkus.Contains(x))) return ManufacturingErrorCodes.MaterialNotFound;
         var now = DateTimeOffset.UtcNow;
         var approvedSkus = db.SupplierMaterialApprovals.AsNoTracking()
-            .Where(x => x.TenantKey == tenantKey && x.SupplierId == supplierId && x.Status == "Approved" && x.EffectiveFrom <= now && (x.EffectiveTo == null || x.EffectiveTo > now) && normalizedSkus.Contains(x.MaterialSku))
+            .Where(x => x.TenantKey == tenantKey && x.SupplierId == supplierId && x.Status == ManufacturingStatusCodes.Approved && x.EffectiveFrom <= now && (x.EffectiveTo == null || x.EffectiveTo > now) && normalizedSkus.Contains(x.MaterialSku))
             .Select(x => x.MaterialSku)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return normalizedSkus.Any(x => !approvedSkus.Contains(x)) ? "supplier_material_not_approved" : null;
+        return normalizedSkus.Any(x => !approvedSkus.Contains(x)) ? ManufacturingErrorCodes.SupplierMaterialNotApproved : null;
     }
 
     private static SupplierCertificateDto ToDto(ManufacturingSupplierCertificateEntity x) =>
@@ -282,12 +283,12 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
         using var db = dbFactory.CreateDbContext();
         var order = db.PurchaseOrders.Include(x => x.Lines).SingleOrDefault(x => x.Id == purchaseOrderId);
         if (order is null) return (null, "purchase_order_not_found");
-        if (!order.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        if (!order.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
         var normalized = status.Trim();
         var allowed = normalized switch
         {
-            "Approved" when order.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase) => true,
-            "Cancelled" when order.Status is "Draft" or "Approved" => true,
+            ManufacturingStatusCodes.Approved when order.Status.Equals(ManufacturingStatusCodes.Draft, StringComparison.OrdinalIgnoreCase) => true,
+            ManufacturingStatusCodes.Cancelled when order.Status is ManufacturingStatusCodes.Draft or ManufacturingStatusCodes.Approved => true,
             _ => false,
         };
         if (!allowed) return (null, "invalid_purchase_order_transition");
@@ -333,7 +334,7 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
             LotType = "RawMaterial", OriginCountryCode = request.OriginCountryCode?.Trim().ToUpperInvariant(),
             ManufacturedOn = request.ManufacturedOn, ReceivedAt = receivedAt, FacilityCode = request.FacilityId.Trim(),
             StorageLocationCode = request.StorageLocationCode?.Trim(), CertificateOfAnalysisReference = request.CertificateOfAnalysisReference?.Trim(),
-            SourceLotCode = request.SupplierLotCode.Trim(), QualityStatus = "Pending", CreatedBy = request.ReceivedBy?.Trim() ?? "system", CreatedAt = now
+            SourceLotCode = request.SupplierLotCode.Trim(), QualityStatus = ManufacturingStatusCodes.Pending, CreatedBy = request.ReceivedBy?.Trim() ?? "system", CreatedAt = now
         };
         var receipt = new ManufacturingInboundReceiptEntity
         {
@@ -348,7 +349,7 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
         };
         line.ReceivedQuantity += request.Quantity;
         var previousPoStatus = order.Status;
-        if (order.Lines.All(x => x.ReceivedQuantity == x.OrderedQuantity)) order.Status = "Closed";
+        if (order.Lines.All(x => x.ReceivedQuantity == x.OrderedQuantity)) order.Status = ManufacturingStatusCodes.Closed;
         else if (order.Lines.Any(x => x.ReceivedQuantity > 0)) order.Status = "PartiallyReceived";
         if (!order.Status.Equals(previousPoStatus, StringComparison.OrdinalIgnoreCase))
         {
@@ -383,7 +384,7 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
                 originCountryCode = lot.OriginCountryCode, storageLocationCode = lot.StorageLocationCode,
                 certificateOfAnalysisReference = lot.CertificateOfAnalysisReference, tenantKey
             }),
-            OccurredOn = receipt.ReceivedAt.UtcDateTime, Status = "Pending"
+            OccurredOn = receipt.ReceivedAt.UtcDateTime, Status = ManufacturingStatusCodes.Pending
         });
         db.SaveChanges();
         return (ToDto(receipt, lot), null);
@@ -406,11 +407,11 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
 
     public (IReadOnlyList<InboundReceiptDto> Receipts, string? Error) ReceiveInboundBatch(string tenantKey, Guid purchaseOrderId, ReceiveInboundBatchRequest request)
     {
-        if (request.Receipts is null || request.Receipts.Count == 0) return (Array.Empty<InboundReceiptDto>(), "invalid_inbound_batch");
+        if (request.Receipts is null || request.Receipts.Count == 0) return (Array.Empty<InboundReceiptDto>(), ManufacturingErrorCodes.InvalidInboundBatch);
         var receipts = new List<InboundReceiptDto>();
         foreach (var item in request.Receipts)
         {
-            if (item.PurchaseOrderId != purchaseOrderId) return (Array.Empty<InboundReceiptDto>(), "invalid_inbound_batch");
+            if (item.PurchaseOrderId != purchaseOrderId) return (Array.Empty<InboundReceiptDto>(), ManufacturingErrorCodes.InvalidInboundBatch);
             var result = ReceiveInboundLot(tenantKey, item);
             if (result.Error is not null) return (Array.Empty<InboundReceiptDto>(), result.Error);
             receipts.Add(result.Receipt!);
@@ -448,7 +449,7 @@ public sealed class ManufacturingSupplierEntity
     public string? CountryCode { get; set; }
     public string? Address { get; set; }
     public string RiskLevel { get; set; } = "Standard";
-    public string ApprovalStatus { get; set; } = "Draft";
+    public string ApprovalStatus { get; set; } = ManufacturingStatusCodes.Draft;
     public string? ApprovedBy { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
     public DateTimeOffset? LastReviewedAt { get; set; }
@@ -481,7 +482,7 @@ public sealed class ManufacturingSupplierMaterialApprovalEntity
     public string ApprovedUom { get; set; } = "";
     public DateTimeOffset EffectiveFrom { get; set; }
     public DateTimeOffset? EffectiveTo { get; set; }
-    public string Status { get; set; } = "Approved";
+    public string Status { get; set; } = ManufacturingStatusCodes.Approved;
     public string? Notes { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public string CreatedBy { get; set; } = "system";
@@ -524,7 +525,7 @@ public sealed class ManufacturingUomConversionEntity { public Guid Id { get; set
 public sealed class ManufacturingMaterialEntity { public Guid Id { get; set; } public string TenantKey { get; set; } = ""; public string Sku { get; set; } = ""; public string Name { get; set; } = ""; public string BaseUomCode { get; set; } = ""; public string MaterialType { get; set; } = "RawMaterial"; public bool Active { get; set; } public DateTimeOffset CreatedAt { get; set; } }
 public sealed class ManufacturingProductEntity { public Guid Id { get; set; } public string TenantKey { get; set; } = ""; public string Sku { get; set; } = ""; public string Name { get; set; } = ""; public string BaseUomCode { get; set; } = ""; public bool Active { get; set; } public DateTimeOffset CreatedAt { get; set; } }
 public sealed class ManufacturingSupplierRfqEntity { public Guid Id { get; set; } public string TenantKey { get; set; } = ""; public string RfqNumber { get; set; } = ""; public string MaterialSku { get; set; } = ""; public decimal Quantity { get; set; } public string Uom { get; set; } = ""; public string Status { get; set; } = "Open"; public DateTimeOffset? NeededBy { get; set; } public DateTimeOffset CreatedAt { get; set; } }
-public sealed class ManufacturingSupplierQuotationEntity { public Guid Id { get; set; } public string TenantKey { get; set; } = ""; public Guid SupplierRfqId { get; set; } public Guid SupplierId { get; set; } public decimal UnitPrice { get; set; } public string Currency { get; set; } = "VND"; public int LeadTimeDays { get; set; } public string Status { get; set; } = "Submitted"; public string? Notes { get; set; } public DateTimeOffset CreatedAt { get; set; } }
+public sealed class ManufacturingSupplierQuotationEntity { public Guid Id { get; set; } public string TenantKey { get; set; } = ""; public Guid SupplierRfqId { get; set; } public Guid SupplierId { get; set; } public decimal UnitPrice { get; set; } public string Currency { get; set; } = "VND"; public int LeadTimeDays { get; set; } public string Status { get; set; } = ManufacturingStatusCodes.Submitted; public string? Notes { get; set; } public DateTimeOffset CreatedAt { get; set; } }
 
 public sealed class ManufacturingPurchaseOrderEntity
 {
@@ -532,7 +533,7 @@ public sealed class ManufacturingPurchaseOrderEntity
     public string TenantKey { get; set; } = "";
     public Guid SupplierId { get; set; }
     public string OrderNumber { get; set; } = "";
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = ManufacturingStatusCodes.Draft;
     public string Currency { get; set; } = "VND";
     public DateTimeOffset OrderedAt { get; set; }
     public DateTimeOffset? ExpectedAt { get; set; }

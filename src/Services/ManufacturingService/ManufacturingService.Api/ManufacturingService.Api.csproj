@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\ManufacturingService.Domain\ManufacturingService.Domain.csproj" />
     <ProjectReference Include="..\ManufacturingService.Application\ManufacturingService.Application.csproj" />
     <ProjectReference Include="..\ManufacturingService.Infrastructure\ManufacturingService.Infrastructure.csproj" />

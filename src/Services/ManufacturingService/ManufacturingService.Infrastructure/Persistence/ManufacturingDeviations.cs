@@ -14,9 +14,9 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
 
         using var db = dbFactory.CreateDbContext();
         var batch = db.ProductionBatches.SingleOrDefault(x => x.Id == productionBatchId);
-        if (batch is null) return (null, "production_batch_not_found");
-        if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
-        if (batch.Status is "Completed" or "Cancelled" or "Closed") return (null, "batch_not_active");
+        if (batch is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
+        if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantScopeDenied);
+        if (batch.Status is ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Cancelled or ManufacturingStatusCodes.Closed) return (null, "batch_not_active");
 
         var now = DateTimeOffset.UtcNow;
         var entity = new ManufacturingDeviationEntity
@@ -48,19 +48,19 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
         if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_deviation_actor");
         using var db = dbFactory.CreateDbContext();
         var entity = db.Deviations.SingleOrDefault(x => x.Id == deviationId);
-        if (entity is null) return (null, "deviation_not_found");
-        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (entity is null) return (null, ManufacturingErrorCodes.DeviationNotFound);
+        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantScopeDenied);
 
         var actor = request.Actor.Trim();
         var valid = (entity.Status, targetStatus) switch
         {
-            ("Requested", "Approved") => !entity.RequestedBy.Equals(actor, StringComparison.OrdinalIgnoreCase),
-            ("Requested", "Rejected") => !entity.RequestedBy.Equals(actor, StringComparison.OrdinalIgnoreCase),
-            ("Approved", "Closed") => true,
+            ("Requested", ManufacturingStatusCodes.Approved) => !entity.RequestedBy.Equals(actor, StringComparison.OrdinalIgnoreCase),
+            ("Requested", ManufacturingStatusCodes.Rejected) => !entity.RequestedBy.Equals(actor, StringComparison.OrdinalIgnoreCase),
+            (ManufacturingStatusCodes.Approved, ManufacturingStatusCodes.Closed) => true,
             _ => false
         };
         if (!valid)
-            return (null, targetStatus is "Approved" or "Rejected" && entity.RequestedBy.Equals(actor, StringComparison.OrdinalIgnoreCase)
+            return (null, targetStatus is ManufacturingStatusCodes.Approved or ManufacturingStatusCodes.Rejected && entity.RequestedBy.Equals(actor, StringComparison.OrdinalIgnoreCase)
                 ? "author_cannot_approve_own_deviation"
                 : "invalid_deviation_transition");
 
@@ -68,12 +68,12 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
         var previousStatus = entity.Status;
         entity.Status = targetStatus;
         entity.ResolutionNotes = request.Notes?.Trim();
-        if (targetStatus is "Approved" or "Rejected")
+        if (targetStatus is ManufacturingStatusCodes.Approved or ManufacturingStatusCodes.Rejected)
         {
             entity.ApprovedBy = actor;
             entity.ApprovedAt = now;
         }
-        if (targetStatus == "Closed") entity.ClosedAt = now;
+        if (targetStatus == ManufacturingStatusCodes.Closed) entity.ClosedAt = now;
         EntityStatusHistoryStore.Append(db, "deviation", entity.Id, tenantKey, previousStatus, targetStatus, actor, now);
         AddDeviationEvent(db, entity, targetStatus, actor, now);
         db.SaveChanges();
@@ -116,7 +116,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
                 actor, type = entity.Type, impact = entity.Impact
             }),
             OccurredOn = occurredAt.UtcDateTime,
-            Status = "Pending"
+            Status = ManufacturingStatusCodes.Pending
         });
     }
 

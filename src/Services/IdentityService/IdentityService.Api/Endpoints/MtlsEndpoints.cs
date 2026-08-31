@@ -2,6 +2,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.SharedKernel.Domain.Common;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.Contracts.Identity;
@@ -95,7 +96,7 @@ public static class MtlsEndpoints
         admin.MapDelete("/bindings/{id:guid}", async (Guid id, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             var binding = await db.UserClientCertificates.SingleOrDefaultAsync(item => item.Id == id, ct);
-            if (binding is null) return Results.NotFound();
+            binding = Guard.Against.NotFound(binding, "UserClientCertificate", id);
             if (!await HasFacilityAccessAsync(db, facilityContext, binding.UserId, ct)) return Results.Forbid();
             binding.RevokedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);

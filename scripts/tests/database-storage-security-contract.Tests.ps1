@@ -14,6 +14,14 @@ foreach ($required in @(
     'retentionPolicy',
     'local-path',
     'https://minio-'
+    'endpointCA'
+    'policyTypes'
+    'minio-backup-bucket'
+    'spire-postgres'
+    'AttestationPath'
+    'ExpectedAttestationSha256'
+    'AllowEnvironmentBlocked'
+    'production-storage-attestation'
 )) {
     if ($validator -notmatch $required) {
         throw "Database/storage validator is missing fail-closed rule: $required"

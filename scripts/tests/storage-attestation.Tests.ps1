@@ -24,7 +24,17 @@ try {
         backup = @{ objectStoreReady = $true; restoreVerified = $true; checksumVerified = $true; rpoRtoMeasured = $true }
     } | ConvertTo-Json -Depth 8
     [IO.File]::WriteAllText($tempPath, $complete, [Text.UTF8Encoding]::new($false))
-    $passOutput = & $validator -AttestationPath $tempPath 2>&1
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $expectedHash = [BitConverter]::ToString($sha256.ComputeHash([IO.File]::ReadAllBytes($tempPath))).Replace('-', '')
+    } finally {
+        $sha256.Dispose()
+    }
+    $mismatchOutput = & $validator -AttestationPath $tempPath -ExpectedSha256 ('0' * 64) 2>&1
+    if ($LASTEXITCODE -ne 30 -or ($mismatchOutput -join "`n") -notmatch '"status"\s*:\s*"fail"') {
+        throw 'Mismatched storage attestation digest must fail closed.'
+    }
+    $passOutput = & $validator -AttestationPath $tempPath -ExpectedSha256 $expectedHash 2>&1
     if ($LASTEXITCODE -ne 0 -or ($passOutput -join "`n") -notmatch '"status"\s*:\s*"pass"') {
         throw 'Complete storage attestation must pass.'
     }

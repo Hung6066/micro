@@ -1,6 +1,7 @@
 using His.Hope.AspNetCore;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.Observability;
 using System.Net;
 using System.Security.Claims;
@@ -79,7 +80,7 @@ public static class IdentityServicePipelineExtensions
                 status is not (400 or 401 or 403 or 404 or 409 or 429))
                 return;
 
-            var correlationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+            var correlationId = http.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
                 ?? http.TraceIdentifier;
             var problem = new ProblemDetails
             {
@@ -134,7 +135,7 @@ public static class IdentityServicePipelineExtensions
         app.Use(async (context, next) =>
         {
             if (!context.Request.Headers.ContainsKey("Authorization") &&
-                context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+                context.Request.Cookies.TryGetValue(HisHopeProtocolConstants.Cookies.BrowserSession, out var sessionId) &&
                 !string.IsNullOrWhiteSpace(sessionId) &&
                 !context.Request.Path.StartsWithSegments("/connect") &&
                 !context.Request.Path.StartsWithSegments("/Account") &&
@@ -192,7 +193,7 @@ public static class IdentityServicePipelineExtensions
                             var sessionData = JsonSerializer.Deserialize<SessionData>((string)sessionJson!);
                             var hasHumanPrincipal = string.Equals(sessionPrincipalType, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal) ||
                                 string.Equals(tokenPrincipal?.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal);
-                            var hasPermissionClaims = tokenPrincipal?.FindAll("permissions")
+                            var hasPermissionClaims = tokenPrincipal?.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
                                 .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
                                 .Any() == true;
                             if ((!hasHumanPrincipal || !hasPermissionClaims) &&

@@ -100,7 +100,7 @@ public static class RoleGovernanceEvaluator
         ClaimsPrincipal actor,
         CancellationToken ct)
     {
-        var permissions = actor.FindAll("permissions")
+        var permissions = actor.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (permissions.Count > 0) return permissions;
@@ -119,7 +119,7 @@ public static class RoleGovernanceEvaluator
 
     private static Guid? GetActorId(ClaimsPrincipal actor)
     {
-        var value = actor.FindFirst("sub")?.Value
+        var value = actor.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
             ?? actor.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(value, out var id) ? id : null;
     }

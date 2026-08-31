@@ -6,6 +6,9 @@ public interface IManufacturingTraceabilityReadRepository
 {
     GenealogyDto GetGenealogy(Guid lotId, bool upstream, string tenantKey);
     RecallImpactDto GetRecallImpact(Guid lotId, string tenantKey, int maxLots);
+    Task<EpcisDocumentDto> GetEpcisEventsAsync(DateTimeOffset? from, DateTimeOffset? to, int limit, int page, CancellationToken cancellationToken = default);
+
+    // Compatibility seam for callers that still pass a tenant selector.
     Task<EpcisDocumentDto> GetEpcisEventsAsync(string tenantKey, DateTimeOffset? from, DateTimeOffset? to, int limit, int page, CancellationToken cancellationToken = default);
     bool LotBelongsToTenant(Guid lotId, string tenantKey);
     Task<IReadOnlyList<InventoryTransactionDto>> GetInventoryTransactionsAsync(Guid lotId, string tenantKey, int limit, int page, CancellationToken cancellationToken = default);

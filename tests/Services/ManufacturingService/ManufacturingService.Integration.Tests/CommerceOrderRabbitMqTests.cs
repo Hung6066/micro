@@ -4,6 +4,9 @@ using System.Net.Sockets;
 using DotNet.Testcontainers.Builders;
 using FluentAssertions;
 using His.Hope.Contracts.Commerce;
+using His.Hope.Infrastructure.Locking;
+using His.Hope.Infrastructure.Saga;
+using His.Hope.ManufacturingService.Infrastructure.Saga;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +15,7 @@ using RabbitMQ.Client;
 using Testcontainers.PostgreSql;
 using Xunit;
 
+[Collection("ManufacturingIntegration")]
 public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder()
@@ -58,12 +62,6 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
         });
         await db.SaveChangesAsync();
 
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddLogging(builder => builder.AddDebug());
-        serviceCollection.AddSingleton<IDbContextFactory<ManufacturingDbContext>>(factory);
-        serviceCollection.AddSingleton<ManufacturingReservationStore>();
-        services = serviceCollection.BuildServiceProvider();
-
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -74,6 +72,18 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
                 ["EventBus:Password"] = "testpass123!",
             })
             .Build();
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging(builder => builder.AddDebug());
+        serviceCollection.AddSingleton<IDbContextFactory<ManufacturingDbContext>>(factory);
+        serviceCollection.AddSingleton<ManufacturingReservationStore>();
+        serviceCollection.AddSingleton<ISagaStateStore, InMemorySagaStateStore>();
+        serviceCollection.AddSingleton<ILockManager, InMemoryLockManager>();
+        serviceCollection.AddSagaOptions(configuration);
+        serviceCollection.AddSingleton<ISagaStep<CommerceOrderFulfillmentSagaData>, CommerceOrderFulfillmentSagaStep>();
+        serviceCollection.AddSagaOrchestrator<CommerceOrderFulfillmentSagaData>();
+        services = serviceCollection.BuildServiceProvider();
+
         var consumer = new CommerceOrderConsumer(
             services.GetRequiredService<IServiceScopeFactory>(),
             configuration,
@@ -210,5 +220,48 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
 
         public Task<ManufacturingDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateDbContext());
+    }
+
+    private sealed class InMemorySagaStateStore : ISagaStateStore
+    {
+        private readonly Dictionary<Guid, SagaInstance> states = [];
+
+        public Task SaveAsync(SagaInstance instance, CancellationToken ct = default)
+        {
+            states[instance.SagaId] = instance;
+            return Task.CompletedTask;
+        }
+
+        public Task<SagaInstance?> LoadAsync(Guid sagaId, CancellationToken ct = default) =>
+            Task.FromResult(states.TryGetValue(sagaId, out var state) ? state : null);
+
+        public Task UpdateStatusAsync(Guid sagaId, string status, int stepIndex, DateTime heartbeat, CancellationToken ct = default)
+        {
+            var state = states[sagaId];
+            state.Status = status;
+            if (stepIndex >= 0) state.StepIndex = stepIndex;
+            state.LastHeartbeat = heartbeat;
+            state.UpdatedAt = heartbeat;
+            state.Version++;
+            return Task.CompletedTask;
+        }
+
+        public Task<List<SagaInstance>> GetStaleAsync(TimeSpan staleThreshold, CancellationToken ct = default) =>
+            Task.FromResult(states.Values.Where(x => x.LastHeartbeat < DateTime.UtcNow - staleThreshold).ToList());
+    }
+
+    private sealed class InMemoryLockManager : ILockManager
+    {
+        public Task<IDistributedLock?> AcquireAsync(string key, TimeSpan? ttl = null, CancellationToken ct = default) =>
+            Task.FromResult<IDistributedLock?>(new LockHandle(key));
+
+        private sealed class LockHandle(string key) : IDistributedLock
+        {
+            public string Key { get; } = key;
+            public long FencingToken => 1;
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+            public Task ReleaseAsync(CancellationToken ct = default) => Task.CompletedTask;
+            public Task<bool> ExtendAsync(TimeSpan ttl, CancellationToken ct = default) => Task.FromResult(true);
+        }
     }
 }

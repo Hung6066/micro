@@ -25,6 +25,19 @@ public static class ContentPolicies
             ? null
             : "invalid_status";
 
+    public static bool CanTransitionArticleStatus(string currentStatus, string requestedStatus)
+    {
+        var current = currentStatus.Trim().ToLowerInvariant();
+        var requested = requestedStatus.Trim().ToLowerInvariant();
+        return current switch
+        {
+            ContentArticleStatuses.Draft => requested is ContentArticleStatuses.Draft or ContentArticleStatuses.Published,
+            ContentArticleStatuses.Published => requested is ContentArticleStatuses.Published or ContentArticleStatuses.Archived,
+            ContentArticleStatuses.Archived => requested == ContentArticleStatuses.Archived,
+            _ => false,
+        };
+    }
+
     public static string? ValidateInquiryStatus(string status) =>
         ContentInquiryStatuses.IsValid(status.Trim().ToLowerInvariant())
             ? null

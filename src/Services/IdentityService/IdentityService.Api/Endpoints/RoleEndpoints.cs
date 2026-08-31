@@ -16,6 +16,7 @@ using His.Hope.Authorization;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.Contracts.Identity;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -71,9 +72,8 @@ public static class RoleEndpoints
             CancellationToken ct = default) =>
         {
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
-            var role = await mediator.Send(new GetRoleByIdQuery(id), ct);
-            if (role is null)
-                return Results.NotFound();
+            var role = Guard.Against.NotFound(
+                await mediator.Send(new GetRoleByIdQuery(id), ct), "Role", id);
 
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(db, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
@@ -104,7 +104,7 @@ public static class RoleEndpoints
                     return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
                 var role = await mediator.Send(
                     new CreateRoleCommand(request.Name, request.Description, request.Permissions, request.Owner), ct);
-                await CaptureTemplateVersionAsync(db, role.Id, "published", http.User.FindFirst("sub")?.Value, ct);
+                await CaptureTemplateVersionAsync(db, role.Id, "published", http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value, ct);
                 await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_CREATE", "Role", role.Id.ToString(),
                     "Role created through admin control plane.", null, JsonSerializer.Serialize(new { request.Name, request.Description, request.Permissions }), ct);
                 await AdminAudit.LogAsync(audit, http, "CREATE", "Role", role.Id.ToString(), ct);
@@ -145,15 +145,11 @@ public static class RoleEndpoints
                 var role = await mediator.Send(
                     new UpdateRoleCommand(id, request.Name, request.Description, request.Permissions, request.ConcurrencyToken, request.Owner), ct);
                 await RevokeRoleUsersAsync(db, tokenBlacklist, id, ct);
-                await CaptureTemplateVersionAsync(auditDb, id, "published", http.User.FindFirst("sub")?.Value, ct);
+                await CaptureTemplateVersionAsync(auditDb, id, "published", http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value, ct);
                 await AdminAudit.LogAuthorizationChangeAsync(auditDb, http, "ROLE_UPDATE", "Role", id.ToString(),
                     "Role permissions or metadata changed through admin control plane.", null, JsonSerializer.Serialize(new { request.Name, request.Description, request.Permissions }), ct);
                 await AdminAudit.LogAsync(audit, http, "UPDATE", "Role", id.ToString(), ct);
                 return Results.Ok(role);
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
             }
             catch (InvalidOperationException ex)
             {
@@ -176,8 +172,8 @@ public static class RoleEndpoints
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
 
-            var exists = await db.Roles.AsNoTracking().AnyAsync(role => role.Id == id, ct);
-            if (!exists) return Results.NotFound();
+            _ = Guard.Against.NotFound(
+                await db.Roles.AsNoTracking().FirstOrDefaultAsync(role => role.Id == id, ct), "Role", id);
             var versions = await db.RoleTemplateVersions.AsNoTracking()
                 .Where(version => version.RoleId == id)
                 .OrderByDescending(version => version.Version)
@@ -202,14 +198,14 @@ public static class RoleEndpoints
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            if (!HasMfa(http)) return Results.Forbid();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
 
-            var role = await db.Roles.Include(item => item.RolePermissions)
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (role is null) return Results.NotFound();
+            var role = Guard.Against.NotFound(
+                await db.Roles.Include(item => item.RolePermissions)
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "Role", id);
             if (role.IsSystem)
                 return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
             var governanceError = await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(
@@ -251,7 +247,7 @@ public static class RoleEndpoints
             var before = JsonSerializer.Serialize(new { role.LifecycleStatus, role.AuthorizationVersion });
             role.LifecycleStatus = "active";
             role.PublishedAt = DateTime.UtcNow;
-            role.PublishedBy = http.User.FindFirst("sub")?.Value ?? "system";
+            role.PublishedBy = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system";
             role.ConcurrencyStamp = Guid.NewGuid().ToString("N");
             await CaptureTemplateVersionAsync(db, role.Id, "published", role.PublishedBy, ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_PUBLISH", "Role", id.ToString(),
@@ -273,14 +269,14 @@ public static class RoleEndpoints
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            if (!HasMfa(http)) return Results.Forbid();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
 
-            var role = await db.Roles.Include(item => item.RolePermissions)
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (role is null) return Results.NotFound();
+            var role = Guard.Against.NotFound(
+                await db.Roles.Include(item => item.RolePermissions)
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "Role", id);
             if (role.IsSystem)
                 return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
             var target = await db.RoleTemplateVersions.AsNoTracking()
@@ -343,7 +339,7 @@ public static class RoleEndpoints
             role.AuthorizationVersion++;
             role.LifecycleStatus = "active";
             role.PublishedAt = DateTime.UtcNow;
-            role.PublishedBy = http.User.FindFirst("sub")?.Value ?? "system";
+            role.PublishedBy = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system";
             role.ConcurrencyStamp = Guid.NewGuid().ToString("N");
             await db.SaveChangesAsync(ct);
             await RevokeRoleUsersAsync(identityDb, tokenBlacklist, id, ct);
@@ -373,8 +369,8 @@ public static class RoleEndpoints
 
             try
             {
-                var existingRole = await db.Roles.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
-                if (existingRole is null) return Results.NotFound();
+                var existingRole = Guard.Against.NotFound(
+                    await db.Roles.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct), "Role", id);
                 if (existingRole.IsSystem)
                     return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
                 await mediator.Send(new DeleteRoleCommand(id), ct);
@@ -382,10 +378,6 @@ public static class RoleEndpoints
                     "Role deleted through admin control plane.", null, null, ct);
                 await AdminAudit.LogAsync(audit, http, "DELETE", "Role", id.ToString(), ct);
                 return Results.NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
             }
             catch (InvalidOperationException ex)
             {
@@ -474,9 +466,6 @@ public static class RoleEndpoints
         });
         await db.SaveChangesAsync(ct);
     }
-
-    private static bool HasMfa(HttpContext http) =>
-        http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase));
 
     public sealed record RoleTemplateVersionDto(
         Guid Id,

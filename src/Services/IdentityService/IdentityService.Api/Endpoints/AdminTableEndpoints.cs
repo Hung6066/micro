@@ -17,6 +17,7 @@ using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -135,8 +136,7 @@ public static class AdminTableEndpoints
             "audit" => await ExportAudit(request, db, filter.AllowedTenantKeys, ct),
             _ => null
         };
-        if (rows is null)
-            return Results.NotFound();
+        rows = Guard.Against.NotFound(rows, resource, resource);
         ApplyExportPolicy(rows, request);
 
         await AuditAsync(audit, http, "EXPORT", resource, format!, ct);
@@ -388,14 +388,14 @@ public static class AdminTableEndpoints
     private static Task AuditAsync(IAuditService audit, HttpContext http, string action, string resource, string resourceId, CancellationToken ct) =>
         audit.LogPhiAccessAsync(new PhiAuditEntry
         {
-            UserId = http.User.FindFirst("sub")?.Value ?? "system",
+            UserId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system",
             UserRole = http.User.FindFirst("role")?.Value,
             ResourceType = resource,
             ResourceId = resourceId,
             Action = action,
             ClientIp = http.Connection.RemoteIpAddress?.ToString(),
             UserAgent = http.Request.Headers.UserAgent.ToString(),
-            CorrelationId = http.Response.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier,
+            CorrelationId = http.Response.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier,
             HttpMethod = http.Request.Method,
             Path = http.Request.Path
         }, ct);
@@ -433,12 +433,12 @@ public static class AdminTableEndpoints
             ActionId = actionId,
             RowKeys = rowKeys,
             PayloadJson = JsonSerializer.Serialize(request),
-            ActorSubject = http.User.FindFirst("sub")?.Value ?? "system",
+            ActorSubject = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system",
             IsCrossFacility = facilityContext?.IsCrossFacility ?? false,
             AuthorizedFacilities = facilityContext?.AuthorizedFacilities.ToArray() ?? [],
             AllowedTenantKeys = filter.AllowedTenantKeys?.ToArray(),
             AllowedClientIds = allowedClientIds?.ToArray(),
-            CorrelationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier,
+            CorrelationId = http.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier,
             Total = rowKeys.Length
         };
 
@@ -450,7 +450,8 @@ public static class AdminTableEndpoints
     private static async Task<IResult> GetJob(string jobId, RedisAdminJobStore store, CancellationToken ct)
     {
         var state = await store.GetAsync(jobId, ct);
-        return state is null ? Results.NotFound() : Results.Ok(ToContract(state));
+        state = Guard.Against.NotFound(state, "AdminJob", jobId);
+        return Results.Ok(ToContract(state));
     }
 
     private static async Task StreamJob(string jobId, RedisAdminJobStore store, HttpResponse response, CancellationToken ct)
@@ -473,7 +474,7 @@ public static class AdminTableEndpoints
     private static async Task<IResult> CancelJob(string jobId, RedisAdminJobStore store, CancellationToken ct)
     {
         var state = await store.GetAsync(jobId, ct);
-        if (state is null) return Results.NotFound();
+        state = Guard.Against.NotFound(state, "AdminJob", jobId);
         await store.CancelAsync(state, ct);
         return Results.Ok(ToContract(state));
     }

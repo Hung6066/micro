@@ -37,15 +37,37 @@ public sealed class AssurancePolicyEvaluatorTests
     public void Evaluate_AllowsClinicalRead_WhenAssuranceAndPostureMeetMinimum()
     {
         var policy = AssurancePolicyEvaluator.LoadFromJson(PolicyJson);
-        var result = AssurancePolicyEvaluator.Evaluate(policy, "clinical-read", "aal2", devicePostureFresh: true);
+        var result = AssurancePolicyEvaluator.Evaluate(
+            policy,
+            "clinical-read",
+            "aal2",
+            devicePostureFresh: true,
+            authenticationFresh: true,
+            currentFactor: "mfa");
         Assert.True(result.Allowed);
+    }
+
+    [Fact]
+    public void Evaluate_DeniesStepUp_WhenAuthenticationIsNotFresh()
+    {
+        var policy = AssurancePolicyEvaluator.LoadFromJson(PolicyJson);
+        var result = AssurancePolicyEvaluator.Evaluate(
+            policy,
+            "clinical-read",
+            "aal2",
+            devicePostureFresh: true,
+            authenticationFresh: false,
+            currentFactor: "mfa");
+
+        Assert.False(result.Allowed);
+        Assert.Equal("Fresh step-up authentication required.", result.Reason);
     }
 
     [Fact]
     public void Evaluate_DeniesClinicalRead_WhenDevicePostureIsStale()
     {
         var policy = AssurancePolicyEvaluator.LoadFromJson(PolicyJson);
-        var result = AssurancePolicyEvaluator.Evaluate(policy, "clinical-read", "aal2", devicePostureFresh: false);
+        var result = AssurancePolicyEvaluator.Evaluate(policy, "clinical-read", "aal2", devicePostureFresh: false, currentFactor: "mfa");
         Assert.False(result.Allowed);
         Assert.Contains("posture", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
@@ -54,7 +76,23 @@ public sealed class AssurancePolicyEvaluatorTests
     public void Evaluate_DeniesForbiddenRecoveryMethod()
     {
         var policy = AssurancePolicyEvaluator.LoadFromJson(PolicyJson);
-        var result = AssurancePolicyEvaluator.Evaluate(policy, "clinical-read", "aal2", recoveryMethod: "email-only", devicePostureFresh: true);
+        var result = AssurancePolicyEvaluator.Evaluate(policy, "clinical-read", "aal2", recoveryMethod: "email-only", devicePostureFresh: true, currentFactor: "mfa");
         Assert.False(result.Allowed);
+    }
+
+    [Fact]
+    public void Evaluate_DeniesFactorOutsideJourneyAllowList()
+    {
+        var policy = AssurancePolicyEvaluator.LoadFromJson(PolicyJson);
+        var result = AssurancePolicyEvaluator.Evaluate(
+            policy,
+            "clinical-read",
+            "aal2",
+            devicePostureFresh: true,
+            authenticationFresh: true,
+            currentFactor: "password");
+
+        Assert.False(result.Allowed);
+        Assert.Equal("Authentication factor is not allowed for this journey.", result.Reason);
     }
 }

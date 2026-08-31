@@ -13,12 +13,15 @@ using System.Security.Claims;
 using His.Hope.Authorization;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
+using His.Hope.SharedKernel.Domain.Common;
 namespace His.Hope.IdentityService.Api.Endpoints;
 
 public static class ClientEndpoints
 {
     public static RouteGroupBuilder MapClientEndpoints(this RouteGroupBuilder group)
     {
+        group.AddEndpointFilter(StepUpAuthenticationGuard.RequireFreshMfaForMutationFilter);
+
         group.MapGet("/", GetClients)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead)
             .WithTenantReadScope(HisHopePermissions.Admin.ClientsRead);
@@ -127,7 +130,7 @@ public static class ClientEndpoints
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
-        if (client is null) return TypedResults.NotFound();
+        client = Guard.Against.NotFound(client, "Client", id);
 
         if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
             return TypedResults.NotFound();
@@ -222,7 +225,7 @@ public static class ClientEndpoints
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
-        if (client is null) return TypedResults.NotFound();
+        client = Guard.Against.NotFound(client, "Client", id);
 
         if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
             return TypedResults.NotFound();
@@ -268,7 +271,7 @@ public static class ClientEndpoints
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
-        if (client is null) return TypedResults.NotFound();
+        client = Guard.Against.NotFound(client, "Client", id);
 
         if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
             return TypedResults.NotFound();
@@ -291,7 +294,7 @@ public static class ClientEndpoints
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
-        if (client is null) return TypedResults.NotFound();
+        client = Guard.Against.NotFound(client, "Client", id);
         if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
             return TypedResults.NotFound();
         if (client.ClientType != OpenIddictConstants.ClientTypes.Confidential)
@@ -312,8 +315,8 @@ public static class ClientEndpoints
     {
         var filter = IamTenantHttpContext.RequireFilter(http);
 
-        var client = await db.OpenIddictApplications.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
-        if (client is null) return TypedResults.NotFound();
+        var client = Guard.Against.NotFound(
+            await db.OpenIddictApplications.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct), "Client", id);
         if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
             return TypedResults.NotFound();
 

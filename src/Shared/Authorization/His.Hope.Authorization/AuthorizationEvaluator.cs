@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -97,7 +98,7 @@ public sealed class AuthorizationEvaluator(
     }
 
     private static bool HasPermission(ClaimsPrincipal principal, string action) =>
-        principal.FindAll("permissions")
+        principal.FindAll(HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Any(permission => string.Equals(permission, action, StringComparison.OrdinalIgnoreCase));
 
@@ -111,7 +112,7 @@ public sealed class AuthorizationEvaluator(
 
     private static string? SubjectId(ClaimsPrincipal principal) =>
         principal.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? principal.FindFirstValue("sub");
+        ?? principal.FindFirstValue(HisHopeProtocolConstants.Claims.Subject);
 }
 
 public sealed class NullAuthorizationDecisionSink : IAuthorizationDecisionSink

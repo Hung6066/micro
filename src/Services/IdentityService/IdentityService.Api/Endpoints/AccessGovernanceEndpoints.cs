@@ -6,6 +6,7 @@ using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Api.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -60,7 +61,8 @@ public static class AccessGovernanceEndpoints
             var artifact = await db.AuthorizationPolicyBundles.AsNoTracking()
                 .OrderByDescending(item => item.CreatedAt)
                 .FirstOrDefaultAsync(ct);
-            if (artifact is null) return Results.NotFound(new { errorCode = "published_policy_bundle_not_found" });
+            if (artifact is null)
+                return Results.NotFound("published_policy_bundle_not_found");
             using var policies = JsonDocument.Parse(artifact.PoliciesJson);
             return Results.Ok(new
             {
@@ -79,7 +81,7 @@ public static class AccessGovernanceEndpoints
             HttpContext http,
             CancellationToken ct) =>
         {
-            if (!HasMfa(http)) return Results.Forbid();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
             var artifact = await CreatePolicyBundleArtifactAsync(db, keyProvider, Actor(http), ct);
             var existing = await db.AuthorizationPolicyBundles.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.Hash == artifact.Hash, ct);
@@ -114,9 +116,9 @@ public static class AccessGovernanceEndpoints
             IApplicationDbContext db,
             CancellationToken ct) =>
         {
-            var policy = await db.AuthorizationPolicies.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             var valid = AbacPolicyEvaluator.TryValidate(policy.RulesJson, out var errors);
             return Results.Ok(new
             {
@@ -137,9 +139,9 @@ public static class AccessGovernanceEndpoints
             IApplicationDbContext db,
             CancellationToken ct) =>
         {
-            var policy = await db.AuthorizationPolicies.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             if (!AbacPolicyEvaluator.TryValidate(policy.RulesJson, out var errors))
                 return Results.Ok(new
                 {
@@ -221,8 +223,8 @@ public static class AccessGovernanceEndpoints
         {
             if (!AbacPolicyEvaluator.TryValidate(request.RulesJson, out var errors))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["rulesJson"] = errors });
-            var policy = await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             if (policy.LifecycleStatus == "published") return Results.Conflict(new { errorCode = "published_policy_immutable" });
             var before = policy.RulesJson;
             policy.Description = request.Description.Trim();
@@ -239,9 +241,9 @@ public static class AccessGovernanceEndpoints
             HttpContext http,
             CancellationToken ct) =>
         {
-            if (!HasMfa(http)) return Results.Forbid();
-            var policy = await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             if (policy.CreatedBy is not null && string.Equals(policy.CreatedBy, Actor(http), StringComparison.Ordinal))
                 return Results.Conflict(new { errorCode = "maker_checker_required" });
             if (!AbacPolicyEvaluator.TryValidate(policy.RulesJson, out var errors))
@@ -293,9 +295,9 @@ public static class AccessGovernanceEndpoints
             HttpContext http,
             CancellationToken ct) =>
         {
-            if (!HasMfa(http)) return Results.Forbid();
-            var current = await db.AuthorizationPolicies.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (current is null) return Results.NotFound();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var current = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             var previous = await db.AuthorizationPolicies.AsNoTracking()
                 .Where(item => item.Key == current.Key && item.LifecycleStatus == "retired" && item.Version < current.Version)
                 .OrderByDescending(item => item.Version).FirstOrDefaultAsync(ct);
@@ -439,7 +441,7 @@ public static class AccessGovernanceEndpoints
             if (RoleSeparationOfDuties.TryFindConflict(roleNames, out var conflict))
                 return Results.Conflict(new { errorCode = "role_sod_conflict", conflict });
 
-            var requestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var requestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             var item = new AccessRequest
             {
                 SubjectUserId = request.SubjectUserId,
@@ -493,7 +495,7 @@ public static class AccessGovernanceEndpoints
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, request.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
-            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             var review = new AccessReview
             {
                 SubjectUserId = request.SubjectUserId,
@@ -511,14 +513,14 @@ public static class AccessGovernanceEndpoints
             Guid id, HttpContext http, IApplicationDbContext db,
             IdentityDbContext identityDb, IAuditService audit, CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var review = await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (review is null) return Results.NotFound();
+            var review = Guard.Against.NotFound(
+                await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct), "AccessReview", id);
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, review.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
-            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             if (review.Reviewer == reviewer || review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
             review.Status = "certified";
             review.DecisionReason = "Access retained after reviewer certification.";
@@ -535,16 +537,16 @@ public static class AccessGovernanceEndpoints
             IdentityDbContext identityDb, UserManager<User> userManager,
             RoleManager<Role> roleManager, ITokenBlacklistService tokenBlacklist, IAuditService audit, CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var review = await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (review is null) return Results.NotFound();
+            var review = Guard.Against.NotFound(
+                await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct), "AccessReview", id);
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, review.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
             if (review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
             var subject = await userManager.FindByIdAsync(review.SubjectUserId.ToString());
-            if (subject is null) return Results.NotFound(new { errorCode = "user_not_found" });
+            subject = Guard.Against.NotFound(subject, "User", review.SubjectUserId);
             var roleIds = JsonSerializer.Deserialize<string[]>(review.RoleIdsJson) ?? [];
             var roleNames = new List<string>();
             foreach (var roleId in roleIds)
@@ -575,14 +577,14 @@ public static class AccessGovernanceEndpoints
             IAuditService audit,
             CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var item = await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
+            var item = Guard.Against.NotFound(
+                await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "AccessRequest", id);
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
-            var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             if (string.Equals(item.RequestedBy, approver, StringComparison.OrdinalIgnoreCase))
                 return Results.Conflict(new { errorCode = "maker_checker_conflict" });
             if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
@@ -603,7 +605,7 @@ public static class AccessGovernanceEndpoints
             if (RoleSeparationOfDuties.TryFindConflict(roleNames, out var conflict))
                 return Results.Conflict(new { errorCode = "role_sod_conflict", conflict });
             var user = await userManager.FindByIdAsync(item.SubjectUserId.ToString());
-            if (user is null) return Results.NotFound(new { errorCode = "user_not_found" });
+            user = Guard.Against.NotFound(user, "User", item.SubjectUserId);
             var currentRoles = await userManager.GetRolesAsync(user);
             if (currentRoles.Count > 0) await userManager.RemoveFromRolesAsync(user, currentRoles);
             var result = await userManager.AddToRolesAsync(user, roleNames);
@@ -627,14 +629,14 @@ public static class AccessGovernanceEndpoints
             IAuditService audit,
             CancellationToken ct) =>
         {
-            var item = await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
+            var item = Guard.Against.NotFound(
+                await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "AccessRequest", id);
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
             if (item.Status != "pending") return Results.Conflict(new { errorCode = "request_not_pending" });
             item.Status = "rejected";
-            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             item.DecidedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ACCESS_REJECT", "AccessRequest", id.ToString(), item.Reason, item.RoleIdsJson, null, ct);
@@ -654,8 +656,8 @@ public static class AccessGovernanceEndpoints
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, id, filter, ct) is { } accessError)
                 return accessError;
 
-            var userEntity = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (userEntity is null) return Results.NotFound();
+            var userEntity = Guard.Against.NotFound(
+                await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct), "User", id);
             var roleIds = await db.UserRoles.AsNoTracking().Where(link => link.UserId == id).Select(link => link.RoleId).ToArrayAsync(ct);
             var roles = await db.Roles.AsNoTracking().Where(role => roleIds.Contains(role.Id)).Select(role => role.Name!).ToArrayAsync(ct);
             var permissions = await db.RolePermissions.AsNoTracking().Where(link => roleIds.Contains(link.RoleId)).Select(link => link.PermissionCode).Distinct().OrderBy(code => code).ToArrayAsync(ct);
@@ -724,7 +726,7 @@ public static class AccessGovernanceEndpoints
             var now = DateTime.UtcNow;
             var expiresAt = now.AddMinutes(Math.Clamp(request.DurationMinutes, 1, 30));
             var requestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? http.User.FindFirstValue("sub") ?? "unknown";
+                ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             var item = new BreakGlassRequest
             {
                 Id = Guid.NewGuid(),
@@ -756,8 +758,8 @@ public static class AccessGovernanceEndpoints
             ITokenBlacklistService tokenBlacklist,
             CancellationToken ct) =>
         {
-            var item = await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
+            var item = Guard.Against.NotFound(
+                await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "BreakGlassRequest", id);
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
@@ -780,17 +782,17 @@ public static class AccessGovernanceEndpoints
             ITokenBlacklistService tokenBlacklist,
             CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var item = await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
+            var item = Guard.Against.NotFound(
+                await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "BreakGlassRequest", id);
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
             if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
                 return Results.Conflict(new { errorCode = "request_not_pending" });
             item.Status = "approved";
-            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             item.ApprovedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await tokenBlacklist.RevokeAllUserTokensAsync(item.SubjectUserId.ToString(), ct);
@@ -811,7 +813,7 @@ public static class AccessGovernanceEndpoints
                 });
 
             var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == request.UserId, ct);
-            if (user is null) return Results.NotFound(new { errorCode = "user_not_found" });
+            user = Guard.Against.NotFound(user, "User", request.UserId);
             var roles = await db.UserRoles.AsNoTracking().Where(link => link.UserId == request.UserId).Select(link => link.RoleId).ToArrayAsync(ct);
             var hasRolePermission = await db.RolePermissions.AsNoTracking().AnyAsync(link => roles.Contains(link.RoleId) && link.PermissionCode == request.PermissionCode, ct);
             var hasBreakGlassPermission = await db.BreakGlassRequests.AsNoTracking().AnyAsync(item =>
@@ -824,7 +826,7 @@ public static class AccessGovernanceEndpoints
             if (!string.IsNullOrWhiteSpace(request.PolicyKey))
             {
                 var policy = await db.AuthorizationPolicies.AsNoTracking().Where(item => item.Key == request.PolicyKey.Trim().ToLowerInvariant() && item.LifecycleStatus == "published").OrderByDescending(item => item.Version).FirstOrDefaultAsync(ct);
-                if (policy is null) return Results.NotFound(new { errorCode = "policy_not_found" });
+                policy = Guard.Against.NotFound(policy, "AuthorizationPolicy", request.PolicyKey);
                 abacDecision = AbacPolicyEvaluator.Evaluate(policy.RulesJson, new AbacPolicyContext(request.FacilityId, request.PurposeOfUse, request.DevicePostureFresh, request.IsBreakGlass, request.Assurance));
             }
             var allowed = user.IsActive && hasPermission && facilityAllowed && abacDecision.Allowed;
@@ -856,8 +858,7 @@ public static class AccessGovernanceEndpoints
     public sealed record AccessReviewCreateRequest(Guid SubjectUserId, string[] RoleIds, int DueDays = 30);
     public sealed record AccessReviewDto(Guid Id, Guid SubjectUserId, string Reviewer, string RoleIdsJson, string Status, string? DecisionReason, DateTime CreatedAt, DateTime DueAt, DateTime? DecidedAt);
 
-    private static string Actor(HttpContext http) => http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "system";
-    private static bool HasMfa(HttpContext http) => http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase));
+    private static string Actor(HttpContext http) => http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "system";
     private static AuthorizationPolicyDto ToPolicyDto(AuthorizationPolicyDefinition item) => new(item.Id, item.Key, item.Description, item.Owner, item.Version, item.LifecycleStatus, item.RulesJson, item.CreatedBy, item.CreatedAt, item.PublishedAt, item.PublishedBy);
     private static async Task<AuthorizationPolicyBundleArtifact> CreatePolicyBundleArtifactAsync(IApplicationDbContext db, IVaultKeyProvider keyProvider, string actor, CancellationToken ct)
     {

@@ -87,13 +87,15 @@ describe("mobile runtime", () => {
     delete window.__HISHOPE_CONFIG__;
   });
 
-  it("allows HTTP emulator origins when injected runtime is not production", () => {
+  it("rejects HTTP emulator origins from a production bundle", () => {
     window.__HISHOPE_CONFIG__ = {
       apiOrigin: "http://10.0.2.2:5000",
       oidcAuthority: "http://10.0.2.2:5000",
       production: false,
     };
-    expect(resolveProductionApiOrigin()).toBe("http://10.0.2.2:5000");
+    expect(() => resolveProductionApiOrigin()).toThrowError(
+      "Production mobile runtime config requires HTTPS apiOrigin and oidcAuthority.",
+    );
     delete window.__HISHOPE_CONFIG__;
   });
 

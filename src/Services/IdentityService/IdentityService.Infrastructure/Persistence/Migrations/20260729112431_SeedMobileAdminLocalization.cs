@@ -3,6 +3,7 @@
 #nullable disable
 
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+#pragma warning disable CA1861 // Migration seed arrays are deployment artifacts
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence.Migrations
 {
@@ -518,3 +519,4 @@ namespace His.Hope.IdentityService.Infrastructure.Persistence.Migrations
         }
     }
 }
+#pragma warning restore CA1861

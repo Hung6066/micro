@@ -16,8 +16,7 @@ builder.Configuration["ReverseProxy:Clusters:lab-service:Destinations:lab:Addres
 builder.Services.AddBffCore(builder.Configuration, "LabBff");
 builder.Services.AddBffProxy(builder.Configuration);
 
-builder.Services.AddGrpcClient<LabGrpcService.LabGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("lab-grpc"));
+builder.Services.AddHisHopeGrpcClient<LabGrpcService.LabGrpcServiceClient>(runtimeEndpoints, "lab-grpc");
 
 var app = builder.Build();
 

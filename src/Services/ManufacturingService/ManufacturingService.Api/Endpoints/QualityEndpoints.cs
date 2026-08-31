@@ -33,8 +33,8 @@ internal static class QualityEndpoints
                     var result = store.CreateQualityInspection(request);
                     return result.Error switch
                     {
-                        "lot_not_found" or "inspection_plan_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_mismatch" or "inspection_plan_mismatch" or "inspection_plan_not_effective" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
+                        ManufacturingErrorCodes.LotNotFound or "inspection_plan_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantMismatch or ManufacturingErrorCodes.InspectionPlanMismatch or "inspection_plan_not_effective" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         "invalid_inspection_status" or "invalid_moisture_percent" or "too_many_quality_test_results" or "invalid_quality_test_result" or "invalid_quality_test_limit" or "quality_test_failure_requires_failed_inspection" or "quality_test_results_do_not_support_pass" or "control_measurement_evidence_required" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
                         _ => Results.Created("/api/v1/manufacturing/quality-inspections", result.Inspection)
                     };
@@ -61,10 +61,10 @@ internal static class QualityEndpoints
                     var result = store.CreateQualitySample(request, tenantKey);
                     return result.Error switch
                     {
-                        "quality_inspection_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.QualityInspectionNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "invalid_quality_sample" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
-                        "quality_sample_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
+                        ManufacturingErrorCodes.QualitySampleExists => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ => Results.Created("/api/v1/manufacturing/quality-samples", result.Sample)
                     };
                 });
@@ -76,8 +76,8 @@ internal static class QualityEndpoints
                     var result = store.ChangeQualitySampleDisposition(sampleId, tenantKey, request);
                     return result.Error switch
                     {
-                        "quality_sample_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.QualitySampleNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "invalid_quality_sample_actor" or "invalid_quality_sample_disposition" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                         _ => Results.Ok(result.Sample)
                     };
@@ -104,7 +104,7 @@ internal static class QualityEndpoints
                     return result.Error switch
                     {
                         "inspection_plan_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "invalid_inspection_plan_actor" or "invalid_inspection_plan_transition" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                         _ => Results.Ok(result.Plan)
                     };
@@ -129,7 +129,7 @@ internal static class QualityEndpoints
                 });
 
                 api.MapPost("/product-specifications/{specificationId:guid}/approve", (Guid specificationId, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeProductSpecification(specificationId, "Approved", request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SpecificationApprove));
+                    ChangeProductSpecification(specificationId, ManufacturingStatusCodes.Approved, request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SpecificationApprove));
 
                 api.MapPost("/product-specifications/{specificationId:guid}/retire", (Guid specificationId, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                     ChangeProductSpecification(specificationId, "Retired", request, context, store));
@@ -150,21 +150,21 @@ internal static class QualityEndpoints
                     return result.Error switch
                     {
                         "invalid_deviation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
-                        "production_batch_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "tenant_scope_denied" => Results.Forbid(),
+                        ManufacturingErrorCodes.ProductionBatchNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
                         "batch_not_active" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!),
                         _ => Results.Created($"/api/v1/manufacturing/deviations/{result.Deviation!.Id}", result.Deviation)
                     };
                 });
 
                 api.MapPost("/deviations/{deviationId:guid}/approve", (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeDeviation(deviationId, "Approved", request, context, store));
+                    ChangeDeviation(deviationId, ManufacturingStatusCodes.Approved, request, context, store));
 
                 api.MapPost("/deviations/{deviationId:guid}/reject", (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeDeviation(deviationId, "Rejected", request, context, store));
+                    ChangeDeviation(deviationId, ManufacturingStatusCodes.Rejected, request, context, store));
 
                 api.MapPost("/deviations/{deviationId:guid}/close", (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeDeviation(deviationId, "Closed", request, context, store));
+                    ChangeDeviation(deviationId, ManufacturingStatusCodes.Closed, request, context, store));
 
                 api.MapGet("/deviations/{deviationId:guid}/status-history", (Guid deviationId, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
@@ -180,7 +180,7 @@ internal static class QualityEndpoints
 
                 api.MapPost("/capas", (CreateCapaRequest request, HttpContext context, IManufacturingCapaStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst("sub")?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CreateCapa(tenantKey, request, actor); return result.Error switch { "invalid_capa" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), "supplier_not_found" or "deviation_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/capas", result.Capa) };
+                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CreateCapa(tenantKey, request, actor); return result.Error switch { "invalid_capa" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), ManufacturingErrorCodes.SupplierNotFound or ManufacturingErrorCodes.DeviationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/capas", result.Capa) };
                 });
 
                 api.MapPost("/capas/{capaId:guid}/status", (Guid capaId, UpdateCapaStatusRequest request, HttpContext context, IManufacturingCapaStore store) =>
@@ -195,7 +195,7 @@ internal static class QualityEndpoints
 
                 api.MapPost("/supplier-evaluations", (CreateSupplierEvaluationRequest request, HttpContext context, IManufacturingCapaStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst("sub")?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CreateSupplierEvaluation(tenantKey, request, actor); return result.Error switch { "invalid_supplier_evaluation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), "supplier_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/supplier-evaluations", result.Evaluation) };
+                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CreateSupplierEvaluation(tenantKey, request, actor); return result.Error switch { "invalid_supplier_evaluation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), ManufacturingErrorCodes.SupplierNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/supplier-evaluations", result.Evaluation) };
                 });
 
         return api;

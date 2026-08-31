@@ -1,5 +1,51 @@
 import { expect, test } from "@playwright/test";
 
+const e2eEmail = process.env.E2E_EMAIL;
+const e2ePassword = process.env.E2E_PASSWORD;
+const roleMatrix = (() => {
+  if (!process.env.E2E_ROLE_MATRIX_JSON) return [];
+  try {
+    const parsed = JSON.parse(process.env.E2E_ROLE_MATRIX_JSON);
+    return Array.isArray(parsed)
+      ? parsed.filter((entry) => entry?.name && entry?.email && entry?.password)
+      : [];
+  } catch {
+    throw new Error("E2E_ROLE_MATRIX_JSON must be a JSON array of {name,email,password} entries.");
+  }
+})();
+
+async function signIn(page, email, password) {
+  await page.goto("/auth/login");
+  await page
+    .getByRole("button", { name: /sign in securely|đăng nhập an toàn/i })
+    .click();
+  await page.waitForURL(/\/Account\/Login|\/connect\/authorize/i, {
+    timeout: 30_000,
+  });
+  const emailInput = page.locator('input[type="email"], input#email').first();
+  if (await emailInput.isVisible().catch(() => false)) {
+    await emailInput.fill(email);
+    await page.locator('input[type="password"]').first().fill(password);
+    await page.locator('button[type="submit"]').first().click();
+  }
+  await page.waitForURL(/\/operations\/production$/, { timeout: 60_000 });
+}
+
+function requireAuthenticatedOperator() {
+  if (
+    process.env.E2E_AUTH_REQUIRED === "true" &&
+    (!e2eEmail || !e2ePassword)
+  ) {
+    throw new Error(
+      "E2E_AUTH_REQUIRED=true requires E2E_EMAIL and E2E_PASSWORD from protected secret storage.",
+    );
+  }
+  test.skip(
+    !e2eEmail || !e2ePassword,
+    "Authenticated operator E2E requires E2E_EMAIL and E2E_PASSWORD from protected secret storage.",
+  );
+}
+
 test("unauthenticated operator is sent to secure login", async ({ page }) => {
   await page.goto("/operations/production");
   await expect(page).toHaveURL(/\/auth\/login$/);
@@ -8,6 +54,7 @@ test("unauthenticated operator is sent to secure login", async ({ page }) => {
 });
 
 test("authenticated operator can reach production work", async ({ page }) => {
+  requireAuthenticatedOperator();
   await page.goto("/auth/login");
   await page
     .getByRole("button", { name: /sign in securely|đăng nhập an toàn/i })
@@ -17,11 +64,11 @@ test("authenticated operator can reach production work", async ({ page }) => {
   });
   const email = page.locator('input[type="email"], input#email').first();
   if (await email.isVisible().catch(() => false)) {
-    await email.fill(process.env.E2E_EMAIL ?? "admin@hishop.com");
+    await email.fill(e2eEmail);
     await page
       .locator('input[type="password"]')
       .first()
-      .fill(process.env.E2E_PASSWORD ?? "Test@123456");
+      .fill(e2ePassword);
     await page.locator('button[type="submit"]').first().click();
   }
   await page.waitForURL(/\/operations\/production$/, { timeout: 60_000 });
@@ -77,6 +124,7 @@ test("authenticated operator can reach production work", async ({ page }) => {
 });
 
 test("authenticated operator can switch locale and theme", async ({ page }) => {
+  requireAuthenticatedOperator();
   await page.goto("/auth/login");
   await page
     .getByRole("button", { name: /sign in securely|đăng nhập an toàn/i })
@@ -86,11 +134,11 @@ test("authenticated operator can switch locale and theme", async ({ page }) => {
   });
   const email = page.locator('input[type="email"], input#email').first();
   if (await email.isVisible().catch(() => false)) {
-    await email.fill(process.env.E2E_EMAIL ?? "admin@hishop.com");
+    await email.fill(e2eEmail);
     await page
       .locator('input[type="password"]')
       .first()
-      .fill(process.env.E2E_PASSWORD ?? "Test@123456");
+      .fill(e2ePassword);
     await page.locator('button[type="submit"]').first().click();
   }
   await page.waitForURL(/\/operations\/production$/, { timeout: 60_000 });
@@ -242,3 +290,13 @@ test("login page exposes the operator mobile entry point", async ({ page }) => {
   );
   await expect(page.locator("button")).toHaveCount(1);
 });
+
+for (const role of roleMatrix) {
+  test(`authenticated operator role ${role.name} reaches production dashboard`, async ({ page }) => {
+    await signIn(page, role.email, role.password);
+    await expect(
+      page.getByRole("heading", { name: /Production work|Vận hành sản xuất/i }),
+    ).toBeVisible();
+    await expect(page.locator("body")).not.toContainText("mobile.");
+  });
+}

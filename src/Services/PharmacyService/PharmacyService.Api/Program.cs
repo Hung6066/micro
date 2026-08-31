@@ -7,6 +7,7 @@ using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
@@ -39,7 +40,6 @@ using Serilog;
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "PharmacyService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -68,17 +68,7 @@ builder.Services.AddGrpc(options =>
     options.Interceptors.Add<GrpcServerInterceptor>();
 });
 
-builder.Services.AddRabbitMQEventBus(options =>
-{
-    options.HostName = builder.Configuration.GetValue("EventBus:HostName", "localhost")!;
-    options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
-    options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
-    options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
-    options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
-    options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
-    options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
-});
+builder.Services.AddHisHopeLegacyRabbitMqEventBus(builder.Configuration);
 
 // Comprehensive Health Checks
 builder.Services.AddHealthChecks()
@@ -87,7 +77,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
         builder.Configuration.GetValue("EventBus:UserName", "admin")!,
-        builder.Configuration.GetValue("EventBus:Password", "admin")!,
+        His.Hope.Infrastructure.Messaging.EventBusSecurity.GetPassword(builder.Configuration),
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
@@ -117,32 +107,16 @@ var app = builder.Build();
 
 // Development-only convenience for a local empty database. Production schema is
 // owned by the external CockroachDB migration workflow.
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
-    db.Database.EnsureCreated();
-    // Existing local databases may predate the durable outbox fields and
-    // stored ACTIVE prescriptions while the domain uses PRESCRIBED.
-    // Keep this idempotent compatibility step until all environments have
-    // applied the equivalent EF migration.
-    db.Database.ExecuteSqlRaw("""
-        ALTER TABLE outbox_messages
-            ADD COLUMN IF NOT EXISTS claimed_by character varying(200),
-            ADD COLUMN IF NOT EXISTS next_attempt_at timestamp with time zone,
-            ADD COLUMN IF NOT EXISTS dead_lettered_on timestamp with time zone;
-        ALTER TABLE prescriptions DROP CONSTRAINT IF EXISTS chk_prescriptions_status;
-        UPDATE prescriptions SET status = 'PRESCRIBED' WHERE status = 'ACTIVE';
-        ALTER TABLE prescriptions
-            ADD CONSTRAINT chk_prescriptions_status
-            CHECK (status IN ('PRESCRIBED', 'FILLED', 'CANCELLED', 'EXPIRED'));
-        """);
-}
-else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
          builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+      await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+else if (!app.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "PharmacyService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
@@ -454,7 +428,6 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
                 status = e.Value.Status.ToString(),
                 description = e.Value.Description,
                 tags = e.Value.Tags,
-                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
         };

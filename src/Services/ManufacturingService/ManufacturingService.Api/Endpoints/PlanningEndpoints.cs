@@ -65,7 +65,7 @@ internal static class PlanningEndpoints
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    if (!string.Equals(datasetKey.Trim(), request.DatasetKey.Trim(), StringComparison.OrdinalIgnoreCase)) return ManufacturingProblem(StatusCodes.Status400BadRequest, "dataset_key_mismatch");
+                    if (!string.Equals(datasetKey.Trim(), request.DatasetKey.Trim(), StringComparison.OrdinalIgnoreCase)) return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.DatasetKeyMismatch);
                     var result = store.CreateFeatureSnapshot(tenantKey, context.User.Identity?.Name ?? "system", request);
                     return result.Error switch
                     {
@@ -91,8 +91,8 @@ internal static class PlanningEndpoints
                     var result = store.GetSalesForecastMaterialRequirements(tenantKey, forecastId);
                     return result.Error switch
                     {
-                        "forecast_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
-                        "approved_recipe_not_found" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
+                        ManufacturingErrorCodes.ForecastNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
+                        ManufacturingErrorCodes.ApprovedRecipeNotFound => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
                         _ => Results.Ok(result.Requirements)
                     };
                 });
@@ -107,5 +107,3 @@ internal static class PlanningEndpoints
         return api;
     }
 }
-
-

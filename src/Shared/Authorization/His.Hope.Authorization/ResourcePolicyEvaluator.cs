@@ -1,4 +1,5 @@
 using System.Text.Json;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Authorization;
 
@@ -106,7 +107,10 @@ internal static class ResourcePolicyEvaluator
     private static string? ResolveConditionValue(string key, System.Security.Claims.ClaimsPrincipal principal, AuthorizationResource resource) =>
         key.ToLowerInvariant() switch
         {
-            "tenant_id" or "tenant" => principal.FindFirst("tenant_id")?.Value ?? principal.FindFirst("tenant")?.Value ?? resource.TenantId,
+            HisHopeProtocolConstants.Claims.TenantId or HisHopeProtocolConstants.Claims.Tenant =>
+                principal.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value
+                ?? principal.FindFirst(HisHopeProtocolConstants.Claims.Tenant)?.Value
+                ?? resource.TenantId,
             "facility_id" or "facility" => resource.FacilityId,
             "resource_type" or "resourcetype" => resource.Type,
             "lifecycle_state" or "lifecyclestate" => resource.LifecycleState,

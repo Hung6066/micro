@@ -1,6 +1,6 @@
 using System.Reflection;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using StackExchange.Redis;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -12,10 +12,14 @@ public sealed class HealthCheckCoverageTests
     {
         var type = typeof(His.Hope.IdentityService.Api.Endpoints.DirectoryProvisioningEndpoints).Assembly.GetType(
             "His.Hope.IdentityService.Api.Composition.RedisHealthCheck", throwOnError: true)!;
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>())
-            .Build();
-        var check = Activator.CreateInstance(type, ["127.0.0.1:1,abortConnect=false", configuration])!;
+        using var redis = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions
+        {
+            EndPoints = { "127.0.0.1:1" },
+            AbortOnConnectFail = false,
+            ConnectTimeout = 100,
+            SyncTimeout = 100
+        });
+        var check = Activator.CreateInstance(type, [redis])!;
 
         var task = (Task)type.GetMethod(nameof(IHealthCheck.CheckHealthAsync))!
             .Invoke(check, [new HealthCheckContext(), CancellationToken.None])!;

@@ -10,6 +10,7 @@ public interface IManufacturingMasterDataStore
     IReadOnlyList<UomConversionDto> GetUomConversions(bool? active, int limit);
     (UomConversionDto? Conversion, string? Error) CreateUomConversion(CreateUomConversionRequest request);
     (UomConversionDto? Conversion, string? Error) UpdateUomConversion(Guid conversionId, UpdateUomConversionRequest request);
+    IReadOnlyList<MaterialDto> GetMaterials(string? materialType, bool? active, int limit);
     IReadOnlyList<MaterialDto> GetMaterials(string tenantKey, string? materialType, bool? active, int limit);
     (MaterialDto? Material, string? Error) CreateMaterial(CreateMaterialRequest request);
     (MaterialDto? Material, string? Error) UpdateMaterial(string tenantKey, Guid materialId, UpdateMaterialRequest request);

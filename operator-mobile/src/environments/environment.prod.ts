@@ -23,5 +23,9 @@ export const environment = {
   sentryDsn: resolveMobileSentryDsn(""),
   sentryEnvironment: resolveMobileSentryEnvironment("production"),
   pushNotificationsEnabled: resolveMobilePushNotificationsEnabled(true),
-  security: { certificatePins: [] },
+  security: {
+    // Replaced by scripts/prepare-mobile-release.mjs from the protected
+    // release environment. Production must never ship an empty allow-list.
+    certificatePins: [{ host: "api.his-hope.example", sha256Spki: "sha256/REPLACE_IN_RELEASE" }],
+  },
 };

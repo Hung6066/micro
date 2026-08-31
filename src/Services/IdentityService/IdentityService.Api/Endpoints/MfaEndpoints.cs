@@ -16,8 +16,10 @@ using His.Hope.Infrastructure.Audit;
 using His.Hope.Contracts.Identity;
 using His.Hope.Contracts;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
@@ -86,8 +88,8 @@ public static class MfaEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var user = await userManager.FindByIdAsync(userId.Value.ToString());
-            if (user is null) return Results.NotFound();
+            var user = Guard.Against.NotFound(
+                await userManager.FindByIdAsync(userId.Value.ToString()), "User", userId.Value);
 
             var existing = await db.UserMfas
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
@@ -160,8 +162,8 @@ public static class MfaEndpoints
             if (userId is null) return Results.Unauthorized();
 
             var userManager = services.GetRequiredService<UserManager<User>>();
-            var user = await userManager.FindByIdAsync(userId.Value.ToString());
-            if (user is null) return Results.NotFound();
+            var user = Guard.Against.NotFound(
+                await userManager.FindByIdAsync(userId.Value.ToString()), "User", userId.Value);
 
             var db = services.GetRequiredService<IdentityDbContext>();
             var mfa = await db.UserMfas
@@ -230,7 +232,7 @@ public static class MfaEndpoints
                 JsonSerializer.Serialize(sessionData),
                 TimeSpan.FromHours(1));
 
-            httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
+            httpContext.Response.Cookies.Append(HisHopeProtocolConstants.Cookies.BrowserSession, sessionId, new CookieOptions
             {
                 HttpOnly = true,
                 Secure = httpContext.Request.IsHttps,
@@ -272,8 +274,8 @@ public static class MfaEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var user = await userManager.FindByIdAsync(userId.Value.ToString());
-            if (user is null) return Results.NotFound();
+            var user = Guard.Against.NotFound(
+                await userManager.FindByIdAsync(userId.Value.ToString()), "User", userId.Value);
 
             var mfa = await db.UserMfas
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
@@ -312,7 +314,7 @@ public static class MfaEndpoints
     private static Guid? GetUserId(HttpContext httpContext)
     {
         var claim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)
-                    ?? httpContext.User.FindFirst("sub");
+                    ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
         return claim is not null && Guid.TryParse(claim.Value, out var id) ? id : null;
     }
 

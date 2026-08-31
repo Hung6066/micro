@@ -1,7 +1,10 @@
 const http = require('http');
 
 const routes = {
+  5000: ['api-gateway', 5000],
   5001: ['identity', 5003],
+  4205: ['manufacturing-buyer-app', 8080],
+  4300: ['internal-operator-app', 8080],
   8081: ['frontend', 8080],
   8082: ['dashboard', 8080],
   8083: ['admin', 8080],

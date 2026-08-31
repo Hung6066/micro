@@ -114,6 +114,25 @@ feature-tree/
 .tmp/
 .tools/
 
+# The two standalone frontend Dockerfiles build from the monorepo root and
+# explicitly copy these application trees. Keep their sources in the context;
+# the other frontend trees remain excluded from backend image builds.
+!manufacturing-buyer-app/
+!manufacturing-buyer-app/**
+!internal-operator-app/
+!internal-operator-app/**
+!admin-app/
+!admin-app/**
+!dashboard-app/
+!dashboard-app/**
+# Re-apply generated/dependency exclusions after the application allow-list.
+admin-app/node_modules/
+admin-app/dist/
+admin-app/.angular/
+dashboard-app/node_modules/
+dashboard-app/dist/
+dashboard-app/.angular/
+
 # --- Python (ML services) ---
 **/__pycache__/
 **/*.pyc

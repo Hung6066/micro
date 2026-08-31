@@ -894,11 +894,11 @@ public static class IdentityDbInitializer
                 continue;
 
             if (existingClaims.Any(claim =>
-                    claim.Type == "tenant_membership" &&
+                    claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership &&
                     string.Equals(claim.Value, tenantKey, StringComparison.OrdinalIgnoreCase)))
                 continue;
 
-            await userManager.AddClaimAsync(admin, new Claim("tenant_membership", tenantKey));
+            await userManager.AddClaimAsync(admin, new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, tenantKey));
             logger.LogInformation("Granted tenant membership '{TenantKey}' to admin user.", tenantKey);
         }
     }
@@ -1358,10 +1358,10 @@ public static class IdentityDbInitializer
 
             var claims = await userManager.GetClaimsAsync(user);
             if (!claims.Any(claim =>
-                    claim.Type == "tenant_membership" &&
+                    claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership &&
                     string.Equals(claim.Value, tenantKey, StringComparison.OrdinalIgnoreCase)))
             {
-                await userManager.AddClaimAsync(user, new Claim("tenant_membership", tenantKey));
+                await userManager.AddClaimAsync(user, new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, tenantKey));
             }
 
             if (!string.IsNullOrWhiteSpace(roleName))

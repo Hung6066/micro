@@ -202,8 +202,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 OnFallback = args =>
                 {
                     Console.WriteLine(
-                        "[{Dependency}] Downstream failure — attempting stale cache fallback",
-                        dependencyName);
+                        $"[{dependencyName}] Downstream failure — attempting stale cache fallback");
                     return default;
                 },
             })

@@ -37,7 +37,7 @@ public sealed class CommerceScopeOrPermissionHandler
     }
 
     private static bool HasPermission(ClaimsPrincipal user, string permissionCode) =>
-        user.FindAll("permissions")
+        user.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Any(value => string.Equals(value, permissionCode, StringComparison.OrdinalIgnoreCase));
 }

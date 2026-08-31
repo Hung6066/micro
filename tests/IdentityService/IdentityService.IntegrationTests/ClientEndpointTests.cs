@@ -156,6 +156,7 @@ public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
         var session = fixture.CreateSessionClient();
         var response = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
         return session;
     }
 }

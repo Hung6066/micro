@@ -3,6 +3,8 @@ using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Persistence.Tenancy;
 using His.Hope.Persistence;
+using His.Hope.Infrastructure.Saga;
+using His.Hope.ManufacturingService.Infrastructure.Saga;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +46,17 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         services.AddSingleton<IManufacturingMasterDataStore>(sp => sp.GetRequiredService<ManufacturingMasterDataStore>());
         services.AddSingleton<ManufacturingReservationStore>();
         services.AddSingleton<IManufacturingReservationStore>(sp => sp.GetRequiredService<ManufacturingReservationStore>());
+        services.AddSagaOptions(configuration);
+        services.AddSagaPersistence((sp, options) =>
+            options.UseHisHopeNpgsql(
+                sp,
+                configuration,
+                "ManufacturingDb",
+                npgsql => npgsql.MigrationsAssembly(typeof(ManufacturingDbContext).Assembly.GetName().Name)));
+        services.AddSingleton<ISagaStep<CommerceOrderFulfillmentSagaData>, CommerceOrderFulfillmentSagaStep>();
+        services.AddSagaOrchestrator<CommerceOrderFulfillmentSagaData>();
+        services.AddSagaRecoveryHandler<CommerceOrderFulfillmentSagaData>();
+        services.AddSagaRecoveryService();
         services.AddSingleton<ManufacturingProductionStore>();
         services.AddSingleton<IManufacturingProductionOrderStore>(sp => sp.GetRequiredService<ManufacturingProductionStore>());
         services.AddSingleton<ManufacturingMlDataStore>();
@@ -66,6 +79,9 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
             using var db = dbFactory.CreateDbContextForConnection(connectionName);
             db.Database.Migrate();
         }
+
+        using var sagaDb = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SagaDbContext>>().CreateDbContext();
+        sagaDb.Database.Migrate();
 
         scope.ServiceProvider.GetRequiredService<PostgresManufacturingStore>().Initialize();
         if (scope.ServiceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Manufacturing:SeedDemoData"))

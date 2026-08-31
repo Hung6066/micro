@@ -1,9 +1,9 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
-using System.Text.Json;
+using System.IdentityModel.Tokens.Jwt;
 using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.ServiceDefaults;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -22,6 +22,7 @@ public sealed class PushDeliveryService(
     IHttpClientFactory httpClientFactory,
     IDataProtectionProvider protectionProvider,
     IOptions<PushProviderOptions> options,
+    IFirebasePushSender firebasePushSender,
     ILogger<PushDeliveryService> logger) : IPushDeliveryService
 {
     private readonly PushProviderOptions options = options.Value;
@@ -67,7 +68,7 @@ public sealed class PushDeliveryService(
             {
                 var token = protector.Unprotect(device.TokenCiphertext);
                 if (device.Platform == "android")
-                    await SendFirebaseAsync(token, title, body, cancellationToken);
+                    await firebasePushSender.SendAsync(token, title, body, cancellationToken);
                 else if (device.Platform == "ios")
                 {
                     if (!options.ApnsEnabled)
@@ -112,79 +113,6 @@ public sealed class PushDeliveryService(
         return delivered;
     }
 
-    private async Task SendFirebaseAsync(string deviceToken, string title, string body, CancellationToken ct)
-    {
-        using var credentials = JsonDocument.Parse(options.FirebaseCredentialsJson);
-        var root = credentials.RootElement;
-        var projectId = root.GetProperty("project_id").GetString()!;
-        var clientEmail = root.GetProperty("client_email").GetString()!;
-        var privateKey = root.GetProperty("private_key").GetString()!;
-        using var rsa = RSA.Create();
-        rsa.ImportFromPem(privateKey);
-        var now = DateTime.UtcNow;
-        var jwt = new JwtSecurityToken(
-            issuer: clientEmail,
-            audience: "https://oauth2.googleapis.com/token",
-            claims: new[]
-            {
-                new System.Security.Claims.Claim("scope", "https://www.googleapis.com/auth/firebase.messaging"),
-                new System.Security.Claims.Claim(
-                    JwtRegisteredClaimNames.Iat,
-                    new DateTimeOffset(now).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    System.Security.Claims.ClaimValueTypes.Integer64)
-            },
-            notBefore: now,
-            expires: now.AddMinutes(5),
-            signingCredentials: new SigningCredentials(new RsaSecurityKey(rsa), SecurityAlgorithms.RsaSha256));
-        var assertion = new JwtSecurityTokenHandler().WriteToken(jwt);
-        using var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token")
-        {
-            Content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                ["assertion"] = assertion
-            })
-        };
-        var tokenResponse = await httpClientFactory.CreateClient().SendAsync(tokenRequest, ct);
-        var tokenResponseBody = await tokenResponse.Content.ReadAsStringAsync(ct);
-        if (!tokenResponse.IsSuccessStatusCode)
-        {
-            logger.LogWarning(
-                "Firebase OAuth token request failed: status={StatusCode}, details={Details}",
-                (int)tokenResponse.StatusCode,
-                tokenResponseBody.Length > 500 ? tokenResponseBody[..500] : tokenResponseBody);
-            throw new HttpRequestException($"Firebase OAuth token request failed with {(int)tokenResponse.StatusCode}.");
-        }
-
-        using var tokenJson = JsonDocument.Parse(tokenResponseBody);
-        var accessToken = tokenJson.RootElement.GetProperty("access_token").GetString()!;
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://fcm.googleapis.com/v1/projects/{Uri.EscapeDataString(projectId)}/messages:send");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        request.Content = JsonContent.Create(new
-        {
-            message = new
-            {
-                token = deviceToken,
-                notification = new { title, body },
-                android = new
-                {
-                    notification = new { channel_id = "his_hope_default", sound = "default" }
-                }
-            }
-        });
-        var response = await httpClientFactory.CreateClient().SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            var responseBody = await response.Content.ReadAsStringAsync(ct);
-            logger.LogWarning(
-                "Firebase message request failed: status={StatusCode}, details={Details}",
-                (int)response.StatusCode,
-                responseBody.Length > 500 ? responseBody[..500] : responseBody);
-            throw new HttpRequestException($"Firebase message request failed with {(int)response.StatusCode}.");
-        }
-    }
-
     private async Task SendApnsAsync(string deviceToken, string title, string body, CancellationToken ct)
     {
         using var ecdsa = ECDsa.Create();
@@ -204,7 +132,7 @@ public sealed class PushDeliveryService(
         request.Headers.TryAddWithoutValidation("apns-push-type", "alert");
         request.Headers.TryAddWithoutValidation("apns-priority", "10");
         request.Content = JsonContent.Create(new { aps = new { alert = new { title, body }, sound = "default" } });
-        using var response = await httpClientFactory.CreateClient().SendAsync(request, ct);
+        using var response = await httpClientFactory.CreateClient("external-apns").SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {
             var reason = await response.Content.ReadAsStringAsync(ct);

@@ -95,7 +95,7 @@ public static class IdentityWorkbenchDedicatedEndpoints
             else if (!await db.Users.AnyAsync(x => x.Id == request.PrincipalId, ct)) return Results.NotFound("user_not_found");
             else if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, request.PrincipalId, filter, ct) is { } userError) return userError;
             await blacklist.RevokeAllUserTokensAsync(subject, ct);
-            await AdminAudit.LogAuthorizationChangeAsync(db, http, "IAM_REVOCATION_CREATE", "IamRevocation", request.PrincipalId.ToString("D"), request.Reason.Trim(), null, JsonSerializer.Serialize(new { principalType = principal, subject, actor = http.User.FindFirstValue("sub") }), ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "IAM_REVOCATION_CREATE", "IamRevocation", request.PrincipalId.ToString("D"), request.Reason.Trim(), null, JsonSerializer.Serialize(new { principalType = principal, subject, actor = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) }), ct);
             return Results.Ok(new { schemaVersion = "iam-revocation.v1", principalId = request.PrincipalId, principalType = principal, subject, revokedAt = DateTime.UtcNow });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRevoke)
             .WithTenantMutationScope();

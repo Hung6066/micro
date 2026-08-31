@@ -15,6 +15,7 @@ using Xunit.Sdk;
 /// Live routing test for customer-acme dedicated Manufacturing DB (external PostgreSQL).
 /// Skips unless connection strings are supplied via environment or connections JSON file.
 /// </summary>
+[Collection("ManufacturingIntegration")]
 public sealed class CustomerAcmeExternalDatabaseRoutingTests
 {
     private const string TenantKey = "customer-acme";

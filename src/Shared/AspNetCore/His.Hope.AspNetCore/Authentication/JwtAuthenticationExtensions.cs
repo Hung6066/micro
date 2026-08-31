@@ -78,6 +78,10 @@ public static class JwtAuthenticationExtensions
         JwtAuthenticationOptions settings,
         bool useOidc)
     {
+        // Preserve OIDC claim names (amr, auth_time, permissions, tenant_id)
+        // so assurance and tenant policies evaluate the canonical contract.
+        // Subject normalization below adds the framework aliases explicitly.
+        jwt.MapInboundClaims = false;
         jwt.RequireHttpsMetadata = !settings.AllowHttp;
         jwt.TokenValidationParameters = useOidc
             ? CreateOidcValidationParameters(settings)
@@ -143,6 +147,8 @@ public static class JwtAuthenticationExtensions
                 ? settings.ValidIssuers
                 : null,
             ValidAudiences = BuildValidAudiences(settings),
+            RoleClaimType = "role",
+            NameClaimType = "sub",
             // The session token is a nested JWT: RSA-SHA256 signs the inner JWS,
             // while RSA-OAEP/RSA-OAEP-256 wraps the JWE content-encryption key.
             // Include both key-wrapping variants and the content algorithm so
@@ -290,6 +296,8 @@ public static class JwtAuthenticationExtensions
             ValidateIssuerSigningKey = true,
             ValidIssuer = settings.Issuer,
             ValidAudience = settings.Audience,
+            RoleClaimType = "role",
+            NameClaimType = "sub",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Key!)),
             ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             ClockSkew = TimeSpan.FromMinutes(Math.Max(0, settings.ClockSkewMinutes))

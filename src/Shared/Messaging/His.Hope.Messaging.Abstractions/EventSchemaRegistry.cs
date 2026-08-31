@@ -12,7 +12,7 @@ public sealed class EventSchemaRegistry
     public void Register(string eventType, int maximumVersion)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventType);
-        if (maximumVersion < 1) throw new ArgumentOutOfRangeException(nameof(maximumVersion));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumVersion, 1);
         _versions[eventType] = maximumVersion;
     }
 

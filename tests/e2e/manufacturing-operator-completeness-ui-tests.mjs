@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { assertE2eCredentials } from './config/credentials.js';
 
 const operatorUrl = process.env.OPERATOR_APP_URL ?? 'http://localhost:4300';
 const email = process.env.E2E_EMAIL;
@@ -22,7 +23,9 @@ test.describe('manufacturing operator completeness @operator-app', () => {
   });
 
   test('authenticated operator can navigate completed feature groups', async ({ page }) => {
-    test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
+    if (!assertE2eCredentials(email, password)) {
+      test.skip(true, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
+    }
     const consoleErrors = [];
     const serverErrors = [];
     page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });

@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using His.Hope.SharedKernel.Protocol;
 using System.Text.Json;
 using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Domain.Constants;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,12 +17,13 @@ public static class SupportElevationGuard
         IdentityDbContext db,
         IConglomerateTenantRegistry registry,
         IamTenantScopeFilter filter,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? permissionAction = "admin.users.write")
     {
         if (!registry.IsEnabled || filter.AccessDenied)
             return null;
 
-        var sourceTenant = http.User.FindFirst("tenant_id")?.Value;
+        var sourceTenant = http.User.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value;
         if (string.IsNullOrWhiteSpace(sourceTenant))
             return null;
 
@@ -42,7 +45,10 @@ public static class SupportElevationGuard
         if (http.RequestServices.GetService(typeof(ICrossTenantAccessPolicy)) is not ConfigurableCrossTenantAccessPolicy policy)
             return Results.Forbid();
 
-        var pair = policy.FindMatchingPair(sourceTenant, targetTenant, "admin.users.write", requiresJit: true);
+        if (string.IsNullOrWhiteSpace(permissionAction))
+            return Results.Forbid();
+
+        var pair = policy.FindMatchingPair(sourceTenant, targetTenant, permissionAction, requiresJit: true);
         if (pair is null)
             return Results.Forbid();
 
@@ -58,7 +64,7 @@ public static class SupportElevationGuard
             .SingleOrDefaultAsync(item =>
                 item.Id == elevationId &&
                 item.OperatorUserId == operatorUserId &&
-                item.Status == "approved" &&
+                item.Status == IdentityWorkflowStatuses.SupportElevation.Approved &&
                 item.ExpiresAt > DateTime.UtcNow,
                 ct);
         if (elevation is null)
@@ -71,13 +77,16 @@ public static class SupportElevationGuard
             !string.Equals(elevation.TargetTenant, targetTenant, StringComparison.OrdinalIgnoreCase))
             return Results.Forbid();
 
+        if (!SupportElevationPermissions.Allows(elevation, permissionAction))
+            return Results.Forbid();
+
         SupportElevationHttpContext.SetElevation(http, elevation);
         return null;
     }
 
     private static Guid ResolveOperatorUserId(ClaimsPrincipal user)
     {
-        var subject = user.FindFirst("sub")?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var subject = user.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(subject, out var userId) ? userId : Guid.Empty;
     }
 }
@@ -98,7 +107,7 @@ public static class SupportElevationPermissions
     public static bool Allows(SupportElevation elevation, string permissionAction)
     {
         var permissions = JsonSerializer.Deserialize<string[]>(elevation.PermissionsJson) ?? [];
-        return permissions.Length == 0 ||
+        return permissions.Length > 0 &&
                permissions.Contains(permissionAction, StringComparer.OrdinalIgnoreCase);
     }
 }

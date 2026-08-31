@@ -70,7 +70,7 @@ public sealed class SupportElevationEndpointCoverageTests
         var context = UserContext(operatorId, "operator-home");
 
         var result = await CreateAsync(
-            new(" customer-1 ", "  approved support reason  ", 500, ["Admin.Users.Write", "", "admin.users.write", "identity.update"]),
+            new(" customer-1 ", "  approved support reason  ", 500, ["Admin.Users.Write", "", "admin.users.write"]),
             db, registry.Object, context);
 
         result.GetType().Name.Should().Be("Created`1");
@@ -78,7 +78,7 @@ public sealed class SupportElevationEndpointCoverageTests
         saved.OperatorUserId.Should().Be(operatorId);
         saved.TargetTenant.Should().Be("customer-1");
         saved.Reason.Should().Be("approved support reason");
-        saved.PermissionsJson.Should().Contain("Admin.Users.Write").And.Contain("identity.update");
+        saved.PermissionsJson.Should().Contain("admin.users.write");
         saved.ExpiresAt.Should().BeAfter(DateTime.UtcNow.AddMinutes(59));
         saved.ExpiresAt.Should().BeBefore(DateTime.UtcNow.AddMinutes(61));
     }
@@ -143,6 +143,8 @@ public sealed class SupportElevationEndpointCoverageTests
             claims.Add(new Claim("tenant_id", sourceTenant));
         claims.Add(new Claim("sub", subject ?? id.ToString()));
         claims.Add(new Claim(ClaimTypes.NameIdentifier, id.ToString()));
+        claims.Add(new Claim("amr", "passkey"));
+        claims.Add(new Claim("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()));
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
     }
 }

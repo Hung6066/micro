@@ -20,7 +20,7 @@ public sealed class OpenFgaCanaryAuthorizer(
         if (_mode != "canary")
             return true;
 
-        var subject = principal.FindFirst("sub")?.Value ?? principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var subject = principal.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrWhiteSpace(subject))
         {
             logger.LogWarning("OpenFGA canary denied permission {Permission}: subject is missing", permissionCode);

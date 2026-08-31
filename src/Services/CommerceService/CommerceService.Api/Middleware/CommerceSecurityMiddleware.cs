@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.CommerceService.Api.Middleware;
 
@@ -14,7 +15,7 @@ namespace His.Hope.CommerceService.Api.Middleware;
 /// </summary>
 public sealed class CommerceSecurityMiddleware
 {
-    private const string ElevationHeader = "X-Support-Elevation-Id";
+    private const string ElevationHeader = HisHopeProtocolConstants.Headers.SupportElevationId;
     private readonly RequestDelegate _next;
     private readonly ILogger<CommerceSecurityMiddleware> _logger;
     private readonly IConnectionMultiplexer? _redis;
@@ -129,8 +130,8 @@ public sealed class CommerceSecurityMiddleware
         HttpMethods.IsDelete(method);
 
     private static string ResolveClientId(ClaimsPrincipal user) =>
-        user.FindFirst("client_id")?.Value ??
-        user.FindFirst("azp")?.Value ??
+        user.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.ClientId)?.Value ??
+        user.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value ??
         "anonymous";
 
     private async Task<bool> IncrementAndCheckLimit(HttpContext context, string key, int limit)

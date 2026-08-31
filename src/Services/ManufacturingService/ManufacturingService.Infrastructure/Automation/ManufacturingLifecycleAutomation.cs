@@ -49,27 +49,33 @@ public sealed class ManufacturingLifecycleAutomation
     {
         var limit = Math.Clamp(maxItems, 1, 1_000);
         await using var db = await _dbFactory.CreateDbContextForConnectionAsync(connectionName, cancellationToken);
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        var acquired = await db.Database.SqlQueryRaw<bool>(
-                "SELECT pg_try_advisory_xact_lock(hashtext('his-hope:manufacturing:lifecycle-automation')) AS \"Value\"")
-            .SingleAsync(cancellationToken);
-        if (!acquired)
-            return new(0, 0, 0, 0, 0, 0, 0);
+        var strategy = db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            var acquired = await db.Database.SqlQueryRaw<bool>(
+                    "SELECT pg_try_advisory_xact_lock(hashtext('his-hope:manufacturing:lifecycle-automation')) AS \"Value\"")
+                .SingleAsync(cancellationToken);
+            if (!acquired)
+                return new ManufacturingAutomationRunSummary(0, 0, 0, 0, 0, 0, 0);
 
-        var now = asOf.ToUniversalTime();
-        var today = DateOnly.FromDateTime(now.UtcDateTime);
+            var now = asOf.ToUniversalTime();
+            var today = DateOnly.FromDateTime(now.UtcDateTime);
 
-        var expiredReservations = await ExpireReservationsAsync(db, now, limit, cancellationToken);
-        var heldLots = await HoldExpiredLotsAsync(db, now, today, limit, cancellationToken);
-        var expiredCertificates = await ExpireSupplierCertificatesAsync(db, now, limit, cancellationToken);
-        var expiredApprovals = await ExpireMaterialApprovalsAsync(db, now, limit, cancellationToken);
-        var retiredRecipes = await RetireExpiredRecipesAsync(db, now, limit, cancellationToken);
-        var retiredInspectionPlans = await RetireExpiredInspectionPlansAsync(db, now, limit, cancellationToken);
-        var workOrders = await GenerateDueMaintenanceWorkOrdersAsync(db, now, limit, cancellationToken);
+            var expiredReservations = await ExpireReservationsAsync(db, now, limit, cancellationToken);
+            var heldLots = await HoldExpiredLotsAsync(db, now, today, limit, cancellationToken);
+            var expiredCertificates = await ExpireSupplierCertificatesAsync(db, now, limit, cancellationToken);
+            var expiredApprovals = await ExpireMaterialApprovalsAsync(db, now, limit, cancellationToken);
+            var retiredRecipes = await RetireExpiredRecipesAsync(db, now, limit, cancellationToken);
+            var retiredInspectionPlans = await RetireExpiredInspectionPlansAsync(db, now, limit, cancellationToken);
+            var workOrders = await GenerateDueMaintenanceWorkOrdersAsync(db, now, limit, cancellationToken);
 
-        await db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new(expiredReservations, heldLots, expiredCertificates, expiredApprovals, retiredRecipes, retiredInspectionPlans, workOrders);
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return new ManufacturingAutomationRunSummary(
+                expiredReservations, heldLots, expiredCertificates, expiredApprovals,
+                retiredRecipes, retiredInspectionPlans, workOrders);
+        });
     }
 
     private static async Task<int> ExpireReservationsAsync(ManufacturingDbContext db, DateTimeOffset now, int limit, CancellationToken cancellationToken)
@@ -84,7 +90,7 @@ public sealed class ManufacturingLifecycleAutomation
             {
                 Id = Guid.NewGuid(), TenantKey = reservation.TenantKey, LotId = reservation.LotId,
                 TransactionType = "Unreserve", Quantity = reservation.Quantity, Uom = reservation.Uom,
-                FacilityId = "default", StockStatus = "Released", CorrelationId = reservation.Id, OccurredAt = now
+                FacilityId = "default", StockStatus = ManufacturingStatusCodes.Released, CorrelationId = reservation.Id, OccurredAt = now
             });
             db.OutboxMessages.Add(new ManufacturingOutboxMessageEntity
             {
@@ -97,7 +103,7 @@ public sealed class ManufacturingLifecycleAutomation
                     tenantKey = reservation.TenantKey, quantity = reservation.Quantity,
                     referenceType = reservation.ReferenceType, referenceId = reservation.ReferenceId
                 }),
-                OccurredOn = now.UtcDateTime, Status = "Pending", RetryCount = 0
+                OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
             });
         }
 
@@ -107,7 +113,7 @@ public sealed class ManufacturingLifecycleAutomation
     private static async Task<int> HoldExpiredLotsAsync(ManufacturingDbContext db, DateTimeOffset now, DateOnly today, int limit, CancellationToken cancellationToken)
     {
         var lots = await db.Lots
-            .Where(x => x.Disposition == "Released" && x.BestBefore != null && x.BestBefore < today)
+            .Where(x => x.Disposition == ManufacturingStatusCodes.Released && x.BestBefore != null && x.BestBefore < today)
             .OrderBy(x => x.BestBefore).Take(limit).ToListAsync(cancellationToken);
         foreach (var lot in lots)
         {
@@ -135,7 +141,7 @@ public sealed class ManufacturingLifecycleAutomation
                 .ToListAsync(cancellationToken);
             foreach (var reservation in activeReservations)
             {
-                reservation.Status = "Cancelled";
+                reservation.Status = ManufacturingStatusCodes.Cancelled;
                 db.InventoryTransactions.Add(new ManufacturingInventoryTransactionEntity
                 {
                     Id = Guid.NewGuid(), TenantKey = lot.TenantKey, LotId = lot.Id, TransactionType = "Unreserve",
@@ -152,7 +158,7 @@ public sealed class ManufacturingLifecycleAutomation
                         tenantKey = lot.TenantKey, quantity = reservation.Quantity,
                         reason = "lot_disposition_changed", disposition = lot.Disposition
                     }),
-                    OccurredOn = now.UtcDateTime, Status = "Pending", RetryCount = 0
+                    OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
                 });
             }
 
@@ -165,7 +171,7 @@ public sealed class ManufacturingLifecycleAutomation
                     facilityId = (string?)null, lotId = lot.Id, tenantKey = lot.TenantKey, disposition = lot.Disposition,
                     cancelledReservationCount = activeReservations.Count
                 }),
-                OccurredOn = now.UtcDateTime, Status = "Pending", RetryCount = 0
+                OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
             });
         }
 
@@ -188,7 +194,7 @@ public sealed class ManufacturingLifecycleAutomation
                     eventId = certificate.Id, schemaVersion = 1, occurredAt = now, correlationId = certificate.Id,
                     certificateId = certificate.Id, tenantKey = certificate.TenantKey, supplierId = certificate.SupplierId
                 }),
-                OccurredOn = now.UtcDateTime, Status = "Pending", RetryCount = 0
+                OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
             });
         }
 
@@ -198,7 +204,7 @@ public sealed class ManufacturingLifecycleAutomation
     private static async Task<int> ExpireMaterialApprovalsAsync(ManufacturingDbContext db, DateTimeOffset now, int limit, CancellationToken cancellationToken)
     {
         var approvals = await db.SupplierMaterialApprovals
-            .Where(x => x.Status == "Approved" && x.EffectiveTo != null && x.EffectiveTo <= now)
+            .Where(x => x.Status == ManufacturingStatusCodes.Approved && x.EffectiveTo != null && x.EffectiveTo <= now)
             .OrderBy(x => x.EffectiveTo).Take(limit).ToListAsync(cancellationToken);
         foreach (var approval in approvals)
         {
@@ -212,7 +218,7 @@ public sealed class ManufacturingLifecycleAutomation
                     approvalId = approval.Id, tenantKey = approval.TenantKey, supplierId = approval.SupplierId,
                     materialSku = approval.MaterialSku
                 }),
-                OccurredOn = now.UtcDateTime, Status = "Pending", RetryCount = 0
+                OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
             });
         }
 
@@ -222,7 +228,7 @@ public sealed class ManufacturingLifecycleAutomation
     private static async Task<int> RetireExpiredRecipesAsync(ManufacturingDbContext db, DateTimeOffset now, int limit, CancellationToken cancellationToken)
     {
         var recipes = await db.Recipes
-            .Where(x => x.Status == "Approved" && x.EffectiveTo != null && x.EffectiveTo <= now)
+            .Where(x => x.Status == ManufacturingStatusCodes.Approved && x.EffectiveTo != null && x.EffectiveTo <= now)
             .OrderBy(x => x.EffectiveTo).Take(limit).ToListAsync(cancellationToken);
         foreach (var recipe in recipes)
         {
@@ -236,7 +242,7 @@ public sealed class ManufacturingLifecycleAutomation
                     eventId = recipe.Id, schemaVersion = 1, occurredAt = now, correlationId = recipe.Id,
                     recipeId = recipe.Id, tenantKey = recipe.TenantKey, productSku = recipe.ProductSku, version = recipe.Version
                 }),
-                OccurredOn = now.UtcDateTime, Status = "Pending", RetryCount = 0
+                OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
             });
         }
 
@@ -246,7 +252,7 @@ public sealed class ManufacturingLifecycleAutomation
     private static async Task<int> RetireExpiredInspectionPlansAsync(ManufacturingDbContext db, DateTimeOffset now, int limit, CancellationToken cancellationToken)
     {
         var plans = await db.InspectionPlanVersions
-            .Where(x => x.Status == "Approved" && x.EffectiveTo != null && x.EffectiveTo <= now)
+            .Where(x => x.Status == ManufacturingStatusCodes.Approved && x.EffectiveTo != null && x.EffectiveTo <= now)
             .OrderBy(x => x.EffectiveTo).Take(limit).ToListAsync(cancellationToken);
         foreach (var plan in plans)
         {
@@ -259,7 +265,7 @@ public sealed class ManufacturingLifecycleAutomation
                     eventId = plan.Id, schemaVersion = 1, occurredAt = now, correlationId = plan.Id,
                     planId = plan.Id, tenantKey = plan.TenantKey, planCode = plan.PlanCode, version = plan.Version
                 }),
-                OccurredOn = now.UtcDateTime, Status = "Pending", RetryCount = 0
+                OccurredOn = now.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
             });
         }
 
@@ -328,6 +334,6 @@ public sealed class ManufacturingLifecycleAutomation
                 facilityId = "default", machineId = entity.MachineId, tenantKey = entity.TenantKey,
                 dueAt = entity.DueAt, maintenanceType = entity.MaintenanceType
             }),
-            OccurredOn = entity.CreatedAt.UtcDateTime, Status = "Pending", RetryCount = 0
+            OccurredOn = entity.CreatedAt.UtcDateTime, Status = ManufacturingStatusCodes.Pending, RetryCount = 0
         });
 }

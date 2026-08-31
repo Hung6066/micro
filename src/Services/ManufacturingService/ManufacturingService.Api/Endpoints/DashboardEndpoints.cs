@@ -63,7 +63,7 @@ internal static class DashboardEndpoints
                 
                     var projection = store.GetCostProjection(tenantKey, productSku, recipeVersion, plannedQuantity.Value);
                     return projection is null
-                        ? ManufacturingProblem(StatusCodes.Status404NotFound, "recipe_not_found")
+                        ? ManufacturingProblem(StatusCodes.Status404NotFound, ManufacturingErrorCodes.RecipeNotFound)
                         : Results.Ok(projection);
                 });
 

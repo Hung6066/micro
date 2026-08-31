@@ -1,6 +1,7 @@
 using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
 
 namespace His.Hope.IdentityService.Api.Authorization;
 
@@ -38,17 +39,27 @@ public static class IamTenantEndpointExtensions
             var db = http.RequestServices.GetRequiredService<IdentityDbContext>();
             var registry = http.RequestServices.GetService<IConglomerateTenantRegistry>();
             var scopeId = IamTenantHttpContext.ParseScopeId(http.Request);
+            var permissionAction = ResolveMutationPermission(http);
             var (filter, error) = await IamTenantAccessGuard.ResolveForMutationAsync(
                 db,
                 http.User,
                 scopeId,
                 registry,
                 http,
-                http.RequestAborted);
+                http.RequestAborted,
+                permissionAction);
             if (error is not null)
                 return error;
 
             IamTenantHttpContext.SetFilter(http, filter);
             return await next(context);
         });
+
+    private static string? ResolveMutationPermission(HttpContext http) =>
+        http.GetEndpoint()?.Metadata.GetOrderedMetadata<IAuthorizeData>()
+            .Select(metadata => metadata.Policy)
+            .Where(policy => !string.IsNullOrWhiteSpace(policy) &&
+                policy.StartsWith("Permission:", StringComparison.OrdinalIgnoreCase))
+            .Select(policy => policy!["Permission:".Length..])
+            .FirstOrDefault(permission => !string.IsNullOrWhiteSpace(permission));
 }
