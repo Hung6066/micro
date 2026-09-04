@@ -105,8 +105,7 @@ services:
       Vault__RequireVault: "false"
       Vault__EnableTransit: "false"
     volumes:
-      - ../.runtime/identity-keys:/etc/hishop/certs:ro
-      - ../config/conglomerate:/app/config/conglomerate:ro
+      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
       manufacturing-postgres: { condition: service_healthy }
@@ -354,6 +353,8 @@ networks:
     name: openship_observability
 
 volumes:
+  identity_keys:
+    name: manufacturing-identity-keys
   postgres_data:
     external: true
     name: docker_postgres_data
