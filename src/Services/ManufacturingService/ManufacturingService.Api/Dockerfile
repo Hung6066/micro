@@ -13,4 +13,9 @@ WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:5050
 EXPOSE 5050
 COPY --from=build /app/publish .
+# Recreate this small text manifest in the final layer. The self-hosted Docker
+# builder can zero-fill the generated runtimeconfig file while streaming a
+# compose build context, which makes the otherwise valid image fail before the
+# application starts.
+RUN printf '%s\n' '{"runtimeOptions":{"tfm":"net8.0","frameworks":[{"name":"Microsoft.NETCore.App","version":"8.0.0"},{"name":"Microsoft.AspNetCore.App","version":"8.0.0"}]}}' > /app/ManufacturingService.Api.runtimeconfig.json
 ENTRYPOINT ["dotnet", "ManufacturingService.Api.dll"]
