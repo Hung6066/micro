@@ -76,6 +76,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5003
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       ConnectionStrings__IdentityDb: "Host=manufacturing-postgres;Database=identitydb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       Persistence__RunMigrationsOnStartup: "true"
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
@@ -105,7 +107,7 @@ services:
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
       - ../config/conglomerate:/app/config/conglomerate:ro
-    networks: [manufacturing]
+    networks: [manufacturing, openship_observability]
     depends_on:
       manufacturing-postgres: { condition: service_healthy }
       manufacturing-redis: { condition: service_healthy }
@@ -127,6 +129,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5015
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       ConnectionStrings__CommerceDb: "Host=manufacturing-postgres;Database=commercedb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       REDIS_URL: redis://manufacturing-redis:6379
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
@@ -146,7 +150,7 @@ services:
       EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
-    networks: [manufacturing]
+    networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
       manufacturing-postgres: { condition: service_healthy }
@@ -170,6 +174,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5016
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       ConnectionStrings__ContentDb: "Host=manufacturing-postgres;Database=contentdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       REDIS_URL: redis://manufacturing-redis:6379
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
@@ -184,7 +190,7 @@ services:
       Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
-    networks: [manufacturing]
+    networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
       manufacturing-postgres: { condition: service_healthy }
@@ -207,6 +213,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5050
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
 
       ConnectionStrings__ManufacturingDb: "Host=manufacturing-postgres;Database=manufacturingdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
@@ -234,191 +242,20 @@ services:
       EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
       Consumers__AnalyticsEnabled: "true"
       Consumers__CommerceOrdersEnabled: "true"
-    networks: [manufacturing]
+    networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
       manufacturing-postgres: { condition: service_healthy }
       manufacturing-redis: { condition: service_healthy }
       manufacturing-rabbitmq: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "dotnet", "--list-runtimes"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 15s
-    restart: unless-stopped
-
-  elasticsearch:
-    image: elasticsearch:8.12.0
-    container_name: manufacturing-standalone-elasticsearch
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      ES_JAVA_OPTS: -Xms512m -Xmx512m
-    ports:
-      - "${MANUFACTURING_ELASTICSEARCH_PORT:-9200}:9200"
-    volumes:
-      - es_data:/usr/share/elasticsearch/data
-    networks: [manufacturing]
-    healthcheck:
-      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-
-  kibana:
-    image: kibana:8.12.0
-    container_name: manufacturing-standalone-kibana
-    ports:
-      - "${MANUFACTURING_KIBANA_PORT:-5601}:5601"
-    environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-    networks: [manufacturing]
-    depends_on:
-      elasticsearch: { condition: service_healthy }
-    restart: unless-stopped
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.55
-    container_name: manufacturing-standalone-jaeger
-    user: "0:0"
-    ports:
-      - "${MANUFACTURING_JAEGER_PORT:-16686}:16686"
-      - "${MANUFACTURING_JAEGER_OTLP_GRPC_PORT:-24317}:4317"
-      - "${MANUFACTURING_JAEGER_OTLP_HTTP_PORT:-24318}:4318"
-      - "${MANUFACTURING_JAEGER_AGENT_PORT:-6831}:6831/udp"
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
-      SPAN_STORAGE_TYPE: badger
-      BADGER_EPHEMERAL: "false"
-      BADGER_DIRECTORY_KEY: /badger/key
-      BADGER_DIRECTORY_VALUE: /badger/data
-    volumes:
-      - jaeger_data:/badger
-    networks: [manufacturing]
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.128.0
-    container_name: manufacturing-standalone-otel-collector
-    command: ["--config=/etc/otelcol-contrib/config.yaml"]
-    ports:
-      - "${MANUFACTURING_OTEL_GRPC_PORT:-4317}:4317"
-      - "${MANUFACTURING_OTEL_HTTP_PORT:-4318}:4318"
-    volumes:
-      - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
-    networks: [manufacturing]
-    depends_on:
-      jaeger: { condition: service_healthy }
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    container_name: manufacturing-standalone-prometheus
-    ports:
-      - "${MANUFACTURING_PROMETHEUS_PORT:-9090}:9090"
-    volumes:
-      - ./prometheus.manufacturing.yml:/etc/prometheus/prometheus.yml:ro
-      - ./rules:/etc/prometheus/rules:ro
-      - prometheus_data:/prometheus
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=30d
-      - --web.enable-lifecycle
-    networks: [manufacturing]
-    depends_on:
-      manufacturing-postgres: { condition: service_healthy }
-      manufacturing-redis: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-
-  loki:
-    image: grafana/loki:3.1.0
-    container_name: manufacturing-standalone-loki
-    command: ["-config.file=/etc/loki/config.yml"]
-    ports:
-      - "${MANUFACTURING_LOKI_PORT:-3100}:3100"
-    volumes:
-      - ./loki-config.yml:/etc/loki/config.yml:ro
-      - loki_data:/loki
-    networks: [manufacturing]
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: manufacturing-standalone-postgres-exporter
-    environment:
-      DATA_SOURCE_NAME: postgresql://${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required}:${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}@manufacturing-postgres:5432/postgres?sslmode=disable
-    networks: [manufacturing]
-    depends_on:
-      manufacturing-postgres: { condition: service_healthy }
-    restart: unless-stopped
-
-  redis-exporter:
-    image: oliver006/redis_exporter:v1.62.0
-    container_name: manufacturing-standalone-redis-exporter
-    environment:
-      REDIS_ADDR: redis://manufacturing-redis:6379
-    networks: [manufacturing]
-    depends_on:
-      manufacturing-redis: { condition: service_healthy }
-    restart: unless-stopped
-
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    container_name: manufacturing-standalone-alertmanager
-    ports:
-      - "${MANUFACTURING_ALERTMANAGER_PORT:-9093}:9093"
-    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
-    volumes:
-      - ./alertmanager.manufacturing.yml:/etc/alertmanager/alertmanager.yml:ro
-    networks: [manufacturing]
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:10.4.0
-    container_name: manufacturing-standalone-grafana
-    ports:
-      - "${MANUFACTURING_GRAFANA_PORT:-3000}:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-    volumes:
-      - grafana_data:/var/lib/grafana
-    networks: [manufacturing]
-    depends_on:
-      prometheus: { condition: service_healthy }
-      loki: { condition: service_healthy }
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
     restart: unless-stopped
 
 networks:
   manufacturing:
     name: manufacturing-standalone
+  openship_observability:
+    external: true
+    name: openship_observability
 
 volumes:
   postgres_data:
@@ -433,15 +270,3 @@ volumes:
   es_data:
     external: true
     name: docker_es_data
-  jaeger_data:
-    external: true
-    name: docker_jaeger_data
-  prometheus_data:
-    external: true
-    name: docker_prometheus_data
-  loki_data:
-    external: true
-    name: docker_loki_data
-  grafana_data:
-    external: true
-    name: docker_grafana_data
