@@ -284,7 +284,8 @@ public sealed class OidcLoginCompletionService(
             .Select(value => new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, value))
             .Append(new Claim(
                 "auth_time",
-                DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ClaimValueTypes.Integer64))
             .Append(new Claim(
                 AuthorizationConstants.Claims.PrincipalType,
                 AuthorizationConstants.PrincipalTypes.Human))

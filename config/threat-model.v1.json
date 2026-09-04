@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "threat-model.v1",
+  "system": "His.Hope healthcare platform",
+  "reviewCadenceDays": 90,
+  "securityOwner": "Security Engineering",
+  "clinicalSafetyOwner": "Clinical Safety",
+  "flows": [
+    {
+      "id": "browser-bff-session",
+      "name": "Browser to BFF session",
+      "source": "browser",
+      "destination": "BFF",
+      "trustBoundary": "public-network-to-application-edge",
+      "dataClass": "authentication-metadata",
+      "controls": [
+        "HttpOnly Secure SameSite session cookie",
+        "CSRF validation",
+        "explicit CORS origins"
+      ],
+      "evidence": [
+        "docs/security/bff-security-review.md",
+        "scripts/verify-api-security.ps1"
+      ]
+    },
+    {
+      "id": "bff-identity-oidc",
+      "name": "BFF to Identity OIDC",
+      "source": "BFF",
+      "destination": "IdentityService",
+      "trustBoundary": "service-network",
+      "dataClass": "identity-and-session",
+      "controls": [
+        "PKCE S256",
+        "issuer and audience validation",
+        "refresh-token reuse detection"
+      ],
+      "evidence": [
+        "docs/security/bff-security-review.md",
+        "scripts/validate-dpop-coverage.ps1",
+        "tests/IdentityService/IdentityService.IntegrationTests"
+      ]
+    },
+    {
+      "id": "api-tenant-phi",
+      "name": "Resource API to tenant-scoped PHI",
+      "source": "resource-api",
+      "destination": "service-database",
+      "trustBoundary": "application-to-data-plane",
+      "dataClass": "PHI",
+      "controls": [
+        "tenant context resolution",
+        "object-level authorization",
+        "parameterized EF queries",
+        "PHI audit logging"
+      ],
+      "evidence": [
+        "scripts/verify-tenant-context-contract.ps1",
+        "config/security-assurance-mapping.v1.json",
+        "src/Shared/Infrastructure/His.Hope.Infrastructure/Audit/AuditMiddleware.cs"
+      ]
+    },
+    {
+      "id": "service-event-bus",
+      "name": "Service outbox to event bus",
+      "source": "service-outbox",
+      "destination": "RabbitMQ",
+      "trustBoundary": "service-to-messaging-plane",
+      "dataClass": "business-events",
+      "controls": [
+        "transactional outbox",
+        "publisher confirms",
+        "bounded retry and dead-letter handling"
+      ],
+      "evidence": [
+        "src/Shared/Infrastructure/His.Hope.Infrastructure/Outbox/OutboxProcessor.cs",
+        "src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/Implementations/RabbitMQEventBus.cs",
+        "scripts/validate-communication-boundaries.ps1"
+      ]
+    },
+    {
+      "id": "audit-siem-worm",
+      "name": "Audit record to SIEM and WORM",
+      "source": "audit-pipeline",
+      "destination": "SIEM/WORM",
+      "trustBoundary": "application-to-compliance-boundary",
+      "dataClass": "audit-metadata",
+      "controls": [
+        "allow-list metadata redaction",
+        "tamper-evident hash chain",
+        "Redis failure DLQ",
+        "production WORM policy gate"
+      ],
+      "evidence": [
+        "src/Services/IdentityService/IdentityService.Infrastructure/Services/SiemWormAuditForwarder.cs",
+        "tests/Services/IdentityService/IdentityService.Infrastructure.Tests/SiemWormAuditForwarderTests.cs",
+        "scripts/run-audit-siem-tamper-drill.ps1"
+      ]
+    }
+  ],
+  "abuseCases": [
+    {
+      "id": "TM-001",
+      "category": "Spoofing",
+      "scenario": "Attacker reuses or forges a bearer token to impersonate a caller.",
+      "owner": "Identity Platform",
+      "status": "mitigated",
+      "mitigation": "Validate issuer, audience, lifetime, signing key and sender-constrained DPoP proof.",
+      "evidence": [
+        "scripts/verify-api-security.ps1",
+        "scripts/validate-dpop-coverage.ps1"
+      ]
+    },
+    {
+      "id": "TM-002",
+      "category": "Tampering",
+      "scenario": "A malicious or stale event is replayed after a business mutation.",
+      "owner": "Platform Engineering",
+      "status": "mitigated",
+      "mitigation": "Transactional outbox, idempotency keys, expected-version checks and bounded dead-letter retry.",
+      "evidence": [
+        "src/Shared/Infrastructure/His.Hope.Infrastructure/Idempotency/IdempotencyMiddleware.cs",
+        "src/Shared/Infrastructure/His.Hope.Infrastructure/Outbox/OutboxProcessor.cs",
+        "scripts/validate-communication-boundaries.ps1"
+      ]
+    },
+    {
+      "id": "TM-003",
+      "category": "Information disclosure",
+      "scenario": "A tenant or external sink receives another tenant's PHI or unapproved audit properties.",
+      "owner": "Security Engineering",
+      "status": "mitigated",
+      "mitigation": "Server-side tenant/object authorization, parameterized queries, PHI audit redaction and external audit property allow-list.",
+      "evidence": [
+        "scripts/verify-tenant-context-contract.ps1",
+        "config/security-assurance-mapping.v1.json",
+        "tests/Services/IdentityService/IdentityService.Infrastructure.Tests/SiemWormAuditForwarderTests.cs"
+      ]
+    },
+    {
+      "id": "TM-004",
+      "category": "Denial of service",
+      "scenario": "A burst of requests or an unavailable Redis dependency exhausts service capacity.",
+      "owner": "SRE",
+      "status": "mitigated",
+      "mitigation": "Distributed rate limiting, per-key local fallback counters, bounded audit backpressure and load baseline gates.",
+      "evidence": [
+        "src/Shared/Infrastructure/His.Hope.Infrastructure/Abuse/PerUserRateLimitingMiddleware.cs",
+        "tests/Shared/Infrastructure.Tests/PerUserRateLimitingMiddlewareTests.cs",
+        "scripts/validate-load-test-baseline.ps1"
+      ]
+    },
+    {
+      "id": "TM-005",
+      "category": "Elevation of privilege",
+      "scenario": "An overdue privileged assignment remains active because a reviewer does not act.",
+      "owner": "Identity Governance",
+      "status": "mitigated",
+      "mitigation": "Scheduled expiry revokes roles and sessions, guarded by a cross-replica Redis sweep lock and audit event.",
+      "evidence": [
+        "src/Services/IdentityService/IdentityService.Api/Jobs/AccessReviewExpiryWorker.cs",
+        "tests/IdentityService/IdentityService.IntegrationTests/AccessGovernanceEndpointTests.cs"
+      ]
+    },
+    {
+      "id": "TM-006",
+      "category": "Repudiation",
+      "scenario": "A production operator disputes an audit event or an incident cannot be independently reconstructed.",
+      "owner": "Security and Compliance",
+      "status": "open",
+      "mitigation": "Complete independent OIDC/penetration assessment, locked WORM retention and production restore/tabletop evidence.",
+      "evidence": [
+        "docs/operations/security-assessment-evidence-handoff.vi.md",
+        "docs/evidence/k3s-go-live-checklist.vi.md"
+      ]
+    }
+  ]
+}

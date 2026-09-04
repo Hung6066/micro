@@ -25,5 +25,8 @@
     <ProjectReference Include="..\..\..\..\src\Services\ManufacturingService\ManufacturingService.Infrastructure\ManufacturingService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\..\src\Services\ManufacturingService\ManufacturingService.Application\ManufacturingService.Application.csproj" />
     <ProjectReference Include="..\..\..\..\src\Services\ManufacturingService\ManufacturingService.Api\ManufacturingService.Api.csproj" />
+    <Content Include="..\..\..\..\config\conglomerate\**\*"
+             Link="config\conglomerate\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

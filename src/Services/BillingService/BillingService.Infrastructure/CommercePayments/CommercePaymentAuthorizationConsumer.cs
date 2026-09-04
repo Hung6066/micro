@@ -1,11 +1,12 @@
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Saga;
+using His.Hope.Contracts.Messaging;
 using His.Hope.Infrastructure.Messaging;
+using His.Hope.Messaging;
 using His.Hope.SharedKernel.Protocol;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using RabbitMQ.Client.Exceptions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
@@ -43,31 +44,27 @@ public sealed class CommercePaymentAuthorizationConsumer(
         };
 
         using var connection = factory.CreateConnection();
-        using var probeChannel = connection.CreateModel();
-        var queueExists = true;
-        try { probeChannel.QueueDeclarePassive(Queue); }
-        catch (OperationInterruptedException) { queueExists = false; }
-
         using var channel = connection.CreateModel();
         channel.ExchangeDeclare(SagaMessagingContract.PaymentExchange, ExchangeType.Topic, durable: true, autoDelete: false);
         channel.ExchangeDeclare(DeadLetterExchange, ExchangeType.Topic, durable: true, autoDelete: false);
-        if (queueExists)
-            channel.QueueDeclare(Queue, durable: true, exclusive: false, autoDelete: false);
-        else
-            channel.QueueDeclare(Queue, durable: true, exclusive: false, autoDelete: false,
-                arguments: new Dictionary<string, object>
-                {
-                    ["x-dead-letter-exchange"] = DeadLetterExchange,
-                    ["x-dead-letter-routing-key"] = $"dlq.{SagaMessagingContract.PaymentAuthorizationRequested}",
-                });
+        channel.QueueDeclare(Queue, durable: true, exclusive: false, autoDelete: false,
+            arguments: new Dictionary<string, object>
+            {
+                ["x-dead-letter-exchange"] = DeadLetterExchange,
+                ["x-dead-letter-routing-key"] = $"dlq.{SagaMessagingContract.PaymentAuthorizationRequested}",
+            });
         channel.QueueBind(Queue, SagaMessagingContract.PaymentExchange, SagaMessagingContract.PaymentAuthorizationRequested);
         channel.BasicQos(0, 10, false);
 
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.Received += async (_, args) =>
         {
+            InboxDeliveryGuard? delivery = null;
             try
             {
+                IntegrationEventTransportHeaders.Validate(
+                    args.BasicProperties.Headers,
+                    SagaMessagingContract.PaymentAuthorizationRequested);
                 var request = JsonSerializer.Deserialize<PaymentAuthorizationRequestedV1>(
                     Encoding.UTF8.GetString(args.Body.ToArray()), JsonOptions)
                     ?? throw new InvalidOperationException("payment_authorization_request_empty");
@@ -76,8 +73,16 @@ public sealed class CommercePaymentAuthorizationConsumer(
                     throw new InvalidOperationException("payment_authorization_request_identity_missing");
 
                 using var scope = scopeFactory.CreateScope();
+                delivery = await InboxDeliveryGuard.TryBeginAsync(
+                    scope.ServiceProvider.GetRequiredService<IInboxStore>(), request.EventId, Queue, stoppingToken);
+                if (delivery is null)
+                {
+                    channel.BasicAck(args.DeliveryTag, multiple: false);
+                    return;
+                }
                 await scope.ServiceProvider.GetRequiredService<CommercePaymentWorkflow>()
                     .AuthorizeAsync(request, stoppingToken);
+                await delivery.CompleteAsync(stoppingToken);
                 channel.BasicAck(args.DeliveryTag, multiple: false);
                 logger.LogInformation("Commerce payment authorization accepted for order {OrderId}", request.OrderId);
             }
@@ -93,6 +98,8 @@ public sealed class CommercePaymentAuthorizationConsumer(
             }
             catch (Exception ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 logger.LogError(ex, "Commerce payment request failed");
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }

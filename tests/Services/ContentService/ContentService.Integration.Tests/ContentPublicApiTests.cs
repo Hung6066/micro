@@ -151,6 +151,22 @@ public sealed class ContentManageApiTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    public async Task Media_upload_rejects_non_image_content_types()
+    {
+        var client = CreateClient(["content.manage"]);
+        using var form = new MultipartFormDataContent();
+        using var content = new ByteArrayContent("<script>alert(1)</script>"u8.ToArray());
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/html");
+        form.Add(content, "file", "payload.html");
+
+        var response = await client.PostAsync("/api/v1/content/media/upload", form);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("unsupported_file_type", problem.GetProperty("errorCode").GetString());
+    }
+
+    [Fact]
     public async Task Manage_articles_enforces_publication_state_transitions()
     {
         var client = CreateClient(["content.manage"]);
@@ -164,9 +180,16 @@ public sealed class ContentManageApiTests : IClassFixture<WebApplicationFactory<
         var article = await created.Content.ReadFromJsonAsync<ArticleDto>();
         Assert.NotNull(article);
 
-        var published = draft with { Status = ContentArticleStatuses.Published };
-        var publishResponse = await client.PutAsJsonAsync($"/api/v1/content/articles/{article!.Id}", published);
+        var review = draft with { Status = ContentArticleStatuses.InReview };
+        var reviewResponse = await client.PutAsJsonAsync($"/api/v1/content/articles/{article!.Id}", review);
+        Assert.Equal(HttpStatusCode.OK, reviewResponse.StatusCode);
+
+        var published = review with { Status = ContentArticleStatuses.Published };
+        var publishResponse = await client.PutAsJsonAsync($"/api/v1/content/articles/{article.Id}", published);
         Assert.Equal(HttpStatusCode.OK, publishResponse.StatusCode);
+        var publishedArticle = await publishResponse.Content.ReadFromJsonAsync<ArticleDto>();
+        Assert.NotNull(publishedArticle);
+        Assert.True(publishedArticle!.PublishedAt > article.PublishedAt);
 
         var revertResponse = await client.PutAsJsonAsync(
             $"/api/v1/content/articles/{article.Id}", draft);

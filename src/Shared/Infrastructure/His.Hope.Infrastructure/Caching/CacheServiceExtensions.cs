@@ -30,6 +30,7 @@ public static class CacheServiceExtensions
         // Register L2 explicitly. HybridCacheService is the public ICacheService
         // facade, so injecting ICacheService into it would create a DI cycle.
         services.AddSingleton<DistributedCacheService>();
+        services.AddSingleton<ICacheInvalidationBus, RedisCacheInvalidationBus>();
 
         // Register L1 (in-memory) with size limit of 500 entries
         services.AddMemoryCache();

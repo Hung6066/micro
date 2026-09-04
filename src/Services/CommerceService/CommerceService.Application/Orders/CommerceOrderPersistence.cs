@@ -99,6 +99,7 @@ public interface ICommerceOrderPersistence
         Guid orderId,
         string tenantKey,
         string status,
+        string expectedCurrentStatus,
         CancellationToken cancellationToken = default);
 }
 

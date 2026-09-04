@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using His.Hope.Contracts.Manufacturing;
+using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.AspNetCore.Tenancy;
 
-public sealed partial class PostgresManufacturingStore
+public sealed class ManufacturingCrossEntityWorkflowStore(
+    IDbContextFactory<ManufacturingDbContext> dbFactory) : IManufacturingWorkflowStore
 {
     public CrossEntityWorkflowTraceDto? GetCrossEntityWorkflow(string entityType, Guid entityId) =>
         GetCrossEntityWorkflow(HisHopeTenantScope.Current ?? throw new InvalidOperationException("Tenant context is required."), entityType, entityId);

@@ -12,6 +12,9 @@ public sealed record EventDeliveryPolicy(
 {
     public static EventDeliveryPolicy Default { get; } = new();
 
+    public static bool IsAllowedPriority(string? priority) =>
+        priority is "P0" or "P1" or "P2" or "P3" or "P4";
+
     public void Validate(EventEnvelope envelope)
     {
         envelope.Validate(this);
@@ -23,5 +26,6 @@ public static class EventEnvelopeHeaders
     public const string SchemaVersion = "hishop-schema-version";
     public const string CorrelationId = "hishop-correlation-id";
     public const string CausationId = "hishop-causation-id";
+    public const string Priority = "hishop-priority";
     public const string PartitionKey = "hishop-partition-key";
 }

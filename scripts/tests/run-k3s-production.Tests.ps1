@@ -9,4 +9,5 @@ if ($text -notmatch '--tags') { throw 'Runner must pass selected phase tags to A
 if ($releaseValidator -notmatch 'previousNativeErrorAction') { throw 'Release validator must preserve native stderr handling state.' }
 if ($releaseValidator -notmatch "ErrorActionPreference = 'Continue'") { throw 'Release validator must tolerate non-fatal kubectl render warnings.' }
 if ($releaseValidator -notmatch 'LASTEXITCODE') { throw 'Release validator must still fail when kustomize exits non-zero.' }
+if ($releaseValidator -notmatch 'image-tag-policy') { throw 'Release validator must reject mutable production image tags.' }
 Write-Output 'Production runner contract PASS'

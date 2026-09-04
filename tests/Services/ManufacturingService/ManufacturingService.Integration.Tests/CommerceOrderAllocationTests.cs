@@ -58,8 +58,8 @@ public sealed class CommerceOrderAllocationTests : IAsyncLifetime
             100,
             [new CommerceOrderLineV1(Guid.NewGuid().ToString(), "FG-MANGO", 20, 5)]);
 
-        var first = store.AllocateCommerceOrder(order);
-        var replay = store.AllocateCommerceOrder(order with { EventId = Guid.NewGuid() });
+        var first = await store.AllocateCommerceOrderAsync(order);
+        var replay = await store.AllocateCommerceOrderAsync(order with { EventId = Guid.NewGuid() });
 
         first.Error.Should().BeNull();
         first.Allocations.Should().ContainSingle();
@@ -67,6 +67,31 @@ public sealed class CommerceOrderAllocationTests : IAsyncLifetime
         replay.Allocations.Should().BeEmpty();
         (await db.LotReservations.CountAsync(x => x.ReferenceId == orderId)).Should().Be(1);
         (await db.EventReceipts.CountAsync(x => x.EventType == "Commerce.OrderPlaced.v1")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Concurrent_delivery_of_the_same_order_has_one_side_effect()
+    {
+        var order = new CommerceOrderPlacedV1(
+            Guid.NewGuid(),
+            1,
+            DateTimeOffset.UtcNow,
+            Guid.NewGuid(),
+            "tenant-a",
+            "buyer-a",
+            100,
+            [new CommerceOrderLineV1(Guid.NewGuid().ToString(), "FG-MANGO", 20, 5)]);
+
+        var results = await Task.WhenAll(
+            store.AllocateCommerceOrderAsync(order),
+            store.AllocateCommerceOrderAsync(order with { EventId = Guid.NewGuid() }));
+
+        results.Should().OnlyContain(result => result.Error == null);
+        results.SelectMany(result => result.Allocations).Should().ContainSingle();
+
+        await using var verificationDb = new TestDbContextFactory(container.GetConnectionString()).CreateDbContext();
+        (await verificationDb.LotReservations.CountAsync(x => x.ReferenceId == order.OrderId)).Should().Be(1);
+        (await verificationDb.EventReceipts.CountAsync(x => x.EventType == "Commerce.OrderPlaced.v1" && x.AggregateId == order.OrderId.ToString())).Should().Be(1);
     }
 
     private sealed class TestDbContextFactory(string connectionString)

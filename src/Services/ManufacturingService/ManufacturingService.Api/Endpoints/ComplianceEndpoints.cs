@@ -9,17 +9,17 @@ internal static class ComplianceEndpoints
 {
     public static RouteGroupBuilder MapComplianceEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/sop-artifacts", (string? artifactKey, string? status, int? limit, HttpContext context, IManufacturingComplianceStore store) =>
+        api.MapGet("/sop-artifacts", async (string? artifactKey, string? status, int? limit, HttpContext context, IManufacturingComplianceStore store) =>
         {
             var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-            return Results.Ok(store.GetSopArtifacts(tenantKey, artifactKey, status, limit ?? 100));
+            return Results.Ok(await store.GetSopArtifactsAsync(tenantKey, artifactKey, status, limit ?? 100, context.RequestAborted));
         });
 
-        api.MapPost("/sop-artifacts", (CreateSopArtifactRequest request, HttpContext context, IManufacturingComplianceStore store) =>
+        api.MapPost("/sop-artifacts", async (CreateSopArtifactRequest request, HttpContext context, IManufacturingComplianceStore store) =>
         {
             var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
             var actor = context.User.Identity?.Name ?? "operator";
-            var result = store.CreateSopArtifact(request, tenantKey, actor);
+            var result = await store.CreateSopArtifactAsync(request, tenantKey, actor, context.RequestAborted);
             return result.Error switch
             {
                 "invalid_sop_artifact" or "invalid_sop_artifact_status" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
@@ -28,16 +28,16 @@ internal static class ComplianceEndpoints
             };
         });
 
-        api.MapPost("/sop-artifacts/{artifactId:guid}/approve", (Guid artifactId, SopArtifactLifecycleRequest request, HttpContext context, IManufacturingComplianceStore store) =>
-            ChangeSopStatus(artifactId, ManufacturingStatusCodes.Approved, request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SopApprove));
-        api.MapPost("/sop-artifacts/{artifactId:guid}/retire", (Guid artifactId, SopArtifactLifecycleRequest request, HttpContext context, IManufacturingComplianceStore store) =>
-            ChangeSopStatus(artifactId, "Retired", request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SopApprove));
-        api.MapPost("/sop-artifacts/{artifactId:guid}/acknowledge", (Guid artifactId, SopArtifactAcknowledgmentRequest request, HttpContext context, IManufacturingComplianceStore store) =>
+        api.MapPost("/sop-artifacts/{artifactId:guid}/approve", async (Guid artifactId, SopArtifactLifecycleRequest request, HttpContext context, IManufacturingComplianceStore store) =>
+            await ChangeSopStatusAsync(artifactId, ManufacturingStatusCodes.Approved, request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SopApprove));
+        api.MapPost("/sop-artifacts/{artifactId:guid}/retire", async (Guid artifactId, SopArtifactLifecycleRequest request, HttpContext context, IManufacturingComplianceStore store) =>
+            await ChangeSopStatusAsync(artifactId, "Retired", request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SopApprove));
+        api.MapPost("/sop-artifacts/{artifactId:guid}/acknowledge", async (Guid artifactId, SopArtifactAcknowledgmentRequest request, HttpContext context, IManufacturingComplianceStore store) =>
         {
             var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
             var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
             if (string.IsNullOrWhiteSpace(actor)) return ManufacturingProblem(StatusCodes.Status401Unauthorized, "signature_actor_required");
-            var result = store.AcknowledgeSopArtifact(artifactId, tenantKey, actor, request);
+            var result = await store.AcknowledgeSopArtifactAsync(artifactId, tenantKey, actor, request, context.RequestAborted);
             return result.Error switch
             {
                 "sop_artifact_not_found_or_not_approved" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -47,18 +47,18 @@ internal static class ComplianceEndpoints
             };
         });
 
-        api.MapGet("/business-signatures", (string? entityType, Guid? entityId, int? limit, HttpContext context, IManufacturingComplianceStore store) =>
+        api.MapGet("/business-signatures", async (string? entityType, Guid? entityId, int? limit, HttpContext context, IManufacturingComplianceStore store) =>
         {
             var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-            return Results.Ok(store.GetBusinessSignatures(tenantKey, entityType, entityId, limit ?? 100));
+            return Results.Ok(await store.GetBusinessSignaturesAsync(tenantKey, entityType, entityId, limit ?? 100, context.RequestAborted));
         });
 
-        api.MapPost("/business-signatures", (CreateBusinessSignatureRequest request, HttpContext context, IManufacturingComplianceStore store) =>
+        api.MapPost("/business-signatures", async (CreateBusinessSignatureRequest request, HttpContext context, IManufacturingComplianceStore store) =>
         {
             var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
             var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
             if (string.IsNullOrWhiteSpace(actor)) return ManufacturingProblem(StatusCodes.Status401Unauthorized, "signature_actor_required");
-            var result = store.CreateBusinessSignature(tenantKey, actor, request);
+            var result = await store.CreateBusinessSignatureAsync(tenantKey, actor, request, context.RequestAborted);
             return result.Error switch
             {
                 ManufacturingErrorCodes.InvalidBusinessSignature or "invalid_signature_method" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
@@ -70,10 +70,10 @@ internal static class ComplianceEndpoints
         return api;
     }
 
-    private static IResult ChangeSopStatus(Guid artifactId, string targetStatus, SopArtifactLifecycleRequest request, HttpContext context, IManufacturingComplianceStore store)
+    private static async Task<IResult> ChangeSopStatusAsync(Guid artifactId, string targetStatus, SopArtifactLifecycleRequest request, HttpContext context, IManufacturingComplianceStore store)
     {
         var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-        var result = store.ChangeSopArtifactStatus(artifactId, tenantKey, targetStatus, request);
+        var result = await store.ChangeSopArtifactStatusAsync(artifactId, tenantKey, targetStatus, request, context.RequestAborted);
         return result.Error switch
         {
             "sop_artifact_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),

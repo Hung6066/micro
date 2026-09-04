@@ -11,6 +11,7 @@ namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
 public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicationDbContext
 {
+    private const long AuditChainAdvisoryLockKey = 812345678901234567;
     // Custom entity sets for the extended identity model
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
@@ -68,14 +69,190 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        if (HasAddedAuditLogs() && IsPostgres())
+        {
+            var sessionLock = AcquireAuditChainLock();
+            try
+            {
+                PrepareAuditIntegrity();
+                RejectAuditMutation();
+                return base.SaveChanges(acceptAllChangesOnSuccess);
+            }
+            finally
+            {
+                ReleaseAuditChainLock(sessionLock);
+            }
+        }
+
+        PrepareAuditIntegrity();
         RejectAuditMutation();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        return SaveChangesWithAuditIntegrityAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private async Task<int> SaveChangesWithAuditIntegrityAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken)
+    {
+        if (HasAddedAuditLogs() && IsPostgres())
+        {
+            var sessionLock = await AcquireAuditChainLockAsync(cancellationToken);
+            try
+            {
+                await PrepareAuditIntegrityAsync(cancellationToken);
+                RejectAuditMutation();
+                return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
+            finally
+            {
+                await ReleaseAuditChainLockAsync(sessionLock, cancellationToken);
+            }
+        }
+
+        await PrepareAuditIntegrityAsync(cancellationToken);
         RejectAuditMutation();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private bool HasAddedAuditLogs() => ChangeTracker.Entries<AuditLog>()
+        .Any(entry => entry.State == EntityState.Added);
+
+    private bool IsPostgres() => Database.ProviderName?.Contains(
+        "Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+
+    private bool AcquireAuditChainLock()
+    {
+        if (Database.CurrentTransaction is not null)
+        {
+            Database.ExecuteSqlRaw("SELECT pg_advisory_xact_lock({0})", AuditChainAdvisoryLockKey);
+            return false;
+        }
+
+        Database.OpenConnection();
+        try
+        {
+            Database.ExecuteSqlRaw("SELECT pg_advisory_lock({0})", AuditChainAdvisoryLockKey);
+            return true;
+        }
+        catch
+        {
+            Database.CloseConnection();
+            throw;
+        }
+    }
+
+    private async Task<bool> AcquireAuditChainLockAsync(CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is not null)
+        {
+            await Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock({0})", [AuditChainAdvisoryLockKey], cancellationToken);
+            return false;
+        }
+
+        await Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_lock({0})", [AuditChainAdvisoryLockKey], cancellationToken);
+            return true;
+        }
+        catch
+        {
+            await Database.CloseConnectionAsync();
+            throw;
+        }
+    }
+
+    private void ReleaseAuditChainLock(bool sessionLock)
+    {
+        if (!sessionLock)
+            return;
+
+        try
+        {
+            Database.ExecuteSqlRaw("SELECT pg_advisory_unlock({0})", AuditChainAdvisoryLockKey);
+        }
+        finally
+        {
+            Database.CloseConnection();
+        }
+    }
+
+    private async Task ReleaseAuditChainLockAsync(bool sessionLock, CancellationToken cancellationToken)
+    {
+        if (!sessionLock)
+            return;
+
+        try
+        {
+            await Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_unlock({0})", [AuditChainAdvisoryLockKey], cancellationToken);
+        }
+        finally
+        {
+            await Database.CloseConnectionAsync();
+        }
+    }
+
+    private void PrepareAuditIntegrity()
+    {
+        var entries = ChangeTracker.Entries<AuditLog>()
+            .Where(entry => entry.State == EntityState.Added)
+            .OrderBy(entry => entry.Entity.Timestamp)
+            .ThenBy(entry => entry.Entity.Id)
+            .Select(entry => entry.Entity)
+            .ToArray();
+
+        if (entries.Length == 0)
+            return;
+
+        var previousEntry = AuditLogs.AsNoTracking()
+            .Where(entry => entry.IntegritySequence != null)
+            .OrderByDescending(entry => entry.IntegritySequence)
+            .FirstOrDefault();
+        var previous = previousEntry?.IntegrityHash;
+        var nextSequence = previousEntry?.IntegritySequence ?? 0;
+
+        foreach (var entry in entries)
+        {
+            entry.IntegritySequence = ++nextSequence;
+            entry.PreviousIntegrityHash = previous;
+            entry.IntegrityHash = AuditLogIntegrity.ComputeHash(entry, previous);
+            previous = entry.IntegrityHash;
+        }
+    }
+
+    private async Task PrepareAuditIntegrityAsync(CancellationToken cancellationToken)
+    {
+        var entries = ChangeTracker.Entries<AuditLog>()
+            .Where(entry => entry.State == EntityState.Added)
+            .OrderBy(entry => entry.Entity.Timestamp)
+            .ThenBy(entry => entry.Entity.Id)
+            .Select(entry => entry.Entity)
+            .ToArray();
+
+        if (entries.Length == 0)
+            return;
+
+        var previousEntry = await AuditLogs.AsNoTracking()
+            .Where(entry => entry.IntegritySequence != null)
+            .OrderByDescending(entry => entry.IntegritySequence)
+            .FirstOrDefaultAsync(cancellationToken);
+        var previous = previousEntry?.IntegrityHash;
+        var nextSequence = previousEntry?.IntegritySequence ?? 0;
+
+        foreach (var entry in entries)
+        {
+            entry.IntegritySequence = ++nextSequence;
+            entry.PreviousIntegrityHash = previous;
+            entry.IntegrityHash = AuditLogIntegrity.ComputeHash(entry, previous);
+            previous = entry.IntegrityHash;
+        }
     }
 
     private void RejectAuditMutation()
@@ -503,6 +680,9 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(al => al.BeforeJson).HasMaxLength(8000);
             entity.Property(al => al.AfterJson).HasMaxLength(8000);
             entity.Property(al => al.Source).HasMaxLength(64);
+            entity.Property(al => al.PreviousIntegrityHash).HasMaxLength(64);
+            entity.Property(al => al.IntegrityHash).HasMaxLength(64);
+            entity.Property(al => al.IntegritySequence);
             entity.Property(al => al.Timestamp).IsRequired();
 
             entity.HasIndex(al => al.UserId);
@@ -510,6 +690,9 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(al => al.Action);
             entity.HasIndex(al => al.Timestamp);
             entity.HasIndex(al => al.CorrelationId);
+            entity.HasIndex(al => al.IntegritySequence)
+                .IsUnique()
+                .HasDatabaseName("ux_audit_logs_integrity_sequence");
             entity.HasIndex(al => new { al.ResourceType, al.ResourceId, al.Timestamp })
                 .HasDatabaseName("ix_audit_logs_resource_lookup");
             entity.HasIndex(al => new { al.UserId, al.Timestamp })

@@ -90,7 +90,8 @@ Or run the onboarding validator:
 What this does per service binding:
 
 1. `CREATE DATABASE` (if missing) via `psql`
-2. `dotnet ef database update` against the dedicated connection string
+2. Sets the service's named `ConnectionStrings__*` value only for the child EF process so startup design-time DI can resolve the context
+3. `dotnet ef database update` against the dedicated connection string, then restores the caller's environment
 
 Dry-run provision:
 

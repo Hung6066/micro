@@ -120,7 +120,7 @@ public sealed class PerUserRateLimitingMiddleware
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Redis rate limit operation failed for {Key}, falling back", key);
-                currentCount = Interlocked.Increment(ref _fallbackCounter);
+                currentCount = _fallbackStore.GetOrAdd(key, _ => new RateLimitEntry(_window)).Increment();
             }
         }
         else
@@ -152,8 +152,6 @@ public sealed class PerUserRateLimitingMiddleware
         context.Request.Headers["X-Forwarded-For"].FirstOrDefault()
         ?? context.Connection.RemoteIpAddress?.ToString()
         ?? "unknown";
-
-    private static long _fallbackCounter;
 
     private sealed class RateLimitEntry
     {

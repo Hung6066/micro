@@ -45,11 +45,11 @@ internal static class ManufacturingEndpointHelpers
                 };
             }
 
-    internal static IResult ChangeProductSpecification(Guid specificationId, string targetStatus, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store)
+    internal static async Task<IResult> ChangeProductSpecification(Guid specificationId, string targetStatus, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store)
             {
                 var tenantKey = TenantClaim(context);
                 if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                var result = store.ChangeProductSpecificationLifecycle(specificationId, tenantKey, targetStatus, request);
+                var result = await store.ChangeProductSpecificationLifecycleAsync(specificationId, tenantKey, targetStatus, request, context.RequestAborted);
                 return result.Error switch
                 {
                     ManufacturingErrorCodes.ProductSpecificationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -61,11 +61,11 @@ internal static class ManufacturingEndpointHelpers
                 };
             }
 
-    internal static IResult ChangeDeviation(Guid deviationId, string targetStatus, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store)
+    internal static async Task<IResult> ChangeDeviationAsync(Guid deviationId, string targetStatus, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store)
             {
                 var tenantKey = TenantClaim(context);
                 if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                var result = store.ChangeDeviationStatus(deviationId, tenantKey, targetStatus, request);
+                var result = await store.ChangeDeviationStatusAsync(deviationId, tenantKey, targetStatus, request, context.RequestAborted);
                 return result.Error switch
                 {
                     ManufacturingErrorCodes.DeviationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -83,11 +83,11 @@ internal static class ManufacturingEndpointHelpers
                 definition.StatusAliases,
                 definition.TerminalStatuses);
 
-    internal static IResult BatchStatusResult(Guid batchId, string targetStatus, HttpContext context, IManufacturingProductionOrderStore store)
+    internal static async Task<IResult> BatchStatusResult(Guid batchId, string targetStatus, HttpContext context, IManufacturingProductionOrderStore store)
         {
             var tenantKey = TenantClaim(context);
             if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-            var result = store.ChangeBatchStatus(tenantKey, batchId, targetStatus);
+            var result = await store.ChangeBatchStatusAsync(tenantKey, batchId, targetStatus, context.RequestAborted);
             return result.Error switch
             {
                 ManufacturingErrorCodes.ProductionBatchNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),

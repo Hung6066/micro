@@ -46,6 +46,22 @@ docker/secrets/*
 *.secret
 secrets/
 config/conglomerate/tenant-placement.connections.local.json
+# Never commit captured browser/server authentication state or ad-hoc probes.
+auth_headers.txt
+authorize_result.bin
+cookie*.txt
+*_cookie.txt
+c2.txt
+cb.txt
+docker/cb.txt
+docker/sso.txt
+docker/t.txt
+docker/t2.txt
+sso.txt
+tests/e2e/inspect*.js
+tests/e2e/fixtures/*-auth.json
+.tools/dev-render.yaml
+docker/temporal/.env
 # The shared Vault client is source code, not an environment secret. Keep the
 # implementation trackable while continuing to ignore runtime secret files.
 !src/Shared/Secrets/
@@ -141,6 +157,7 @@ test-grpc.csx
 .npm-cache/
 
 /tests/e2e/html-report/
+/tests/e2e/fixtures/shared-foundation-auth.generated.json
 
 /artifacts/
 **/artifacts/

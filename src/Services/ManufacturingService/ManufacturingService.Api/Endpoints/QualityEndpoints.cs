@@ -25,12 +25,12 @@ internal static class QualityEndpoints
                     return Results.Ok(await store.GetQualityInspectionsAsync(lotId, scopedTenant, limit ?? HisHopePaginationDefaults.QualityDefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
-                api.MapPost("/quality-inspections", (CreateQualityInspectionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapPost("/quality-inspections", async (CreateQualityInspectionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     if (request.LotId == Guid.Empty || string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Inspector))
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_quality_inspection");
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
-                    var result = store.CreateQualityInspection(request);
+                    var result = await store.CreateQualityInspectionAsync(request, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.LotNotFound or "inspection_plan_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -54,11 +54,11 @@ internal static class QualityEndpoints
                     return Results.Ok(store.GetQualitySamples(tenantKey, inspectionId, disposition, limit ?? 100));
                 });
 
-                api.MapPost("/quality-samples", (CreateQualitySampleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapPost("/quality-samples", async (CreateQualitySampleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.CreateQualitySample(request, tenantKey);
+                    var result = await store.CreateQualitySampleAsync(request, tenantKey, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.QualityInspectionNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -69,11 +69,11 @@ internal static class QualityEndpoints
                     };
                 });
 
-                api.MapPost("/quality-samples/{sampleId:guid}/disposition", (Guid sampleId, QualitySampleDispositionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapPost("/quality-samples/{sampleId:guid}/disposition", async (Guid sampleId, QualitySampleDispositionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.ChangeQualitySampleDisposition(sampleId, tenantKey, request);
+                    var result = await store.ChangeQualitySampleDispositionAsync(sampleId, tenantKey, request, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.QualitySampleNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -83,11 +83,11 @@ internal static class QualityEndpoints
                     };
                 });
 
-                api.MapPost("/inspection-plan-versions", (CreateInspectionPlanVersionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapPost("/inspection-plan-versions", async (CreateInspectionPlanVersionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey) || !TenantMatches(context, request.TenantKey)) return Results.Forbid();
-                    var result = store.CreateInspectionPlanVersion(request);
+                    var result = await store.CreateInspectionPlanVersionAsync(request, context.RequestAborted);
                     return result.Error switch
                     {
                         "invalid_inspection_plan" or "invalid_inspection_plan_status" or "invalid_inspection_plan_dates" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
@@ -96,11 +96,11 @@ internal static class QualityEndpoints
                     };
                 });
 
-                api.MapPost("/inspection-plan-versions/{planId:guid}/status", (Guid planId, string status, InspectionPlanLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapPost("/inspection-plan-versions/{planId:guid}/status", async (Guid planId, string status, InspectionPlanLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.ChangeInspectionPlanLifecycle(planId, tenantKey, status, request);
+                    var result = await store.ChangeInspectionPlanLifecycleAsync(planId, tenantKey, status, request, context.RequestAborted);
                     return result.Error switch
                     {
                         "inspection_plan_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -117,36 +117,36 @@ internal static class QualityEndpoints
                     return Results.Ok(store.GetProductSpecifications(tenantKey, productSku, status, limit ?? 50));
                 });
 
-                api.MapPost("/product-specifications", (CreateProductSpecificationRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapPost("/product-specifications", async (CreateProductSpecificationRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
-                    var result = store.CreateProductSpecification(request);
+                    var result = await store.CreateProductSpecificationAsync(request, context.RequestAborted);
                     return result.Error is null
                         ? Results.Created("/api/v1/manufacturing/product-specifications", result.Specification)
                         : ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!);
                 });
 
-                api.MapPost("/product-specifications/{specificationId:guid}/approve", (Guid specificationId, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeProductSpecification(specificationId, ManufacturingStatusCodes.Approved, request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SpecificationApprove));
+                api.MapPost("/product-specifications/{specificationId:guid}/approve", async (Guid specificationId, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                    await ChangeProductSpecification(specificationId, ManufacturingStatusCodes.Approved, request, context, store)).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.SpecificationApprove));
 
-                api.MapPost("/product-specifications/{specificationId:guid}/retire", (Guid specificationId, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeProductSpecification(specificationId, "Retired", request, context, store));
+                api.MapPost("/product-specifications/{specificationId:guid}/retire", async (Guid specificationId, ProductSpecificationLifecycleRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                    await ChangeProductSpecification(specificationId, "Retired", request, context, store));
 
                 
-                api.MapGet("/deviations", (Guid? productionBatchId, string? status, int? limit, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapGet("/deviations", async (Guid? productionBatchId, string? status, int? limit, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    return Results.Ok(store.GetDeviations(tenantKey, productionBatchId, status, limit ?? 50));
+                    return Results.Ok(await store.GetDeviationsAsync(tenantKey, productionBatchId, status, limit ?? 50, context.RequestAborted));
                 });
 
-                api.MapPost("/production-batches/{batchId:guid}/deviations", (Guid batchId, CreateDeviationRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapPost("/production-batches/{batchId:guid}/deviations", async (Guid batchId, CreateDeviationRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.CreateDeviation(batchId, tenantKey, request);
+                    var result = await store.CreateDeviationAsync(batchId, tenantKey, request, context.RequestAborted);
                     return result.Error switch
                     {
                         "invalid_deviation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
@@ -157,45 +157,45 @@ internal static class QualityEndpoints
                     };
                 });
 
-                api.MapPost("/deviations/{deviationId:guid}/approve", (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeDeviation(deviationId, ManufacturingStatusCodes.Approved, request, context, store));
+                api.MapPost("/deviations/{deviationId:guid}/approve", async (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                    await ChangeDeviationAsync(deviationId, ManufacturingStatusCodes.Approved, request, context, store));
 
-                api.MapPost("/deviations/{deviationId:guid}/reject", (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeDeviation(deviationId, ManufacturingStatusCodes.Rejected, request, context, store));
+                api.MapPost("/deviations/{deviationId:guid}/reject", async (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                    await ChangeDeviationAsync(deviationId, ManufacturingStatusCodes.Rejected, request, context, store));
 
-                api.MapPost("/deviations/{deviationId:guid}/close", (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
-                    ChangeDeviation(deviationId, ManufacturingStatusCodes.Closed, request, context, store));
+                api.MapPost("/deviations/{deviationId:guid}/close", async (Guid deviationId, DeviationActionRequest request, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                    await ChangeDeviationAsync(deviationId, ManufacturingStatusCodes.Closed, request, context, store));
 
-                api.MapGet("/deviations/{deviationId:guid}/status-history", (Guid deviationId, HttpContext context, IManufacturingQualityWorkflowStore store) =>
+                api.MapGet("/deviations/{deviationId:guid}/status-history", async (Guid deviationId, HttpContext context, IManufacturingQualityWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    return Results.Ok(store.GetDeviationStatusHistory(tenantKey, deviationId));
+                    return Results.Ok(await store.GetDeviationStatusHistoryAsync(tenantKey, deviationId, context.RequestAborted));
                 });
 
-                api.MapGet("/capas", (string? status, int? limit, HttpContext context, IManufacturingCapaStore store) =>
+                api.MapGet("/capas", async (string? status, int? limit, HttpContext context, IManufacturingCapaStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); return Results.Ok(store.GetCapas(tenantKey, status, limit ?? 200));
+                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); return Results.Ok(await store.GetCapasAsync(tenantKey, status, limit ?? 200, context.RequestAborted));
                 });
 
-                api.MapPost("/capas", (CreateCapaRequest request, HttpContext context, IManufacturingCapaStore store) =>
+                api.MapPost("/capas", async (CreateCapaRequest request, HttpContext context, IManufacturingCapaStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CreateCapa(tenantKey, request, actor); return result.Error switch { "invalid_capa" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), ManufacturingErrorCodes.SupplierNotFound or ManufacturingErrorCodes.DeviationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/capas", result.Capa) };
+                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = await store.CreateCapaAsync(tenantKey, request, actor, context.RequestAborted); return result.Error switch { "invalid_capa" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), ManufacturingErrorCodes.SupplierNotFound or ManufacturingErrorCodes.DeviationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/capas", result.Capa) };
                 });
 
-                api.MapPost("/capas/{capaId:guid}/status", (Guid capaId, UpdateCapaStatusRequest request, HttpContext context, IManufacturingCapaStore store) =>
+                api.MapPost("/capas/{capaId:guid}/status", async (Guid capaId, UpdateCapaStatusRequest request, HttpContext context, IManufacturingCapaStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateCapaStatus(tenantKey, capaId, request); return result.Error switch { "capa_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "invalid_capa_actor" or "invalid_capa_transition" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!), _ => Results.Ok(result.Capa) };
+                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = await store.UpdateCapaStatusAsync(tenantKey, capaId, request, context.RequestAborted); return result.Error switch { "capa_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "invalid_capa_actor" or "invalid_capa_transition" => ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!), _ => Results.Ok(result.Capa) };
                 });
 
-                api.MapGet("/supplier-evaluations", (Guid? supplierId, int? limit, HttpContext context, IManufacturingCapaStore store) =>
+                api.MapGet("/supplier-evaluations", async (Guid? supplierId, int? limit, HttpContext context, IManufacturingCapaStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); return Results.Ok(store.GetSupplierEvaluations(tenantKey, supplierId, limit ?? 200));
+                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); return Results.Ok(await store.GetSupplierEvaluationsAsync(tenantKey, supplierId, limit ?? 200, context.RequestAborted));
                 });
 
-                api.MapPost("/supplier-evaluations", (CreateSupplierEvaluationRequest request, HttpContext context, IManufacturingCapaStore store) =>
+                api.MapPost("/supplier-evaluations", async (CreateSupplierEvaluationRequest request, HttpContext context, IManufacturingCapaStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CreateSupplierEvaluation(tenantKey, request, actor); return result.Error switch { "invalid_supplier_evaluation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), ManufacturingErrorCodes.SupplierNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/supplier-evaluations", result.Evaluation) };
+                    var tenantKey = TenantClaim(context); var actor = context.User.Identity?.Name ?? context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "operator"; if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = await store.CreateSupplierEvaluationAsync(tenantKey, request, actor, context.RequestAborted); return result.Error switch { "invalid_supplier_evaluation" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), ManufacturingErrorCodes.SupplierNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Created("/api/v1/manufacturing/supplier-evaluations", result.Evaluation) };
                 });
 
         return api;

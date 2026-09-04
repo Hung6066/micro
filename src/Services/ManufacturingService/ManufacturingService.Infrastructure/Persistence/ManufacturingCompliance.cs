@@ -6,23 +6,23 @@ using Microsoft.EntityFrameworkCore;
 
 public sealed partial class PostgresManufacturingStore : IManufacturingComplianceStore
 {
-    public IReadOnlyList<SopArtifactDto> GetSopArtifacts(string tenantKey, string? artifactKey, string? status, int limit)
+    public async Task<IReadOnlyList<SopArtifactDto>> GetSopArtifactsAsync(string tenantKey, string? artifactKey, string? status, int limit, CancellationToken cancellationToken)
     {
-        using var db = dbFactory.CreateDbContext();
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var query = db.SopArtifacts.AsNoTracking().Where(x => x.TenantKey == tenantKey);
         if (!string.IsNullOrWhiteSpace(artifactKey)) query = query.Where(x => x.ArtifactKey == artifactKey);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
-        return query.OrderByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).Take(Math.Clamp(limit, 1, 200)).Select(ToDto).ToList();
+        return (await query.OrderByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).Take(Math.Clamp(limit, 1, 200)).ToListAsync(cancellationToken)).Select(ToDto).ToList();
     }
 
-    public (SopArtifactDto? Artifact, string? Error) CreateSopArtifact(CreateSopArtifactRequest request, string tenantKey, string actor)
+    public async Task<(SopArtifactDto? Artifact, string? Error)> CreateSopArtifactAsync(CreateSopArtifactRequest request, string tenantKey, string actor, CancellationToken cancellationToken)
     {
         var key = request.ArtifactKey.Trim();
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Content) || request.Version <= 0)
             return (null, "invalid_sop_artifact");
         if (request.Status is not (ManufacturingStatusCodes.Draft or ManufacturingStatusCodes.Submitted)) return (null, "invalid_sop_artifact_status");
-        using var db = dbFactory.CreateDbContext();
-        if (db.SopArtifacts.Any(x => x.TenantKey == tenantKey && x.ArtifactKey == key && x.Version == request.Version)) return (null, "sop_artifact_version_exists");
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        if (await db.SopArtifacts.AnyAsync(x => x.TenantKey == tenantKey && x.ArtifactKey == key && x.Version == request.Version, cancellationToken)) return (null, "sop_artifact_version_exists");
         var entity = new ManufacturingSopArtifactEntity
         {
             Id = Guid.NewGuid(), TenantKey = tenantKey, ArtifactKey = key, Title = request.Title.Trim(), Version = request.Version,
@@ -31,16 +31,16 @@ public sealed partial class PostgresManufacturingStore : IManufacturingComplianc
             CreatedBy = string.IsNullOrWhiteSpace(request.CreatedBy) ? actor : request.CreatedBy.Trim(), CreatedAt = DateTimeOffset.UtcNow
         };
         db.SopArtifacts.Add(entity);
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity), null);
     }
 
-    public (SopArtifactDto? Artifact, string? Error) ChangeSopArtifactStatus(Guid artifactId, string tenantKey, string targetStatus, SopArtifactLifecycleRequest request)
+    public async Task<(SopArtifactDto? Artifact, string? Error)> ChangeSopArtifactStatusAsync(Guid artifactId, string tenantKey, string targetStatus, SopArtifactLifecycleRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_sop_artifact_actor");
         if (targetStatus is not (ManufacturingStatusCodes.Approved or "Retired")) return (null, "invalid_sop_artifact_transition");
-        using var db = dbFactory.CreateDbContext();
-        var entity = db.SopArtifacts.SingleOrDefault(x => x.Id == artifactId && x.TenantKey == tenantKey);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.SopArtifacts.SingleOrDefaultAsync(x => x.Id == artifactId && x.TenantKey == tenantKey, cancellationToken);
         if (entity is null) return (null, "sop_artifact_not_found");
         if (targetStatus == ManufacturingStatusCodes.Approved && entity.Status != ManufacturingStatusCodes.Submitted) return (null, "invalid_sop_artifact_transition");
         if (targetStatus == "Retired" && entity.Status != ManufacturingStatusCodes.Approved) return (null, "invalid_sop_artifact_transition");
@@ -48,34 +48,34 @@ public sealed partial class PostgresManufacturingStore : IManufacturingComplianc
         entity.EffectiveFrom = request.EffectiveFrom ?? entity.EffectiveFrom;
         entity.EffectiveTo = request.EffectiveTo ?? entity.EffectiveTo;
         if (targetStatus == ManufacturingStatusCodes.Approved) { entity.ApprovedBy = request.Actor.Trim(); entity.ApprovedAt = DateTimeOffset.UtcNow; }
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity), null);
     }
 
-    public (SopArtifactAcknowledgmentDto? Acknowledgment, string? Error) AcknowledgeSopArtifact(Guid artifactId, string tenantKey, string actor, SopArtifactAcknowledgmentRequest request)
+    public async Task<(SopArtifactAcknowledgmentDto? Acknowledgment, string? Error)> AcknowledgeSopArtifactAsync(Guid artifactId, string tenantKey, string actor, SopArtifactAcknowledgmentRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(actor)) return (null, "invalid_sop_artifact_actor");
-        using var db = dbFactory.CreateDbContext();
-        var artifact = db.SopArtifacts.AsNoTracking().SingleOrDefault(x => x.Id == artifactId && x.TenantKey == tenantKey && x.Status == ManufacturingStatusCodes.Approved);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var artifact = await db.SopArtifacts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == artifactId && x.TenantKey == tenantKey && x.Status == ManufacturingStatusCodes.Approved, cancellationToken);
         if (artifact is null) return (null, "sop_artifact_not_found_or_not_approved");
         var normalizedActor = actor.Trim();
-        if (db.SopArtifactAcknowledgments.Any(x => x.SopArtifactId == artifactId && x.TenantKey == tenantKey && x.Actor == normalizedActor)) return (null, "sop_artifact_already_acknowledged");
+        if (await db.SopArtifactAcknowledgments.AnyAsync(x => x.SopArtifactId == artifactId && x.TenantKey == tenantKey && x.Actor == normalizedActor, cancellationToken)) return (null, "sop_artifact_already_acknowledged");
         var entity = new ManufacturingSopArtifactAcknowledgmentEntity { Id = Guid.NewGuid(), SopArtifactId = artifactId, TenantKey = tenantKey, Actor = normalizedActor, Notes = request.Notes?.Trim(), AcknowledgedAt = DateTimeOffset.UtcNow };
         db.SopArtifactAcknowledgments.Add(entity);
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (new SopArtifactAcknowledgmentDto(entity.Id, entity.SopArtifactId, entity.TenantKey, entity.Actor, entity.Notes, entity.AcknowledgedAt), null);
     }
 
-    public (BusinessSignatureDto? Signature, string? Error) CreateBusinessSignature(string tenantKey, string actor, CreateBusinessSignatureRequest request)
+    public async Task<(BusinessSignatureDto? Signature, string? Error)> CreateBusinessSignatureAsync(string tenantKey, string actor, CreateBusinessSignatureRequest request, CancellationToken cancellationToken)
     {
         if (request.EntityId == Guid.Empty || string.IsNullOrWhiteSpace(request.EntityType) || string.IsNullOrWhiteSpace(request.Action) || string.IsNullOrWhiteSpace(request.Reason))
             return (null, ManufacturingErrorCodes.InvalidBusinessSignature);
         if (request.SignatureMethod is not ("AuthenticatedSession" or "Mfa" or "Passkey")) return (null, "invalid_signature_method");
-        using var db = dbFactory.CreateDbContext();
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var normalizedActor = actor.Trim();
         var normalizedType = request.EntityType.Trim();
         var normalizedAction = request.Action.Trim();
-        if (db.BusinessSignatures.Any(x => x.TenantKey == tenantKey && x.EntityType == normalizedType && x.EntityId == request.EntityId && x.Action == normalizedAction && x.Actor == normalizedActor))
+        if (await db.BusinessSignatures.AnyAsync(x => x.TenantKey == tenantKey && x.EntityType == normalizedType && x.EntityId == request.EntityId && x.Action == normalizedAction && x.Actor == normalizedActor, cancellationToken))
             return (null, ManufacturingErrorCodes.BusinessSignatureAlreadyExists);
         var signedAt = DateTimeOffset.UtcNow;
         var hash = Checksum($"{tenantKey}|{normalizedType}|{request.EntityId:D}|{normalizedAction}|{normalizedActor}|{signedAt:O}|{request.Reason.Trim()}");
@@ -86,17 +86,17 @@ public sealed partial class PostgresManufacturingStore : IManufacturingComplianc
             SignatureMethod = request.SignatureMethod, SignatureHash = hash, SignedAt = signedAt
         };
         db.BusinessSignatures.Add(entity);
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity), null);
     }
 
-    public IReadOnlyList<BusinessSignatureDto> GetBusinessSignatures(string tenantKey, string? entityType, Guid? entityId, int limit)
+    public async Task<IReadOnlyList<BusinessSignatureDto>> GetBusinessSignaturesAsync(string tenantKey, string? entityType, Guid? entityId, int limit, CancellationToken cancellationToken)
     {
-        using var db = dbFactory.CreateDbContext();
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var query = db.BusinessSignatures.AsNoTracking().Where(x => x.TenantKey == tenantKey);
         if (!string.IsNullOrWhiteSpace(entityType)) query = query.Where(x => x.EntityType == entityType);
         if (entityId.HasValue) query = query.Where(x => x.EntityId == entityId.Value);
-        return query.OrderByDescending(x => x.SignedAt).Take(Math.Clamp(limit, 1, 200)).Select(ToDto).ToList();
+        return (await query.OrderByDescending(x => x.SignedAt).Take(Math.Clamp(limit, 1, 200)).ToListAsync(cancellationToken)).Select(ToDto).ToList();
     }
 
     private static string Checksum(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

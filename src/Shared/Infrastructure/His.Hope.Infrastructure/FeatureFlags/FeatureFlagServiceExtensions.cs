@@ -28,10 +28,38 @@ public static class FeatureFlagServiceExtensions
         IConfiguration configuration)
     {
         var unleashSection = configuration.GetSection(HisHopeConfigurationKeys.FeatureManagementUnleash);
+        if (!unleashSection.Exists())
+        {
+            var environment = configuration[HisHopeConfigurationKeys.RuntimeEnvironment]
+                ?? configuration["ASPNETCORE_ENVIRONMENT"]
+                ?? configuration["DOTNET_ENVIRONMENT"];
+            if (string.Equals(environment, "production", StringComparison.OrdinalIgnoreCase) &&
+                configuration.GetValue<bool>("FeatureManagement:Required"))
+            {
+                throw new InvalidOperationException(
+                    "FeatureManagement:Unleash configuration is required when feature management is enabled in production.");
+            }
 
-        var unleashUrl = unleashSection["ApiUrl"] ?? DefaultUnleashUrl;
+            return services;
+        }
+
+        var unleashUrl = unleashSection["ApiUrl"];
         var unleashApiToken = unleashSection["ApiToken"] ?? string.Empty;
-        var appName = unleashSection["AppName"] ?? DefaultAppName;
+        var appName = unleashSection["AppName"];
+        var configuredEnvironment = configuration[HisHopeConfigurationKeys.RuntimeEnvironment]
+            ?? configuration["ASPNETCORE_ENVIRONMENT"]
+            ?? configuration["DOTNET_ENVIRONMENT"];
+
+        if (string.Equals(configuredEnvironment, "production", StringComparison.OrdinalIgnoreCase) &&
+            configuration.GetValue<bool>("FeatureManagement:Required") &&
+            (string.IsNullOrWhiteSpace(unleashUrl) || string.IsNullOrWhiteSpace(appName)))
+        {
+            throw new InvalidOperationException(
+                "FeatureManagement:Unleash:ApiUrl and AppName are required in production.");
+        }
+
+        unleashUrl ??= DefaultUnleashUrl;
+        appName ??= DefaultAppName;
 
         services.AddSingleton<IUnleash>(sp =>
         {

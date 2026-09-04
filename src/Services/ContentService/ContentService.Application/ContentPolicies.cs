@@ -31,7 +31,8 @@ public static class ContentPolicies
         var requested = requestedStatus.Trim().ToLowerInvariant();
         return current switch
         {
-            ContentArticleStatuses.Draft => requested is ContentArticleStatuses.Draft or ContentArticleStatuses.Published,
+            ContentArticleStatuses.Draft => requested is ContentArticleStatuses.Draft or ContentArticleStatuses.InReview,
+            ContentArticleStatuses.InReview => requested is ContentArticleStatuses.Draft or ContentArticleStatuses.InReview or ContentArticleStatuses.Published,
             ContentArticleStatuses.Published => requested is ContentArticleStatuses.Published or ContentArticleStatuses.Archived,
             ContentArticleStatuses.Archived => requested == ContentArticleStatuses.Archived,
             _ => false,

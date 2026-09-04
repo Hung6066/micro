@@ -1,5 +1,6 @@
 using His.Hope.Contracts.Commerce;
 using His.Hope.Contracts.Saga;
+using His.Hope.Contracts.Messaging;
 using His.Hope.CommerceService.Infrastructure.Persistence;
 using His.Hope.Infrastructure.Outbox;
 using Microsoft.EntityFrameworkCore;
@@ -99,6 +100,10 @@ public sealed partial class CommerceOutboxDispatcher(
             properties.ContentType = "application/json";
             properties.Type = message.Type;
             properties.MessageId = message.Id.ToString();
+            properties.Headers = IntegrationEventTransportHeaders.Create(
+                message.Type,
+                message.Content,
+                audience: "manufacturing");
             var targetExchange = message.Type is SagaMessagingContract.PaymentAuthorized or
                 SagaMessagingContract.PaymentCaptured or SagaMessagingContract.PaymentRefunded
                 ? SagaMessagingContract.PaymentExchange

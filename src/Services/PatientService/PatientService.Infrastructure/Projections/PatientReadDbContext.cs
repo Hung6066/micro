@@ -14,6 +14,7 @@ public class PatientReadDbContext : DbContext
     private readonly FacilityAccessScope _facilityScope;
 
     public DbSet<PatientProjection> PatientProjections => Set<PatientProjection>();
+    public DbSet<ProcessedProjectionEvent> ProcessedProjectionEvents => Set<ProcessedProjectionEvent>();
 
     public PatientReadDbContext(
         DbContextOptions<PatientReadDbContext> options,
@@ -86,6 +87,15 @@ public class PatientReadDbContext : DbContext
 
             entity.HasIndex(e => e.FullName)
                 .HasDatabaseName("ix_patient_read_models_full_name");
+        });
+
+        modelBuilder.Entity<ProcessedProjectionEvent>(entity =>
+        {
+            entity.ToTable("patient_processed_projection_events");
+            entity.HasKey(e => new { e.EventId, e.ProjectionName });
+            entity.Property(e => e.EventId).HasColumnName("event_id").ValueGeneratedNever();
+            entity.Property(e => e.ProjectionName).HasColumnName("projection_name").HasMaxLength(200);
+            entity.Property(e => e.ProcessedAt).HasColumnName("processed_at").IsRequired();
         });
 
         base.OnModelCreating(modelBuilder);

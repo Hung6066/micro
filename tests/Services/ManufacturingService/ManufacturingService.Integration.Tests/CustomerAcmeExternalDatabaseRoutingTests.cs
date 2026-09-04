@@ -22,7 +22,6 @@ public sealed class CustomerAcmeExternalDatabaseRoutingTests
     private const string DedicatedConnectionName = "ManufacturingDb_customer_acme";
     private const string SharedConnectionName = "ManufacturingDb";
     private const string SharedTenant = "manufacturing";
-    private const string LatestMigration = "20260828110000_NormalizeDateOnlyColumns";
 
     [ExternalDatabaseFact]
     public async Task Customer_acme_routes_to_external_database_when_placement_enabled()
@@ -133,14 +132,15 @@ public sealed class CustomerAcmeExternalDatabaseRoutingTests
         tableCount.Should().Be(expectedTables.Length, "external database must contain every core Manufacturing table");
 
         var latestMigration = await db.Database.SqlQueryRaw<string>(
-                """
+            """
                 SELECT "MigrationId" AS "Value"
                 FROM "__EFMigrationsHistory"
                 ORDER BY "MigrationId" DESC
-                LIMIT 1
-                """)
+            LIMIT 1
+            """)
             .SingleOrDefaultAsync();
-        latestMigration.Should().Be(LatestMigration, "external database must be migrated to the current schema");
+        var expectedLatestMigration = db.Database.GetMigrations().LastOrDefault();
+        latestMigration.Should().Be(expectedLatestMigration, "external database must be migrated to the current schema");
 
         var tableExists = await db.Database.SqlQueryRaw<bool>(
                 """
@@ -303,14 +303,19 @@ public sealed class CustomerAcmeExternalDatabaseRoutingTests
 
     private static string FindRepoRoot()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
+        foreach (var startPath in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() }
+                     .Where(path => !string.IsNullOrWhiteSpace(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (File.Exists(Path.Combine(dir.FullName, "His.Hope.sln")) ||
-                Directory.Exists(Path.Combine(dir.FullName, "config", "conglomerate")))
-                return dir.FullName;
+            var dir = new DirectoryInfo(startPath);
+            while (dir is not null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "His.Hope.sln")) ||
+                    File.Exists(Path.Combine(dir.FullName, "config", "conglomerate", "tenant-placement.v1.json")))
+                    return dir.FullName;
 
-            dir = dir.Parent;
+                dir = dir.Parent;
+            }
         }
 
         return Directory.GetCurrentDirectory();

@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Saga;
+using His.Hope.Contracts.Messaging;
 using His.Hope.Infrastructure.Messaging;
+using His.Hope.Messaging;
 using His.Hope.CommerceService.Infrastructure.Persistence;
 using His.Hope.SharedKernel.Protocol;
 using Microsoft.Extensions.Configuration;
@@ -10,8 +12,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using RabbitMQ.Client.Exceptions;
-
 namespace His.Hope.CommerceService.Infrastructure.Messaging;
 
 public sealed partial class PaymentCapturedShipmentConsumer(
@@ -40,14 +40,10 @@ public sealed partial class PaymentCapturedShipmentConsumer(
             DispatchConsumersAsync = true,
         };
         using var connection = factory.CreateConnection();
-        using var probe = connection.CreateModel();
-        var queueExists = true;
-        try { probe.QueueDeclarePassive(Queue); } catch (OperationInterruptedException) { queueExists = false; }
         using var channel = connection.CreateModel();
         channel.ExchangeDeclare(SagaMessagingContract.PaymentExchange, ExchangeType.Topic, durable: true, autoDelete: false);
         channel.ExchangeDeclare(DeadLetterExchange, ExchangeType.Topic, durable: true, autoDelete: false);
-        if (queueExists) channel.QueueDeclare(Queue, durable: true, exclusive: false, autoDelete: false);
-        else channel.QueueDeclare(Queue, durable: true, exclusive: false, autoDelete: false, arguments: new Dictionary<string, object>
+        channel.QueueDeclare(Queue, durable: true, exclusive: false, autoDelete: false, arguments: new Dictionary<string, object>
         {
             ["x-dead-letter-exchange"] = DeadLetterExchange,
             ["x-dead-letter-routing-key"] = $"dlq.{SagaMessagingContract.PaymentCaptured}",
@@ -58,8 +54,12 @@ public sealed partial class PaymentCapturedShipmentConsumer(
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.Received += async (_, args) =>
         {
+            InboxDeliveryGuard? delivery = null;
             try
             {
+                IntegrationEventTransportHeaders.Validate(
+                    args.BasicProperties.Headers,
+                    SagaMessagingContract.PaymentCaptured);
                 var payment = JsonSerializer.Deserialize<PaymentResultV1>(Encoding.UTF8.GetString(args.Body.ToArray()), JsonOptions)
                     ?? throw new InvalidOperationException("payment_captured_event_empty");
                 if (payment.OrderId == Guid.Empty || string.IsNullOrWhiteSpace(payment.TenantKey) || string.IsNullOrWhiteSpace(payment.PaymentId))
@@ -70,24 +70,38 @@ public sealed partial class PaymentCapturedShipmentConsumer(
                     payment.OrderId, payment.TenantKey, string.Empty,
                     $"commerce-shipment:{payment.OrderId:D}", payment.CorrelationId, payment.CausationId);
                 using var scope = scopeFactory.CreateScope();
+                delivery = await InboxDeliveryGuard.TryBeginAsync(
+                    scope.ServiceProvider.GetRequiredService<IInboxStore>(), payment.EventId, Queue, stoppingToken);
+                if (delivery is null)
+                {
+                    channel.BasicAck(args.DeliveryTag, multiple: false);
+                    return;
+                }
                 var workflow = scope.ServiceProvider.GetRequiredService<CommerceShipmentWorkflow>();
                 var shipment = await workflow.CreateAsync(request, stoppingToken);
                 await workflow.DispatchAsync(request with { ShipmentId = shipment.ProviderShipmentId ?? string.Empty }, stoppingToken);
+                await delivery.CompleteAsync(stoppingToken);
                 channel.BasicAck(args.DeliveryTag, multiple: false);
                 LogAccepted(logger, payment.OrderId);
             }
             catch (JsonException ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 LogMalformed(logger, ex);
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }
             catch (InvalidOperationException ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 LogRejected(logger, ex);
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }
             catch (Exception ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 LogFailed(logger, ex);
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }

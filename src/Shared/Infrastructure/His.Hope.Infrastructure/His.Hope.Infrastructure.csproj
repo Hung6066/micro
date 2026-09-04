@@ -62,6 +62,7 @@
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Redis\His.Hope.Messaging.Redis.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Sql\His.Hope.Messaging.Sql.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.RabbitMq\His.Hope.Messaging.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
     <ProjectReference Include="..\..\Observability\His.Hope.Observability.OpenTelemetry\His.Hope.Observability.OpenTelemetry.csproj" />
   </ItemGroup>
   <ItemGroup>

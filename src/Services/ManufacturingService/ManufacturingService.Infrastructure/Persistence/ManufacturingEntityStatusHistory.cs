@@ -65,4 +65,30 @@ internal static class EntityStatusHistoryStore
                 x.OccurredAt))
             .ToList();
     }
+
+    internal static async Task<IReadOnlyList<EntityStatusHistoryDto>> GetAsync(
+        ManufacturingDbContext db,
+        string tenantKey,
+        string entityType,
+        Guid entityId,
+        CancellationToken cancellationToken)
+    {
+        return await db.EntityStatusHistory.AsNoTracking()
+            .Where(x =>
+                x.TenantKey == tenantKey &&
+                x.EntityType == entityType &&
+                x.EntityId == entityId)
+            .OrderBy(x => x.OccurredAt)
+            .ThenBy(x => x.Id)
+            .Select(x => new EntityStatusHistoryDto(
+                x.Id,
+                x.EntityType,
+                x.EntityId,
+                x.TenantKey,
+                x.FromStatus,
+                x.ToStatus,
+                x.Actor,
+                x.OccurredAt))
+            .ToListAsync(cancellationToken);
+    }
 }

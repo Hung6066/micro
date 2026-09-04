@@ -1,5 +1,6 @@
 using FluentAssertions;
 using His.Hope.CommerceService.Api;
+using His.Hope.CommerceService.Application.Orders;
 using Xunit;
 
 namespace CommerceService.Integration.Tests;
@@ -37,5 +38,23 @@ public sealed class CommerceCatalogSourceOfTruthTests
         order.Should().NotBeNull();
         order!.Lines.Should().ContainSingle().Which.UnitPrice.Should().Be(123m);
         order.TotalAmount.Should().Be(246m);
+    }
+
+    [Fact]
+    public void Order_aggregate_rejects_products_from_another_tenant_and_snapshots_price()
+    {
+        var product = new CommerceProductSnapshot(
+            Guid.NewGuid(), "tenant-a", "SKU-1", "Mango", "Dried mango", 123m, 99m, 1, true, true);
+        var aggregate = CommerceOrderAggregate.Create(
+            "tenant-a",
+            "buyer-a",
+            new CommerceCartSnapshot("tenant-a", "buyer-a", [new CommerceCartLineSnapshot(product.Id, 2)]),
+            new CommerceProfileSnapshot("tenant-a", "buyer-a", "Buyer", "buyer@example.test", "", "", "wholesale"),
+            [product]);
+
+        aggregate.Should().NotBeNull();
+        aggregate!.Snapshot.TotalAmount.Should().Be(198m);
+        aggregate.Snapshot.Status.Should().Be("pending");
+        aggregate.CanTransitionTo("shipped").Should().BeFalse();
     }
 }

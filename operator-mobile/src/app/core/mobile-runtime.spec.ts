@@ -35,6 +35,22 @@ describe("mobile runtime", () => {
     delete window.__HISHOPE_CONFIG__;
   });
 
+  it("maps localhost to the Android emulator host when runtime config is not injected", () => {
+    (Capacitor.isNativePlatform as jasmine.Spy).and.returnValue(true);
+    spyOn(Capacitor, "getPlatform").and.returnValue("android");
+    window.__HISHOPE_CONFIG__ = {
+      apiOrigin: "http://localhost:5000",
+      oidcAuthority: "http://localhost:5000",
+      production: false,
+    };
+
+    const runtime = createMobileRuntimeConfig(false);
+
+    expect(runtime.apiOrigin).toBe("http://10.0.2.2:5000");
+    expect(runtime.oidcAuthority).toBe("http://10.0.2.2:5000");
+    delete window.__HISHOPE_CONFIG__;
+  });
+
   it("fails fast when production API origin is missing", () => {
     window.__HISHOPE_CONFIG__ = {
       oidcAuthority: "https://identity.example.test",

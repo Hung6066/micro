@@ -5,15 +5,15 @@ using System.Text.Json;
 
 public sealed partial class PostgresManufacturingStore : IManufacturingQualityWorkflowStore
 {
-    public (ManufacturingDeviationDto? Deviation, string? Error) CreateDeviation(
-        Guid productionBatchId, string tenantKey, CreateDeviationRequest request)
+    public async Task<(ManufacturingDeviationDto? Deviation, string? Error)> CreateDeviationAsync(
+        Guid productionBatchId, string tenantKey, CreateDeviationRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Type) || string.IsNullOrWhiteSpace(request.Description) ||
             string.IsNullOrWhiteSpace(request.Impact) || string.IsNullOrWhiteSpace(request.RequestedBy))
             return (null, "invalid_deviation");
 
-        using var db = dbFactory.CreateDbContext();
-        var batch = db.ProductionBatches.SingleOrDefault(x => x.Id == productionBatchId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var batch = await db.ProductionBatches.SingleOrDefaultAsync(x => x.Id == productionBatchId, cancellationToken);
         if (batch is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
         if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantScopeDenied);
         if (batch.Status is ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Cancelled or ManufacturingStatusCodes.Closed) return (null, "batch_not_active");
@@ -28,26 +28,26 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
         db.Deviations.Add(entity);
         EntityStatusHistoryStore.Append(db, "deviation", entity.Id, tenantKey, "", "Requested", entity.RequestedBy, now);
         AddDeviationEvent(db, entity, "Raised", entity.RequestedBy, now);
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity), null);
     }
 
-    public IReadOnlyList<ManufacturingDeviationDto> GetDeviations(
-        string tenantKey, Guid? productionBatchId, string? status, int limit)
+    public async Task<IReadOnlyList<ManufacturingDeviationDto>> GetDeviationsAsync(
+        string tenantKey, Guid? productionBatchId, string? status, int limit, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext();
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var query = db.Deviations.AsNoTracking().Where(x => x.TenantKey == tenantKey);
         if (productionBatchId.HasValue) query = query.Where(x => x.ProductionBatchId == productionBatchId.Value);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
-        return query.OrderByDescending(x => x.CreatedAt).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+        return (await query.OrderByDescending(x => x.CreatedAt).Take(Math.Clamp(limit, 1, 200)).ToListAsync(cancellationToken)).Select(ToDto).ToList();
     }
 
-    public (ManufacturingDeviationDto? Deviation, string? Error) ChangeDeviationStatus(
-        Guid deviationId, string tenantKey, string targetStatus, DeviationActionRequest request)
+    public async Task<(ManufacturingDeviationDto? Deviation, string? Error)> ChangeDeviationStatusAsync(
+        Guid deviationId, string tenantKey, string targetStatus, DeviationActionRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_deviation_actor");
-        using var db = dbFactory.CreateDbContext();
-        var entity = db.Deviations.SingleOrDefault(x => x.Id == deviationId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Deviations.SingleOrDefaultAsync(x => x.Id == deviationId, cancellationToken);
         if (entity is null) return (null, ManufacturingErrorCodes.DeviationNotFound);
         if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantScopeDenied);
 
@@ -76,18 +76,18 @@ public sealed partial class PostgresManufacturingStore : IManufacturingQualityWo
         if (targetStatus == ManufacturingStatusCodes.Closed) entity.ClosedAt = now;
         EntityStatusHistoryStore.Append(db, "deviation", entity.Id, tenantKey, previousStatus, targetStatus, actor, now);
         AddDeviationEvent(db, entity, targetStatus, actor, now);
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity), null);
     }
 
-    public IReadOnlyList<EntityStatusHistoryDto> GetDeviationStatusHistory(string tenantKey, Guid deviationId)
+    public async Task<IReadOnlyList<EntityStatusHistoryDto>> GetDeviationStatusHistoryAsync(string tenantKey, Guid deviationId, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext();
-        var entity = db.Deviations.AsNoTracking().SingleOrDefault(x => x.Id == deviationId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.Deviations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == deviationId, cancellationToken);
         if (entity is null || !entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase))
             return [];
 
-        var persisted = EntityStatusHistoryStore.Get(db, tenantKey, "deviation", deviationId);
+        var persisted = await EntityStatusHistoryStore.GetAsync(db, tenantKey, "deviation", deviationId, cancellationToken);
         if (persisted.Count > 0)
             return persisted;
 

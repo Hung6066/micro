@@ -125,6 +125,16 @@ public class GatewayRouteContractTests
 
     private static string FindGatewayConfigPath()
     {
+        var configuredRepositoryRoot = Environment.GetEnvironmentVariable("HIS_HOPE_REPOSITORY_ROOT");
+        if (!string.IsNullOrWhiteSpace(configuredRepositoryRoot))
+        {
+            var configuredCandidate = Path.Combine(configuredRepositoryRoot, "src", "ApiGateway", "appsettings.json");
+            if (File.Exists(configuredCandidate))
+            {
+                return configuredCandidate;
+            }
+        }
+
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory is not null)

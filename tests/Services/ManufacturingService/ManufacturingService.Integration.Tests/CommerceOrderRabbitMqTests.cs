@@ -4,8 +4,10 @@ using System.Net.Sockets;
 using DotNet.Testcontainers.Builders;
 using FluentAssertions;
 using His.Hope.Contracts.Commerce;
+using His.Hope.Contracts.Messaging;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Saga;
+using His.Hope.Messaging;
 using His.Hope.ManufacturingService.Infrastructure.Saga;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -76,6 +78,7 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddLogging(builder => builder.AddDebug());
         serviceCollection.AddSingleton<IDbContextFactory<ManufacturingDbContext>>(factory);
+        serviceCollection.AddSingleton<IInboxStore, TestInboxStore>();
         serviceCollection.AddSingleton<ManufacturingReservationStore>();
         serviceCollection.AddSingleton<ISagaStateStore, InMemorySagaStateStore>();
         serviceCollection.AddSingleton<ILockManager, InMemoryLockManager>();
@@ -160,11 +163,13 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
         properties.Persistent = true;
         properties.ContentType = "application/json";
         properties.Type = "Commerce.OrderPlaced.v1";
+        var content = JsonSerializer.Serialize(order);
+        properties.Headers = IntegrationEventTransportHeaders.Create(properties.Type, content);
         channel.BasicPublish(
             "his-hope.manufacturing",
             "Commerce.OrderPlaced.v1",
             properties,
-            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(order)));
+            Encoding.UTF8.GetBytes(content));
     }
 
     private async Task WaitForRabbitHandshakeAsync()
@@ -220,6 +225,28 @@ public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
 
         public Task<ManufacturingDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateDbContext());
+    }
+
+    private sealed class TestInboxStore : IInboxStore
+    {
+        private readonly HashSet<(Guid EventId, string Consumer)> started = [];
+        private readonly object sync = new();
+
+        public ValueTask<bool> TryBeginAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default)
+        {
+            lock (sync)
+                return ValueTask.FromResult(started.Add((eventId, consumer)));
+        }
+
+        public ValueTask MarkCompletedAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask ReleaseAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default)
+        {
+            lock (sync)
+                started.Remove((eventId, consumer));
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class InMemorySagaStateStore : ISagaStateStore

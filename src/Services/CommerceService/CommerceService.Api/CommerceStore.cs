@@ -96,7 +96,6 @@ public sealed class CommerceStore
     private readonly ConcurrentDictionary<Guid, OrderDto> _orders = new();
     private readonly ConcurrentDictionary<string, ProfileDto> _profiles = new();
     private readonly ConcurrentDictionary<Guid, NotificationDto> _notifications = new();
-    private readonly ConcurrentDictionary<Guid, RfqDto> _rfqs = new();
 
     public CommerceStore()
     {
@@ -135,23 +134,6 @@ public sealed class CommerceStore
         _products.Clear();
         foreach (var product in products)
             _products[product.Id] = product;
-    }
-
-    public CartDto GetCart(string tenantKey, string userId)
-    {
-        var key = CartKey(tenantKey, userId);
-        return _carts.GetOrAdd(key, _ => new CartDto(tenantKey, []));
-    }
-
-    public CartDto UpdateCart(string tenantKey, string userId, IReadOnlyList<CartLineDto> lines)
-    {
-        var sanitized = lines
-            .Where(line => line.Quantity > 0)
-            .Select(line => line with { Quantity = Math.Min(line.Quantity, 999) })
-            .ToArray();
-        var cart = new CartDto(tenantKey, sanitized);
-        _carts[CartKey(tenantKey, userId)] = cart;
-        return cart;
     }
 
     public OrderDto? CreateOrder(
@@ -263,7 +245,13 @@ public sealed class CommerceStore
         return updated;
     }
 
-    public ProfileDto GetProfile(string tenantKey, string userId, string email)
+    private CartDto GetCart(string tenantKey, string userId)
+    {
+        var key = CartKey(tenantKey, userId);
+        return _carts.GetOrAdd(key, _ => new CartDto(tenantKey, []));
+    }
+
+    private ProfileDto GetProfile(string tenantKey, string userId, string email)
     {
         var key = ProfileKey(tenantKey, userId);
         return _profiles.GetOrAdd(key, _ => new ProfileDto(
@@ -274,94 +262,6 @@ public sealed class CommerceStore
             "",
             "",
             "standard"));
-    }
-
-    public ProfileDto UpdateProfile(string tenantKey, string userId, string email, UpdateProfileRequest request)
-    {
-        var existing = GetProfile(tenantKey, userId, email);
-        var updated = existing with
-        {
-            DisplayName = request.DisplayName.Trim(),
-            Phone = request.Phone.Trim(),
-            CompanyName = request.CompanyName.Trim(),
-            PriceTier = string.IsNullOrWhiteSpace(request.PriceTier)
-                ? existing.PriceTier
-                : NormalizePriceTier(request.PriceTier),
-        };
-        _profiles[ProfileKey(tenantKey, userId)] = updated;
-        return updated;
-    }
-
-    public IReadOnlyList<NotificationDto> GetNotifications(string tenantKey, string userId) =>
-        _notifications.Values
-            .Where(notification =>
-                string.Equals(notification.TenantKey, tenantKey, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(notification.UserId, userId, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(notification => notification.CreatedAt)
-            .ToArray();
-
-    public RfqDto? CreateRfq(string tenantKey, string userId, CreateRfqRequest request)
-    {
-        if (request.Lines.Count == 0)
-            return null;
-
-        var sanitized = request.Lines
-            .Where(line => line.Quantity > 0)
-            .Where(line => _products.ContainsKey(line.ProductId))
-            .ToArray();
-        if (sanitized.Length == 0)
-            return null;
-
-        var rfq = new RfqDto(
-            Guid.NewGuid(),
-            tenantKey,
-            userId,
-            "submitted",
-            request.Message.Trim(),
-            null,
-            null,
-            DateTimeOffset.UtcNow,
-            null,
-            sanitized);
-        _rfqs[rfq.Id] = rfq;
-        return rfq;
-    }
-
-    public IReadOnlyList<RfqDto> GetRfqs(string tenantKey, string? buyerUserId = null)
-    {
-        var query = _rfqs.Values
-            .Where(rfq => string.Equals(rfq.TenantKey, tenantKey, StringComparison.OrdinalIgnoreCase));
-        if (!string.IsNullOrWhiteSpace(buyerUserId))
-            query = query.Where(rfq => string.Equals(rfq.BuyerUserId, buyerUserId, StringComparison.OrdinalIgnoreCase));
-        return query.OrderByDescending(rfq => rfq.CreatedAt).ToArray();
-    }
-
-    public RfqDto? GetRfq(Guid rfqId, string tenantKey) =>
-        _rfqs.TryGetValue(rfqId, out var rfq) &&
-        string.Equals(rfq.TenantKey, tenantKey, StringComparison.OrdinalIgnoreCase)
-            ? rfq
-            : null;
-
-    public RfqDto? RespondToRfq(Guid rfqId, string tenantKey, RespondRfqRequest request)
-    {
-        if (!_rfqs.TryGetValue(rfqId, out var rfq))
-            return null;
-        if (!string.Equals(rfq.TenantKey, tenantKey, StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        var status = request.Status.Trim().ToLowerInvariant();
-        if (status is not ("quoted" or "declined" or "closed"))
-            return null;
-
-        var updated = rfq with
-        {
-            Status = status,
-            QuotedTotal = request.QuotedTotal,
-            OperatorNotes = request.OperatorNotes.Trim(),
-            RespondedAt = DateTimeOffset.UtcNow,
-        };
-        _rfqs[rfqId] = updated;
-        return updated;
     }
 
     private static string NormalizePriceTier(string? tier) =>

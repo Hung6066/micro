@@ -35,6 +35,7 @@
     <ProjectReference Include="..\..\..\Shared\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Content Update="wwwroot\js\identity-login.js" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="config\assurance-policy.v1.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('config\assurance-policy.v1.json')" />
     <Content Include="..\..\..\..\config\assurance-policy.v1.json" Link="config\assurance-policy.v1.json" CopyToOutputDirectory="PreserveNewest" Condition="!Exists('config\assurance-policy.v1.json')" />
     <Content Update="config\conglomerate\**\*" CopyToOutputDirectory="PreserveNewest" Condition="Exists('config\conglomerate')" />

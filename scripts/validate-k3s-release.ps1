@@ -120,6 +120,14 @@ if (-not (Test-Path -LiteralPath $overlayPath -PathType Container)) {
         } else {
             Add-Check 'image-digest-pinning' 'pass' "$($images.Count) rendered image reference(s) checked."
         }
+        $mutableTagged = @($images | Where-Object { $_ -match ':(latest|production)@sha256:[0-9a-f]{64}$' })
+        if ($Environment -eq 'production' -and $mutableTagged.Count -gt 0) {
+            Add-Check 'image-tag-policy' 'fail' "Mutable production tags are forbidden even when digest-pinned: $($mutableTagged -join ', ')"
+        } elseif ($mutableTagged.Count -eq 0) {
+            Add-Check 'image-tag-policy' 'pass' 'No latest/production mutable tags are used in rendered image references.'
+        } else {
+            Add-Check 'image-tag-policy' 'skipped' "Mutable tags are present outside production: $($mutableTagged -join ', ')"
+        }
         if ($text -match '(?im)^\s*(password|token|privateKey|clientSecret):\s*[^$<{\s]+') {
             Add-Check 'manifest-secret-scan' 'fail' 'Rendered manifests contain a possible literal secret value.'
         } else {
@@ -261,7 +269,7 @@ Write-Output $json
 if ($status -eq 'fail') {
     if (@($checks | Where-Object { ($_.name -like 'tool-*' -or $_.name -eq 'toolchain-skew') -and $_.status -eq 'fail' }).Count -gt 0) { exit 10 }
     if (@($checks | Where-Object { $_.name -eq 'manifest-render' -and $_.status -eq 'fail' }).Count -gt 0) { exit 20 }
-    if (@($checks | Where-Object { $_.name -in @('image-digest-pinning', 'manifest-secret-scan') -and $_.status -eq 'fail' }).Count -gt 0) { exit 40 }
+    if (@($checks | Where-Object { $_.name -in @('image-digest-pinning', 'image-tag-policy', 'manifest-secret-scan') -and $_.status -eq 'fail' }).Count -gt 0) { exit 40 }
     if (@($checks | Where-Object { $_.name -eq 'pod-security' -and $_.status -eq 'fail' }).Count -gt 0) { exit 30 }
     exit 70
 }

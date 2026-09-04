@@ -4,10 +4,10 @@ namespace His.Hope.ManufacturingService.Application.Ports;
 
 public interface IManufacturingComplianceStore
 {
-    IReadOnlyList<SopArtifactDto> GetSopArtifacts(string tenantKey, string? artifactKey, string? status, int limit);
-    (SopArtifactDto? Artifact, string? Error) CreateSopArtifact(CreateSopArtifactRequest request, string tenantKey, string actor);
-    (SopArtifactDto? Artifact, string? Error) ChangeSopArtifactStatus(Guid artifactId, string tenantKey, string targetStatus, SopArtifactLifecycleRequest request);
-    (SopArtifactAcknowledgmentDto? Acknowledgment, string? Error) AcknowledgeSopArtifact(Guid artifactId, string tenantKey, string actor, SopArtifactAcknowledgmentRequest request);
-    (BusinessSignatureDto? Signature, string? Error) CreateBusinessSignature(string tenantKey, string actor, CreateBusinessSignatureRequest request);
-    IReadOnlyList<BusinessSignatureDto> GetBusinessSignatures(string tenantKey, string? entityType, Guid? entityId, int limit);
+    Task<IReadOnlyList<SopArtifactDto>> GetSopArtifactsAsync(string tenantKey, string? artifactKey, string? status, int limit, CancellationToken cancellationToken);
+    Task<(SopArtifactDto? Artifact, string? Error)> CreateSopArtifactAsync(CreateSopArtifactRequest request, string tenantKey, string actor, CancellationToken cancellationToken);
+    Task<(SopArtifactDto? Artifact, string? Error)> ChangeSopArtifactStatusAsync(Guid artifactId, string tenantKey, string targetStatus, SopArtifactLifecycleRequest request, CancellationToken cancellationToken);
+    Task<(SopArtifactAcknowledgmentDto? Acknowledgment, string? Error)> AcknowledgeSopArtifactAsync(Guid artifactId, string tenantKey, string actor, SopArtifactAcknowledgmentRequest request, CancellationToken cancellationToken);
+    Task<(BusinessSignatureDto? Signature, string? Error)> CreateBusinessSignatureAsync(string tenantKey, string actor, CreateBusinessSignatureRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BusinessSignatureDto>> GetBusinessSignaturesAsync(string tenantKey, string? entityType, Guid? entityId, int limit, CancellationToken cancellationToken);
 }

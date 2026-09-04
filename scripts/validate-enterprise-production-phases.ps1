@@ -4,6 +4,7 @@ param(
     [string]$Phase = 'all',
     [string]$RepositoryRoot,
     [string]$IntegrationMatrixPath = 'artifacts/evidence/integration-matrix/integration-test-matrix.json',
+    [int]$IntegrationMatrixMaxAgeHours = 24,
     [switch]$SkipIntegrationTests,
     [switch]$SkipServiceIntegrationMatrix,
     [switch]$SkipLoadTestBaseline,
@@ -27,8 +28,17 @@ function Invoke-Step([string]$Name, [scriptblock]$Action) {
         & $Action
         Add-Check $Name 'pass' 'Completed successfully.'
     } catch {
-        Add-Check $Name 'fail' $_.Exception.Message
-        throw
+        $message = $_.Exception.Message
+        $status = 'fail'
+        if ($Name -eq 'load-test-baseline' -and
+            $message -match 'summary missing|no HTTP requests|AUTH_TOKEN is required') {
+            $status = 'environment-blocked'
+        }
+
+        # Keep collecting the remaining phase checks so `-Phase all` produces
+        # a complete evidence matrix. The aggregate result below remains
+        # fail-closed for both failures and environment blockers.
+        Add-Check $Name $status $message
     }
 }
 
@@ -41,7 +51,7 @@ try {
         } else {
             Add-Check 'rfc9700-matrix' 'skipped' 'Integration tests skipped by flag.'
         }
-        if ($SkipIntegrationTests -or $SkipServiceIntegrationMatrix) {
+        if ($SkipServiceIntegrationMatrix) {
             Add-Check 'service-integration-matrix' 'skipped' 'Service integration matrix skipped by flag.'
         } else {
             $matrixPath = if ([IO.Path]::IsPathRooted($IntegrationMatrixPath)) {
@@ -55,8 +65,19 @@ try {
                 $matrix = Get-Content -LiteralPath $matrixPath -Raw | ConvertFrom-Json
                 $matrixFailed = if ($null -ne $matrix.totals) { [int]$matrix.totals.failed } else { 0 }
                 $matrixSkipped = if ($null -ne $matrix.totals) { [int]$matrix.totals.skipped } else { 0 }
+                $matrixGeneratedAt = [DateTimeOffset]::MinValue
+                $matrixTimestampValid = $false
+                try {
+                    $matrixGeneratedAt = [DateTimeOffset]::Parse([string]$matrix.generatedAtUtc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal)
+                    $matrixTimestampValid = $true
+                } catch {
+                    $matrixTimestampValid = $false
+                }
+                $matrixAgeHours = if ($matrixTimestampValid) { ([DateTimeOffset]::UtcNow - $matrixGeneratedAt).TotalHours } else { [double]::PositiveInfinity }
                 if ($matrixFailed -gt 0) {
                     Add-Check 'service-integration-matrix' 'fail' "Integration matrix contains $matrixFailed failed tests."
+                } elseif (-not $matrixTimestampValid -or $matrixAgeHours -gt $IntegrationMatrixMaxAgeHours) {
+                    Add-Check 'service-integration-matrix' 'environment-blocked' "Integration matrix evidence is stale or has no valid generatedAtUtc: ageHours=$([math]::Round($matrixAgeHours, 2)), maxAgeHours=$IntegrationMatrixMaxAgeHours."
                 } elseif ($matrixSkipped -gt 0 -or [string]$matrix.status -ne 'pass') {
                     Add-Check 'service-integration-matrix' 'environment-blocked' "Integration matrix is not green: status=$($matrix.status), skipped=$matrixSkipped."
                 } else {
@@ -73,6 +94,24 @@ try {
             } else {
                 ./scripts/validate-dr-evidence.ps1 -StaticOnly -OutputPath artifacts/evidence/enterprise-phase1-dr.json
             }
+        }
+        Invoke-Step 'production-release-contracts' {
+            foreach ($vaultConfigPath in @('vault/config.hcl', 'k8s/vault/vault-statefulset.yaml')) {
+                $vaultConfig = Get-Content -LiteralPath $vaultConfigPath -Raw
+                if ($vaultConfig -match 'secret_shreshold') {
+                    throw "Vault config contains the invalid Shamir option secret_shreshold: $vaultConfigPath"
+                }
+                if ($vaultConfig -notmatch '(?m)^\s*secret_threshold\s*=\s*3\s*$') {
+                    throw "Vault config must declare secret_threshold = 3: $vaultConfigPath"
+                }
+            }
+            ./scripts/validate-kustomize-release.ps1 -Environment prod
+            ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+            python scripts/validate-production-ha-contract.py
+            python scripts/validate-production-data-plane-ha-contract.py
+            ./scripts/validate-signature-controller-contract.ps1
+            ./scripts/validate-observability-contract.ps1 -OutputPath artifacts/evidence/observability-contract.json
+            ./scripts/validate-observability-production.ps1
         }
         Invoke-Step 'siem-tamper-drill' { ./scripts/run-audit-siem-tamper-drill.ps1 }
         $oidcEvidencePath = 'artifacts/security/oidc-conformance/report.json'
@@ -96,6 +135,9 @@ try {
     if ($Phase -in @('phase2', 'all')) {
         Invoke-Step 'tenant-context-contract' {
             ./scripts/verify-tenant-context-contract.ps1 -Root $RepositoryRoot
+        }
+        Invoke-Step 'threat-model-catalog' {
+            python scripts/validate-threat-model.py
         }
         Invoke-Step 'assurance-policy-config' {
             if (-not (Test-Path -LiteralPath 'config/assurance-policy.v1.json')) { throw 'Missing assurance policy config.' }

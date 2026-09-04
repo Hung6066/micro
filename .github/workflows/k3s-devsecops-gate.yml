@@ -67,6 +67,8 @@ on:
       - 'scripts/tests/test_collect_dora_metrics.py'
       - 'scripts/validate-reliability-platform.ps1'
       - 'scripts/validate-production-ha-spire-k3s.ps1'
+      - 'scripts/validate-production-ha-contract.py'
+      - 'scripts/validate-production-data-plane-ha-contract.py'
       - 'scripts/validate-linkerd-spire-mtls-k3s.ps1'
       - 'scripts/validate-k3s-host-security-contract.py'
       - 'scripts/validate-linkerd-policy-contract.py'
@@ -187,6 +189,16 @@ jobs:
       - name: Validate rendered runtime contracts and gRPC targets
         shell: pwsh
         run: ./scripts/config/validate-kustomize-runtime.ps1 -Overlay '${{ matrix.environment }}'
+
+      - name: Validate production HA contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-production-ha-contract.py
+
+      - name: Validate production data-plane HA contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-production-data-plane-ha-contract.py
 
       - name: Validate production release invariants
         if: matrix.environment == 'prod'

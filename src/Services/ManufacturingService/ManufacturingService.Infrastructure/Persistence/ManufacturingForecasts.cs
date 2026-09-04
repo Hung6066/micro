@@ -7,16 +7,16 @@ using His.Hope.SharedKernel.Domain.Common;
 
 public sealed partial class PostgresManufacturingStore : IManufacturingDashboardStore
 {
-    public SalesForecastDto CreateSalesForecast(string tenantKey, CreateSalesForecastRequest request)
+    public async Task<SalesForecastDto> CreateSalesForecastAsync(string tenantKey, CreateSalesForecastRequest request, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext();
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var normalizedTenant = tenantKey.Trim();
         var sku = request.ProductSku.Trim();
         if (string.IsNullOrWhiteSpace(normalizedTenant) || string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(request.Uom) ||
             string.IsNullOrWhiteSpace(request.Source) || string.IsNullOrWhiteSpace(request.Actor) || request.Quantity <= 0 || request.Version <= 0 ||
             request.PeriodStart > request.PeriodEnd)
             throw new InvalidOperationException("invalid_sales_forecast");
-        if (db.SalesForecasts.Any(x => x.TenantKey == normalizedTenant && x.ProductSku == sku && x.PeriodStart == request.PeriodStart &&
+        if (await db.SalesForecasts.AnyAsync(x => x.TenantKey == normalizedTenant && x.ProductSku == sku && x.PeriodStart == request.PeriodStart &&
             x.PeriodEnd == request.PeriodEnd && x.Version == request.Version))
             Guard.Against.Conflict(true, "forecast_version_exists");
 
@@ -35,7 +35,7 @@ public sealed partial class PostgresManufacturingStore : IManufacturingDashboard
                 tenantKey = entity.TenantKey, productSku = entity.ProductSku, periodStart = entity.PeriodStart, periodEnd = entity.PeriodEnd,
                 quantity = entity.Quantity, uom = entity.Uom, version = entity.Version, source = entity.Source, actor = entity.Actor })
         });
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return ToDto(entity);
     }
 

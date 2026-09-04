@@ -58,11 +58,11 @@ internal static class InventoryEndpoints
                     return Results.Ok(store.GetLotStatusHistory(lotId, tenantKey, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
-                api.MapPost("/lots/{lotId:guid}/disposition", (Guid lotId, LotDispositionRequest request, HttpContext context, IManufacturingProductionStore store) =>
+                api.MapPost("/lots/{lotId:guid}/disposition", async (Guid lotId, LotDispositionRequest request, HttpContext context, IManufacturingProductionStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.SetLotDisposition(lotId, request.Disposition, tenantKey, request.Actor, request.ReasonCode, request.EvidenceReference, request.ExpectedUpdatedAt);
+                    var result = await store.SetLotDispositionAsync(lotId, request.Disposition, tenantKey, request.Actor, request.ReasonCode, request.EvidenceReference, request.ExpectedUpdatedAt, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.LotNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -81,13 +81,13 @@ internal static class InventoryEndpoints
                         : Results.Ok(await store.GetInventoryTransactionsAsync(lotId, tenantKey, limit ?? HisHopePaginationDefaults.SmallDefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage, cancellationToken));
                 });
 
-                api.MapPost("/lots/{lotId:guid}/reservations", (Guid lotId, CreateLotReservationRequest request, HttpContext context, IManufacturingReservationStore store) =>
+                api.MapPost("/lots/{lotId:guid}/reservations", async (Guid lotId, CreateLotReservationRequest request, HttpContext context, IManufacturingReservationStore store, CancellationToken cancellationToken) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
                     if (string.IsNullOrWhiteSpace(request.ReferenceType) || request.ReferenceId == Guid.Empty || request.Quantity <= 0)
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_reservation");
-                    var result = store.Reserve(tenantKey, lotId, request);
+                    var result = await store.ReserveAsync(tenantKey, lotId, request, cancellationToken);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.LotNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -98,11 +98,11 @@ internal static class InventoryEndpoints
                     };
                 });
 
-                api.MapPost("/reservations/{reservationId:guid}/release", (Guid reservationId, HttpContext context, IManufacturingReservationStore store) =>
+                api.MapPost("/reservations/{reservationId:guid}/release", async (Guid reservationId, HttpContext context, IManufacturingReservationStore store, CancellationToken cancellationToken) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.Release(tenantKey, reservationId);
+                    var result = await store.ReleaseAsync(tenantKey, reservationId, cancellationToken);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.ReservationNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -111,11 +111,11 @@ internal static class InventoryEndpoints
                     };
                 });
 
-                api.MapPost("/sales/allocations/{sku}", (string sku, CreateSalesAllocationRequest request, HttpContext context, IManufacturingReservationStore store) =>
+                api.MapPost("/sales/allocations/{sku}", async (string sku, CreateSalesAllocationRequest request, HttpContext context, IManufacturingReservationStore store, CancellationToken cancellationToken) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.AllocateSales(tenantKey, sku, request);
+                    var result = await store.AllocateSalesAsync(tenantKey, sku, request, cancellationToken);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.InvalidSalesAllocation => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
@@ -130,14 +130,14 @@ internal static class InventoryEndpoints
                     return string.IsNullOrWhiteSpace(tenantKey) ? Results.Forbid() : Results.Ok(store.GetSalesAllocations(tenantKey, sku, salesOrderId, limit ?? 100));
                 });
 
-                api.MapPost("/lots", (CreateLotRequest request, HttpContext context, IManufacturingProductionStore store) =>
+                api.MapPost("/lots", async (CreateLotRequest request, HttpContext context, IManufacturingProductionStore store) =>
                 {
                     if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Sku) ||
                         request.Quantity <= 0 || string.IsNullOrWhiteSpace(request.Uom))
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidLot);
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
                 
-                    var lot = store.CreateLot(request);
+                    var lot = await store.CreateLotAsync(request, context.RequestAborted);
                     return Results.Created($"/api/v1/manufacturing/lots/{lot.Id}", lot);
                 });
 

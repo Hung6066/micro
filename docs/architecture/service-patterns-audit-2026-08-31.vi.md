@@ -1,6 +1,6 @@
 # Audit và thiết kế pattern cho Identity, Manufacturing, Commerce, Content
 
-Ngày audit: 2026-08-31  
+Ngày audit/cập nhật: 2026-09-02
 Phạm vi: source hiện tại dưới `src/Services`, shared infrastructure, integration tests và các validation script có sẵn.  
 Nguyên tắc: giữ database ownership theo service; không thêm generic repository hoặc framework mới nếu chưa có use case chứng minh.
 
@@ -19,7 +19,7 @@ Nền tảng đã có các seam đúng hướng:
 
 1. **P0 — Identity:** tách endpoint composition và direct EF queries thành vertical slices/use-case handlers; bảo toàn authorization ở server-side.
 2. **P0 — Manufacturing:** tiếp tục chia `ManufacturingPersistence.cs` thành các workflow module đã có port; chuẩn hóa transaction + Outbox + inbox deduplication cho mọi mutation/event consumer.
-3. **P1 — Commerce:** đưa order/cart/RFQ orchestration ra khỏi `Program.cs` và `CommerceStore`; giữ Commerce là source of truth cho order state, dùng event-driven integration với Manufacturing.
+3. **P1 — Commerce:** giữ order/cart/RFQ orchestration trong các vertical-slice endpoint modules, không để composition root chứa nghiệp vụ; giữ Commerce là source of truth cho order state, dùng event-driven integration với Manufacturing.
 4. **P1 — Content:** áp dụng CQRS-lite + explicit publication state machine; bổ sung audit/outbox chỉ cho các thay đổi cần downstream propagation, không biến Content thành hệ thống event-sourcing.
 5. **P1 — Cross-service:** dùng một integration contract: envelope, correlation, tenant, audience, idempotency key, event version và retry/dead-letter semantics.
 
@@ -29,15 +29,18 @@ Nền tảng đã có các seam đúng hướng:
 |---|---|---|
 | Layer direction | `scripts/validate-service-architecture.ps1` | Pass, 45 projects |
 | Communication seam | `scripts/validate-communication-boundaries.ps1` | Pass |
-| Identity composition | `IdentityService.Api/Composition/IdentityServiceEndpointExtensions.cs` dài 2.616 dòng; `IdentityServiceRegistrationExtensions.cs` đăng ký auth, rate limit, health, Vault, hosted workers | Source có, cần làm sâu seam |
+| Identity composition | Composition còn wiring; authentication/login, refresh/logout, BFF session bridge, OIDC authorize và admin surface đã tách thành các endpoint modules; OIDC consent persistence đi qua `IOidcConsentService`/`OidcConsentService`; localization, legacy auth, permission projection và external login cũng đã tách | Endpoint composition và consent persistence đã được làm sâu theo vertical slice; một số legacy HTML/login handlers và admin governance vẫn là vùng tối ưu tiếp theo |
 | Identity application | `IdentityService.Application/UseCases/**` có MediatR command/query handlers | Pattern có, chưa áp dụng đồng đều cho endpoint/admin surface |
-| Manufacturing persistence | `ManufacturingService.Infrastructure/Persistence/ManufacturingPersistence.cs` dài 2.477 dòng; đồng thời có các store theo workflow trong các file riêng | Có seam tốt nhưng còn legacy monolith |
-| Manufacturing integration | `CommerceOrderConsumer`, `ManufacturingOutboxDispatcher`, `EventReceipts`, `CommerceOrderFulfillmentSaga` | Có source và integration tests; cần kiểm tra đầy đủ runtime matrix khi release |
+| Manufacturing persistence | `ManufacturingService.Infrastructure/Persistence/ManufacturingPersistence.cs` còn khoảng 1.272 dòng chứa DbContext/entities và các workflow còn lại; lot disposition, lot/transformation, loss review, material requirements, quality, traceability, recipe/machine/maintenance/downtime và analytics đã tách sang store/workflow riêng | Seam đã sâu hơn; các mutation nghiệp vụ còn lại vẫn cần tách tiếp |
+| Manufacturing integration | `CommerceOrderConsumer`, `ManufacturingAnalyticsConsumer`, `ManufacturingOutboxDispatcher`, `InboxDeliveryGuard`, `EventReceipts`, `CommerceOrderFulfillmentSaga` | Consumer analytics, production-order lifecycle, batch creation/status/cancellation, machine create/update, telemetry ingest, maintenance record/work-order create/complete, downtime lifecycle, quality inspection/sample/disposition, inspection-plan/product-specification lifecycle, CAPA/supplier evaluation, SOP/signature lifecycle, deviation/loss-review, lot creation/disposition và transformation workflow đã dùng async EF có cancellation; focused ProductionTraceability 21/21, CAPA 31/31, compliance 1/1; full Manufacturing integration pass 60/60; external tenant manifest, schema và shared/dedicated routing pass 2/2 |
 | Commerce transaction | `CommercePersistence.SaveOrderAndOutboxAsync` dùng transaction; `CommerceOrderPersistenceTests` kiểm tra duplicate event | Pattern có |
-| Commerce API | `CommerceService.Api/Program.cs` còn endpoint composition; host DI/pipeline đã tách vào `Composition/CommerceServiceHostExtensions.cs` | Cần tiếp tục tách endpoint/use-case seam |
-| Content | `PostgresContentStore` dài 613 dòng; `ContentService.Api/Program.cs` dài 413 dòng; public/manage groups đã tách | Đủ cho CRUD/CMS cơ bản; thiếu publication/event seam sâu |
-| Shared reliability | `His.Hope.Infrastructure.Outbox`, `Idempotency`, `Saga`, `DataLifecycle`, `Resilience` | Có thể tái sử dụng, không nên tạo bản thứ hai |
+| Commerce API | `CommerceService.Api/Program.cs` giữ startup/composition cấp cao; order creation/query/status nằm ở `CommerceOrderEndpoints`, cart/profile/notification nằm ở `CommerceCustomerEndpoints`; RFQ nằm ở `CommerceRfqEndpoints`; shipment webhook nằm ở `CommerceWebhookEndpoints`; customer state đi qua `ICommerceCustomerWorkflow`/`CommerceCustomerWorkflow`, RFQ đi qua `ICommerceRfqWorkflow`/`CommerceRfqWorkflow`; host DI/pipeline đã tách vào `Composition/CommerceServiceHostExtensions.cs` | Order/customer/RFQ/webhook slices, application workflows và RFQ state-transition policy đã tách; cross-service event proof vẫn cần mở rộng |
+| Content | `ContentPersistence.cs` còn 323 dòng giữ DbContext/entity/lifecycle wiring; `ContentManagementMutations.cs` 126 dòng giữ banner/story/article mutations; `ContentLeadCaptureMutations.cs` 101 dòng giữ inquiry/media/newsletter mutations; `ContentDemoSeeder.cs` 51 dòng giữ demo seed; `ContentReadProjection.cs` 80 dòng giữ public read paths; `ContentService.Api/Program.cs` 442 dòng; public/manage groups đã tách | Đã có publication state machine, selective outbox, read projection, seeder và mutation localities theo management/lead-capture; còn có thể tách DTO/entity definitions khỏi persistence nếu cần, nhưng không còn là workflow locality gap |
+| Shared reliability | `His.Hope.Infrastructure.Outbox`, `Idempotency`, `Saga`, `DataLifecycle`, `Resilience`; canonical transport headers trong `His.Hope.Contracts.Messaging` | Commerce, Manufacturing, Billing, Content và Identity publishers đã tạo canonical metadata; consumer paths chính đã validate event type/schema/routing metadata; cần tiếp tục mở rộng policy cho consumer mới phát sinh |
 | Tests | Identity integration/security rộng; Manufacturing policy/traceability/RabbitMQ/tenant placement; Commerce persistence/security; Content public/manage API | Không coi test source là runtime production proof |
+| Full matrix (2026-09-02) | `scripts/run-full-test-matrix.ps1 -RequireComplete` | Current source completed 18/18 projects, 1.828 passed, 0 failed, 0 skipped; `-RequireComplete` status `pass` after resuming Manufacturing with explicit shared and dedicated external connections. The synchronized artifact includes Manufacturing production-order, batch/status/cancellation, maintenance, downtime, quality and lot async mutations. Content integration completed 10/10, Commerce 22/22, and Manufacturing 60/60. |
+| Latest revalidation (2026-09-02) | Identity, Manufacturing, Commerce và Content Release builds; three boundary gates; full service matrix; focused suites | Builds and architecture/communication/persistence gates pass. Identity packaging fix verified by `VerificationPageTests` 3/3 and Identity matrix 473/473. Manufacturing production-order lifecycle, batch creation/status/cancellation, machine create/update, telemetry ingest, maintenance record/work-order create/complete, downtime lifecycle, quality inspection/sample/disposition, inspection-plan/product-specification lifecycle, CAPA/supplier evaluation, SOP/signature lifecycle, deviation/loss-review, lot creation/disposition and async analytics/transformation paths verified by focused suites and full integration 60/60; external tenant routing verified 2/2; Commerce webhook locality verified by Commerce integration 22/22; Content mutation locality verified by Content integration 10/10. |
+| Runtime/E2E evidence (2026-09-02) | Full matrix; tenant-placement external test; `npx playwright test --workers=1` | Full matrix and dedicated external tenant checks pass with explicit connection/schema evidence. Playwright was executed and stopped at credential preflight: authenticated E2E remains unavailable because `E2E_EMAIL` and `E2E_PASSWORD` are missing; this is not anonymous coverage or production proof. |
 
 ## 3. Thiết kế pattern đích
 
@@ -103,7 +106,7 @@ Saga rule:
 - Mọi consumer deduplicate theo event id hoặc `(event type, aggregate id, version)` và lưu receipt cùng transaction với side effect.
 - Retry chỉ cho transport/transient; business 4xx chuyển failed/dead-letter và cần operator action.
 
-Gap chính: persistence đã có nhiều module tốt nhưng legacy file vẫn rất lớn và nhiều `SaveChanges()` synchronous. Tách theo workflow, ép cancellation token và đưa các mutation quan trọng về một transaction boundary có Outbox.
+Gap chính: persistence đã có nhiều module tốt nhưng nhiều workflow mutation vẫn còn `SaveChanges()` synchronous. Tách theo workflow, ép cancellation token và đưa các mutation quan trọng về một transaction boundary có Outbox. Đã hoàn tất các lát cắt correctness cho Commerce allocation và transformation: consumer allocation async, session advisory lock theo `OrderId` + unique event receipt index + concurrency integration test; production-order lifecycle, batch creation/status/cancellation, machine create/update, telemetry ingest, maintenance record/work-order create/complete, downtime lifecycle, quality inspection/sample/disposition, inspection-plan/product-specification lifecycle, CAPA/supplier evaluation, SOP/signature lifecycle, deviation/loss-review, lot creation/disposition và transformation async đã được xác nhận qua focused suites và full integration 60/60; external tenant routing 2/2; các mutation/workflow khác vẫn cần chuẩn hóa tương tự.
 
 ### 3.4 Commerce — order aggregate + transactional integration
 
@@ -122,7 +125,7 @@ Invariants:
 - Idempotency key gắn với authenticated subject + tenant + operation; cùng key khác request hash phải conflict.
 - Order state transition là explicit state machine, không gán status tự do từ endpoint.
 
-Gap chính: `Program.cs` và `CommerceStore` còn là orchestration seam nông; đưa logic vào command handlers/domain policy và để persistence adapter thực hiện `SaveOrderAndOutboxAsync`.
+Gap chính: `Program.cs` và một phần `CommerceStore` vẫn là orchestration seam nông. Lát cắt SubmitOrder hiện đã chuyển việc tạo snapshot, tính giá và invariant tenant vào `CommerceOrderAggregate` ở Application; persistence adapter vẫn thực hiện `SaveOrderAndOutboxAsync`. Order-status đã có state policy và compare-and-swap theo expected status; cart/profile/notification đã có internal workflow module, nhưng chưa phải application command/query seam độc lập.
 
 ### 3.5 Content — publication state machine + CQRS-lite + cache-aside
 
@@ -141,7 +144,7 @@ Adapter:
 - Public reads dùng projection/cache-aside với invalidation theo `ContentPublished.v1`.
 - Partnership inquiry/newsletter dùng command validation, abuse/rate-limit và audit; không cần event-sourcing.
 
-Gap chính: `PostgresContentStore` đang chứa nhiều CRUD và seed logic; tách read projection khỏi mutation. Bổ sung Outbox chỉ khi có consumer thực tế như cache invalidation, search indexing hoặc notification.
+Gap chính: `PostgresContentStore` vẫn chứa nhiều CRUD/mutation; read projection và demo seeding đã tách thành seam riêng. Bổ sung Outbox chỉ khi có consumer thực tế như cache invalidation, search indexing hoặc notification.
 
 ## 4. Contract liên service bắt buộc
 
@@ -181,7 +184,7 @@ Bắt buộc:
 ### P1 — locality và vận hành
 
 1. Chia `ManufacturingPersistence.cs` theo workflow, xóa dần compatibility path sau khi integration tests chuyển sang port mới.
-2. Chia Commerce `Program.cs` theo endpoint module và application command/query.
+2. Chia tiếp Commerce `Program.cs` theo endpoint module và application command/query; order/RFQ đã có module riêng.
 3. Content publication workflow + projection/cache invalidation.
 4. Chuẩn hóa metrics: command latency, outbox age, consumer lag, DLQ count, saga stuck/recovery, authorization deny reason.
 

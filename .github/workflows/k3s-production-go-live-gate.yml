@@ -98,6 +98,12 @@ jobs:
             -RequirePodSecurity `
             -OutputPath artifacts/evidence/production-release-gate.json
 
+      - name: Validate production data-plane HA contract
+        id: data_plane_ha
+        continue-on-error: true
+        shell: bash
+        run: python scripts/validate-production-data-plane-ha-contract.py
+
       - name: Capture sanitized K3s baseline
         id: baseline
         continue-on-error: true
@@ -244,6 +250,7 @@ jobs:
         run: |
           $failed = @(
             [pscustomobject]@{ name = 'release-gate'; outcome = '${{ steps.release_gate.outcome }}' }
+            [pscustomobject]@{ name = 'data-plane-ha'; outcome = '${{ steps.data_plane_ha.outcome }}' }
             [pscustomobject]@{ name = 'baseline'; outcome = '${{ steps.baseline.outcome }}' }
             [pscustomobject]@{ name = 'go-live'; outcome = '${{ steps.go_live.outcome }}' }
             [pscustomobject]@{ name = 'observability-contract'; outcome = '${{ steps.observability_contract.outcome }}' }

@@ -474,12 +474,24 @@ public static class AccessGovernanceEndpoints
                     claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue)));
             }
 
+            var now = DateTime.UtcNow;
             var reviews = await query
                 .OrderBy(item => item.DueAt).Take(200)
-                .Select(item => new AccessReviewDto(item.Id, item.SubjectUserId, item.Reviewer, item.RoleIdsJson,
-                    item.Status, item.DecisionReason, item.CreatedAt, item.DueAt, item.DecidedAt))
+                .Select(item => new
+                {
+                    item.Id,
+                    item.SubjectUserId,
+                    item.Reviewer,
+                    item.RoleIdsJson,
+                    Status = item.Status == "pending" && item.DueAt <= now ? "overdue" : item.Status,
+                    item.DecisionReason,
+                    item.CreatedAt,
+                    item.DueAt,
+                    item.DecidedAt
+                })
                 .ToListAsync(ct);
-            return Results.Ok(reviews);
+            return Results.Ok(reviews.Select(item => new AccessReviewDto(item.Id, item.SubjectUserId, item.Reviewer, item.RoleIdsJson,
+                item.Status, item.DecisionReason, item.CreatedAt, item.DueAt, item.DecidedAt)));
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
             .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
@@ -522,6 +534,16 @@ public static class AccessGovernanceEndpoints
                 return accessError;
             var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             if (review.Reviewer == reviewer || review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
+            if (review.DueAt <= DateTime.UtcNow)
+            {
+                review.Status = "overdue";
+                review.DecisionReason = "Access review exceeded its due date and requires re-issuance.";
+                review.DecidedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), review.DecisionReason, review.RoleIdsJson, null, ct);
+                await AdminAudit.LogAsync(audit, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), ct);
+                return Results.Conflict(new { errorCode = "review_overdue" });
+            }
             review.Status = "certified";
             review.DecisionReason = "Access retained after reviewer certification.";
             review.DecidedAt = DateTime.UtcNow;
@@ -545,6 +567,16 @@ public static class AccessGovernanceEndpoints
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, review.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
             if (review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
+            if (review.DueAt <= DateTime.UtcNow)
+            {
+                review.Status = "overdue";
+                review.DecisionReason = "Access review exceeded its due date and requires re-issuance.";
+                review.DecidedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), review.DecisionReason, review.RoleIdsJson, null, ct);
+                await AdminAudit.LogAsync(audit, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), ct);
+                return Results.Conflict(new { errorCode = "review_overdue" });
+            }
             var subject = await userManager.FindByIdAsync(review.SubjectUserId.ToString());
             subject = Guard.Against.NotFound(subject, "User", review.SubjectUserId);
             var roleIds = JsonSerializer.Deserialize<string[]>(review.RoleIdsJson) ?? [];

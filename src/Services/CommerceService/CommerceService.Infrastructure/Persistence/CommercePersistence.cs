@@ -1,4 +1,5 @@
 using System.Text.Json;
+using His.Hope.CommerceService.Application.Customer;
 using His.Hope.CommerceService.Application.Orders;
 using His.Hope.Contracts.Commerce;
 using His.Hope.Contracts.Saga;
@@ -375,25 +376,39 @@ public sealed class PostgresCommerceOrderPersistence(IDbContextFactory<CommerceD
         Guid orderId,
         string tenantKey,
         string status,
+        string expectedCurrentStatus,
         CancellationToken cancellationToken = default)
     {
         var normalized = CommerceOrderStatusPolicy.Normalize(status);
+        var expected = CommerceOrderStatusPolicy.Normalize(expectedCurrentStatus);
         if (normalized is not ("pending" or "confirmed" or "shipped" or "cancelled"))
             return null;
 
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var order = await db.Orders
+            .AsNoTracking()
             .Include(item => item.Lines)
             .SingleOrDefaultAsync(item => item.Id == orderId && item.TenantKey == tenantKey, cancellationToken);
         if (order is null)
             return null;
 
-        if (!CommerceOrderStatusPolicy.CanTransition(order.Status, normalized))
+        if (!string.Equals(order.Status, expected, StringComparison.OrdinalIgnoreCase) ||
+            !CommerceOrderStatusPolicy.CanTransition(expected, normalized))
             return null;
 
-        order.Status = normalized;
-        await db.SaveChangesAsync(cancellationToken);
-        return ToView(order);
+        var affected = await db.Orders
+            .Where(item => item.Id == orderId &&
+                          item.TenantKey == tenantKey &&
+                          item.Status == expected)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Status, normalized), cancellationToken);
+        if (affected != 1)
+            return null;
+
+        var updated = await db.Orders.AsNoTracking()
+            .Include(item => item.Lines)
+            .SingleAsync(item => item.Id == orderId && item.TenantKey == tenantKey, cancellationToken);
+        return ToView(updated);
     }
 
     private static CommerceOrderView ToView(CommerceOrderEntity order) =>
@@ -615,7 +630,7 @@ public sealed class PostgresCommerceRfqPersistence(IDbContextFactory<CommerceDbC
         if (existing is not null) return;
         db.Rfqs.Add(new CommerceRfqEntity
         {
-            Id = rfq.Id, TenantKey = rfq.TenantKey, BuyerUserId = rfq.BuyerUserId, Status = NormalizeStatus(rfq.Status),
+            Id = rfq.Id, TenantKey = rfq.TenantKey, BuyerUserId = rfq.BuyerUserId, Status = CommerceRfqStatusPolicy.Normalize(rfq.Status),
             Message = rfq.Message.Trim(), QuotedTotal = rfq.QuotedTotal, OperatorNotes = rfq.OperatorNotes?.Trim(),
             CreatedAt = rfq.CreatedAt, RespondedAt = rfq.RespondedAt,
             Lines = rfq.Lines.Where(x => x.Quantity > 0).Select(x => new CommerceRfqLineEntity { Id = Guid.NewGuid(), RfqId = rfq.Id, ProductId = x.ProductId, Quantity = Math.Min(x.Quantity, 999999), Notes = x.Notes?.Trim() }).ToList()
@@ -641,17 +656,17 @@ public sealed class PostgresCommerceRfqPersistence(IDbContextFactory<CommerceDbC
 
     public async Task<CommerceRfqSnapshot?> UpdateRfqAsync(Guid id, string tenantKey, string status, decimal quotedTotal, string operatorNotes, CancellationToken cancellationToken = default)
     {
-        var normalized = NormalizeStatus(status);
-        if (normalized is not ("quoted" or "declined" or "closed")) return null;
+        var normalized = CommerceRfqStatusPolicy.Normalize(status);
+        if (normalized is not ("quoted" or "declined" or "closed") || quotedTotal < 0) return null;
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var item = await db.Rfqs.Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == id && x.TenantKey == tenantKey, cancellationToken);
         if (item is null) return null;
+        if (!CommerceRfqStatusPolicy.CanTransition(item.Status, normalized)) return null;
         item.Status = normalized; item.QuotedTotal = quotedTotal; item.OperatorNotes = operatorNotes.Trim(); item.RespondedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         return ToSnapshot(item);
     }
 
-    private static string NormalizeStatus(string status) => status.Trim().ToLowerInvariant();
     private static CommerceRfqSnapshot ToSnapshot(CommerceRfqEntity x) => new(x.Id, x.TenantKey, x.BuyerUserId, x.Status, x.Message, x.QuotedTotal, x.OperatorNotes, x.CreatedAt, x.RespondedAt, x.Lines.Select(l => new CommerceRfqLineSnapshot(l.ProductId, l.Quantity, l.Notes)).ToArray());
 }
 

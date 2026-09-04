@@ -183,7 +183,9 @@ export class HisHopeAuthCoordinator {
           return this.exchangeBffSession().pipe(
             map(() => true),
             tap(() => {
-              const target = this.safeReturnUrl(returnUrl) ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
+              const target = this.safeReturnUrl(returnUrl)
+                ?? this.safeReturnUrl(sessionStorage.getItem(RETURN_URL_KEY))
+                ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
               this.lastAuthenticated = true;
               this.authenticatedSubject.next(true);
               this.clearSsoLoginInProgress();

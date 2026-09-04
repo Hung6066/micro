@@ -11,9 +11,9 @@ public interface IManufacturingDashboardStore
     ManufacturingProductionCostDto GetProductionCosts(string tenantKey);
     IReadOnlyList<ManufacturingExecutiveExceptionDto> GetExecutiveExceptions(string tenantKey, int expiryWithinDays, int downtimeThresholdHours);
     CostProjectionDto? GetCostProjection(string tenantKey, string productSku, int? recipeVersion, decimal plannedQuantity);
-    (ProductionBatchCostDto? Cost, string? Error) CalculateBatchCost(Guid batchId, string tenantKey, CalculateBatchCostRequest request);
-    ProductionBatchCostDto? GetBatchCost(Guid batchId, string tenantKey);
+    Task<(ProductionBatchCostDto? Cost, string? Error)> CalculateBatchCostAsync(Guid batchId, string tenantKey, CalculateBatchCostRequest request, CancellationToken cancellationToken = default);
+    Task<ProductionBatchCostDto?> GetBatchCostAsync(Guid batchId, string tenantKey, CancellationToken cancellationToken = default);
     IReadOnlyList<SalesForecastDto> GetSalesForecasts(string tenantKey, string? productSku, int limit, int page = 1);
-    SalesForecastDto CreateSalesForecast(string tenantKey, CreateSalesForecastRequest request);
+    Task<SalesForecastDto> CreateSalesForecastAsync(string tenantKey, CreateSalesForecastRequest request, CancellationToken cancellationToken = default);
     (IReadOnlyList<SalesForecastMaterialRequirementDto> Requirements, string? Error) GetSalesForecastMaterialRequirements(string tenantKey, Guid forecastId);
 }

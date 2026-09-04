@@ -43,6 +43,15 @@ jobs:
           [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
           "path=$path" >> $env:GITHUB_OUTPUT
 
+      - name: Validate production release contracts before rollout
+        shell: pwsh
+        run: |
+          ./scripts/validate-kustomize-release.ps1 -Environment prod
+          ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          python scripts/validate-production-ha-contract.py
+          python scripts/validate-production-data-plane-ha-contract.py
+          ./scripts/validate-signature-controller-contract.ps1
+
       - name: Preflight boundary and restricted workload contract
         shell: pwsh
         run: |

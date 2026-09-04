@@ -26,11 +26,11 @@ internal static class PlanningEndpoints
                     return Results.Ok(store.GetSalesForecasts(tenantKey, productSku, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
-                api.MapPost("/sales/forecasts", (CreateSalesForecastRequest request, HttpContext context, IManufacturingDashboardStore store) =>
+                api.MapPost("/sales/forecasts", async (CreateSalesForecastRequest request, HttpContext context, IManufacturingDashboardStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    try { return Results.Created("/api/v1/manufacturing/sales/forecasts", store.CreateSalesForecast(tenantKey, request)); }
+                    try { return Results.Created("/api/v1/manufacturing/sales/forecasts", await store.CreateSalesForecastAsync(tenantKey, request, context.RequestAborted)); }
                     catch (InvalidOperationException ex) when (ex.Message == "invalid_sales_forecast") { return ManufacturingProblem(StatusCodes.Status400BadRequest, ex.Message); }
                     catch (InvalidOperationException ex) when (ex.Message == "forecast_version_exists") { return ManufacturingProblem(StatusCodes.Status409Conflict, ex.Message); }
                 });

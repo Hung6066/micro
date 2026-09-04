@@ -258,6 +258,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("details");
 
+                    b.Property<string>("IntegrityHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("integrity_hash");
+
+                    b.Property<long?>("IntegritySequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("integrity_sequence");
+
                     b.Property<string>("IpAddress")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
@@ -273,6 +282,11 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("outcome");
+
+                    b.Property<string>("PreviousIntegrityHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("previous_integrity_hash");
 
                     b.Property<string>("ResourceId")
                         .HasMaxLength(100)
@@ -327,6 +341,10 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
 
                     b.HasIndex("CorrelationId")
                         .HasDatabaseName("ix_audit_logs_correlation_id");
+
+                    b.HasIndex("IntegritySequence")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_logs_integrity_sequence");
 
                     b.HasIndex("ResourceType")
                         .HasDatabaseName("ix_audit_logs_resource_type");

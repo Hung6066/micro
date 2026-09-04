@@ -15,7 +15,7 @@ internal sealed class InMemoryCommerceOrderPersistence : ICommerceOrderPersisten
     public Task<CommerceOrderView?> GetOrderAsync(Guid orderId, string tenantKey, CancellationToken cancellationToken = default) =>
         Task.FromResult<CommerceOrderView?>(null);
 
-    public Task<CommerceOrderView?> UpdateOrderStatusAsync(Guid orderId, string tenantKey, string status, CancellationToken cancellationToken = default) =>
+    public Task<CommerceOrderView?> UpdateOrderStatusAsync(Guid orderId, string tenantKey, string status, string expectedCurrentStatus, CancellationToken cancellationToken = default) =>
         Task.FromResult<CommerceOrderView?>(null);
 }
 

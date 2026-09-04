@@ -30,9 +30,36 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
       || routePattern(dashboardPath).test(url.pathname + url.search),
     { timeout: 30000 },
   );
+  // A proxy response can commit the Identity document before its HTML parser
+  // has populated the login form. Synchronize on the document lifecycle once
+  // the URL is known instead of racing the first DOM query.
+  await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
 
   const isAppLogin = () => /(?:^|\/)auth\/login$/.test(new URL(page.url()).pathname);
+  const isTargetRoute = () => routePattern(dashboardPath).test(new URL(page.url()).pathname + new URL(page.url()).search)
+    || (dashboardPath === '/clients' && routePattern('/dashboard').test(new URL(page.url()).pathname + new URL(page.url()).search));
   const appLoginButton = page.getByRole('button', { name: /sign in with his\.hope|đăng nhập bằng his\.hope/i });
+  const authenticatedShell = page.locator('mat-nav-list a, nav[hhShellNavigation] a').first();
+  if (isAppLogin()) {
+    await Promise.any([
+      authenticatedShell.waitFor({ state: 'visible', timeout: 10000 }),
+      appLoginButton.waitFor({ state: 'visible', timeout: 10000 }),
+      page.waitForURL(() => isTargetRoute(), { timeout: 10000 }),
+    ]).catch(() => {});
+    // A protected shell can briefly render its public Dashboard link while the
+    // login component is still bootstrapping. Only treat it as authenticated
+    // when the SSO action is no longer present and the shell has more than its
+    // public fallback link.
+    if (!await appLoginButton.isVisible().catch(() => false)
+      && isTargetRoute()) {
+      return page.url();
+    }
+    if (!await appLoginButton.isVisible().catch(() => false)
+      && await authenticatedShell.isVisible().catch(() => false)
+      && await page.locator('mat-nav-list a, nav[hhShellNavigation] a').count() > 1) {
+      return page.url();
+    }
+  }
   if (isAppLogin() || await appLoginButton.isVisible().catch(() => false)) {
     const button = appLoginButton;
     await expect(button).toBeVisible({ timeout: 30000 });
@@ -164,8 +191,15 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
 
   const authenticatedRoute = url => url.origin === new URL(baseUrl).origin
     && routePattern(dashboardPath).test(url.pathname + url.search);
+  const authenticatedDefaultRoute = url => dashboardPath === '/clients'
+    && url.origin === new URL(baseUrl).origin
+    && routePattern('/dashboard').test(url.pathname + url.search);
   try {
-    await page.waitForURL(authenticatedRoute, { timeout: 30000 });
+    await page.waitForURL(url => authenticatedRoute(url) || authenticatedDefaultRoute(url), { timeout: 30000 });
+    if (authenticatedDefaultRoute(new URL(page.url()))) {
+      await gotoCommittedDocument(page, `${baseUrl}${dashboardPath}`);
+      await page.waitForURL(authenticatedRoute, { timeout: 15000 });
+    }
   } catch (error) {
     // A callback can land on the localized SPA login route when the BFF
     // exchange completes just after the first guard evaluation. Re-enter the

@@ -83,6 +83,13 @@ if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 
 var uploadRoot = Path.Combine(app.Environment.ContentRootPath, "uploads");
 Directory.CreateDirectory(uploadRoot);
+var allowedUploadTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+{
+    ["image/jpeg"] = ".jpg",
+    ["image/png"] = ".png",
+    ["image/webp"] = ".webp",
+    ["image/avif"] = ".avif",
+};
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadRoot),
@@ -414,7 +421,10 @@ content.MapPost("/media/upload", async (
     if (file.Length <= 0 || file.Length > 5 * 1024 * 1024)
         return ContentProblem(StatusCodes.Status400BadRequest, "invalid_file");
 
-    var safeName = $"{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}";
+    if (!allowedUploadTypes.TryGetValue(file.ContentType, out var extension))
+        return ContentProblem(StatusCodes.Status400BadRequest, "unsupported_file_type");
+
+    var safeName = $"{Guid.NewGuid():N}{extension}";
     var path = Path.Combine(uploadRoot, safeName);
     await using (var stream = File.Create(path))
         await file.CopyToAsync(stream);

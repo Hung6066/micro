@@ -21,7 +21,10 @@ $contexts = @(
     @{ Name='billing'; Project='src/Services/BillingService/BillingService.Infrastructure/BillingService.Infrastructure.csproj'; Context='BillingDbContext' },
     @{ Name='patient'; Project='src/Services/PatientService/PatientService.Infrastructure/PatientService.Infrastructure.csproj'; Context='PatientDbContext' },
     @{ Name='patient-read'; Project='src/Services/PatientService/PatientService.Infrastructure/PatientService.Infrastructure.csproj'; Context='PatientReadDbContext' },
-    @{ Name='pharmacy'; Project='src/Services/PharmacyService/PharmacyService.Infrastructure/PharmacyService.Infrastructure.csproj'; Context='PharmacyDbContext' }
+    @{ Name='pharmacy'; Project='src/Services/PharmacyService/PharmacyService.Infrastructure/PharmacyService.Infrastructure.csproj'; Context='PharmacyDbContext' },
+    @{ Name='commerce'; Project='src/Services/CommerceService/CommerceService.Infrastructure/CommerceService.Infrastructure.csproj'; Context='CommerceDbContext'; MigrationDirectory='Persistence/Migrations' },
+    @{ Name='content'; Project='src/Services/ContentService/ContentService.Infrastructure/ContentService.Infrastructure.csproj'; Context='ContentDbContext'; MigrationDirectory='Migrations' },
+    @{ Name='manufacturing'; Project='src/Services/ManufacturingService/ManufacturingService.Infrastructure/ManufacturingService.Infrastructure.csproj'; Context='ManufacturingDbContext'; MigrationDirectory='Migrations' }
 )
 
 $manifest = [System.Collections.Generic.List[object]]::new()
@@ -34,13 +37,13 @@ foreach ($item in $contexts) {
     $efArguments = @(
         'ef', 'migrations', 'script', '--idempotent',
         '--project', $projectPath,
-        '--startup-project', $projectPath,
+        '--startup-project', (Join-Path $RepositoryRoot $(if ($item.StartupProject) { $item.StartupProject } else { $item.Project })),
         '--context', $item.Context,
         '--configuration', 'Release',
         '--no-color',
         '--output', $file
     )
-    $migrationDirectory = Join-Path $projectDirectory 'Persistence/Migrations'
+    $migrationDirectory = Join-Path $projectDirectory $(if ($item.MigrationDirectory) { $item.MigrationDirectory } else { 'Persistence/Migrations' })
     $latestMigrationWrite = if (Test-Path -LiteralPath $migrationDirectory -PathType Container) {
         (Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.cs' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
     } else { [DateTime]::MinValue }

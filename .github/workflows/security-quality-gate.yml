@@ -28,6 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python scripts/validate-dependency-risk-policy.py
           dotnet list His.Hope.sln package --vulnerable --include-transitive
 
   frontend-security:
@@ -49,11 +50,7 @@ jobs:
           (cd dashboard-app && npm audit --omit=dev --audit-level=high)
           (cd src/Frontend/his-hope-app && npm audit --omit=dev --audit-level=high)
       - name: Build all Angular applications
-        run: |
-          npm run build:shared
-          npm --workspace admin-app run build -- --configuration production
-          npm --workspace dashboard-app run build -- --configuration production
-          npm --workspace his-hope-app run build
+        run: npm run build:frontend:production
 
   filesystem-security:
     name: Repository and container security scan
@@ -97,10 +94,24 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/validate-kustomize-release.ps1 -Environment prod
+          ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          python scripts/validate-production-ha-contract.py
+          python scripts/validate-production-data-plane-ha-contract.py
           ./scripts/verify-admission-policy.ps1
+          ./scripts/validate-signature-controller-contract.ps1
           python scripts/validate-manifest-secret-contract.py
+          python scripts/validate-secret-hygiene.py
       - name: Validate container build contract
         run: python scripts/validate-container-build-contract.py
+      - name: Validate dependency risk policy
+        run: python scripts/validate-dependency-risk-policy.py
+      - name: Validate security assurance mapping
+        shell: pwsh
+        run: |
+          ./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json
+          python scripts/validate-security-assurance-mapping.py
+      - name: Validate threat model and abuse-case catalog
+        run: python scripts/validate-threat-model.py
       - name: Verify SBOM artifact
         shell: bash
         run: |

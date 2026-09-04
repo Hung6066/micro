@@ -45,15 +45,16 @@ hh-brand {
 }
 
 @media (max-width: 600px) {
-  .app-toolbar {
+  .hh-shell__toolbar {
     gap: 0;
     overflow: hidden;
     padding-inline: var(--space-2xs);
   }
-  .app-toolbar .app-title,
-  .app-toolbar hh-language-switcher,
-  .app-toolbar .toolbar-spacer,
-  .app-toolbar .tenant-selector {
+  :host ::ng-deep .hh-shell__toolbar .hh-shell__toolbar-actions {
+    gap: 0;
+  }
+  :host ::ng-deep .hh-shell__toolbar .tenant-selector,
+  :host ::ng-deep .hh-shell__toolbar hh-language-switcher {
     display: none;
   }
 }

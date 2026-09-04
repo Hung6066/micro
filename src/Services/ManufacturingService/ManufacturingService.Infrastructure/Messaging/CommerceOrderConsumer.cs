@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Commerce;
+using His.Hope.Contracts.Messaging;
 using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Saga;
+using His.Hope.Messaging;
 using His.Hope.ManufacturingService.Infrastructure.Saga;
 using His.Hope.SharedKernel.Protocol;
 using RabbitMQ.Client;
@@ -82,15 +84,26 @@ public sealed class CommerceOrderConsumer(
         consumer.Received += async (_, args) =>
         {
             await Task.Yield();
+            InboxDeliveryGuard? delivery = null;
             try
             {
                 var content = Encoding.UTF8.GetString(args.Body.ToArray());
+                IntegrationEventTransportHeaders.Validate(
+                    args.BasicProperties.Headers,
+                    CommerceMessagingContract.OrderPlacedRoutingKey);
                 var order = JsonSerializer.Deserialize<CommerceOrderPlacedV1>(content, JsonOptions)
                     ?? throw new InvalidOperationException("commerce_order_event_empty");
                 if (order.EventId == Guid.Empty || order.OrderId == Guid.Empty)
                     throw new InvalidOperationException("commerce_order_event_identity_missing");
 
                 using var scope = scopeFactory.CreateScope();
+                delivery = await InboxDeliveryGuard.TryBeginAsync(
+                    scope.ServiceProvider.GetRequiredService<IInboxStore>(), order.EventId, Queue, stoppingToken);
+                if (delivery is null)
+                {
+                    channel.BasicAck(args.DeliveryTag, multiple: false);
+                    return;
+                }
                 var saga = scope.ServiceProvider
                     .GetRequiredService<PersistentSagaOrchestrator<CommerceOrderFulfillmentSagaData>>();
                 await saga.ExecuteAsync(
@@ -103,21 +116,28 @@ public sealed class CommerceOrderConsumer(
                         $"{CommerceMessagingContract.OrderPlacedRoutingKey}:{order.OrderId:D}"),
                     stoppingToken);
 
+                await delivery.CompleteAsync(stoppingToken);
                 channel.BasicAck(args.DeliveryTag, multiple: false);
                 logger.LogInformation("Commerce order {OrderId} fulfillment saga accepted", order.OrderId);
             }
             catch (JsonException ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 logger.LogWarning(ex, "Dropping malformed Commerce order event");
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }
             catch (InvalidOperationException ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 logger.LogWarning(ex, "Dropping invalid Commerce order event");
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }
             catch (Exception ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 logger.LogError(ex, "Failed to process Commerce order event");
                 // The queue is DLX-backed; never requeue indefinitely and create a hot loop.
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);

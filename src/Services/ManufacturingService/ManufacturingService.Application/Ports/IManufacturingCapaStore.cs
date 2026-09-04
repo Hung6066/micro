@@ -4,9 +4,9 @@ namespace His.Hope.ManufacturingService.Application.Ports;
 
 public interface IManufacturingCapaStore
 {
-    IReadOnlyList<CapaDto> GetCapas(string tenantKey, string? status, int limit);
-    (CapaDto? Capa, string? Error) CreateCapa(string tenantKey, CreateCapaRequest request, string actor);
-    (CapaDto? Capa, string? Error) UpdateCapaStatus(string tenantKey, Guid capaId, UpdateCapaStatusRequest request);
-    IReadOnlyList<SupplierEvaluationDto> GetSupplierEvaluations(string tenantKey, Guid? supplierId, int limit);
-    (SupplierEvaluationDto? Evaluation, string? Error) CreateSupplierEvaluation(string tenantKey, CreateSupplierEvaluationRequest request, string actor);
+    Task<IReadOnlyList<CapaDto>> GetCapasAsync(string tenantKey, string? status, int limit, CancellationToken cancellationToken);
+    Task<(CapaDto? Capa, string? Error)> CreateCapaAsync(string tenantKey, CreateCapaRequest request, string actor, CancellationToken cancellationToken);
+    Task<(CapaDto? Capa, string? Error)> UpdateCapaStatusAsync(string tenantKey, Guid capaId, UpdateCapaStatusRequest request, CancellationToken cancellationToken);
+    Task<IReadOnlyList<SupplierEvaluationDto>> GetSupplierEvaluationsAsync(string tenantKey, Guid? supplierId, int limit, CancellationToken cancellationToken);
+    Task<(SupplierEvaluationDto? Evaluation, string? Error)> CreateSupplierEvaluationAsync(string tenantKey, CreateSupplierEvaluationRequest request, string actor, CancellationToken cancellationToken);
 }

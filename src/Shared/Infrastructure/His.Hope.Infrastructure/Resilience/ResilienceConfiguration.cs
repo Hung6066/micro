@@ -12,7 +12,7 @@ namespace His.Hope.Infrastructure.Resilience;
 
 public class ResilienceConfiguration : IResiliencePipelineFactory
 {
-    private readonly AdaptiveConcurrencyLimiter? _adaptiveLimiter;
+    private readonly AdaptiveConcurrencyLimiterRegistry? _limiterRegistry;
 
     public int RetryCount { get; set; } = 3;
     public int RetryBaseDelayMs { get; set; } = 200;
@@ -25,27 +25,34 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
     /// <summary>
     /// Creates a new <see cref="ResilienceConfiguration"/>.
     /// </summary>
-    /// <param name="adaptiveLimiter">
-    /// Optional adaptive concurrency limiter. When provided, the pipeline builder
-    /// uses <see cref="AdaptiveConcurrencyLimiter.CurrentLimit"/> instead of the
-    /// static <see cref="BulkheadMaxParallelization"/> value.
+    /// <param name="limiterRegistry">
+    /// Optional per-dependency adaptive concurrency limiter registry. When provided,
+    /// the pipeline records latency and applies the live limit during execution.
     /// </param>
-    public ResilienceConfiguration(AdaptiveConcurrencyLimiter? adaptiveLimiter = null)
+    public ResilienceConfiguration(AdaptiveConcurrencyLimiterRegistry? limiterRegistry = null)
     {
-        _adaptiveLimiter = adaptiveLimiter;
+        _limiterRegistry = limiterRegistry;
     }
 
-    private int EffectiveConcurrencyLimit =>
-        _adaptiveLimiter?.CurrentLimit ?? BulkheadMaxParallelization;
+    private ResiliencePipelineBuilder AddAdaptiveConcurrency(
+        ResiliencePipelineBuilder builder,
+        string dependencyName) =>
+        _limiterRegistry is null
+            ? builder.AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
+            : builder.AddStrategy(_ => new AdaptiveConcurrencyStrategy(
+                _limiterRegistry.Get(dependencyName), BulkheadMaxQueuing));
 
     public ResiliencePipeline GetPipeline(string dependencyName) =>
-        new ResiliencePipelineBuilder()
+        AddAdaptiveConcurrency(new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
                 MaxRetryAttempts = RetryCount,
                 BackoffType = DelayBackoffType.Exponential,
                 Delay = TimeSpan.FromMilliseconds(RetryBaseDelayMs),
                 UseJitter = true,
+                ShouldHandle = args => args.Outcome.Exception is { } exception && IsTransient(exception)
+                    ? PredicateResult.True()
+                    : PredicateResult.False(),
             })
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions
             {
@@ -54,12 +61,11 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
-            .Build();
+            , dependencyName).Build();
 
     public ResiliencePipeline GetGrpcPipeline(string dependencyName) =>
-        new ResiliencePipelineBuilder()
+        AddAdaptiveConcurrency(new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
                 MaxRetryAttempts = RetryCount,
@@ -80,9 +86,8 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
-            .Build();
+            , dependencyName).Build();
 
     public ResiliencePipeline<HttpResponseMessage> BuildHttpPipeline(string operationName)
     {
@@ -139,22 +144,28 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
             },
         };
 
-        return new ResiliencePipelineBuilder<HttpResponseMessage>()
+        var builder = new ResiliencePipelineBuilder<HttpResponseMessage>()
             .AddRetry(retry)
             .AddCircuitBreaker(circuitBreaker)
-            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
-            .AddTimeout(timeout)
-            .Build();
+            .AddTimeout(timeout);
+
+        return _limiterRegistry is null
+            ? builder.AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing).Build()
+            : builder.AddStrategy(_ => new AdaptiveConcurrencyStrategy(
+                _limiterRegistry.Get(operationName), BulkheadMaxQueuing)).Build();
     }
 
     public ResiliencePipeline BuildGenericPipeline(string operationName) =>
-        new ResiliencePipelineBuilder()
+        AddAdaptiveConcurrency(new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
                 MaxRetryAttempts = RetryCount,
                 BackoffType = DelayBackoffType.Exponential,
                 Delay = TimeSpan.FromMilliseconds(RetryBaseDelayMs),
                 UseJitter = true,
+                ShouldHandle = args => args.Outcome.Exception is { } exception && IsTransient(exception)
+                    ? PredicateResult.True()
+                    : PredicateResult.False(),
             })
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions
             {
@@ -163,9 +174,8 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
-            .Build();
+            , operationName).Build();
 
     /// <summary>
     /// Builds a generic pipeline with a Polly <c>FallbackStrategy</c> as the
@@ -177,7 +187,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
         string dependencyName,
         IDegradedResponseProvider degradedProvider) where T : class
     {
-        return new ResiliencePipelineBuilder<T>()
+        var builder = new ResiliencePipelineBuilder<T>()
             // Fallback is outermost — catches failures from retry, circuit breaker, etc.
             .AddFallback(new FallbackStrategyOptions<T>
             {
@@ -212,6 +222,9 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 BackoffType = DelayBackoffType.Exponential,
                 Delay = TimeSpan.FromMilliseconds(RetryBaseDelayMs),
                 UseJitter = true,
+                ShouldHandle = args => args.Outcome.Exception is { } exception && IsTransient(exception)
+                    ? PredicateResult.True()
+                    : PredicateResult.False(),
             })
             .AddCircuitBreaker(new CircuitBreakerStrategyOptions<T>
             {
@@ -220,9 +233,12 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
-            .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
-            .Build();
+            .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds));
+
+        return _limiterRegistry is null
+            ? builder.AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing).Build()
+            : builder.AddStrategy(_ => new AdaptiveConcurrencyStrategy(
+                _limiterRegistry.Get(dependencyName), BulkheadMaxQueuing)).Build();
     }
 
     private static bool IsTransientGrpcError(RpcException ex) =>
@@ -236,4 +252,12 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
             StatusCode.Unknown => true,
             _ => false,
         };
+
+    private static bool IsTransient(Exception exception) => exception switch
+    {
+        HttpRequestException => true,
+        TimeoutRejectedException => true,
+        RpcException rpcException => IsTransientGrpcError(rpcException),
+        _ => false,
+    };
 }

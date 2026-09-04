@@ -6,7 +6,7 @@ namePrefix: his-hope-
 commonLabels:
   app.kubernetes.io/part-of: his-hope
   app.kubernetes.io/managed-by: kustomize
-  app.kubernetes.io/version: latest
+  app.kubernetes.io/version: 7b77f09d8a38393df3a8cf0ab2e99bd6e6f1d9be
 
 commonAnnotations:
   # Injection is enabled by the namespace label. Do not add a global pod
@@ -32,8 +32,10 @@ resources:
   # provider manifest; keep the class in the rendered production contract.
   - ../../vault/vault-csi-provider.yaml
   - runtime-secret-provider-class.yaml
+  - ../../vault/manufacturing-platform-secrets.yaml
   - resource-governance.yaml
   - ../../policies/namespace-security-exceptions.yaml
+  - production-ui-ha.yaml
 
 patches:
   - path: migration-resource-fit.json
@@ -106,6 +108,27 @@ patches:
   - path: clinical-health-probe-patch.yaml
   - path: production-runtime-patch.yaml
   - path: runtime-contract-patch.yaml
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/part-of: his-hope
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/part-of: his-hope
   - path: identity-runtime-seccomp-json.yaml
     target:
       group: apps
@@ -449,6 +472,7 @@ patches:
               secretProviderClass: his-hope-identity-service-secrets
 
 patchesStrategicMerge:
+  - manufacturing-secret-provider-name-patch.yaml
   - runtime-data-plane-patch.yaml
   - production-runtime-contract-services-patch.yaml
   - identity-service-sa-token-patch.yaml
@@ -477,7 +501,6 @@ patchesStrategicMerge:
   - workload-spiffe-patches.yaml
   - spire-fetcher-readonly-patch.yaml
   - database-continuity-storage-patch.yaml
-  - k3s-local-capacity-patch.yaml
   # Apply the final filesystem policy after workload-specific patches, which
   # may otherwise replace the container securityContext map.
   - workload-readonly-root-patches.yaml
@@ -491,25 +514,17 @@ components:
 
 namespace: his-hope
 
-replicas:
-  - name: patient-service
-    count: 1
-  - name: identity-service
-    count: 1
-  - name: clinical-service
-    count: 1
-  - name: appointment-service
-    count: 1
-  - name: billing-service
-    count: 1
-  - name: lab-service
-    count: 1
-  - name: pharmacy-service
-    count: 1
-
 configMapGenerator:
   - name: vault-agent-config
     namespace: his-hope
     literals:
       - vault.skip-verify=false
       - vault.address=https://vault-active.his-hope.svc.cluster.local:8200
+
+replicas:
+  - name: admin-app
+    count: 2
+  - name: dashboard-app
+    count: 2
+  - name: systemdashboard-bff
+    count: 2

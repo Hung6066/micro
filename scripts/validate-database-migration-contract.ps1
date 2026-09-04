@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+    [string]$RepositoryRoot,
     [string]$MigrationDirectory = 'artifacts/database-migrations-current',
     [string]$RenderedProductionManifest = 'artifacts/k8s/prod.yaml',
     [string]$OutputPath
@@ -8,6 +8,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+}
 function Get-Sha256([string]$Path) {
     $sha = [Security.Cryptography.SHA256]::Create()
     try { return ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($Path))) -replace '-', '').ToLowerInvariant() }
@@ -21,7 +24,7 @@ function Add-Check([string]$Name, [ValidateSet('pass','fail','blocked')][string]
 $root = (Resolve-Path $RepositoryRoot).Path
 $directory = Join-Path $root $MigrationDirectory
 $manifestPath = Join-Path $directory 'migration-manifest.json'
-$expected = @('identity','appointment','clinical','lab','billing','patient','patient-read','pharmacy')
+$expected = @('identity','appointment','clinical','lab','billing','patient','patient-read','pharmacy','commerce','content','manufacturing')
 
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
     Add-Check 'migration-manifest' 'fail' "Manifest not found: $manifestPath"
@@ -56,6 +59,9 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         patient = 'src/Services/PatientService/PatientService.Infrastructure/Persistence/Migrations'
         'patient-read' = 'src/Services/PatientService/PatientService.Infrastructure/Persistence/Migrations'
         pharmacy = 'src/Services/PharmacyService/PharmacyService.Infrastructure/Persistence/Migrations'
+        commerce = 'src/Services/CommerceService/CommerceService.Infrastructure/Persistence/Migrations'
+        content = 'src/Services/ContentService/ContentService.Infrastructure/Migrations'
+        manufacturing = 'src/Services/ManufacturingService/ManufacturingService.Infrastructure/Migrations'
     }
     $staleArtifacts = [System.Collections.Generic.List[string]]::new()
     foreach ($entry in @($manifest.contexts)) {
@@ -83,8 +89,22 @@ foreach ($file in $sqlFiles) {
     $matches = Select-String -LiteralPath $file.FullName -Pattern '(?i)\b(drop\s+(table|column|schema)|truncate\s+table|delete\s+from)\b' -AllMatches
     if ($matches) { $destructive.Add($file.Name) }
 }
-if ($destructive.Count -gt 0) { Add-Check 'destructive-migration-review' 'blocked' "Destructive SQL requires an explicit expand/contract review: $($destructive -join ', ')" }
-else { Add-Check 'destructive-migration-review' 'pass' 'No destructive SQL pattern detected in generated scripts.' }
+$unreviewedDestructive = [System.Collections.Generic.List[string]]::new()
+foreach ($destructiveFile in $destructive) {
+    $reviewPath = Join-Path $root (Join-Path 'docs/operations/migration-reviews' ($destructiveFile.Replace('-idempotent.sql', '.md')))
+    $matchingReview = @(Get-ChildItem -LiteralPath (Join-Path $root 'docs/operations/migration-reviews') -Filter '*.md' -File -ErrorAction SilentlyContinue |
+        Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match [regex]::Escape($destructiveFile) })
+    if (-not (Test-Path -LiteralPath $reviewPath -PathType Leaf) -and $matchingReview.Count -eq 0) {
+        $unreviewedDestructive.Add($destructiveFile)
+    }
+}
+if ($unreviewedDestructive.Count -gt 0) {
+    Add-Check 'destructive-migration-review' 'blocked' "Destructive SQL requires an explicit expand/contract review: $($unreviewedDestructive -join ', ')"
+} elseif ($destructive.Count -gt 0) {
+    Add-Check 'destructive-migration-review' 'pass' "Destructive SQL is covered by explicit migration review records: $($destructive -join ', ')"
+} else {
+    Add-Check 'destructive-migration-review' 'pass' 'No destructive SQL pattern detected in generated scripts.'
+}
 
 # Every hand-authored EF migration must expose a rollback body. This does not
 # execute Down() in production; it prevents an upgrade from being shipped with
@@ -97,6 +117,9 @@ $migrationRoots = @(
     'src/Services/BillingService/BillingService.Infrastructure/Persistence/Migrations',
     'src/Services/PatientService/PatientService.Infrastructure/Persistence/Migrations',
     'src/Services/PharmacyService/PharmacyService.Infrastructure/Persistence/Migrations'
+    'src/Services/CommerceService/CommerceService.Infrastructure/Persistence/Migrations'
+    'src/Services/ContentService/ContentService.Infrastructure/Migrations'
+    'src/Services/ManufacturingService/ManufacturingService.Infrastructure/Migrations'
 )
 $rollbackMissing = [System.Collections.Generic.List[string]]::new()
 foreach ($relativeRoot in $migrationRoots) {
@@ -179,9 +202,9 @@ if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
     # deployment can pass the contract gate. These services are not currently
     # part of the reviewed K8s production workload, so no speculative Jobs are
     # generated here.
-    if ($apiDocuments -match '(?m)^\s*name:\s*commerce(?:-service)?\s*$') { $expectedJobs += 'commerce' }
-    if ($apiDocuments -match '(?m)^\s*name:\s*content(?:-service)?\s*$') { $expectedJobs += 'content' }
-    if ($apiDocuments -match '(?m)^\s*name:\s*manufacturing(?:-service)?\s*$') { $expectedJobs += 'manufacturing' }
+    if ($apiDocuments -match '(?m)^\s*app\.kubernetes\.io/name:\s*commerce-service\s*$') { $expectedJobs += 'commerce' }
+    if ($apiDocuments -match '(?m)^\s*app\.kubernetes\.io/name:\s*content-service\s*$') { $expectedJobs += 'content' }
+    if ($apiDocuments -match '(?m)^\s*app\.kubernetes\.io/name:\s*manufacturing-service\s*$') { $expectedJobs += 'manufacturing' }
     $missingJobs = @($expectedJobs | Where-Object { $jobNames -notcontains $_ })
     $invalidJobs = @($migrationJobs | Where-Object {
         $_ -notmatch '(?m)^\s*backoffLimit:\s*0\s*$' -or
@@ -216,13 +239,13 @@ if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
         [regex]::Matches($_, '(?m)^\s*image:\s*(?<image>\S+)') | ForEach-Object { $_.Groups['image'].Value }
     } | Where-Object { $_ -notmatch '@sha256:[0-9a-f]{64}$' })
     if ($missingJobs.Count -gt 0 -or $migrationJobs.Count -ne $expectedJobs.Count) {
-        Add-Check 'migration-job-coverage' 'fail' "Expected seven rendered migration Jobs; found $($migrationJobs.Count), missing [$($missingJobs -join ',')]."
+        Add-Check 'migration-job-coverage' 'fail' "Expected $($expectedJobs.Count) rendered migration Jobs; found $($migrationJobs.Count), missing [$($missingJobs -join ',')]."
     } elseif ($invalidJobs.Count -gt 0) {
         Add-Check 'migration-job-contract' 'fail' "$($invalidJobs.Count) migration Job document(s) miss deadline, hook, Vault/SPIRE or one-shot controls."
     } elseif ($unpinnedJobImages.Count -gt 0) {
         Add-Check 'migration-job-contract' 'fail' "Migration Jobs contain unpinned images: $($unpinnedJobImages -join ', ')."
     } else {
-        Add-Check 'migration-job-contract' 'pass' 'Seven digest-pinned Argo Sync wave-20 migration Jobs have bounded, SPIRE/Vault-backed one-shot controls.'
+        Add-Check 'migration-job-contract' 'pass' "$($expectedJobs.Count) digest-pinned Argo Sync wave-20 migration Jobs have bounded, SPIRE/Vault-backed one-shot controls."
     }
 }
 

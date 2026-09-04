@@ -58,7 +58,7 @@ internal static class ProductionEndpoints
                     ChangeRecipeLifecycle(recipeId, "Retired", request, context, store));
 
                 
-                api.MapPost("/transformations", (CreateTransformationRequest request, HttpContext context, IManufacturingProductionStore store) =>
+                api.MapPost("/transformations", async (CreateTransformationRequest request, HttpContext context, IManufacturingProductionStore store) =>
                 {
                     if (request.Inputs is null || request.Inputs.Count == 0 || request.OutputQuantity <= 0 ||
                         string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.OutputSku) ||
@@ -66,7 +66,7 @@ internal static class ProductionEndpoints
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidTransformation);
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
                 
-                    var result = store.CreateTransformation(request);
+                    var result = await store.CreateTransformationAsync(request, context.RequestAborted);
                     return result.Error is not null
                         ? (result.Error is ManufacturingErrorCodes.DuplicateInputLot or ManufacturingErrorCodes.InputLotNotReleased or "input_quantity_exceeds_available" or ManufacturingErrorCodes.ReservationNotFound or ManufacturingErrorCodes.ReservationMismatch or ManufacturingErrorCodes.ReservationUnavailable
                             ? ManufacturingProblem(StatusCodes.Status422UnprocessableEntity, result.Error!)
@@ -97,19 +97,19 @@ internal static class ProductionEndpoints
                     };
                 });
 
-                api.MapGet("/production-batches/{batchId:guid}/cost", (Guid batchId, HttpContext context, IManufacturingDashboardStore store) =>
+                api.MapGet("/production-batches/{batchId:guid}/cost", async (Guid batchId, HttpContext context, IManufacturingDashboardStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var cost = store.GetBatchCost(batchId, tenantKey);
+                    var cost = await store.GetBatchCostAsync(batchId, tenantKey, context.RequestAborted);
                     return Results.Ok(cost);
                 });
 
-                api.MapPost("/production-batches/{batchId:guid}/cost", (Guid batchId, CalculateBatchCostRequest request, HttpContext context, IManufacturingDashboardStore store) =>
+                api.MapPost("/production-batches/{batchId:guid}/cost", async (Guid batchId, CalculateBatchCostRequest request, HttpContext context, IManufacturingDashboardStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.CalculateBatchCost(batchId, tenantKey, request);
+                    var result = await store.CalculateBatchCostAsync(batchId, tenantKey, request, context.RequestAborted);
                     return result.Error switch
                     {
                         "invalid_batch_cost" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
@@ -125,13 +125,13 @@ internal static class ProductionEndpoints
                     return Results.Ok(store.GetOrders(scopedTenant, status, limit ?? 100));
                 });
 
-                api.MapPost("/production-orders", (CreateProductionOrderRequest request, HttpContext context, IManufacturingProductionOrderStore store) =>
+                api.MapPost("/production-orders", async (CreateProductionOrderRequest request, HttpContext context, IManufacturingProductionOrderStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
                     if (string.IsNullOrWhiteSpace(request.OrderNumber) || string.IsNullOrWhiteSpace(request.ProductSku) || string.IsNullOrWhiteSpace(request.OutputUom) || request.RecipeId == Guid.Empty || request.TargetQuantity <= 0)
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidProductionOrder);
-                    var result = store.CreateOrder(tenantKey, request);
+                    var result = await store.CreateOrderAsync(tenantKey, request, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.InvalidProductionOrder => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
@@ -142,11 +142,11 @@ internal static class ProductionEndpoints
                     };
                 });
 
-                api.MapPost("/production-orders/{orderId:guid}/release", (Guid orderId, HttpContext context, IManufacturingProductionOrderStore store) =>
+                api.MapPost("/production-orders/{orderId:guid}/release", async (Guid orderId, HttpContext context, IManufacturingProductionOrderStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.ReleaseOrder(tenantKey, orderId);
+                    var result = await store.ReleaseOrderAsync(tenantKey, orderId, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.ProductionOrderNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -155,9 +155,9 @@ internal static class ProductionEndpoints
                     };
                 });
 
-                api.MapPost("/production-orders/{orderId:guid}/cancel", (Guid orderId, HttpContext context, IManufacturingProductionOrderStore store) =>
+                api.MapPost("/production-orders/{orderId:guid}/cancel", async (Guid orderId, HttpContext context, IManufacturingProductionOrderStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CancelOrder(tenantKey, orderId);
+                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = await store.CancelOrderAsync(tenantKey, orderId, context.RequestAborted);
                     return result.Error switch { ManufacturingErrorCodes.ProductionOrderNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "production_order_not_cancellable" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Order) };
                 });
 
@@ -167,14 +167,14 @@ internal static class ProductionEndpoints
                     return Results.Ok(store.GetBatches(scopedTenant, status, limit ?? 100));
                 });
 
-                api.MapPost("/production-batches", (CreateProductionBatchRequest request, HttpContext context, IManufacturingProductionOrderStore store) =>
+                api.MapPost("/production-batches", async (CreateProductionBatchRequest request, HttpContext context, IManufacturingProductionOrderStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
                     if (request.ProductionOrderId == Guid.Empty || string.IsNullOrWhiteSpace(request.BatchNumber) || request.PlannedQuantity is <= 0 ||
                         request.Inputs?.Any(x => x.LotId == Guid.Empty || x.ReservationId == Guid.Empty || x.Quantity <= 0) == true)
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidProductionBatch);
-                    var result = store.CreateBatch(tenantKey, request);
+                    var result = await store.CreateBatchAsync(tenantKey, request, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.ProductionOrderNotFound or ManufacturingErrorCodes.MachineNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -185,18 +185,18 @@ internal static class ProductionEndpoints
                     };
                 });
 
-                api.MapPost("/production-batches/{batchId:guid}/start", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, ManufacturingStatusCodes.Started, context, store))
+                api.MapPost("/production-batches/{batchId:guid}/start", async (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => await BatchStatusResult(batchId, ManufacturingStatusCodes.Started, context, store))
                     .RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.ProductionExecute));
 
-                api.MapPost("/production-batches/{batchId:guid}/pause", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, "Paused", context, store));
+                api.MapPost("/production-batches/{batchId:guid}/pause", async (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => await BatchStatusResult(batchId, "Paused", context, store));
 
-                api.MapPost("/production-batches/{batchId:guid}/resume", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, ManufacturingStatusCodes.Started, context, store));
+                api.MapPost("/production-batches/{batchId:guid}/resume", async (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => await BatchStatusResult(batchId, ManufacturingStatusCodes.Started, context, store));
 
-                api.MapPost("/production-batches/{batchId:guid}/complete", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, ManufacturingStatusCodes.Completed, context, store));
+                api.MapPost("/production-batches/{batchId:guid}/complete", async (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => await BatchStatusResult(batchId, ManufacturingStatusCodes.Completed, context, store));
 
-                api.MapPost("/production-batches/{batchId:guid}/cancel", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) =>
+                api.MapPost("/production-batches/{batchId:guid}/cancel", async (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CancelBatch(tenantKey, batchId);
+                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = await store.CancelBatchAsync(tenantKey, batchId, context.RequestAborted);
                     return result.Error switch { ManufacturingErrorCodes.ProductionBatchNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), ManufacturingErrorCodes.ProductionBatchNotCancellable => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Batch) };
                 });
 
@@ -207,13 +207,13 @@ internal static class ProductionEndpoints
                     return Results.Ok(store.GetBatchStatusHistory(tenantKey, batchId));
                 });
 
-                api.MapPost("/production-batches/{batchId:guid}/operations", (Guid batchId, RecordOperationRequest request, HttpContext context, IManufacturingProductionOrderStore store) =>
+                api.MapPost("/production-batches/{batchId:guid}/operations", async (Guid batchId, RecordOperationRequest request, HttpContext context, IManufacturingProductionOrderStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
                     if (request.Sequence < 0 || string.IsNullOrWhiteSpace(request.ProcessStep) || string.IsNullOrWhiteSpace(request.Operator) || request.InputQuantity <= 0 || request.OutputQuantity < 0)
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_operation_measurement");
-                    var result = store.RecordOperation(tenantKey, batchId, request);
+                    var result = await store.RecordOperationAsync(tenantKey, batchId, request, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.ProductionBatchNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!),
@@ -224,11 +224,11 @@ internal static class ProductionEndpoints
                     };
                 });
 
-                api.MapPost("/production-batches/{batchId:guid}/operations/{operationId:guid}/loss-review", (Guid batchId, Guid operationId, LossReviewRequest request, HttpContext context, IManufacturingRecipeWorkflowStore store) =>
+                api.MapPost("/production-batches/{batchId:guid}/operations/{operationId:guid}/loss-review", async (Guid batchId, Guid operationId, LossReviewRequest request, HttpContext context, IManufacturingRecipeWorkflowStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.ReviewLoss(tenantKey, batchId, operationId, request);
+                    var result = await store.ReviewLossAsync(tenantKey, batchId, operationId, request, context.RequestAborted);
                     return result.Error switch
                     {
                         "invalid_loss_review" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),

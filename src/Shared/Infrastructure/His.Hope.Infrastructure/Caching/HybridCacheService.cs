@@ -85,6 +85,7 @@ public class HybridCacheService : IHybridCacheService
     private readonly ILogger<HybridCacheService> _logger;
     private readonly HybridCacheOptions _options;
     private readonly AuthorizationCacheKeyPartitioner _keyPartitioner;
+    private readonly ICacheInvalidationBus _invalidationBus;
 
     // Per-key semaphores to ensure only one caller refreshes a given key.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _refreshLocks = new(StringComparer.Ordinal);
@@ -99,13 +100,16 @@ public class HybridCacheService : IHybridCacheService
         DistributedCacheService l2,
         ILogger<HybridCacheService> logger,
         IOptions<HybridCacheOptions> options,
-        AuthorizationCacheKeyPartitioner keyPartitioner)
+        AuthorizationCacheKeyPartitioner keyPartitioner,
+        ICacheInvalidationBus invalidationBus)
     {
         _l1 = l1;
         _l2 = l2;
         _logger = logger;
         _options = options.Value;
         _keyPartitioner = keyPartitioner;
+        _invalidationBus = invalidationBus;
+        _invalidationBus.Subscribe(HandleRemoteInvalidationAsync);
     }
 
     public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class
@@ -214,6 +218,12 @@ public class HybridCacheService : IHybridCacheService
             _l1.RemoveByPrefixAsync(prefix, ct),
             _l2.RemoveByPrefixAsync(prefix, ct));
         Invalidations.Add(1);
+        await _invalidationBus.PublishPrefixAsync(prefix, ct);
+    }
+
+    private Task HandleRemoteInvalidationAsync(string prefix)
+    {
+        return _l1.RemoveByPrefixAsync(prefix);
     }
 
     // ---- Private helpers ----

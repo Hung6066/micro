@@ -4,14 +4,14 @@ namespace His.Hope.ManufacturingService.Application.Ports;
 
 public interface IManufacturingProductionOrderStore
 {
-    (ProductionOrderDto? Order, string? Error) CreateOrder(string tenantKey, CreateProductionOrderRequest request);
-    (ProductionOrderDto? Order, string? Error) ReleaseOrder(string tenantKey, Guid orderId);
-    (ProductionOrderDto? Order, string? Error) CancelOrder(string tenantKey, Guid orderId);
+    Task<(ProductionOrderDto? Order, string? Error)> CreateOrderAsync(string tenantKey, CreateProductionOrderRequest request, CancellationToken cancellationToken = default);
+    Task<(ProductionOrderDto? Order, string? Error)> ReleaseOrderAsync(string tenantKey, Guid orderId, CancellationToken cancellationToken = default);
+    Task<(ProductionOrderDto? Order, string? Error)> CancelOrderAsync(string tenantKey, Guid orderId, CancellationToken cancellationToken = default);
     IReadOnlyList<ProductionOrderDto> GetOrders(string tenantKey, string? status, int limit);
-    (ProductionBatchDto? Batch, string? Error) CreateBatch(string tenantKey, CreateProductionBatchRequest request);
+    Task<(ProductionBatchDto? Batch, string? Error)> CreateBatchAsync(string tenantKey, CreateProductionBatchRequest request, CancellationToken cancellationToken = default);
     IReadOnlyList<ProductionBatchDto> GetBatches(string tenantKey, string? status, int limit);
-    (ProductionBatchDto? Batch, string? Error) ChangeBatchStatus(string tenantKey, Guid batchId, string targetStatus);
-    (ProductionBatchDto? Batch, string? Error) CancelBatch(string tenantKey, Guid batchId);
-    (OperationExecutionDto? Operation, string? Error) RecordOperation(string tenantKey, Guid batchId, RecordOperationRequest request);
+    Task<(ProductionBatchDto? Batch, string? Error)> ChangeBatchStatusAsync(string tenantKey, Guid batchId, string targetStatus, CancellationToken cancellationToken = default);
+    Task<(ProductionBatchDto? Batch, string? Error)> CancelBatchAsync(string tenantKey, Guid batchId, CancellationToken cancellationToken = default);
+    Task<(OperationExecutionDto? Operation, string? Error)> RecordOperationAsync(string tenantKey, Guid batchId, RecordOperationRequest request, CancellationToken cancellationToken = default);
     IReadOnlyList<EntityStatusHistoryDto> GetBatchStatusHistory(string tenantKey, Guid batchId);
 }

@@ -18,10 +18,10 @@ public sealed class CommerceOrderFulfillmentSagaData
 public sealed class CommerceOrderFulfillmentSagaStep(
     ManufacturingReservationStore reservationStore) : ISagaStep<CommerceOrderFulfillmentSagaData>
 {
-    public Task ExecuteAsync(CommerceOrderFulfillmentSagaData data, CancellationToken ct = default)
+    public async Task ExecuteAsync(CommerceOrderFulfillmentSagaData data, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var result = reservationStore.AllocateCommerceOrder(data.Order);
+        var result = await reservationStore.AllocateCommerceOrderAsync(data.Order, ct);
         if (result.Error is not null)
             throw new InvalidOperationException(result.Error);
 
@@ -42,19 +42,19 @@ public sealed class CommerceOrderFulfillmentSagaStep(
                 .ToList();
         }
 
-        return Task.CompletedTask;
+        return;
     }
 
-    public Task CompensateAsync(CommerceOrderFulfillmentSagaData data, CancellationToken ct = default)
+    public async Task CompensateAsync(CommerceOrderFulfillmentSagaData data, CancellationToken ct = default)
     {
         foreach (var reservationId in data.ReservationIds)
         {
             ct.ThrowIfCancellationRequested();
-            var result = reservationStore.Release(data.Order.TenantKey, reservationId);
+            var result = await reservationStore.ReleaseAsync(data.Order.TenantKey, reservationId, ct);
             if (result.Error is not null && result.Error != ManufacturingErrorCodes.ReservationNotFound)
                 throw new InvalidOperationException(result.Error);
         }
 
-        return Task.CompletedTask;
+        await Task.CompletedTask;
     }
 }

@@ -76,7 +76,7 @@ public sealed class CommerceOrderPersistenceTests : IAsyncLifetime
         loaded.Lines.Should().ContainSingle(line => line.Sku == "FG-MANGO" && line.Quantity == 2);
         (await persistence.GetOrdersAsync("tenant-a", "buyer-a")).Should().ContainSingle(x => x.Id == orderId);
 
-        var updated = await persistence.UpdateOrderStatusAsync(orderId, "tenant-a", "confirmed");
+        var updated = await persistence.UpdateOrderStatusAsync(orderId, "tenant-a", "confirmed", "pending");
         updated.Should().NotBeNull();
         updated!.Status.Should().Be("confirmed");
     }
@@ -86,6 +86,35 @@ public sealed class CommerceOrderPersistenceTests : IAsyncLifetime
     {
         CommerceOrderStatusPolicy.CanTransition("pending", "shipped").Should().BeFalse();
         CommerceOrderStatusPolicy.CanTransition("confirmed", "shipped").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Concurrent_status_updates_use_compare_and_swap()
+    {
+        var orderId = Guid.NewGuid();
+        var order = new CommerceOrderSnapshot(
+            orderId,
+            "tenant-a",
+            "buyer-a",
+            "pending",
+            10m,
+            DateTimeOffset.UtcNow,
+            [new CommerceOrderLineSnapshot(Guid.NewGuid(), "SKU-1", "Product", 1, 10m)]);
+        var @event = new CommerceOrderPlacedV1(
+            Guid.NewGuid(), 1, order.CreatedAt, orderId, order.TenantKey, order.BuyerUserId,
+            order.TotalAmount, [new CommerceOrderLineV1("SKU-1", "SKU-1", 1, 10m)]);
+        await persistence.SaveOrderAndOutboxAsync(order, @event);
+
+        var first = new PostgresCommerceOrderPersistence(
+            new TestCommerceDbContextFactory(container.GetConnectionString()));
+        var second = new PostgresCommerceOrderPersistence(
+            new TestCommerceDbContextFactory(container.GetConnectionString()));
+        var results = await Task.WhenAll(
+            first.UpdateOrderStatusAsync(orderId, "tenant-a", "confirmed", "pending"),
+            second.UpdateOrderStatusAsync(orderId, "tenant-a", "cancelled", "pending"));
+
+        results.Count(result => result is not null).Should().Be(1);
+        (await persistence.GetOrderAsync(orderId, "tenant-a"))!.Status.Should().BeOneOf("confirmed", "cancelled");
     }
 
     private sealed class TestCommerceDbContextFactory(string connectionString)

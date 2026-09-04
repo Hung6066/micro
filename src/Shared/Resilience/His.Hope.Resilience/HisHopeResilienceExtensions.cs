@@ -44,7 +44,7 @@ public sealed class HisHopeResiliencePipelines(IOptions<HisHopeResilienceOptions
                 UseJitter = true,
                 ShouldHandle = args => args.Outcome switch
                 {
-                    { Exception: not null } => PredicateResult.True(),
+                    { Exception: { } exception } when IsTransient(exception) => PredicateResult.True(),
                     { Result.StatusCode: >= System.Net.HttpStatusCode.InternalServerError } => PredicateResult.True(),
                     _ => PredicateResult.False(),
                 },
@@ -55,6 +55,12 @@ public sealed class HisHopeResiliencePipelines(IOptions<HisHopeResilienceOptions
                 MinimumThroughput = _options.CircuitBreakerFailureThreshold,
                 SamplingDuration = TimeSpan.FromMilliseconds(_options.CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(_options.CircuitBreakerDurationMs),
+                ShouldHandle = args => args.Outcome switch
+                {
+                    { Exception: { } exception } when IsTransient(exception) => PredicateResult.True(),
+                    { Result.StatusCode: >= System.Net.HttpStatusCode.InternalServerError } => PredicateResult.True(),
+                    _ => PredicateResult.False(),
+                },
             })
             .AddConcurrencyLimiter(_options.MaxConcurrency, _options.MaxQueue)
             .AddTimeout(TimeSpan.FromSeconds(_options.TimeoutSeconds))
@@ -88,6 +94,9 @@ public sealed class HisHopeResiliencePipelines(IOptions<HisHopeResilienceOptions
 
     private static bool IsTransient(RpcException exception) => exception.StatusCode is
         StatusCode.DeadlineExceeded or StatusCode.ResourceExhausted or StatusCode.Unavailable or StatusCode.Aborted or StatusCode.Internal or StatusCode.Unknown;
+
+    private static bool IsTransient(Exception exception) =>
+        exception is HttpRequestException or Polly.Timeout.TimeoutRejectedException;
 }
 
 public sealed class HisHopeResilienceHandler(ResiliencePipeline<HttpResponseMessage> pipeline) : DelegatingHandler

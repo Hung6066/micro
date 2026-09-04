@@ -28,11 +28,8 @@ test.describe('Admin Identity menu coverage', () => {
     // Responsive shell keeps the sidenav closed on mobile/tablet. Open it
     // before collecting links so the same contract is exercised at every
     // viewport without changing the production navigation behavior.
-    const mobileMenu = page.locator('.mobile-menu-button, mat-toolbar button[aria-label*="Navigation" i], mat-toolbar button[aria-label*="Điều hướng" i]').first();
-    if (!(await page.locator('mat-nav-list a').first().isVisible().catch(() => false)) && await mobileMenu.isVisible().catch(() => false)) {
-      await mobileMenu.click();
-    }
-    const menuLinks = page.locator('mat-nav-list a');
+    const mobileMenu = page.getByRole('button', { name: /^(Admin navigation|Mở menu điều hướng)$/i }).first();
+    const menuLinks = page.locator('nav[hhShellNavigation] a');
     await expect(menuLinks.first()).toBeVisible({ timeout: 15000 });
     await expect.poll(() => menuLinks.count(), {
       timeout: 15000,
@@ -45,11 +42,27 @@ test.describe('Admin Identity menu coverage', () => {
     })));
     expect(links.length).toBeGreaterThan(10);
 
+    const ensureAdminMenuVisible = async () => {
+      const firstLink = menuLinks.first();
+      const box = await firstLink.boundingBox().catch(() => null);
+      if (box && box.x >= 0 && box.width > 0 && box.height > 0) {
+        return;
+      }
+
+      await expect(mobileMenu).toBeVisible({ timeout: 10000 });
+      await mobileMenu.click();
+      await expect.poll(async () => {
+        const openedBox = await firstLink.boundingBox().catch(() => null);
+        return openedBox !== null && openedBox.x >= 0 && openedBox.width > 0 && openedBox.height > 0;
+      }, { timeout: 10000, message: 'Admin mobile navigation should settle before menu traversal' }).toBe(true);
+    };
+
     for (let index = 0; index < links.length; index += 1) {
       const link = links[index];
       const expectedPath = new URL(link.href, adminUrl).pathname;
       await test.step(`${link.label} -> ${link.href}`, async () => {
-        await page.locator('mat-nav-list a').nth(index).click();
+        await ensureAdminMenuVisible();
+        await page.locator('nav[hhShellNavigation] a').nth(index).click();
         await page.waitForURL(url => url.pathname === expectedPath, { timeout: 15000 });
         await expect(page.locator('hh-page-layout, hh-page-header, .main-content').first()).toBeVisible({ timeout: 10000 });
         await page.waitForTimeout(250);

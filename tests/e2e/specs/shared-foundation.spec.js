@@ -6,7 +6,7 @@ const { signInThroughIdentity } = require('../helpers/sso-login');
 const { getE2eCredentials } = require('../config/credentials');
 
 if (process.env.E2E_AUTH_REQUIRED === 'true') {
-  test.use({ storageState: path.join(__dirname, '..', 'fixtures', 'shared-foundation-auth.json') });
+  test.use({ storageState: path.join(__dirname, '..', 'fixtures', 'shared-foundation-auth.generated.json') });
 }
 
 const targets = [
@@ -60,9 +60,16 @@ for (const target of targets) {
     // captured. Mask that volatile region so this contract checks the shared
     // navigation, header, typography and surface tokens rather than timing.
     if (target.name === 'admin') {
-      screenshotOptions.mask = [page.locator('hh-data-table')];
+      screenshotOptions.mask = [page.locator('main').last()];
     }
-    await expect(page).toHaveScreenshot(`${target.name}-${testInfo.project.name}.png`, screenshotOptions);
+    const screenshotTarget = testInfo.project.name === 'mobile'
+      ? target.name === 'clinical'
+        ? page.locator('.app-sidenav-container')
+        : target.name === 'dashboard'
+          ? page.locator('.sidenav-container')
+          : page.locator('hh-app-shell')
+      : page;
+    await expect(screenshotTarget).toHaveScreenshot(`${target.name}-${testInfo.project.name}.png`, screenshotOptions);
   });
 
   test(`${target.name} shared shell fits responsive viewport @shared-foundation`, async ({ page }) => {
@@ -110,5 +117,5 @@ test('admin theme toggle updates the full document surface @shared-foundation', 
   await toggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect.poll(() => page.locator('body').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(17, 24, 21)');
-  await expect.poll(() => page.locator('.app-sidenav').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(24, 33, 28)');
+  await expect.poll(() => page.locator('.hh-shell__sidebar').evaluate(element => getComputedStyle(element).backgroundColor)).toBe('rgb(24, 33, 28)');
 });

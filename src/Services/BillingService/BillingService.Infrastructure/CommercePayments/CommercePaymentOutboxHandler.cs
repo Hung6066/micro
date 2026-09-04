@@ -1,5 +1,6 @@
 using System.Text;
 using His.Hope.Contracts.Saga;
+using His.Hope.Contracts.Messaging;
 using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Outbox;
 using Microsoft.Extensions.Configuration;
@@ -33,6 +34,7 @@ public sealed class CommercePaymentOutboxHandler(IConfiguration configuration) :
         properties.ContentType = "application/json";
         properties.Type = message.Type;
         properties.MessageId = message.Id.ToString("D");
+        properties.Headers = IntegrationEventTransportHeaders.Create(message.Type, message.Content, audience: "billing");
         channel.BasicPublish(SagaMessagingContract.PaymentExchange, message.Type, properties,
             Encoding.UTF8.GetBytes(message.Content));
         return Task.CompletedTask;

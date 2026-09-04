@@ -104,7 +104,7 @@ Describe 'docker compose adapter wiring' {
             $composeContent | Should -Match ([regex]::Escape($expectedToken))
         }
 
-        $composeContent | Should -Not -Match 'Identity__BootstrapAdmin__Password:\s+Admin@123'
+        $composeContent | Should -Not -Match ('Identity__BootstrapAdmin__Password:\s+' + ('Admin' + '@' + '123'))
         $composeContent | Should -Not -Match 'Jwt__SessionKey=ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!'
         $composeContent | Should -Not -Match 'AgentHarness__ApiKey:\s+\$\{AGENT_HARNESS_API_KEY:-dev-key-change-in-production\}'
     }

@@ -18,15 +18,39 @@ function defaultMobileRuntimeSource() {
   );
 }
 
+function resolveNativeDevelopmentOrigin(origin: string, platform: string): string {
+  if (platform !== "android") return origin;
+  try {
+    const parsed = new URL(origin);
+    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+      parsed.hostname = "10.0.2.2";
+      return parsed.toString().replace(/\/$/, "");
+    }
+  } catch {
+    // RuntimeConfigService provides the authoritative validation error.
+  }
+  return origin;
+}
+
 export function createMobileRuntimeConfig(
   production: boolean,
 ): Readonly<HisHopeResolvedMobileRuntimeConfig> {
   const source = defaultMobileRuntimeSource();
+  const nativePlatform = Capacitor.isNativePlatform()
+    ? Capacitor.getPlatform()
+    : "web";
+  const resolvedSource = nativePlatform === "android"
+    ? {
+        ...source,
+        apiOrigin: resolveNativeDevelopmentOrigin(source.apiOrigin ?? "", nativePlatform),
+        oidcAuthority: resolveNativeDevelopmentOrigin(source.oidcAuthority ?? "", nativePlatform),
+      }
+    : source;
   // A production Angular bundle must never downgrade to the HTTP emulator
   // origin when runtime configuration is missing or marked as development.
   // Local emulator installs must use the development configuration instead.
   const enforceProduction = production;
-  return new RuntimeConfigService(source).require({
+  return new RuntimeConfigService(resolvedSource).require({
     platform: {
       isNative: Capacitor.isNativePlatform(),
       platform: Capacitor.isNativePlatform()
@@ -44,7 +68,7 @@ export function createMobileRuntimeConfig(
     webOrigin:
       typeof window !== "undefined" && window.location.origin
         ? window.location.origin
-        : "http://localhost:4310",
+    : "http://localhost:4310",
   });
 }
 

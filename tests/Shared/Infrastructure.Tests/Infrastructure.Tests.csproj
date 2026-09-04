@@ -22,5 +22,7 @@
     <ProjectReference Include="..\..\..\src\Shared\Authorization\His.Hope.Authorization\His.Hope.Authorization.csproj" />
     <ProjectReference Include="..\..\..\src\Shared\Secrets\His.Hope.Secrets\His.Hope.Secrets.csproj" />
     <ProjectReference Include="..\..\..\src\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
+    <ProjectReference Include="..\..\..\src\Shared\Messaging\His.Hope.Messaging.Sql\His.Hope.Messaging.Sql.csproj" />
+    <ProjectReference Include="..\..\..\src\Shared\Messaging\His.Hope.Messaging.Redis\His.Hope.Messaging.Redis.csproj" />
   </ItemGroup>
 </Project>

@@ -155,6 +155,7 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddHisHopeDatabasePerformance(builder.Configuration);
         builder.Services.AddHisHopeMigrationRunner<IdentityDbContext>();
         builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
+        builder.Services.AddScoped<IOidcConsentService, OidcConsentService>();
 
         builder.Services.AddHisHopeServicePlatform(builder.Configuration, "identity-service");
 
@@ -540,6 +541,8 @@ public static class IdentityServiceRegistrationExtensions
             builder.Services.AddHostedService<AdminJobWorker>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<SupportElevationExpiryWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<AccessReviewExpiryWorker>();
 
         // SECURITY: Binds tokens to (user_id, ip_hash, client_id) to prevent cross-IP replay attacks
         builder.Services.AddSingleton<TokenBindingService>();
@@ -759,15 +762,19 @@ public static class IdentityServiceRegistrationExtensions
             });
 
         // PHI Audit with durable background processing (HIPAA 164.312(b))
-        // Audit events must not be discarded under load. The worker drains an
-        // unbounded in-process queue to the durable database; shutdown drains
-        // remaining entries before completing.
-        var auditChannel = System.Threading.Channels.Channel.CreateUnbounded<His.Hope.Infrastructure.Audit.PhiAuditEntry>(
-            new System.Threading.Channels.UnboundedChannelOptions
+        // Audit events must not be discarded under load. A bounded queue applies
+        // backpressure instead of allowing an outage to exhaust process memory.
+        var auditCapacity = Math.Clamp(
+            builder.Configuration.GetValue("Audit:ChannelCapacity", 10_000),
+            100,
+            1_000_000);
+        var auditChannel = System.Threading.Channels.Channel.CreateBounded<His.Hope.Infrastructure.Audit.PhiAuditEntry>(
+            new System.Threading.Channels.BoundedChannelOptions(auditCapacity)
             {
                 SingleReader = true,
                 SingleWriter = false,
-                AllowSynchronousContinuations = false
+                AllowSynchronousContinuations = false,
+                FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait
             });
         builder.Services.AddSingleton(auditChannel);
 

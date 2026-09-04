@@ -16,7 +16,7 @@ import { ChangeDetectionStrategy, Component, input, output } from "@angular/core
     </header>
     @if (mobile() && open()) { <button class="hh-shell__backdrop" type="button" [attr.aria-label]="closeLabel()" (click)="navigationToggle.emit()"></button> }
     <div class="hh-shell__body">
-      <aside class="hh-shell__sidebar" [class.hh-shell__sidebar--open]="open()" [class.hh-shell__sidebar--mobile]="mobile()" [attr.aria-hidden]="mobile() && !open()">
+      <aside class="hh-shell__sidebar" [class.hh-shell__sidebar--open]="open()" [class.hh-shell__sidebar--mobile]="mobile()" [attr.aria-hidden]="mobile() && !open()" [attr.inert]="mobile() && !open() ? '' : null">
         <ng-content select="[hhShellNavigation]" />
       </aside>
       <main class="hh-shell__content"><ng-content select="[hhShellContent]" /></main>

@@ -1,4 +1,5 @@
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Contracts.Messaging;
 using His.Hope.Infrastructure.Messaging;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
@@ -81,6 +82,7 @@ public sealed class ManufacturingOutboxDispatcher(
             properties.Persistent = true;
             properties.ContentType = "application/json";
             properties.Type = message.Type;
+            properties.Headers = IntegrationEventTransportHeaders.Create(message.Type, message.Content);
             channel.BasicPublish(Exchange, message.Type, properties, System.Text.Encoding.UTF8.GetBytes(message.Content));
 
             message.Status = ManufacturingStatusCodes.Completed;

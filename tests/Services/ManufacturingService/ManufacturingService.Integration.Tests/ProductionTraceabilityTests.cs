@@ -46,7 +46,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     {
         const string tenant = "tenant-enterprise-lot";
         var store = new PostgresManufacturingStore(dbFactory);
-        var lot = store.CreateLot(new CreateLotRequest(
+        var lot = await store.CreateLotAsync(new CreateLotRequest(
             tenant, "RM-MANGO", 120, "kg", "Quarantined", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
             LotCode: "LOT-ENTERPRISE-001", LotType: "RawMaterial", OriginCountryCode: "VN",
             ManufacturedOn: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)), FacilityCode: "FAC-HCM",
@@ -57,7 +57,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         lot.LotType.Should().Be("RawMaterial");
         lot.QualityStatus.Should().Be("Pending");
 
-        var released = store.SetLotDisposition(lot.Id, "Released", tenant, "qa-approver", "incoming_qc_pass", "coa://enterprise/001");
+        var released = await store.SetLotDispositionAsync(lot.Id, "Released", tenant, "qa-approver", "incoming_qc_pass", "coa://enterprise/001");
         released.Error.Should().BeNull();
 
         var history = store.GetLotStatusHistory(lot.Id, tenant, 10);
@@ -115,18 +115,18 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         }
 
         var store = new PostgresManufacturingStore(dbFactory);
-        var created = store.CreateDeviation(batchId, tenant,
+        var created = await store.CreateDeviationAsync(batchId, tenant,
             new CreateDeviationRequest("ingredient-substitution", "Use supplier lot B", "May change moisture profile", "operator-1"));
         created.Error.Should().BeNull();
         created.Deviation!.Status.Should().Be("Requested");
 
-        var selfApproval = store.ChangeDeviationStatus(created.Deviation.Id, tenant, "Approved", new DeviationActionRequest("operator-1"));
+        var selfApproval = await store.ChangeDeviationStatusAsync(created.Deviation.Id, tenant, "Approved", new DeviationActionRequest("operator-1"));
         selfApproval.Error.Should().Be("author_cannot_approve_own_deviation");
 
-        var approved = store.ChangeDeviationStatus(created.Deviation.Id, tenant, "Approved", new DeviationActionRequest("qa-1", "QA accepted equivalent material"));
+        var approved = await store.ChangeDeviationStatusAsync(created.Deviation.Id, tenant, "Approved", new DeviationActionRequest("qa-1", "QA accepted equivalent material"));
         approved.Error.Should().BeNull();
         approved.Deviation!.ApprovedBy.Should().Be("qa-1");
-        var closed = store.ChangeDeviationStatus(created.Deviation.Id, tenant, "Closed", new DeviationActionRequest("supervisor-1", "Applied and verified"));
+        var closed = await store.ChangeDeviationStatusAsync(created.Deviation.Id, tenant, "Closed", new DeviationActionRequest("supervisor-1", "Applied and verified"));
         closed.Error.Should().BeNull();
         closed.Deviation!.Status.Should().Be("Closed");
 
@@ -134,7 +134,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         (await verify.Deviations.SingleAsync(x => x.Id == created.Deviation.Id)).Status.Should().Be("Closed");
         (await verify.OutboxMessages.CountAsync(x => x.Content.Contains(created.Deviation.Id.ToString()) && x.Type.StartsWith("Manufacturing.Deviation"))).Should().Be(3);
 
-        var history = store.GetDeviationStatusHistory(tenant, created.Deviation.Id);
+        var history = await store.GetDeviationStatusHistoryAsync(tenant, created.Deviation.Id);
         history.Should().HaveCount(3);
         history[0].ToStatus.Should().Be("Requested");
         history[0].Actor.Should().Be("operator-1");
@@ -168,10 +168,10 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         }
 
         var productionStore = new ManufacturingProductionStore(dbFactory);
-        var created = productionStore.CreateBatch(tenant, new CreateProductionBatchRequest(orderId, "B-HIST-001", 100, null, null));
+        var created = await productionStore.CreateBatchAsync(tenant, new CreateProductionBatchRequest(orderId, "B-HIST-001", 100, null, null));
         created.Error.Should().BeNull();
 
-        var started = productionStore.ChangeBatchStatus(tenant, created.Batch!.Id, "Started");
+        var started = await productionStore.ChangeBatchStatusAsync(tenant, created.Batch!.Id, "Started");
         started.Error.Should().BeNull();
 
         var history = productionStore.GetBatchStatusHistory(tenant, created.Batch.Id);
@@ -254,7 +254,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         }
 
         var procurementStore = new ManufacturingProcurementStore(dbFactory);
-        var legacyStore = new PostgresManufacturingStore(dbFactory);
+        var workflowStore = new ManufacturingCrossEntityWorkflowStore(dbFactory);
 
         var created = procurementStore.CreatePurchaseOrder(new CreatePurchaseOrderRequest(
             tenant, supplierId, "PO-XWF-001", "VND",
@@ -285,7 +285,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        var trace = legacyStore.GetCrossEntityWorkflow(tenant, "purchase-order", created.Order.Id);
+        var trace = workflowStore.GetCrossEntityWorkflow(tenant, "purchase-order", created.Order.Id);
         trace.Should().NotBeNull();
         trace!.Steps.Should().Contain(x => x.EntityType == "purchase-order");
         trace.Steps.Should().Contain(x => x.EntityType == "lot");
@@ -297,22 +297,22 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     {
         const string tenant = "tenant-product-spec";
         var store = new PostgresManufacturingStore(dbFactory);
-        var invalid = store.CreateProductSpecification(new CreateProductSpecificationRequest(tenant, "FG-SPEC", 101, "Pouch", 180, "Moisture <= 12%"));
+        var invalid = await store.CreateProductSpecificationAsync(new CreateProductSpecificationRequest(tenant, "FG-SPEC", 101, "Pouch", 180, "Moisture <= 12%"));
         invalid.Error.Should().Be("invalid_product_specification");
 
-        var created = store.CreateProductSpecification(new CreateProductSpecificationRequest(tenant, "FG-SPEC", 12, "Pouch", 180, "Moisture <= 12%"));
+        var created = await store.CreateProductSpecificationAsync(new CreateProductSpecificationRequest(tenant, "FG-SPEC", 12, "Pouch", 180, "Moisture <= 12%"));
         created.Error.Should().BeNull();
         created.Specification!.Status.Should().Be("Draft");
-        store.ChangeProductSpecificationLifecycle(created.Specification.Id, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-1")).Error.Should().BeNull();
+        (await store.ChangeProductSpecificationLifecycleAsync(created.Specification.Id, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-1"))).Error.Should().BeNull();
 
-        var second = store.CreateProductSpecification(new CreateProductSpecificationRequest(tenant, "FG-SPEC", 10, "Pouch", 180, "Moisture <= 10%"));
+        var second = await store.CreateProductSpecificationAsync(new CreateProductSpecificationRequest(tenant, "FG-SPEC", 10, "Pouch", 180, "Moisture <= 10%"));
         second.Error.Should().BeNull();
-        var duplicateApproval = store.ChangeProductSpecificationLifecycle(second.Specification!.Id, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-2"));
+        var duplicateApproval = await store.ChangeProductSpecificationLifecycleAsync(second.Specification!.Id, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-2"));
         duplicateApproval.Error.Should().Be("active_product_specification_exists");
 
-        var retired = store.ChangeProductSpecificationLifecycle(created.Specification.Id, tenant, "Retired", new ProductSpecificationLifecycleRequest("qa-1"));
+        var retired = await store.ChangeProductSpecificationLifecycleAsync(created.Specification.Id, tenant, "Retired", new ProductSpecificationLifecycleRequest("qa-1"));
         retired.Error.Should().BeNull();
-        store.ChangeProductSpecificationLifecycle(second.Specification.Id, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-2")).Error.Should().BeNull();
+        (await store.ChangeProductSpecificationLifecycleAsync(second.Specification.Id, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-2"))).Error.Should().BeNull();
 
         await using var verify = await dbFactory.CreateDbContextAsync();
         (await verify.ProductSpecifications.CountAsync(x => x.TenantKey == tenant)).Should().Be(2);
@@ -324,7 +324,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     {
         const string tenant = "tenant-recipe-spec";
         var store = new PostgresManufacturingStore(dbFactory);
-        var draft = store.CreateProductSpecification(new CreateProductSpecificationRequest(tenant, "FG-TRACE", 12, "Pouch", 180, "Moisture <= 12%"));
+        var draft = await store.CreateProductSpecificationAsync(new CreateProductSpecificationRequest(tenant, "FG-TRACE", 12, "Pouch", 180, "Moisture <= 12%"));
         draft.Error.Should().BeNull();
         var specificationId = draft.Specification!.Id;
 
@@ -333,7 +333,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
             [new RecipeComponentRequest("RM-MANGO", 2, "kg")], ProductSpecificationId: specificationId));
         createWithDraft.Should().Throw<InvalidOperationException>().WithMessage("invalid_product_specification");
 
-        store.ChangeProductSpecificationLifecycle(specificationId, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-1")).Error.Should().BeNull();
+        (await store.ChangeProductSpecificationLifecycleAsync(specificationId, tenant, "Approved", new ProductSpecificationLifecycleRequest("qa-1"))).Error.Should().BeNull();
         var recipe = store.CreateRecipe(new CreateRecipeRequest(
             tenant, "FG-TRACE", 1, "drying", "kg", 85,
             [new RecipeComponentRequest("RM-MANGO", 2, "kg")], ProductSpecificationId: specificationId));
@@ -367,10 +367,10 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
 
         var store = new PostgresManufacturingStore(dbFactory);
         var request = new CreateSalesForecastRequest("FG-FORECAST", new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), 10, "kg", "Sales", "planner-1", 1);
-        var forecast = store.CreateSalesForecast(tenant, request);
+        var forecast = await store.CreateSalesForecastAsync(tenant, request);
         forecast.Version.Should().Be(1);
-        Action duplicate = () => store.CreateSalesForecast(tenant, request);
-        duplicate.Should().Throw<InvalidOperationException>().WithMessage("forecast_version_exists");
+        Func<Task> duplicate = () => store.CreateSalesForecastAsync(tenant, request);
+        await duplicate.Should().ThrowAsync<InvalidOperationException>().WithMessage("forecast_version_exists");
 
         var projection = store.GetSalesForecastMaterialRequirements(tenant, forecast.Id);
         projection.Error.Should().BeNull();
@@ -405,14 +405,14 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         }
 
         var production = new ManufacturingProductionStore(dbFactory);
-        var orderResult = production.CreateOrder(tenant, new CreateProductionOrderRequest("PO-INT-001", "FG-MANGO", recipeId, 48, "kg"));
+        var orderResult = await production.CreateOrderAsync(tenant, new CreateProductionOrderRequest("PO-INT-001", "FG-MANGO", recipeId, 48, "kg"));
         orderResult.Error.Should().BeNull();
         orderResult.Order.Should().NotBeNull();
         var order = orderResult.Order!;
-        production.ReleaseOrder(tenant, order.Id).Error.Should().BeNull();
+        (await production.ReleaseOrderAsync(tenant, order.Id)).Error.Should().BeNull();
 
         var reservations = new ManufacturingReservationStore(dbFactory);
-        var reservationResult = reservations.Reserve(tenant, lotId, new CreateLotReservationRequest("ProductionOrder", order.Id, 60));
+        var reservationResult = await reservations.ReserveAsync(tenant, lotId, new CreateLotReservationRequest("ProductionOrder", order.Id, 60));
         reservationResult.Error.Should().BeNull();
         reservationResult.Reservation.Should().NotBeNull();
         var reservation = reservationResult.Reservation!;
@@ -422,26 +422,26 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         availability.ReservedQuantity.Should().Be(60);
         availability.AvailableToPromiseQuantity.Should().Be(40);
 
-        var batchResult = production.CreateBatch(tenant, new CreateProductionBatchRequest(
+        var batchResult = await production.CreateBatchAsync(tenant, new CreateProductionBatchRequest(
             order.Id, "BATCH-INT-001", 48, null,
             [new ProductionInputRequest(lotId, reservation.Id, 60)]));
         batchResult.Error.Should().BeNull();
         batchResult.Batch.Should().NotBeNull();
         var batch = batchResult.Batch!;
 
-        production.ChangeBatchStatus(tenant, batch.Id, "Started").Error.Should().BeNull();
-        production.RecordOperation(tenant, batch.Id, new RecordOperationRequest(1, "drying", "operator-1", 60, 48, true, "Pass")).Error.Should().BeNull();
-        var blockedCompletion = production.ChangeBatchStatus(tenant, batch.Id, "Completed");
+        (await production.ChangeBatchStatusAsync(tenant, batch.Id, "Started")).Error.Should().BeNull();
+        (await production.RecordOperationAsync(tenant, batch.Id, new RecordOperationRequest(1, "drying", "operator-1", 60, 48, true, "Pass"))).Error.Should().BeNull();
+        var blockedCompletion = await production.ChangeBatchStatusAsync(tenant, batch.Id, "Completed");
         blockedCompletion.Error.Should().Be("loss_review_required");
         blockedCompletion.Batch.Should().BeNull();
         await using (var pending = await dbFactory.CreateDbContextAsync())
         {
             var operation = await pending.OperationExecutions.SingleAsync(x => x.ProductionBatchId == batch.Id);
-            var review = new PostgresManufacturingStore(dbFactory).ReviewLoss(tenant, batch.Id, operation.Id, new LossReviewRequest("Approved", "supervisor-1", "Expected moisture loss"));
+            var review = await new PostgresManufacturingStore(dbFactory).ReviewLossAsync(tenant, batch.Id, operation.Id, new LossReviewRequest("Approved", "supervisor-1", "Expected moisture loss"));
             review.Error.Should().BeNull();
             review.Review!.Decision.Should().Be("Approved");
         }
-        var completed = production.ChangeBatchStatus(tenant, batch.Id, "Completed");
+        var completed = await production.ChangeBatchStatusAsync(tenant, batch.Id, "Completed");
         completed.Error.Should().BeNull();
         completed.Batch!.OutputLotId.Should().NotBeNull();
         completed.Batch.Inputs.Should().ContainSingle(x => x.LotId == lotId && x.ReservationId == reservation.Id && x.Quantity == 60);
@@ -479,16 +479,16 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         }
 
         var reservations = new ManufacturingReservationStore(dbFactory);
-        var reservationResult = reservations.Reserve(tenant, lotId,
+        var reservationResult = await reservations.ReserveAsync(tenant, lotId,
             new CreateLotReservationRequest("SalesOrder", Guid.NewGuid(), 30));
         reservationResult.Error.Should().BeNull();
         var reservationId = reservationResult.Reservation!.Id;
 
         var store = new PostgresManufacturingStore(dbFactory);
-        var held = store.SetLotDisposition(lotId, "Hold", tenant);
+        var held = await store.SetLotDispositionAsync(lotId, "Hold", tenant);
         held.Error.Should().BeNull();
         held.Lot!.Disposition.Should().Be("Hold");
-        store.SetLotDisposition(lotId, "Hold", tenant).Error.Should().BeNull();
+        (await store.SetLotDispositionAsync(lotId, "Hold", tenant)).Error.Should().BeNull();
 
         var availability = store.GetAvailability(tenant, "FG-HOLD");
         availability.ReleasedQuantity.Should().Be(0);
@@ -507,17 +507,17 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     {
         const string tenant = "tenant-maintenance";
         var store = new PostgresManufacturingStore(dbFactory);
-        var machine = store.CreateMachine(new CreateMachineRequest(tenant, "DRY-01", "Dryer 01"));
+        var machine = await store.CreateMachineAsync(new CreateMachineRequest(tenant, "DRY-01", "Dryer 01"));
 
-        var opened = store.CreateDowntime(machine.Id, new CreateDowntimeRequest("Unplanned vibration", DateTimeOffset.UtcNow.AddMinutes(-5)), tenant);
+        var opened = await store.CreateDowntimeAsync(machine.Id, new CreateDowntimeRequest("Unplanned vibration", DateTimeOffset.UtcNow.AddMinutes(-5)), tenant);
         opened.Error.Should().BeNull();
         opened.Downtime!.Status.Should().Be("Open");
 
-        store.CreateDowntime(machine.Id, new CreateDowntimeRequest("duplicate", DateTimeOffset.UtcNow.AddMinutes(-1)), tenant)
+        (await store.CreateDowntimeAsync(machine.Id, new CreateDowntimeRequest("duplicate", DateTimeOffset.UtcNow.AddMinutes(-1)), tenant))
             .Error.Should().Be("machine_downtime_open");
         store.GetMachines(tenant, null, 10).Single().Status.Should().Be("Maintenance");
 
-        var closed = store.ResolveDowntime(machine.Id, opened.Downtime.Id, new ResolveDowntimeRequest(DateTimeOffset.UtcNow), tenant);
+        var closed = await store.ResolveDowntimeAsync(machine.Id, opened.Downtime.Id, new ResolveDowntimeRequest(DateTimeOffset.UtcNow), tenant);
         closed.Error.Should().BeNull();
         closed.Downtime!.Status.Should().Be("Closed");
         store.GetMachines(tenant, null, 10).Single().Status.Should().Be("Available");
@@ -532,18 +532,23 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     {
         const string tenant = "tenant-pm";
         var store = new PostgresManufacturingStore(dbFactory);
-        var machine = store.CreateMachine(new CreateMachineRequest(tenant, "OV-01", "Oven 01", "Maintenance"));
+        var machine = await store.CreateMachineAsync(new CreateMachineRequest(tenant, "OV-01", "Oven 01", "Maintenance"));
         var dueAt = DateTimeOffset.UtcNow.AddDays(1);
 
-        var created = store.CreateMaintenanceWorkOrder(machine.Id,
+        var serviced = await store.RecordMaintenanceAsync(machine.Id,
+            new RecordMaintenanceRequest(DateTimeOffset.UtcNow, dueAt), tenant);
+        serviced.Error.Should().BeNull();
+        serviced.Machine!.Status.Should().Be("Available");
+
+        var created = await store.CreateMaintenanceWorkOrderAsync(machine.Id,
             new CreateMaintenanceWorkOrderRequest(dueAt, "Preventive", "tech-1", "Inspect belts"), tenant);
         created.Error.Should().BeNull();
         created.WorkOrder!.Status.Should().Be("Open");
-        store.CreateMaintenanceWorkOrder(machine.Id, new CreateMaintenanceWorkOrderRequest(dueAt), tenant)
+        (await store.CreateMaintenanceWorkOrderAsync(machine.Id, new CreateMaintenanceWorkOrderRequest(dueAt), tenant))
             .Error.Should().Be("maintenance_work_order_open");
 
         var nextService = dueAt.AddDays(30);
-        var completed = store.CompleteMaintenanceWorkOrder(machine.Id, created.WorkOrder.Id,
+        var completed = await store.CompleteMaintenanceWorkOrderAsync(machine.Id, created.WorkOrder.Id,
             new CompleteMaintenanceWorkOrderRequest("tech-1", DateTimeOffset.UtcNow, nextService, "photo://pm-1"), tenant);
         completed.Error.Should().BeNull();
         completed.WorkOrder!.Status.Should().Be("Completed");
@@ -561,7 +566,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         const string tenant = "tenant-pm-planner";
         var asOf = DateTimeOffset.UtcNow;
         var store = new PostgresManufacturingStore(dbFactory);
-        var machine = store.CreateMachine(new CreateMachineRequest(tenant, "PM-01", "Planner Dryer", "Available", null, asOf.AddMinutes(-1)));
+        var machine = await store.CreateMachineAsync(new CreateMachineRequest(tenant, "PM-01", "Planner Dryer", "Available", null, asOf.AddMinutes(-1)));
 
         var first = store.GenerateDueMaintenanceWorkOrders(tenant, asOf);
         first.Should().ContainSingle(x => x.MachineId == machine.Id && x.Status == "Open");
@@ -578,30 +583,30 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     {
         const string tenant = "tenant-telemetry";
         var store = new PostgresManufacturingStore(dbFactory);
-        var machine = store.CreateMachine(new CreateMachineRequest(tenant, "TEL-01", "Telemetry Dryer"));
+        var machine = await store.CreateMachineAsync(new CreateMachineRequest(tenant, "TEL-01", "Telemetry Dryer"));
         var observedAt = DateTimeOffset.UtcNow.AddMinutes(-2);
         var eventId = Guid.NewGuid();
         var request = new RecordMachineTelemetryRequest(eventId, observedAt, "opcua", "Running", "temperature_c", 72.5m, 20);
 
-        var first = store.RecordMachineTelemetry(machine.Id, request, tenant);
+        var first = await store.RecordMachineTelemetryAsync(machine.Id, request, tenant);
         first.Error.Should().BeNull();
         first.Duplicate.Should().BeFalse();
-        var duplicate = store.RecordMachineTelemetry(machine.Id, request with { MeterValue = 73m }, tenant);
+        var duplicate = await store.RecordMachineTelemetryAsync(machine.Id, request with { MeterValue = 73m }, tenant);
         duplicate.Error.Should().BeNull();
         duplicate.Duplicate.Should().BeTrue();
         duplicate.Telemetry!.MeterValue.Should().Be(72.5m);
 
-        var older = store.RecordMachineTelemetry(machine.Id,
+        var older = await store.RecordMachineTelemetryAsync(machine.Id,
             new RecordMachineTelemetryRequest(Guid.NewGuid(), observedAt.AddMinutes(-10), "opcua", "Stopped", "temperature_c", 10m, 19), tenant);
         older.Error.Should().BeNull();
         store.GetMachines(tenant, null, 10).Single().Status.Should().Be("Available");
         store.GetMachineTelemetry(machine.Id, tenant, 10).Should().HaveCount(2);
 
-        var fault = store.RecordMachineTelemetry(machine.Id,
+        var fault = await store.RecordMachineTelemetryAsync(machine.Id,
             new RecordMachineTelemetryRequest(Guid.NewGuid(), observedAt.AddMinutes(1), "opcua", "Fault", "temperature_c", 99m, 21), tenant);
         fault.Error.Should().BeNull();
         store.GetExecutiveExceptions(tenant, 7, 4).Should().Contain(x => x.Code == "machine_telemetry_fault" && x.EntityId == machine.Id);
-        var recovered = store.RecordMachineTelemetry(machine.Id,
+        var recovered = await store.RecordMachineTelemetryAsync(machine.Id,
             new RecordMachineTelemetryRequest(Guid.NewGuid(), observedAt.AddMinutes(2), "opcua", "Running", "temperature_c", 70m, 22), tenant);
         recovered.Error.Should().BeNull();
         store.GetExecutiveExceptions(tenant, 7, 4).Should().NotContain(x => x.Code == "machine_telemetry_fault" && x.EntityId == machine.Id);
@@ -629,7 +634,7 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
         approved.Error.Should().BeNull();
         approved.Recipe!.Status.Should().Be("Approved");
         approved.Recipe.Active.Should().BeTrue();
-        var order = new ManufacturingProductionStore(dbFactory).CreateOrder(tenant,
+        var order = await new ManufacturingProductionStore(dbFactory).CreateOrderAsync(tenant,
             new CreateProductionOrderRequest("PO-REQ-001", "FG-RECIPE", recipe.Id, 48, "kg"));
         order.Error.Should().BeNull();
         var requirements = store.GetMaterialRequirements(tenant, order.Order!.Id);
@@ -641,11 +646,11 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     }
 
     [Fact]
-    public void ExecutiveExceptionsExposeHeldLotsAndPendingRecipeApproval()
+    public async Task ExecutiveExceptionsExposeHeldLotsAndPendingRecipeApproval()
     {
         const string tenant = "tenant-executive";
         var store = new PostgresManufacturingStore(dbFactory);
-        store.CreateLot(new CreateLotRequest(tenant, "FG-HELD", 20, "kg", "Hold"));
+        await store.CreateLotAsync(new CreateLotRequest(tenant, "FG-HELD", 20, "kg", "Hold"));
         store.CreateRecipe(new CreateRecipeRequest(tenant, "FG-APPROVAL", 1, "drying", "kg", 85,
             [new RecipeComponentRequest("RM-APPROVAL", 1, "kg")], true, "Submitted"));
 
@@ -659,17 +664,17 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     {
         const string tenant = "tenant-sales";
         var store = new PostgresManufacturingStore(dbFactory);
-        var first = store.CreateLot(new CreateLotRequest(tenant, "FG-SALES", 30, "kg", "Released", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2))));
-        var second = store.CreateLot(new CreateLotRequest(tenant, "FG-SALES", 40, "kg", "Released", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10))));
+        var first = await store.CreateLotAsync(new CreateLotRequest(tenant, "FG-SALES", 30, "kg", "Released", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2))));
+        var second = await store.CreateLotAsync(new CreateLotRequest(tenant, "FG-SALES", 40, "kg", "Released", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10))));
         var sales = new ManufacturingReservationStore(dbFactory);
-        var allocation = sales.AllocateSales(tenant, "FG-SALES", new CreateSalesAllocationRequest(Guid.NewGuid(), 50));
+        var allocation = await sales.AllocateSalesAsync(tenant, "FG-SALES", new CreateSalesAllocationRequest(Guid.NewGuid(), 50));
         allocation.Error.Should().BeNull();
         allocation.Allocation.AllocatedQuantity.Should().Be(50);
         allocation.Allocation.Reservations.Should().HaveCount(2);
         allocation.Allocation.Reservations[0].LotId.Should().Be(first.Id);
         allocation.Allocation.Reservations[1].LotId.Should().Be(second.Id);
 
-        var shortage = sales.AllocateSales(tenant, "FG-SALES", new CreateSalesAllocationRequest(Guid.NewGuid(), 100));
+        var shortage = await sales.AllocateSalesAsync(tenant, "FG-SALES", new CreateSalesAllocationRequest(Guid.NewGuid(), 100));
         shortage.Error.Should().Be("insufficient_atp");
         shortage.Allocation.ShortageQuantity.Should().Be(100);
         await using var verify = await dbFactory.CreateDbContextAsync();

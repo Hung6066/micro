@@ -1,14 +1,18 @@
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Saga;
+using His.Hope.Contracts.Messaging;
 using His.Hope.Infrastructure.Messaging;
+using His.Hope.Messaging;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 
 namespace His.Hope.IdentityService.Infrastructure.Provisioning;
 
@@ -89,26 +93,75 @@ public sealed class TenantProvisioningConsumer(IServiceScopeFactory scopeFactory
 
     private async Task ConsumeAsync(CancellationToken ct)
     {
-        var factory = new ConnectionFactory { HostName = configuration["EventBus:HostName"] ?? "rabbitmq", Port = configuration.GetValue("EventBus:Port", 5672), UserName = configuration["EventBus:UserName"] ?? "admin", Password = EventBusSecurity.GetPassword(configuration) };
+        var factory = new ConnectionFactory
+        {
+            HostName = configuration["EventBus:HostName"] ?? "rabbitmq",
+            Port = configuration.GetValue("EventBus:Port", 5672),
+            UserName = configuration["EventBus:UserName"] ?? "admin",
+            Password = EventBusSecurity.GetPassword(configuration),
+            DispatchConsumersAsync = true
+        };
         using var connection = factory.CreateConnection();
+        const string queue = "identity.tenant-provisioning.v1";
+        const string deadLetterRoutingKey = "dlq.identity.tenant-provisioning.v1";
         using var channel = connection.CreateModel();
         channel.ExchangeDeclare(SagaMessagingContract.IdentityExchange, ExchangeType.Topic, true, false);
-        channel.QueueDeclare("identity.tenant-provisioning.v1", true, false, false);
-        channel.QueueBind("identity.tenant-provisioning.v1", SagaMessagingContract.IdentityExchange, SagaMessagingContract.TenantProvisioningRequested);
-        var consumer = new EventingBasicConsumer(channel);
+        channel.ExchangeDeclare(HisHopeProtocolConstants.Messaging.DeadLetterExchange, ExchangeType.Topic, true, false);
+        var queueExists = true;
+        try
+        {
+            channel.QueueDeclarePassive(queue);
+        }
+        catch (OperationInterruptedException)
+        {
+            queueExists = false;
+        }
+
+        if (queueExists)
+            channel.QueueDeclare(queue, true, false, false);
+        else
+            channel.QueueDeclare(
+                queue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object>
+                {
+                    ["x-dead-letter-exchange"] = HisHopeProtocolConstants.Messaging.DeadLetterExchange,
+                    ["x-dead-letter-routing-key"] = deadLetterRoutingKey
+                });
+        channel.QueueBind(queue, SagaMessagingContract.IdentityExchange, SagaMessagingContract.TenantProvisioningRequested);
+        channel.BasicQos(0, 10, false);
+        var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.Received += async (_, args) =>
         {
+            await Task.Yield();
+            InboxDeliveryGuard? delivery = null;
             try
             {
                 var request = JsonSerializer.Deserialize<TenantProvisioningRequestedV1>(args.Body.Span)
                     ?? throw new InvalidOperationException("tenant_provisioning_payload_invalid");
                 using var scope = scopeFactory.CreateScope();
+                delivery = await InboxDeliveryGuard.TryBeginAsync(
+                    scope.ServiceProvider.GetRequiredService<IInboxStore>(), request.EventId,
+                    queue, ct);
+                if (delivery is null)
+                {
+                    channel.BasicAck(args.DeliveryTag, false);
+                    return;
+                }
                 await scope.ServiceProvider.GetRequiredService<TenantProvisioningWorkflow>().ProvisionAsync(request, ct);
+                await delivery.CompleteAsync(ct);
                 channel.BasicAck(args.DeliveryTag, false);
             }
-            catch { channel.BasicNack(args.DeliveryTag, false, false); }
+            catch
+            {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
+                channel.BasicNack(args.DeliveryTag, false, false);
+            }
         };
-        channel.BasicConsume("identity.tenant-provisioning.v1", false, consumer);
+        channel.BasicConsume(queue, false, consumer);
         await Task.Delay(Timeout.InfiniteTimeSpan, ct);
     }
 
@@ -138,6 +191,7 @@ public sealed class TenantProvisioningOutboxDispatcher(IServiceScopeFactory scop
         using var channel = connection.CreateModel();
         channel.ExchangeDeclare(SagaMessagingContract.IdentityExchange, ExchangeType.Topic, true, false);
         var properties = channel.CreateBasicProperties(); properties.Persistent = true; properties.ContentType = "application/json"; properties.Type = message.Type; properties.MessageId = message.Id.ToString();
+        properties.Headers = IntegrationEventTransportHeaders.Create(message.Type, message.Content, audience: "identity");
         channel.BasicPublish(SagaMessagingContract.IdentityExchange, message.Type, properties, Encoding.UTF8.GetBytes(message.Content));
         message.ProcessedOn = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);

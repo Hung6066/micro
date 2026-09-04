@@ -79,6 +79,9 @@ Assert-NoMatchesOutside -Pattern 'IConnectionMultiplexer' -AllowedSuffixes @(
     'src/Services/IdentityService/IdentityService.Api/Endpoints/AccountRecoveryEndpoints.cs',
     'src/Services/IdentityService/IdentityService.Api/Endpoints/AdminIncidentEndpoints.cs',
     'src/Services/IdentityService/IdentityService.Api/Composition/IdentityServiceEndpointExtensions.cs',
+    'src/Services/IdentityService/IdentityService.Api/Endpoints/IdentityAuthenticationEndpoints.cs',
+    'src/Services/IdentityService/IdentityService.Api/Endpoints/IdentitySessionEndpoints.cs',
+    'src/Services/IdentityService/IdentityService.Api/Endpoints/IdentityBffSessionEndpoints.cs',
     'src/Services/IdentityService/IdentityService.Api/Composition/IdentityServicePipelineExtensions.cs',
     'src/Services/IdentityService/IdentityService.Api/Composition/IdentityServiceRegistrationExtensions.cs'
 ) -Boundary 'raw Redis access'

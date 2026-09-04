@@ -41,6 +41,12 @@ public sealed record EventEnvelope(
                 message: "Unsupported event schema version.");
         if (System.Text.Encoding.UTF8.GetByteCount(Payload) > policy.MaximumPayloadBytes)
             throw new ArgumentException("Event payload exceeds the configured limit.");
+        if (Headers is not null &&
+            Headers.TryGetValue(EventEnvelopeHeaders.Priority, out var priority) &&
+            !EventDeliveryPolicy.IsAllowedPriority(priority))
+        {
+            throw new ArgumentException("Event priority is not allowed.");
+        }
         return this;
     }
 }

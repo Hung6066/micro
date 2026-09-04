@@ -133,6 +133,20 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
         db.AuditLogs.Add(log);
         await db.SaveChangesAsync();
 
+        Assert.False(string.IsNullOrWhiteSpace(log.IntegrityHash));
+        Assert.Null(log.PreviousIntegrityHash);
+
+        var second = new His.Hope.IdentityService.Domain.Entities.AuditLog
+        {
+            UserId = "u2", Action = "READ", ResourceType = "Patient",
+            Timestamp = log.Timestamp.AddSeconds(1)
+        };
+        db.AuditLogs.Add(second);
+        await db.SaveChangesAsync();
+        Assert.Equal(log.IntegrityHash, second.PreviousIntegrityHash);
+        Assert.True(His.Hope.IdentityService.Domain.Entities.AuditLogIntegrity
+            .VerifyChain([log, second]));
+
         log.Action = "DELETE";
         await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
     }

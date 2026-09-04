@@ -4,8 +4,9 @@
       "C:\\Program Files\\nodejs\\node.exe",
       "D:\\AI\\micro\\tests\\e2e\\node_modules\\@playwright\\test\\cli.js",
       "test",
-      "--list",
+      "specs/00-sso-smoke.spec.js",
       "--config=playwright.config.mjs",
+      "--project=chromium",
       "--workers=1"
     ],
     "configFile": "D:\\AI\\micro\\tests\\e2e\\playwright.config.mjs",
@@ -65,13 +66,13 @@
   "suites": [],
   "errors": [
     {
-      "message": "Error: No tests found",
-      "stack": "Error: No tests found"
+      "message": "Error: No tests found.\nMake sure that arguments are regular expressions matching test files.\nYou may need to escape symbols like \"$\" or \"*\" and quote the arguments.",
+      "stack": "Error: No tests found.\nMake sure that arguments are regular expressions matching test files.\nYou may need to escape symbols like \"$\" or \"*\" and quote the arguments."
     }
   ],
   "stats": {
-    "startTime": "2026-08-29T04:33:54.966Z",
-    "duration": 17.32100000000014,
+    "startTime": "2026-09-01T03:03:32.926Z",
+    "duration": 47.58699999999999,
     "expected": 0,
     "skipped": 0,
     "unexpected": 0,

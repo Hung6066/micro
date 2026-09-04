@@ -5,13 +5,13 @@ using His.Hope.ManufacturingService.Application;
 
 public sealed class ManufacturingProductionStore(IDbContextFactory<ManufacturingDbContext> dbFactory) : IManufacturingProductionOrderStore
 {
-    public (ProductionOrderDto? Order, string? Error) CreateOrder(string tenantKey, CreateProductionOrderRequest request)
+    public async Task<(ProductionOrderDto? Order, string? Error)> CreateOrderAsync(string tenantKey, CreateProductionOrderRequest request, CancellationToken cancellationToken = default)
     {
         var orderPolicyError = ProductionPolicy.ValidateOrder(new ProductionOrderValidationInput(request.OrderNumber, request.ProductSku, request.RecipeId, request.TargetQuantity, request.OutputUom));
         if (orderPolicyError is not null) return (null, orderPolicyError);
-        using var db = dbFactory.CreateDbContext();
-        if (db.ProductionOrders.Any(x => x.TenantKey == tenantKey && x.OrderNumber == request.OrderNumber.Trim())) return (null, ManufacturingErrorCodes.ProductionOrderExists);
-        var recipe = db.Recipes.SingleOrDefault(x => x.Id == request.RecipeId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        if (await db.ProductionOrders.AnyAsync(x => x.TenantKey == tenantKey && x.OrderNumber == request.OrderNumber.Trim(), cancellationToken)) return (null, ManufacturingErrorCodes.ProductionOrderExists);
+        var recipe = await db.Recipes.SingleOrDefaultAsync(x => x.Id == request.RecipeId, cancellationToken);
         if (recipe is null) return (null, ManufacturingErrorCodes.RecipeNotFound);
         if (!recipe.Active || !recipe.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.RecipeUnavailable);
         if (!recipe.ProductSku.Equals(request.ProductSku, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.RecipeProductMismatch);
@@ -22,17 +22,17 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             Status = "Planned", CreatedAt = DateTimeOffset.UtcNow
         };
         db.ProductionOrders.Add(entity);
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity, recipe), null);
     }
 
-    public (ProductionOrderDto? Order, string? Error) ReleaseOrder(string tenantKey, Guid orderId)
+    public async Task<(ProductionOrderDto? Order, string? Error)> ReleaseOrderAsync(string tenantKey, Guid orderId, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext();
-        var entity = db.ProductionOrders.SingleOrDefault(x => x.Id == orderId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.ProductionOrders.SingleOrDefaultAsync(x => x.Id == orderId, cancellationToken);
         if (entity is null) return (null, ManufacturingErrorCodes.ProductionOrderNotFound);
         if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
-        if (entity.Status != "Planned") return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
+        if (entity.Status != "Planned") return (ToDto(entity, await db.Recipes.SingleAsync(x => x.Id == entity.RecipeId, cancellationToken)), null);
         entity.Status = ManufacturingStatusCodes.Released;
         entity.ReleasedAt = DateTimeOffset.UtcNow;
         db.OutboxMessages.Add(new ManufacturingOutboxMessageEntity
@@ -41,16 +41,16 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             Content = JsonSerializer.Serialize(new { eventId = entity.Id, schemaVersion = 1, occurredAt = entity.ReleasedAt, correlationId = entity.Id, facilityId = "default", productionOrderId = entity.Id, tenantKey, productSku = entity.ProductSku, recipeId = entity.RecipeId, recipeVersion = entity.RecipeVersion, targetQuantity = entity.TargetQuantity }),
             OccurredOn = entity.ReleasedAt.Value.UtcDateTime, Status = ManufacturingStatusCodes.Pending
         });
-        db.SaveChanges();
-        return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
+        await db.SaveChangesAsync(cancellationToken);
+        return (ToDto(entity, await db.Recipes.SingleAsync(x => x.Id == entity.RecipeId, cancellationToken)), null);
     }
 
-    public (ProductionOrderDto? Order, string? Error) CancelOrder(string tenantKey, Guid orderId)
+    public async Task<(ProductionOrderDto? Order, string? Error)> CancelOrderAsync(string tenantKey, Guid orderId, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext(); var entity = db.ProductionOrders.SingleOrDefault(x => x.Id == orderId && x.TenantKey == tenantKey);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken); var entity = await db.ProductionOrders.SingleOrDefaultAsync(x => x.Id == orderId && x.TenantKey == tenantKey, cancellationToken);
         if (entity is null) return (null, ManufacturingErrorCodes.ProductionOrderNotFound);
         if (entity.Status is ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Cancelled) return (null, "production_order_not_cancellable");
-        entity.Status = ManufacturingStatusCodes.Cancelled; db.SaveChanges(); return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
+        entity.Status = ManufacturingStatusCodes.Cancelled; await db.SaveChangesAsync(cancellationToken); return (ToDto(entity, await db.Recipes.SingleAsync(x => x.Id == entity.RecipeId, cancellationToken)), null);
     }
 
     public IReadOnlyList<ProductionOrderDto> GetOrders(string tenantKey, string? status, int limit)
@@ -75,16 +75,16 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             .ToList();
     }
 
-    public (ProductionBatchDto? Batch, string? Error) CreateBatch(string tenantKey, CreateProductionBatchRequest request)
+    public async Task<(ProductionBatchDto? Batch, string? Error)> CreateBatchAsync(string tenantKey, CreateProductionBatchRequest request, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext();
-        var order = db.ProductionOrders.SingleOrDefault(x => x.Id == request.ProductionOrderId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var order = await db.ProductionOrders.SingleOrDefaultAsync(x => x.Id == request.ProductionOrderId, cancellationToken);
         if (order is null) return (null, ManufacturingErrorCodes.ProductionOrderNotFound);
         if (!order.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
         var plannedQuantity = request.PlannedQuantity ?? order.TargetQuantity;
         var batchPolicyError = ProductionPolicy.ValidateBatch(new ProductionBatchValidationInput(order.Status, request.BatchNumber, plannedQuantity));
         if (batchPolicyError is not null) return (null, batchPolicyError);
-        if (db.ProductionBatches.Any(x => x.TenantKey == tenantKey && x.BatchNumber == request.BatchNumber.Trim())) return (null, ManufacturingErrorCodes.ProductionBatchExists);
+        if (await db.ProductionBatches.AnyAsync(x => x.TenantKey == tenantKey && x.BatchNumber == request.BatchNumber.Trim(), cancellationToken)) return (null, ManufacturingErrorCodes.ProductionBatchExists);
         var entity = new ManufacturingProductionBatchEntity
         {
             Id = Guid.NewGuid(), TenantKey = tenantKey, ProductionOrderId = order.Id, BatchNumber = request.BatchNumber.Trim(),
@@ -93,7 +93,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         };
         if (entity.MachineId.HasValue)
         {
-            var machine = db.Machines.SingleOrDefault(x => x.Id == entity.MachineId.Value);
+            var machine = await db.Machines.SingleOrDefaultAsync(x => x.Id == entity.MachineId.Value, cancellationToken);
             if (machine is null) return (null, ManufacturingErrorCodes.MachineNotFound);
             if (!machine.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase) || !machine.Active) return (null, ManufacturingErrorCodes.MachineUnavailable);
         }
@@ -102,11 +102,11 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             if (request.Inputs.GroupBy(x => x.LotId).Any(x => x.Count() > 1)) return (null, ManufacturingErrorCodes.InputReservationMismatch);
             foreach (var input in request.Inputs)
             {
-                var lot = db.Lots.SingleOrDefault(x => x.Id == input.LotId);
+                var lot = await db.Lots.SingleOrDefaultAsync(x => x.Id == input.LotId, cancellationToken);
                 if (lot is null) return (null, "input_lot_not_found");
                 if (!lot.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
                 if (!lot.Disposition.Equals(ManufacturingStatusCodes.Released, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.InputLotNotReleased);
-                var reservation = db.LotReservations.SingleOrDefault(x => x.Id == input.ReservationId && x.LotId == input.LotId);
+                var reservation = await db.LotReservations.SingleOrDefaultAsync(x => x.Id == input.ReservationId && x.LotId == input.LotId, cancellationToken);
                 if (reservation is null || !reservation.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.InputReservationMismatch);
                 if (reservation.Status != "Reserved" || input.Quantity > reservation.Quantity) return (null, ManufacturingErrorCodes.InputReservationUnavailable);
             }
@@ -120,7 +120,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             }));
         }
         EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, "", ManufacturingStatusCodes.Created, "system", entity.CreatedAt);
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity, [], request.Inputs?.Select(x => new ManufacturingProductionBatchInputEntity { LotId = x.LotId, ReservationId = x.ReservationId, Quantity = x.Quantity }) ?? []), null);
     }
 
@@ -136,31 +136,32 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         return batches.Select(x => ToDto(x, operations.Where(o => o.ProductionBatchId == x.Id), inputs.Where(i => i.ProductionBatchId == x.Id))).ToList();
     }
 
-    public (ProductionBatchDto? Batch, string? Error) ChangeBatchStatus(string tenantKey, Guid batchId, string targetStatus)
+    public async Task<(ProductionBatchDto? Batch, string? Error)> ChangeBatchStatusAsync(string tenantKey, Guid batchId, string targetStatus, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext();
-        var entity = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await db.ProductionBatches.SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken);
         if (entity is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
         if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
-        var order = db.ProductionOrders.Single(x => x.Id == entity.ProductionOrderId);
+        var order = await db.ProductionOrders.SingleAsync(x => x.Id == entity.ProductionOrderId, cancellationToken);
         var machineAvailable = entity.MachineId is null;
         if (targetStatus == ManufacturingStatusCodes.Started && entity.MachineId is { } machineId)
         {
-            var machine = db.Machines.SingleOrDefault(x => x.Id == machineId);
+            var machine = await db.Machines.SingleOrDefaultAsync(x => x.Id == machineId, cancellationToken);
             machineAvailable = machine is not null && machine.Active && machine.Status.Equals("Available", StringComparison.OrdinalIgnoreCase);
         }
-        var operations = db.OperationExecutions.Where(x => x.ProductionBatchId == batchId).ToList();
+        var operations = await db.OperationExecutions.Where(x => x.ProductionBatchId == batchId).ToListAsync(cancellationToken);
         if (targetStatus == ManufacturingStatusCodes.Completed)
         {
-            var recipe = db.Recipes.SingleOrDefault(x => x.Id == order.RecipeId);
-            var reviewedOperationIds = db.LossReviews
+            var recipe = await db.Recipes.SingleOrDefaultAsync(x => x.Id == order.RecipeId, cancellationToken);
+            var reviewedOperationIds = await db.LossReviews
                 .Where(x => x.TenantKey == tenantKey && x.ProductionBatchId == batchId && x.Decision == ManufacturingStatusCodes.Approved)
                 .Select(x => x.OperationExecutionId)
-                .ToHashSet();
+                .ToListAsync(cancellationToken);
+            var reviewedOperationIdSet = reviewedOperationIds.ToHashSet();
             var hasUnreviewedLoss = recipe is not null && operations.Any(operation =>
                 operation.InputQuantity > 0 &&
                 operation.OutputQuantity / operation.InputQuantity * 100 < recipe.TargetYieldPercent &&
-                !reviewedOperationIds.Contains(operation.Id));
+                !reviewedOperationIdSet.Contains(operation.Id));
             if (hasUnreviewedLoss) return (null, "loss_review_required");
         }
         var transitionError = ProductionPolicy.ValidateTransition(new BatchTransitionValidationInput(
@@ -188,15 +189,15 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                     LotCode = $"LOT-{entity.CompletedAt.Value:yyyyMMdd}-{Guid.NewGuid():N}", LotType = "FinishedGood",
                     QualityStatus = ManufacturingStatusCodes.Pending, CreatedBy = "system", CreatedAt = entity.CompletedAt.Value
                 };
-                var batchInputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList();
-                var inputLots = batchInputs.Count == 0 ? new List<ManufacturingLotEntity>() : db.Lots.Where(x => batchInputs.Select(i => i.LotId).Contains(x.Id)).ToList();
+                var batchInputs = await db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToListAsync(cancellationToken);
+                var inputLots = batchInputs.Count == 0 ? new List<ManufacturingLotEntity>() : await db.Lots.Where(x => batchInputs.Select(i => i.LotId).Contains(x.Id)).ToListAsync(cancellationToken);
                 var reservedInputQuantity = batchInputs.Sum(x => x.Quantity);
                 if (reservedInputQuantity > 0 && entity.ActualOutputQuantity > reservedInputQuantity)
                     return (null, ManufacturingErrorCodes.InputQuantityInsufficient);
                 foreach (var batchInput in batchInputs)
                 {
                     var lot = inputLots.Single(x => x.Id == batchInput.LotId);
-                    var reservation = db.LotReservations.Single(x => x.Id == batchInput.ReservationId);
+                    var reservation = await db.LotReservations.SingleAsync(x => x.Id == batchInput.ReservationId, cancellationToken);
                     if (reservation.Status != "Reserved" || batchInput.Quantity > lot.Quantity) return (null, ManufacturingErrorCodes.InputReservationUnavailable);
                     lot.Quantity -= batchInput.Quantity;
                     reservation.Status = "Consumed";
@@ -251,34 +252,34 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
             OccurredOn = DateTime.UtcNow, Status = ManufacturingStatusCodes.Pending
         });
         EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, previousStatus, targetStatus, "system", DateTimeOffset.UtcNow);
-        db.SaveChanges();
-        return (ToDto(entity, db.OperationExecutions.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToList(), db.ProductionBatchInputs.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToList()), null);
+        await db.SaveChangesAsync(cancellationToken);
+        return (ToDto(entity, await db.OperationExecutions.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToListAsync(cancellationToken), await db.ProductionBatchInputs.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToListAsync(cancellationToken)), null);
     }
 
-    public (ProductionBatchDto? Batch, string? Error) CancelBatch(string tenantKey, Guid batchId)
+    public async Task<(ProductionBatchDto? Batch, string? Error)> CancelBatchAsync(string tenantKey, Guid batchId, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext(); var entity = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId && x.TenantKey == tenantKey);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken); var entity = await db.ProductionBatches.SingleOrDefaultAsync(x => x.Id == batchId && x.TenantKey == tenantKey, cancellationToken);
         if (entity is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
         if (entity.Status is ManufacturingStatusCodes.Completed or ManufacturingStatusCodes.Cancelled) return (null, ManufacturingErrorCodes.ProductionBatchNotCancellable);
         var previousStatus = entity.Status;
         entity.Status = ManufacturingStatusCodes.Cancelled;
         EntityStatusHistoryStore.Append(db, "production-batch", entity.Id, tenantKey, previousStatus, ManufacturingStatusCodes.Cancelled, "system", DateTimeOffset.UtcNow);
-        db.SaveChanges(); var operations = db.OperationExecutions.Where(x => x.ProductionBatchId == entity.Id).ToList(); var inputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList(); return (ToDto(entity, operations, inputs), null);
+        await db.SaveChangesAsync(cancellationToken); var operations = await db.OperationExecutions.Where(x => x.ProductionBatchId == entity.Id).ToListAsync(cancellationToken); var inputs = await db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToListAsync(cancellationToken); return (ToDto(entity, operations, inputs), null);
     }
 
-    public (OperationExecutionDto? Operation, string? Error) RecordOperation(string tenantKey, Guid batchId, RecordOperationRequest request)
+    public async Task<(OperationExecutionDto? Operation, string? Error)> RecordOperationAsync(string tenantKey, Guid batchId, RecordOperationRequest request, CancellationToken cancellationToken = default)
     {
-        using var db = dbFactory.CreateDbContext();
-        var batch = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var batch = await db.ProductionBatches.SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken);
         if (batch is null) return (null, ManufacturingErrorCodes.ProductionBatchNotFound);
         if (!batch.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, ManufacturingErrorCodes.TenantMismatch);
-        var order = db.ProductionOrders.SingleOrDefault(x => x.Id == batch.ProductionOrderId);
-        var recipe = order is null ? null : db.Recipes.SingleOrDefault(x => x.Id == order.RecipeId);
+        var order = await db.ProductionOrders.SingleOrDefaultAsync(x => x.Id == batch.ProductionOrderId, cancellationToken);
+        var recipe = order is null ? null : await db.Recipes.SingleOrDefaultAsync(x => x.Id == order.RecipeId, cancellationToken);
         var operationPolicyError = ProductionPolicy.ValidateOperation(
             new ProductionBatchValidationInput(batch.Status, "batch", batch.PlannedQuantity),
             new OperationMeasurementValidationInput(request.Sequence, request.ProcessStep, request.Operator, request.InputQuantity, request.OutputQuantity, request.QcStatus));
         if (operationPolicyError is not null) return (null, operationPolicyError);
-        if (db.OperationExecutions.Any(x => x.ProductionBatchId == batchId && x.Sequence == request.Sequence)) return (null, ManufacturingErrorCodes.OperationSequenceExists);
+        if (await db.OperationExecutions.AnyAsync(x => x.ProductionBatchId == batchId && x.Sequence == request.Sequence, cancellationToken)) return (null, ManufacturingErrorCodes.OperationSequenceExists);
         var entity = new ManufacturingOperationExecutionEntity
         {
             Id = Guid.NewGuid(), ProductionBatchId = batchId, Sequence = request.Sequence, ProcessStep = request.ProcessStep.Trim(),
@@ -304,7 +305,7 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                 OccurredOn = entity.CompletedAt.Value.UtcDateTime, Status = ManufacturingStatusCodes.Pending
             });
         }
-        db.SaveChanges();
+        await db.SaveChangesAsync(cancellationToken);
         return (ToDto(entity), null);
     }
 

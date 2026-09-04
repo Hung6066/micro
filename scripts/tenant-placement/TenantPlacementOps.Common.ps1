@@ -238,13 +238,40 @@ function Invoke-TenantPlacementEfMigrate {
         }
     }
 
-    & dotnet ef database update `
-        --project $target.InfrastructureProject `
-        --startup-project $target.StartupProject `
-        --context $target.Context `
-        --connection $ConnectionString
-    if ($LASTEXITCODE -ne 0) {
-        throw "dotnet ef database update failed for service '$ServiceName'."
+    $connectionEnvironmentName = switch ($ServiceName) {
+        'manufacturing' { 'ConnectionStrings__ManufacturingDb' }
+        'commerce' { 'ConnectionStrings__CommerceDb' }
+        'content' { 'ConnectionStrings__ContentDb' }
+        default { throw "No default connection environment mapping exists for service '$ServiceName'." }
+    }
+
+    $previousConnectionEnvironmentValue = [Environment]::GetEnvironmentVariable(
+        $connectionEnvironmentName,
+        [EnvironmentVariableTarget]::Process)
+    try {
+        # EF receives --connection for the target database, while the startup
+        # host still needs its named connection during design-time DI creation.
+        # Keep the value process-scoped so it is not persisted or exposed in the
+        # command line, and restore any caller-provided value after migration.
+        [Environment]::SetEnvironmentVariable(
+            $connectionEnvironmentName,
+            $ConnectionString,
+            [EnvironmentVariableTarget]::Process)
+
+        & dotnet ef database update `
+            --project $target.InfrastructureProject `
+            --startup-project $target.StartupProject `
+            --context $target.Context `
+            --connection $ConnectionString
+        if ($LASTEXITCODE -ne 0) {
+            throw "dotnet ef database update failed for service '$ServiceName'."
+        }
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable(
+            $connectionEnvironmentName,
+            $previousConnectionEnvironmentValue,
+            [EnvironmentVariableTarget]::Process)
     }
 
     return [pscustomobject]@{

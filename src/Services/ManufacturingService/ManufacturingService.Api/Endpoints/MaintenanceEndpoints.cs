@@ -25,12 +25,12 @@ internal static class MaintenanceEndpoints
                     return Results.Ok(store.GetMachines(scopedTenant, status, limit ?? HisHopePaginationDefaults.DefaultPageSize, page ?? HisHopePaginationDefaults.FirstPage));
                 });
 
-                api.MapPost("/machines", (CreateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPost("/machines", async (CreateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Status))
                         return ManufacturingProblem(StatusCodes.Status400BadRequest, ManufacturingErrorCodes.InvalidMachine);
                     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
-                    try { return Results.Created("/api/v1/manufacturing/machines", store.CreateMachine(request)); }
+                    try { return Results.Created("/api/v1/manufacturing/machines", await store.CreateMachineAsync(request, context.RequestAborted)); }
                     catch (InvalidOperationException ex) when (ex.Message == "machine_code_exists")
                     { return ManufacturingProblem(StatusCodes.Status409Conflict, ex.Message); }
                 });
@@ -57,11 +57,11 @@ internal static class MaintenanceEndpoints
                     };
                 });
 
-                api.MapPost("/machines/{machineId:guid}/maintenance", (Guid machineId, RecordMaintenanceRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPost("/machines/{machineId:guid}/maintenance", async (Guid machineId, RecordMaintenanceRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.RecordMaintenance(machineId, request, tenantKey);
+                    var result = await store.RecordMaintenanceAsync(machineId, request, tenantKey, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
@@ -77,11 +77,11 @@ internal static class MaintenanceEndpoints
                     return Results.Ok(store.GetMachineTelemetry(machineId, tenantKey, limit ?? 50));
                 });
 
-                api.MapPost("/machines/{machineId:guid}/telemetry", (Guid machineId, RecordMachineTelemetryRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPost("/machines/{machineId:guid}/telemetry", async (Guid machineId, RecordMachineTelemetryRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.RecordMachineTelemetry(machineId, request, tenantKey);
+                    var result = await store.RecordMachineTelemetryAsync(machineId, request, tenantKey, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
@@ -130,11 +130,11 @@ internal static class MaintenanceEndpoints
                     return Results.Ok(store.GenerateDueMaintenanceWorkOrders(tenantKey, asOf));
                 });
 
-                api.MapPost("/machines/{machineId:guid}/maintenance-work-orders", (Guid machineId, CreateMaintenanceWorkOrderRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPost("/machines/{machineId:guid}/maintenance-work-orders", async (Guid machineId, CreateMaintenanceWorkOrderRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.CreateMaintenanceWorkOrder(machineId, request, tenantKey);
+                    var result = await store.CreateMaintenanceWorkOrderAsync(machineId, request, tenantKey, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
@@ -145,11 +145,11 @@ internal static class MaintenanceEndpoints
                     };
                 });
 
-                api.MapPost("/machines/{machineId:guid}/maintenance-work-orders/{workOrderId:guid}/complete", (Guid machineId, Guid workOrderId, CompleteMaintenanceWorkOrderRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPost("/machines/{machineId:guid}/maintenance-work-orders/{workOrderId:guid}/complete", async (Guid machineId, Guid workOrderId, CompleteMaintenanceWorkOrderRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.CompleteMaintenanceWorkOrder(machineId, workOrderId, request, tenantKey);
+                    var result = await store.CompleteMaintenanceWorkOrderAsync(machineId, workOrderId, request, tenantKey, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
@@ -167,11 +167,11 @@ internal static class MaintenanceEndpoints
                     return Results.Ok(store.GetDowntimes(tenantKey, machineId, status, limit ?? 50));
                 });
 
-                api.MapPost("/machines/{machineId:guid}/downtimes", (Guid machineId, CreateDowntimeRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPost("/machines/{machineId:guid}/downtimes", async (Guid machineId, CreateDowntimeRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.CreateDowntime(machineId, request, tenantKey);
+                    var result = await store.CreateDowntimeAsync(machineId, request, tenantKey, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
@@ -182,11 +182,11 @@ internal static class MaintenanceEndpoints
                     };
                 });
 
-                api.MapPost("/machines/{machineId:guid}/downtimes/{downtimeId:guid}/resolve", (Guid machineId, Guid downtimeId, ResolveDowntimeRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPost("/machines/{machineId:guid}/downtimes/{downtimeId:guid}/resolve", async (Guid machineId, Guid downtimeId, ResolveDowntimeRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
                     var tenantKey = TenantClaim(context);
                     if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid();
-                    var result = store.ResolveDowntime(machineId, downtimeId, request, tenantKey);
+                    var result = await store.ResolveDowntimeAsync(machineId, downtimeId, request, tenantKey, context.RequestAborted);
                     return result.Error switch
                     {
                         ManufacturingErrorCodes.TenantScopeDenied => Results.Forbid(),
@@ -197,15 +197,12 @@ internal static class MaintenanceEndpoints
                     };
                 });
 
-                api.MapPatch("/machines/{machineId:guid}", (Guid machineId, UpdateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+                api.MapPatch("/machines/{machineId:guid}", async (Guid machineId, UpdateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
                 {
-                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateMachine(machineId, request, tenantKey);
+                    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = await store.UpdateMachineAsync(machineId, request, tenantKey, context.RequestAborted);
                     return result.Error switch { ManufacturingErrorCodes.MachineNotFound => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "machine_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Machine) };
                 });
 
         return api;
     }
 }
-
-
-

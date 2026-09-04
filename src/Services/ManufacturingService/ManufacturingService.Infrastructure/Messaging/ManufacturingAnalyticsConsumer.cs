@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Commerce;
+using His.Hope.Contracts.Messaging;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using His.Hope.Infrastructure.Messaging;
+using His.Hope.Messaging;
 using His.Hope.SharedKernel.Protocol;
 using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
@@ -28,7 +30,7 @@ public sealed class ManufacturingAnalyticsConsumer(
             Port = configuration.GetValue("EventBus:Port", 5672),
             UserName = configuration["EventBus:UserName"] ?? "admin",
             Password = EventBusSecurity.GetPassword(configuration),
-            DispatchConsumersAsync = false
+            DispatchConsumersAsync = true
         };
 
         using var connection = factory.CreateConnection();
@@ -73,12 +75,17 @@ public sealed class ManufacturingAnalyticsConsumer(
         channel.QueueBind(queue, exchange, "Manufacturing.#");
         channel.BasicQos(0, 10, false);
 
-        var consumer = new EventingBasicConsumer(channel);
-        consumer.Received += (_, args) =>
+        var consumer = new AsyncEventingBasicConsumer(channel);
+        consumer.Received += async (_, args) =>
         {
+            await Task.Yield();
+            InboxDeliveryGuard? delivery = null;
             try
             {
                 var content = Encoding.UTF8.GetString(args.Body.ToArray());
+                IntegrationEventTransportHeaders.Validate(
+                    args.BasicProperties.Headers,
+                    args.BasicProperties.Type ?? args.RoutingKey);
                 using var document = JsonDocument.Parse(content);
                 var aggregate = document.RootElement.TryGetProperty("transformationId", out var transformation)
                     ? transformation
@@ -97,6 +104,12 @@ public sealed class ManufacturingAnalyticsConsumer(
                 if (string.IsNullOrWhiteSpace(aggregateId))
                     throw new ManufacturingEventValidationException("event_empty_aggregate_id");
 
+                if (!document.RootElement.TryGetProperty("eventId", out var eventIdElement) ||
+                    eventIdElement.ValueKind != JsonValueKind.String ||
+                    !Guid.TryParse(eventIdElement.GetString(), out var eventId) ||
+                    eventId == Guid.Empty)
+                    throw new ManufacturingEventValidationException("event_missing_event_id");
+
                 var tenantKey = document.RootElement.TryGetProperty("tenantKey", out var tenantElement) &&
                                 tenantElement.ValueKind == JsonValueKind.String
                     ? tenantElement.GetString()
@@ -105,24 +118,44 @@ public sealed class ManufacturingAnalyticsConsumer(
                 using var scope = scopeFactory.CreateScope();
                 var dbFactory = scope.ServiceProvider.GetRequiredService<IManufacturingDbContextFactory>();
                 var eventType = args.BasicProperties.Type ?? "Manufacturing.Unknown";
-                var persisted = PersistReceipt(dbFactory, tenantKey, eventType, aggregateId, content);
+                delivery = await InboxDeliveryGuard.TryBeginAsync(
+                    scope.ServiceProvider.GetRequiredService<IInboxStore>(), eventId, queue, stoppingToken);
+                if (delivery is null)
+                {
+                    channel.BasicAck(args.DeliveryTag, multiple: false);
+                    return;
+                }
+                var persisted = await PersistReceiptAsync(
+                    dbFactory,
+                    tenantKey,
+                    eventType,
+                    aggregateId,
+                    content,
+                    stoppingToken);
                 if (persisted)
                     logger.LogInformation("Manufacturing event receipt persisted: {EventType}/{AggregateId}", eventType, aggregateId);
 
+                await delivery.CompleteAsync(stoppingToken);
                 channel.BasicAck(args.DeliveryTag, multiple: false);
             }
             catch (JsonException ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 logger.LogWarning(ex, "Dropping malformed manufacturing event payload");
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }
             catch (ManufacturingEventValidationException ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 logger.LogWarning(ex, "Dropping invalid manufacturing event payload: {Reason}", ex.Message);
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
             }
             catch (Exception ex)
             {
+                if (delivery is not null)
+                    await delivery.DisposeAsync();
                 logger.LogError(ex, "Failed to consume manufacturing event");
                 // The queue is DLX-backed; never requeue indefinitely and create a hot loop.
                 channel.BasicNack(args.DeliveryTag, multiple: false, requeue: false);
@@ -140,34 +173,48 @@ public sealed class ManufacturingAnalyticsConsumer(
         }
     }
 
-    private static bool PersistReceipt(
+    private static async Task<bool> PersistReceiptAsync(
         IManufacturingDbContextFactory dbFactory,
         string? tenantKey,
         string eventType,
         string aggregateId,
-        string content)
+        string content,
+        CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(tenantKey))
-            return PersistReceiptForConnection(dbFactory.CreateDbContext(tenantKey), eventType, aggregateId, content);
+            return await PersistReceiptForConnectionAsync(
+                await dbFactory.CreateDbContextAsync(tenantKey, cancellationToken),
+                eventType,
+                aggregateId,
+                content,
+                cancellationToken);
 
         foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
         {
-            if (PersistReceiptForConnection(dbFactory.CreateDbContextForConnection(connectionName), eventType, aggregateId, content))
+            if (await PersistReceiptForConnectionAsync(
+                    await dbFactory.CreateDbContextForConnectionAsync(connectionName, cancellationToken),
+                    eventType,
+                    aggregateId,
+                    content,
+                    cancellationToken))
                 return true;
         }
 
         return false;
     }
 
-    private static bool PersistReceiptForConnection(
+    private static async Task<bool> PersistReceiptForConnectionAsync(
         ManufacturingDbContext db,
         string eventType,
         string aggregateId,
-        string content)
+        string content,
+        CancellationToken cancellationToken)
     {
-        using (db)
+        await using (db)
         {
-            if (db.EventReceipts.Any(x => x.EventType == eventType && x.AggregateId == aggregateId))
+            if (await db.EventReceipts.AnyAsync(
+                    x => x.EventType == eventType && x.AggregateId == aggregateId,
+                    cancellationToken))
                 return false;
 
             db.EventReceipts.Add(new ManufacturingEventReceiptEntity
@@ -175,7 +222,7 @@ public sealed class ManufacturingAnalyticsConsumer(
                 Id = Guid.NewGuid(), EventType = eventType, AggregateId = aggregateId,
                 Content = content, ReceivedAt = DateTime.UtcNow
             });
-            db.SaveChanges();
+            await db.SaveChangesAsync(cancellationToken);
             return true;
         }
     }
