@@ -250,6 +250,102 @@ services:
       manufacturing-rabbitmq: { condition: service_healthy }
     restart: unless-stopped
 
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: src/ApiGateway/Dockerfile
+    container_name: manufacturing-standalone-gateway
+    ports:
+      - "${MANUFACTURING_GATEWAY_PORT:-5000}:5000"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5000
+      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "0"
+      REDIS_URL: redis://manufacturing-redis:6379
+      ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      Redis__ConnectionString: manufacturing-redis
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      SERVICE_IDENTITY_API_URL: http://identityservice:5003
+      SERVICE_COMMERCE_URL: http://commerceservice:5015
+      SERVICE_CONTENT_URL: http://contentservice:5016
+      SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      CORS__AllowedOrigins: "http://localhost:8083,http://localhost:4205,http://localhost:4300"
+    networks: [manufacturing, openship_observability]
+    depends_on:
+      identityservice: { condition: service_healthy }
+      commerceservice: { condition: service_healthy }
+      contentservice: { condition: service_healthy }
+      manufacturingservice: { condition: service_started }
+      manufacturing-redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  manufacturing-buyer-app:
+    build:
+      context: ..
+      dockerfile: manufacturing-buyer-app/Dockerfile
+    container_name: manufacturing-standalone-buyer
+    ports:
+      - "${MANUFACTURING_BUYER_APP_PORT:-4205}:8080"
+    networks: [manufacturing]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      identityservice: { condition: service_healthy }
+      manufacturingservice: { condition: service_started }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  internal-operator-app:
+    build:
+      context: ..
+      dockerfile: internal-operator-app/Dockerfile
+    container_name: manufacturing-standalone-operator
+    ports:
+      - "${MANUFACTURING_OPERATOR_APP_PORT:-4300}:8080"
+    networks: [manufacturing]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      identityservice: { condition: service_healthy }
+      manufacturingservice: { condition: service_started }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  admin-app:
+    build:
+      context: ..
+      dockerfile: admin-app/Dockerfile
+    container_name: manufacturing-standalone-admin
+    ports:
+      - "${MANUFACTURING_ADMIN_APP_PORT:-8083}:8080"
+    networks: [manufacturing]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      identityservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
 networks:
   manufacturing:
     name: manufacturing-standalone
