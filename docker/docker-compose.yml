@@ -148,7 +148,7 @@ services:
       EventBus__UserName: ${MANUFACTURING_RABBITMQ_USER:?MANUFACTURING_RABBITMQ_USER is required}
       EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
     volumes:
-      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
@@ -188,7 +188,7 @@ services:
       Jwt__ValidIssuers__1: his-hope-identity
       Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
     volumes:
-      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
