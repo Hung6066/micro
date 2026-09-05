@@ -54,10 +54,20 @@ public sealed class ManufacturingAnalyticsConsumer(
         channel.ExchangeDeclare(exchange, ExchangeType.Topic, durable: true, autoDelete: false);
         if (queueExists)
         {
-            // Preserve an existing queue during rolling deployment; its DLX is
-            // migrated by broker policy without deleting messages.
-            channel.QueueDeclare(queue, durable: true, exclusive: false, autoDelete: false);
-            logger.LogInformation("Existing queue {Queue} preserved during rolling deployment; broker DLX policy must remain configured", queue);
+            // Queue arguments are part of RabbitMQ's immutable queue contract.
+            // Re-declare the existing queue with the same DLX arguments so a
+            // rolling deployment does not trigger PRECONDITION_FAILED.
+            channel.QueueDeclare(
+                queue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object>
+                {
+                    ["x-dead-letter-exchange"] = deadLetterExchange,
+                    ["x-dead-letter-routing-key"] = deadLetterRoutingKey,
+                });
+            logger.LogInformation("Existing queue {Queue} preserved during rolling deployment", queue);
         }
         else
         {
