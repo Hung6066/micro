@@ -120,8 +120,10 @@ services:
       Conglomerate__Tenants__0__Key: manufacturing
       Conglomerate__Tenants__0__DisplayName: Manufacturing
       AUTHZ_PDP_MODE: disabled
+      Vault__Address: ""
       Vault__RequireVault: "false"
       Vault__EnableTransit: "false"
+      Vault__AllowStaticToken: "true"
     volumes:
       - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
@@ -152,6 +154,8 @@ services:
       ConnectionStrings__CommerceDb: "Host=manufacturing-postgres;Database=commercedb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       REDIS_URL: redis://manufacturing-redis:6379
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      TenantPlacement__Enabled: "true"
+      TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
@@ -198,6 +202,8 @@ services:
       ConnectionStrings__ContentDb: "Host=manufacturing-postgres;Database=contentdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       REDIS_URL: redis://manufacturing-redis:6379
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      TenantPlacement__Enabled: "true"
+      TenantPlacement__Services__content__DefaultConnectionName: ContentDb
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
@@ -240,6 +246,8 @@ services:
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
       TenantPlacement__Enabled: "false"
       TenantPlacement__Services__manufacturing__DefaultConnectionName: ManufacturingDb
+      TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
+      TenantPlacement__Services__content__DefaultConnectionName: ContentDb
 
       # Configure these when an external Identity/OIDC authority is available.
       Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-http://identityservice:5003}
@@ -379,13 +387,13 @@ volumes:
     name: manufacturing-identity-keys
   postgres_data:
     external: true
-    name: docker_postgres_data
+    name: openship-micro-postgres_data
   redis_data:
     external: true
-    name: docker_redis_data
+    name: openship-micro-redis_data
   rabbitmq_data:
     external: true
-    name: docker_rabbitmq_data
+    name: openship-micro-rabbitmq_data
   es_data:
     external: true
-    name: docker_es_data
+    name: openship-micro-es_data
