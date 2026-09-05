@@ -21,8 +21,9 @@ services:
           openssl genrsa -out /etc/hishop/certs/jwt-private-key.pem 2048
           openssl rsa -in /etc/hishop/certs/jwt-private-key.pem -pubout -out /etc/hishop/certs/jwt-public-key.pem
           openssl genrsa -out /etc/hishop/certs/jwt-encryption-private-key.pem 2048
-          chmod 600 /etc/hishop/certs/*.pem
         fi
+        chmod 600 /etc/hishop/certs/*.pem
+        chown 1654:1654 /etc/hishop/certs/*.pem
     restart: "no"
 
   manufacturing-postgres:
