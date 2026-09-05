@@ -33,23 +33,43 @@ void AddOptionalCluster(Dictionary<string, string?> clusters, string pluginKey, 
 {
     var endpoint = GetPluginEndpoint(pluginKey, endpointKey);
     if (endpoint is null)
+    {
+        clusters[$"ReverseProxy:Routes:{clusterKey}:Match:Path"] = "/__disabled__/{**catch-all}";
         return;
+    }
 
     clusters[$"ReverseProxy:Clusters:{clusterKey}:Destinations:dest:Address"] = endpoint.ToString();
     clusters[$"ReverseProxy:Routes:{clusterKey}:ClusterId"] = clusterKey;
     clusters[$"ReverseProxy:Routes:{clusterKey}:Match:Path"] = routePath;
 }
 
+void DisableRoutesWhenEndpointMissing(
+    Dictionary<string, string?> clusters,
+    string pluginKey,
+    string endpointKey,
+    params string[] routeKeys)
+{
+    if (GetPluginEndpoint(pluginKey, endpointKey) is not null)
+        return;
+
+    foreach (var routeKey in routeKeys)
+        clusters[$"ReverseProxy:Routes:{routeKey}:Match:Path"] = "/__disabled__/{**catch-all}";
+}
+
 var reverseProxyClusters = new Dictionary<string, string?>
 {
     ["ReverseProxy:Clusters:identity:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("identity-api").ToString(),
-    ["ReverseProxy:Clusters:dashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("dashboard-bff").ToString(),
-    ["ReverseProxy:Clusters:systemdashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("systemdashboard-bff").ToString(),
-    // The runtime contract exposes SERVICE_DATABASE_CONTINUITY_URL. Keep the
-    // logical key identical across Compose, VM and Kubernetes so the gateway
-    // never falls back to localhost inside its own container.
-    ["ReverseProxy:Clusters:database-continuity:Destinations:database-continuity/dest:Address"] = runtimeEndpoints.GetRequired("database-continuity").ToString()
 };
+
+// These BFFs are not part of the standalone manufacturing Compose stack. Add
+// their proxy routes only when a deployment provides the corresponding
+// SERVICE_* endpoint; the gateway must remain bootable without clinical apps.
+AddOptionalCluster(reverseProxyClusters, "dashboard", "dashboard-bff", "dashboard-bff", "/api/v1/bff/dashboard/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "systemdashboard", "systemdashboard-bff", "systemdashboard-bff", "/api/v1/bff/system-dashboard/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "database-continuity", "database-continuity", "database-continuity", "/api/v1/admin/database-continuity/{**catch-all}");
+DisableRoutesWhenEndpointMissing(reverseProxyClusters, "dashboard", "dashboard-bff", "dashboard-bff", "dashboard");
+DisableRoutesWhenEndpointMissing(reverseProxyClusters, "systemdashboard", "systemdashboard-bff", "systemdashboard-bff");
+DisableRoutesWhenEndpointMissing(reverseProxyClusters, "database-continuity", "database-continuity", "database-continuity");
 
 AddOptionalCluster(reverseProxyClusters, "patient", "patient-api", "patients", "/api/v1/patients/{**catch-all}");
 AddOptionalCluster(reverseProxyClusters, "appointment", "appointment-api", "appointments", "/api/v1/appointments/{**catch-all}");

@@ -8,6 +8,23 @@ name: manufacturing
 # hospital services are intentionally absent.
 
 services:
+  identity-keys-init:
+    image: alpine:3.20
+    container_name: manufacturing-identity-keys-init
+    volumes:
+      - identity_keys:/etc/hishop/certs
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        apk add --no-cache openssl >/dev/null
+        if [ ! -s /etc/hishop/certs/jwt-private-key.pem ]; then
+          openssl genrsa -out /etc/hishop/certs/jwt-private-key.pem 2048
+          openssl rsa -in /etc/hishop/certs/jwt-private-key.pem -pubout -out /etc/hishop/certs/jwt-public-key.pem
+          openssl genrsa -out /etc/hishop/certs/jwt-encryption-private-key.pem 2048
+          chmod 600 /etc/hishop/certs/*.pem
+        fi
+    restart: "no"
+
   manufacturing-postgres:
     image: pgvector/pgvector:pg16
     container_name: manufacturing-standalone-postgres
@@ -108,6 +125,7 @@ services:
       - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
+      identity-keys-init: { condition: service_completed_successfully }
       manufacturing-postgres: { condition: service_healthy }
       manufacturing-redis: { condition: service_healthy }
     healthcheck:
@@ -152,6 +170,7 @@ services:
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
+      identity-keys-init: { condition: service_completed_successfully }
       manufacturing-postgres: { condition: service_healthy }
       manufacturing-redis: { condition: service_healthy }
       manufacturing-rabbitmq: { condition: service_healthy }
@@ -192,6 +211,7 @@ services:
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
+      identity-keys-init: { condition: service_completed_successfully }
       manufacturing-postgres: { condition: service_healthy }
       manufacturing-redis: { condition: service_healthy }
     healthcheck:
@@ -244,6 +264,7 @@ services:
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
+      identity-keys-init: { condition: service_completed_successfully }
       manufacturing-postgres: { condition: service_healthy }
       manufacturing-redis: { condition: service_healthy }
       manufacturing-rabbitmq: { condition: service_healthy }
