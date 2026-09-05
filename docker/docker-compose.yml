@@ -179,6 +179,7 @@ services:
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "false"
       Jwt__AllowHttp: "true"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
@@ -227,6 +228,7 @@ services:
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "false"
       Jwt__AllowHttp: "true"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
@@ -272,6 +274,7 @@ services:
       # Configure these when an external Identity/OIDC authority is available.
       Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-http://identityservice:5003}
       Jwt__MetadataAddress: ${MANUFACTURING_JWT_METADATA_ADDRESS:-http://identityservice:5003/.well-known/openid-configuration}
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "false"
       Jwt__AllowHttp: "true"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
@@ -290,6 +293,8 @@ services:
       EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
       Consumers__AnalyticsEnabled: "true"
       Consumers__CommerceOrdersEnabled: "true"
+    volumes:
+      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
