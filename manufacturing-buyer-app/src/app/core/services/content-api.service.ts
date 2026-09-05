@@ -11,7 +11,7 @@ import { environment } from "../../../environments/environment";
 
 /** The buyer portal is provisioned for one customer tenant; keep this identity
  * in one place and always send it as canonical request context. */
-export const BUYER_TENANT_KEY = "customer-factory-x";
+export const BUYER_TENANT_KEY = "manufacturing";
 
 @Injectable({ providedIn: "root" })
 export class ContentApiService {
