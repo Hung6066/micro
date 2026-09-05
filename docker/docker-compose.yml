@@ -115,6 +115,8 @@ services:
       Identity__BootstrapAdmin__Password: ${MANUFACTURING_IDENTITY_BOOTSTRAP_PASSWORD:-}
       Identity__BootstrapAdmin__ResetPassword: ${MANUFACTURING_IDENTITY_RESET_PASSWORD:-false}
       Conglomerate__Enabled: "true"
+      Conglomerate__Organization__Key: manufacturing
+      Conglomerate__Organization__DisplayName: Manufacturing
       Conglomerate__SeedPilotMemberships: "true"
       Conglomerate__SeedPilotUsers: "true"
       Conglomerate__Tenants__0__Key: manufacturing
