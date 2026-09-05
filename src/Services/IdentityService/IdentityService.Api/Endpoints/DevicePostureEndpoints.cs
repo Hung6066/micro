@@ -7,6 +7,7 @@ using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.Contracts.Identity;
 using His.Hope.Contracts;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 
@@ -41,7 +42,7 @@ public static class DevicePostureEndpoints
             policy.EvidenceTtlSeconds = request.EvidenceTtlSeconds;
             policy.Version = (int.TryParse(policy.Version, out var version) ? version + 1 : 1).ToString();
             policy.UpdatedAt = DateTime.UtcNow;
-            policy.UpdatedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub");
+            policy.UpdatedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
             await db.SaveChangesAsync(ct);
             WriteAudit(db, http, "UPDATE", "DevicePosturePolicy", policy.Id, beforeJson, JsonSerializer.Serialize(ToPolicyResponse(policy)));
             await db.SaveChangesAsync(ct);
@@ -50,7 +51,7 @@ public static class DevicePostureEndpoints
 
         admin.MapPost("/policy/rollback", async (IdentityDbContext db, IConfiguration configuration, FacilityContext facilityContext, HttpContext http, string? facilityId, CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
             var policy = await GetPolicyAsync(db, configuration, ResolveScope(facilityContext, facilityId), ct);
             var previous = await db.AuditLogs.AsNoTracking()
@@ -68,7 +69,7 @@ public static class DevicePostureEndpoints
             policy.EvidenceTtlSeconds = prior.EvidenceTtlSeconds;
             policy.Version = (int.TryParse(policy.Version, out var version) ? version + 1 : 1).ToString();
             policy.UpdatedAt = DateTime.UtcNow;
-            policy.UpdatedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub");
+            policy.UpdatedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
             WriteAudit(db, http, "ROLLBACK", "DevicePosturePolicy", policy.Id, beforeJson, JsonSerializer.Serialize(ToPolicyResponse(policy)));
             await db.SaveChangesAsync(ct);
             return Results.Ok(ToPolicyResponse(policy));
@@ -78,14 +79,23 @@ public static class DevicePostureEndpoints
         {
             var scopeId = ResolveScope(facilityContext, request.FacilityId);
             var policy = await GetPolicyAsync(db, configuration, scopeId, ct);
-            var normalized = DevicePostureEvidenceNormalizer.Normalize(request);
-            if (!JsonSerializer.Deserialize<string[]>(policy.ProvidersJson)!.Contains(normalized.Provider, StringComparer.OrdinalIgnoreCase)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ProviderNotEnabled });
+            (string Provider, string DeviceId, Dictionary<string, bool> Signals, string Hash) normalized;
+            try
+            {
+                normalized = DevicePostureEvidenceNormalizer.Normalize(request);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = "invalid_request" });
+            }
+            if (!(JsonSerializer.Deserialize<string[]>(policy.ProvidersJson) ?? []).Contains(normalized.Provider, StringComparer.OrdinalIgnoreCase)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ProviderNotEnabled });
             var existing = await db.DevicePostureAssessments.AnyAsync(item => item.ScopeId == scopeId && item.Provider == normalized.Provider && item.EvidenceHash == normalized.Hash, ct);
             if (existing) return Results.Conflict(new { errorCode = "replayed_evidence" });
             var evaluation = evaluator.Evaluate(policy, request, DateTime.UtcNow);
             var assessment = new DevicePostureAssessment
             {
-                ScopeId = scopeId,
+                ScopeId = scopeId ?? IdentityScope.Global,
                 UserId = request.UserId,
                 DeviceId = normalized.DeviceId,
                 Provider = normalized.Provider,
@@ -141,7 +151,7 @@ public static class DevicePostureEndpoints
                 .Where(item => item.UserId == userId && item.DeviceId == deviceId && (scopeId == null || item.ScopeId == scopeId))
                 .OrderByDescending(item => item.ObservedAt)
                 .FirstOrDefaultAsync(ct);
-            if (assessment is null) return Results.NotFound();
+            assessment = Guard.Against.NotFound(assessment, "DevicePostureAssessment", $"{userId}/{deviceId}");
             return Results.Ok(new { assessment.UserId, assessment.DeviceId, assessment.Provider, assessment.Decision, fresh = assessment.ExpiresAt > DateTime.UtcNow, assessment.ExpiresAt, assessment.PolicyVersion });
         }).RequireAuthorization();
     }
@@ -157,7 +167,7 @@ public static class DevicePostureEndpoints
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         policy = new DevicePosturePolicy
         {
-            ScopeId = scopeId,
+            ScopeId = scopeId ?? IdentityScope.Global,
             Mode = (configuration["DEVICE_POSTURE_MODE"] ?? "observe").Trim().ToLowerInvariant(),
             ProvidersJson = JsonSerializer.Serialize(providers),
             EvidenceTtlSeconds = int.TryParse(configuration["DEVICE_POSTURE_TTL_SECONDS"], out var ttl) ? Math.Clamp(ttl, 60, 3600) : 900,
@@ -199,7 +209,7 @@ public static class DevicePostureEndpoints
 
     private static void WriteAudit(IdentityDbContext db, HttpContext http, string action, string resourceType, string resourceId, string? before, string? after) => db.AuditLogs.Add(new AuditLog
     {
-        UserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "system",
+        UserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "system",
         Action = action,
         ResourceType = resourceType,
         ResourceId = resourceId,
@@ -229,7 +239,7 @@ public static class DevicePostureEndpoints
         IAuthorizationService authorization,
         Guid userId)
     {
-        var subject = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub");
+        var subject = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
         if (Guid.TryParse(subject, out var currentUserId) && currentUserId == userId)
             return true;
 

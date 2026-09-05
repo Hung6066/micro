@@ -49,6 +49,7 @@ import {
 } from "../../core/services/identity-capabilities.service";
 import { ApiErrorMessageService } from "../../core/services/api-error-message.service";
 import { UsersApiService } from "../../core/services/users-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import { AdminConfirmState } from "../../core/services/admin-confirm-state";
 @Component({
@@ -931,6 +932,7 @@ export class IdentityCapabilitiesPageComponent {
   private readonly api = inject(IdentityCapabilitiesApiService);
   private readonly capabilities = inject(IdentityCapabilitiesService);
   private readonly usersApi = inject(UsersApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly i18n = inject(HisHopeI18nService);
@@ -985,7 +987,7 @@ export class IdentityCapabilitiesPageComponent {
   });
 
   constructor() {
-    this.reload();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.reload());
   }
 
   private get selectedFacilityId(): string | undefined {

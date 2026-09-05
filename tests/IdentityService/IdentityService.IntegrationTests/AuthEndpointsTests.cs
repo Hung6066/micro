@@ -43,6 +43,7 @@ public class AuthEndpointsTests
     public async Task Login_WithRateLimitExceeded_Returns429()
     {
         var client = _fixture.AnonymousClient;
+        var rateLimitKey = $"integration-auth-rate-limit-secondary-{Guid.NewGuid():N}";
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 121; i++)
         {
@@ -50,7 +51,7 @@ public class AuthEndpointsTests
             {
                 Content = JsonContent.Create(new { email = $"rate-test{i}@test.test", password = IdentityTestCredentials.Password })
             };
-            request.Headers.Add("X-RateLimit-Key", "integration-auth-rate-limit-secondary");
+            request.Headers.Add("X-RateLimit-Key", rateLimitKey);
             lastResponse = await client.SendAsync(request);
             if ((int)lastResponse.StatusCode == 429) break;
         }
@@ -119,10 +120,10 @@ public class AuthEndpointsTests
     }
 
     [Fact]
-    public async Task InternalRefresh_WithoutSession_Returns400()
+    public async Task InternalRefresh_WithoutSession_Returns401()
     {
         var response = await _fixture.AnonymousClient.PostAsync(IdentityApiRoutes.InternalRefresh, null);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

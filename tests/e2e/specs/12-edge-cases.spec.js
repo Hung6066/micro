@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE } = require('../config/urls');
 const { signInThroughIdentity, gotoCommittedDocument } = require('../helpers/sso-login');
+const { ensureSidebarVisible } = require('../helpers/ensure-sidebar-visible');
 
 async function doLogin(page) {
   await signInThroughIdentity(page, BASE);
@@ -21,7 +22,7 @@ async function ensureLoggedIn(page) {
 test.describe('Edge Cases', () => {
   test.beforeEach(async ({ page }) => {
     await doLogin(page);
-    await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 10000 });
+    await ensureSidebarVisible(page);
   });
 
   test('TC-EDG-01: Access denied page loads', async ({ page }) => {
@@ -53,7 +54,8 @@ test.describe('Edge Cases', () => {
 
   test('TC-EDG-03: Navigate to route then log out', async ({ page }) => {
     // Navigate to patients via sidebar (within SPA, preserving currentUser$)
-    const patientsLink = page.locator('mat-nav-list a').filter({ hasText: /Bệnh nhân|Patients/i });
+    await ensureSidebarVisible(page);
+    const patientsLink = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: /Bệnh nhân|Patients/i });
     await expect(patientsLink.first()).toBeVisible({ timeout: 5000 });
     await patientsLink.first().click();
     await page.waitForURL(/\/(?:en\/)?(patients|auth\/login|access-denied)(?:\?|$)/, { timeout: 10000 });
@@ -90,7 +92,8 @@ test.describe('Edge Cases', () => {
 
   test('TC-EDG-05: Error API call shows error notification', async ({ page }) => {
     // Navigate to patients list via sidebar
-    const patientsLink = page.locator('mat-nav-list a').filter({ hasText: /Bệnh nhân|Patients/i });
+    await ensureSidebarVisible(page);
+    const patientsLink = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: /Bệnh nhân|Patients/i });
     await expect(patientsLink.first()).toBeVisible({ timeout: 5000 });
     await patientsLink.first().click();
     await page.waitForURL(/\/(?:en\/)?(patients|auth\/login|access-denied)(?:\?|$)/, { timeout: 10000 });
@@ -110,7 +113,8 @@ test.describe('Edge Cases', () => {
 
   test('TC-EDG-06: Browser back/forward navigation', async ({ page }) => {
     // Navigate within SPA to build history
-    const patientsLink = page.locator('mat-nav-list a').filter({ hasText: /Bệnh nhân|Patients/i });
+    await ensureSidebarVisible(page);
+    const patientsLink = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: /Bệnh nhân|Patients/i });
     await expect(patientsLink.first()).toBeVisible({ timeout: 5000 });
     await patientsLink.first().click();
     await page.waitForURL(/\/(?:en\/)?(patients|auth\/login|access-denied)(?:\?|$)/, { timeout: 10000 });
@@ -118,7 +122,8 @@ test.describe('Edge Cases', () => {
       test.skip(true, 'Patients route is unavailable in this environment.');
     }
 
-    const appointmentsLink = page.locator('mat-nav-list a').filter({ hasText: /Lịch hẹn|Appointments/i });
+    const appointmentsLink = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: /Lịch hẹn|Appointments/i });
+    await ensureSidebarVisible(page);
     await expect(appointmentsLink.first()).toBeVisible({ timeout: 5000 });
     await appointmentsLink.first().click();
     await page.waitForURL(/\/(?:en\/)?(appointments|auth\/login|access-denied)(?:\?|$)/, { timeout: 10000 });

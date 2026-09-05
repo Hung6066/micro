@@ -14,30 +14,132 @@ using StackExchange.Redis;
 using His.Hope.Bff.Core.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using His.Hope.Configuration;
+using His.Hope.SharedKernel.Protocol;
+using His.Hope.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "ApiGateway");
+var pluginRegistry = new ServicePluginRegistry(builder.Configuration);
 
 builder.Services.AddHisHopeRuntimeConfiguration(builder.Configuration, "ApiGateway");
+builder.Services.AddSingleton<IServicePluginRegistry>(pluginRegistry);
+
+Uri? GetPluginEndpoint(string pluginKey, string endpointKey) =>
+    (pluginRegistry.Get(pluginKey)?.Enabled ?? true)
+        ? runtimeEndpoints.GetOptional(endpointKey)
+        : null;
+
+void AddOptionalCluster(Dictionary<string, string?> clusters, string pluginKey, string endpointKey, string clusterKey, string routePath)
+{
+    var endpoint = GetPluginEndpoint(pluginKey, endpointKey);
+    if (endpoint is null)
+    {
+        clusters[$"ReverseProxy:Routes:{clusterKey}:Match:Path"] = "/__disabled__/{**catch-all}";
+        return;
+    }
+
+    clusters[$"ReverseProxy:Clusters:{clusterKey}:Destinations:dest:Address"] = endpoint.ToString();
+    clusters[$"ReverseProxy:Routes:{clusterKey}:ClusterId"] = clusterKey;
+    clusters[$"ReverseProxy:Routes:{clusterKey}:Match:Path"] = routePath;
+}
+
+void DisableRoutesWhenEndpointMissing(
+    Dictionary<string, string?> clusters,
+    string pluginKey,
+    string endpointKey,
+    params string[] routeKeys)
+{
+    if (GetPluginEndpoint(pluginKey, endpointKey) is not null)
+        return;
+
+    foreach (var routeKey in routeKeys)
+        clusters[$"ReverseProxy:Routes:{routeKey}:Match:Path"] = "/__disabled__/{**catch-all}";
+}
 
 var reverseProxyClusters = new Dictionary<string, string?>
 {
     ["ReverseProxy:Clusters:identity:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("identity-api").ToString(),
-    ["ReverseProxy:Clusters:patients:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("patient-api").ToString(),
-    ["ReverseProxy:Clusters:appointments:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("appointment-api").ToString(),
-    ["ReverseProxy:Clusters:clinical:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("clinical-api").ToString(),
-    ["ReverseProxy:Clusters:lab:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("lab-api").ToString(),
-    ["ReverseProxy:Clusters:billing:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("billing-api").ToString(),
-    ["ReverseProxy:Clusters:pharmacy:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("pharmacy-api").ToString(),
-    ["ReverseProxy:Clusters:lab-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("lab-bff").ToString(),
-    ["ReverseProxy:Clusters:billing-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("billing-bff").ToString(),
-    ["ReverseProxy:Clusters:dashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("dashboard-bff").ToString(),
-    ["ReverseProxy:Clusters:systemdashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("systemdashboard-bff").ToString(),
-    // The runtime contract exposes SERVICE_DATABASE_CONTINUITY_URL. Keep the
-    // logical key identical across Compose, VM and Kubernetes so the gateway
-    // never falls back to localhost inside its own container.
-    ["ReverseProxy:Clusters:database-continuity:Destinations:database-continuity/dest:Address"] = runtimeEndpoints.GetRequired("database-continuity").ToString()
 };
+
+// These BFFs are not part of the standalone manufacturing Compose stack. Add
+// their proxy routes only when a deployment provides the corresponding
+// SERVICE_* endpoint; the gateway must remain bootable without clinical apps.
+AddOptionalCluster(reverseProxyClusters, "dashboard", "dashboard-bff", "dashboard-bff", "/api/v1/bff/dashboard/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "systemdashboard", "systemdashboard-bff", "systemdashboard-bff", "/api/v1/bff/system-dashboard/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "database-continuity", "database-continuity", "database-continuity", "/api/v1/admin/database-continuity/{**catch-all}");
+DisableRoutesWhenEndpointMissing(reverseProxyClusters, "dashboard", "dashboard-bff", "dashboard-bff", "dashboard");
+DisableRoutesWhenEndpointMissing(reverseProxyClusters, "systemdashboard", "systemdashboard-bff", "systemdashboard-bff");
+DisableRoutesWhenEndpointMissing(reverseProxyClusters, "database-continuity", "database-continuity", "database-continuity");
+
+AddOptionalCluster(reverseProxyClusters, "patient", "patient-api", "patients", "/api/v1/patients/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "appointment", "appointment-api", "appointments", "/api/v1/appointments/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "clinical", "clinical-api", "clinical", "/api/v1/encounters/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "lab", "lab-api", "lab", "/api/v1/lab-orders/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "billing", "billing-api", "billing", "/api/v1/invoices/{**catch-all}");
+AddOptionalCluster(reverseProxyClusters, "pharmacy", "pharmacy-api", "pharmacy", "/api/v1/medications/{**catch-all}");
+
+var pluginRouteKeys = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+{
+    ["patient"] = ["patient-encounters", "patient-appointments", "patient-lab-orders", "patient-prescriptions", "patient-invoices"],
+    ["appointment"] = ["appointments", "patient-appointments"],
+    ["clinical"] = ["patient-encounters"],
+    ["lab"] = ["patient-lab-orders", "lab-orders", "lab-critical-alerts-hub-root", "lab-critical-alerts-hub", "lab-critical-alerts", "lab-critical-alert-rules"],
+    ["billing"] = ["patient-invoices"],
+    ["pharmacy"] = ["patient-prescriptions", "pharmacy-prescriptions"],
+    ["manufacturing"] = ["manufacturing"],
+    ["commerce"] = ["commerce"],
+    ["content"] = ["content"]
+};
+
+foreach (var (pluginKey, routeKeys) in pluginRouteKeys)
+{
+    var endpointKey = pluginKey switch
+    {
+        "patient" => "patient-api",
+        "appointment" => "appointment-api",
+        "clinical" => "clinical-api",
+        "lab" => "lab-api",
+        "billing" => "billing-api",
+        "pharmacy" => "pharmacy-api",
+        "manufacturing" => "manufacturing",
+        "commerce" => "commerce",
+        "content" => "content",
+        _ => pluginKey
+    };
+
+    if (GetPluginEndpoint(pluginKey, endpointKey) is not null)
+        continue;
+
+    foreach (var routeKey in routeKeys)
+        reverseProxyClusters[$"ReverseProxy:Routes:{routeKey}:Match:Path"] = "/__disabled__/{**catch-all}";
+}
+
+// Manufacturing is an optional vertical slice during the rollout. Keep the
+// gateway bootable in environments that have not deployed it yet, while
+// enabling the buyer app route whenever SERVICE_MANUFACTURING_URL is present.
+var manufacturingEndpoint = runtimeEndpoints.GetOptional("manufacturing");
+if (manufacturingEndpoint is not null && (pluginRegistry.Get("manufacturing")?.Enabled ?? true))
+{
+    reverseProxyClusters["ReverseProxy:Clusters:manufacturing:Destinations:dest:Address"] = manufacturingEndpoint.ToString();
+    reverseProxyClusters["ReverseProxy:Routes:manufacturing:ClusterId"] = "manufacturing";
+    reverseProxyClusters["ReverseProxy:Routes:manufacturing:Match:Path"] = "/api/v1/manufacturing/{**catch-all}";
+}
+
+var commerceEndpoint = runtimeEndpoints.GetOptional("commerce");
+if (commerceEndpoint is not null && (pluginRegistry.Get("commerce")?.Enabled ?? true))
+{
+    reverseProxyClusters["ReverseProxy:Clusters:commerce:Destinations:dest:Address"] = commerceEndpoint.ToString();
+    reverseProxyClusters["ReverseProxy:Routes:commerce:ClusterId"] = "commerce";
+    reverseProxyClusters["ReverseProxy:Routes:commerce:Match:Path"] = "/api/v1/commerce/{**catch-all}";
+}
+
+var contentEndpoint = runtimeEndpoints.GetOptional("content");
+if (contentEndpoint is not null && (pluginRegistry.Get("content")?.Enabled ?? true))
+{
+    reverseProxyClusters["ReverseProxy:Clusters:content:Destinations:dest:Address"] = contentEndpoint.ToString();
+    reverseProxyClusters["ReverseProxy:Routes:content:ClusterId"] = "content";
+    reverseProxyClusters["ReverseProxy:Routes:content:Match:Path"] = "/api/v1/content/{**catch-all}";
+}
 builder.Configuration.AddInMemoryCollection(reverseProxyClusters);
 builder.Services.AddHisHopeAspNetCore();
 builder.Services.AddObservability(options => options.ServiceName = "ApiGateway");
@@ -48,7 +150,7 @@ builder.Host.UseSerilog((context, config) =>
 // SECURITY: CORS configured with explicit allowed origins from configuration.
 // CORS uses explicit configured origins and never falls back to a wildcard.
 // with credentials. Methods and headers are explicitly allowlisted.
-var allowedOrigins = builder.Configuration.GetValue<string>("CORS:AllowedOrigins", "")
+var allowedOrigins = (builder.Configuration.GetValue<string>(HisHopeConfigurationKeys.CorsAllowedOrigins, "") ?? string.Empty)
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 builder.Services.AddCors(options =>
@@ -56,14 +158,20 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         if (allowedOrigins.Length == 0)
-            throw new InvalidOperationException("CORS:AllowedOrigins must contain at least one explicit origin.");
+            throw new InvalidOperationException($"{HisHopeConfigurationKeys.CorsAllowedOrigins} must contain at least one explicit origin.");
 
         // SECURITY: only configured origins are allowed. Never fall back to a wildcard.
         policy.WithOrigins(allowedOrigins)
               .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
               .WithHeaders("Accept", "Authorization", "DPoP", "Content-Type", "If-Match", "If-None-Match",
-                  "X-Correlation-ID", "X-CSRF-Token", "X-Requested-With", "X-Timezone", "X-Currency")
-              .WithExposedHeaders("Authorization", "ETag", "X-Correlation-ID")
+                  HisHopeProtocolConstants.Headers.CorrelationId,
+                  HisHopeProtocolConstants.Headers.CsrfToken,
+                  HisHopeProtocolConstants.Headers.RequestedWith,
+                  HisHopeProtocolConstants.Headers.Timezone,
+                  HisHopeProtocolConstants.Headers.Currency)
+              .WithExposedHeaders(HisHopeProtocolConstants.Headers.Authorization,
+                  HisHopeProtocolConstants.Headers.EntityTag,
+                  HisHopeProtocolConstants.Headers.CorrelationId)
               .AllowCredentials();
     });
 });
@@ -89,7 +197,7 @@ builder.Services.AddDataProtection()
     .SetApplicationName("His.Hope.IdentityService")
     .PersistKeysToStackExchangeRedis(
         redis,
-        builder.Configuration["DataProtection:KeyName"]
+        builder.Configuration[HisHopeConfigurationKeys.DataProtectionKeyName]
             ?? "HisHope:IdentityService:DataProtection:Keys");
 builder.Services.AddSingleton<SessionTokenProtector>();
 
@@ -128,6 +236,11 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+var requireGatewayHttps = builder.Configuration.GetValue(HisHopeConfigurationKeys.Gateway.RequireHttps, false);
+var gatewayCertificate = requireGatewayHttps
+    ? LoadCertificate(builder.Configuration)
+    : null;
+
 builder.WebHost.ConfigureKestrel(options =>
 {
     var env = builder.Environment;
@@ -141,10 +254,14 @@ builder.WebHost.ConfigureKestrel(options =>
     }
     else
     {
-        // Production: HTTPS on 5000, HTTP on 5011
+        // Production can terminate TLS at the edge (the default) or at the
+        // gateway when Gateway:RequireHttps=true. Never silently claim HTTPS
+        // while binding a plaintext socket.
         options.ListenAnyIP(5000, listenOptions =>
         {
             listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+            if (gatewayCertificate is not null)
+                listenOptions.UseHttps(gatewayCertificate);
         });
         options.ListenAnyIP(5011, listenOptions =>
         {
@@ -166,6 +283,10 @@ app.Use(async (context, next) =>
         {
             context.Response.Headers["Content-Security-Policy"] =
                 "default-src 'self'; " +
+                "base-uri 'self'; " +
+                "object-src 'none'; " +
+                "frame-ancestors 'none'; " +
+                "form-action 'self'; " +
                 "script-src 'self'; " +
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                 "font-src 'self' https://fonts.gstatic.com; " +
@@ -235,7 +356,7 @@ app.Use(async (context, next) =>
         context.Request.Path.StartsWithSegments("/api/v1/admin/database-continuity");
     var continuityRoute = context.Request.Path.StartsWithSegments("/api/v1/admin/database-continuity");
 
-    var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+    var hasSessionCookie = context.Request.Cookies.TryGetValue(HisHopeProtocolConstants.Cookies.BrowserSession, out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId);
 
     // Identity's policy scheme intentionally selects its browser cookie when
@@ -303,7 +424,7 @@ app.Use(async (context, next) =>
           // Preserve logout for sessions issued before the CSRF cookie rollout.
           && !context.Request.Path.StartsWithSegments("/api/v1/auth/logout"))
     {
-        var sessionId = context.Request.Cookies["hishop_sid"];
+        var sessionId = context.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
         if (!string.IsNullOrWhiteSpace(sessionId))
         {
             var csrfCookie = context.Request.Cookies["hishop_csrf"];
@@ -351,24 +472,40 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.MapGet("/diag/patients", async (HttpContext ctx) =>
+// This probe used to be exposed anonymously and disclosed internal service
+// health/status through the public gateway. Keep it available only when an
+// operator explicitly opts in for local development; it is absent by default
+// in production and cannot become an accidental information oracle.
+if (builder.Environment.IsDevelopment() &&
+    builder.Configuration.GetValue("Diagnostics:EnablePatientProbe", false))
 {
-    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-    var sw = System.Diagnostics.Stopwatch.StartNew();
-    try
+    app.MapGet("/diag/patients", async (HttpContext ctx) =>
     {
-        var resp = await http.GetAsync(new Uri(
-            runtimeEndpoints.GetRequired("patient-api"),
-            "api/v1/patients/search?q=&page=1&pageSize=1"));
-        sw.Stop();
-        await ctx.Response.WriteAsync($"OK: {resp.StatusCode} in {sw.ElapsedMilliseconds}ms");
-    }
-    catch (Exception ex)
-    {
-        sw.Stop();
-        await ctx.Response.WriteAsync($"FAIL: {ex.GetType().Name}: {ex.Message} after {sw.ElapsedMilliseconds}ms");
-    }
-});
+        var patientEndpoint = GetPluginEndpoint("patient", "patient-api");
+        if (patientEndpoint is null)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await ctx.Response.WriteAsync("Patient plugin is disabled or unavailable.");
+            return;
+        }
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var resp = await http.GetAsync(new Uri(
+                patientEndpoint,
+                "api/v1/patients/search?q=&page=1&pageSize=1"));
+            sw.Stop();
+            await ctx.Response.WriteAsync($"OK: {resp.StatusCode} in {sw.ElapsedMilliseconds}ms");
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            await ctx.Response.WriteAsync($"FAIL: {ex.GetType().Name}: {ex.Message} after {sw.ElapsedMilliseconds}ms");
+        }
+    });
+}
 
 // Shared proxy helper — bypasses YARP HttpForwarder connection pool issues
 // that cause 60s timeouts when proxying to backend services.
@@ -412,10 +549,18 @@ void MapDirectProxy(
                 request.Content.Headers.TryAddWithoutValidation("Content-Type", ct.ToArray());
         }
 
+        // Preserve sender-constrained authentication and the public origin
+        // used by downstream DPoP htu validation. The direct proxy path must
+        // carry the same security headers as the YARP path.
+        ctx.Request.Headers["X-Forwarded-Proto"] = ctx.Request.Scheme;
+        ctx.Request.Headers["X-Forwarded-Host"] = ctx.Request.Host.Value;
         foreach (var h in ctx.Request.Headers)
         {
-            if (h.Key is "Authorization" or "X-HisHope-Session" or "Accept" or "Accept-Language"
-                or "X-Correlation-ID" or "X-Timezone" or "X-Currency" or "Content-Type")
+            if (h.Key is "Authorization" or "DPoP" or "X-Forwarded-Proto" or "X-Forwarded-Host" or "X-HisHope-Session" or "Accept" or "Accept-Language"
+                or HisHopeProtocolConstants.Headers.CorrelationId
+                or HisHopeProtocolConstants.Headers.Timezone
+                or HisHopeProtocolConstants.Headers.Currency
+                or HisHopeProtocolConstants.Headers.ContentType)
                 try { request.Headers.TryAddWithoutValidation(h.Key, h.Value.ToArray()); } catch { }
         }
 
@@ -471,6 +616,17 @@ void MapDirectProxy(
     });
 }
 
+void MapOptionalDirectProxy(
+    string pluginKey,
+    string endpointKey,
+    string pathPrefix,
+    Func<HttpContext, bool>? additionalMatch = null)
+{
+    var endpoint = GetPluginEndpoint(pluginKey, endpointKey);
+    if (endpoint is not null)
+        MapDirectProxy(pathPrefix, endpoint, additionalMatch);
+}
+
 static bool MatchesPatientAggregate(HttpContext ctx, string resource)
 {
     var segments = ctx.Request.Path.Value?
@@ -486,22 +642,22 @@ static bool MatchesPatientAggregate(HttpContext ctx, string resource)
 
 // Patient aggregate routes must be registered before the broad patient proxy;
 // otherwise /api/v1/patients/{id}/... is incorrectly sent to PatientService.
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("clinical-api"),
+MapOptionalDirectProxy("clinical", "clinical-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "encounters"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("appointment-api"),
+MapOptionalDirectProxy("appointment", "appointment-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "appointments"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("lab-api"),
+MapOptionalDirectProxy("lab", "lab-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "lab-orders"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("pharmacy-api"),
+MapOptionalDirectProxy("pharmacy", "pharmacy-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "prescriptions"));
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("billing-api"),
+MapOptionalDirectProxy("billing", "billing-api", "/api/v1/patients",
     ctx => MatchesPatientAggregate(ctx, "invoices"));
 
-MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("patient-api"));
-MapDirectProxy("/api/v1/encounters", runtimeEndpoints.GetRequired("clinical-api"));
-MapDirectProxy("/api/v1/medications", runtimeEndpoints.GetRequired("pharmacy-api"));
-MapDirectProxy("/api/v1/lab-orders", runtimeEndpoints.GetRequired("lab-api"));
-MapDirectProxy("/api/v1/invoices", runtimeEndpoints.GetRequired("billing-api"));
+MapOptionalDirectProxy("patient", "patient-api", "/api/v1/patients");
+MapOptionalDirectProxy("clinical", "clinical-api", "/api/v1/encounters");
+MapOptionalDirectProxy("pharmacy", "pharmacy-api", "/api/v1/medications");
+MapOptionalDirectProxy("lab", "lab-api", "/api/v1/lab-orders");
+MapOptionalDirectProxy("billing", "billing-api", "/api/v1/invoices");
 
 app.MapReverseProxy();
 
@@ -513,59 +669,21 @@ app.MapGet("/", () => Results.Ok(new
     endpoints = new[] { "/api/v1/auth", "/api/v1/patients", "/api/v1/appointments", "/api/v1/encounters", "/api/v1/invoices", "/api/v1/lab-orders", "/api/v1/medications", "/api/v1/prescriptions" }
 }));
 
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = _ => true,
-    ResponseWriter = async (ctx, report) =>
-    {
-        ctx.Response.ContentType = "application/json";
-        await System.Text.Json.JsonSerializer.SerializeAsync(ctx.Response.Body, new
-        {
-            status = report.Status.ToString(),
-            duration = report.TotalDuration.TotalMilliseconds,
-            checks = report.Entries.Select(e => new
-            {
-                name = e.Key, status = e.Value.Status.ToString(),
-                error = e.Value.Exception?.Message
-            })
-        });
-    }
-}).AllowAnonymous();
+app.MapHisHopeHealthEndpoints();
 
 app.Run();
 
 static X509Certificate2 LoadCertificate(IConfiguration config)
 {
-    var certPath = config["Certificates:Path"];
-    var certPassword = config["Certificates:Password"];
+    var certPath = config[HisHopeConfigurationKeys.Certificates.Path];
+    var certPassword = config[HisHopeConfigurationKeys.Certificates.Password];
     if (!string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword))
         return new X509Certificate2(certPath, certPassword);
     var pfxPath = Path.Combine(AppContext.BaseDirectory, "Certificates", "server.pfx");
     if (File.Exists(pfxPath))
-        return new X509Certificate2(pfxPath, "his-hope-dev");
-    return CreateDevCertificate();
-}
-
-static X509Certificate2 CreateDevCertificate()
-{
-    using var rsa = System.Security.Cryptography.RSA.Create(2048);
-    var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
-        "CN=his-hope-gateway, O=His.Hope", rsa,
-        System.Security.Cryptography.HashAlgorithmName.SHA256,
-        System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, true));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509KeyUsageExtension(
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.DigitalSignature |
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.KeyEncipherment, false));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
-        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1") }, true));
-    var san = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
-    san.AddDnsName("localhost"); san.AddDnsName("apigateway"); san.AddDnsName("*.his-hope.internal");
-    req.CertificateExtensions.Add(san.Build());
-    var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
-    Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "Certificates"));
-    File.WriteAllBytes(Path.Combine(AppContext.BaseDirectory, "Certificates", "server.pfx"),
-        cert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, "his-hope-dev"));
-    return cert;
+        throw new InvalidOperationException(
+            "Gateway TLS certificate exists but its password was not supplied by the runtime secret provider.");
+    throw new InvalidOperationException(
+        "Gateway:RequireHttps is enabled but no configured gateway certificate was found.");
 }
 

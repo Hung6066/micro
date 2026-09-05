@@ -17,7 +17,7 @@ public sealed class SecurityVersionMiddleware(RequestDelegate next)
             return;
         }
 
-        var subject = context.User.FindFirstValue("sub") ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var subject = context.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier);
         var presented = context.User.FindFirstValue("securityVersion");
         if (!Guid.TryParse(subject, out var userId) || string.IsNullOrWhiteSpace(presented))
         {

@@ -8,16 +8,18 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $databases = @(
-    @{ Name = 'patientdb'; MigrationId = '20260728145428_InitialCreate'; AllowedMigrationIds = @('20260728145428_InitialCreate', '20260728145504_InitialCreate'); Tables = @('public|outbox_messages', 'public|patients', 'public|allergies', 'public|medical_conditions') },
-    @{ Name = 'appointmentdb'; MigrationId = '20260728151050_InitialCreate'; Tables = @('public|appointments', 'public|outbox_messages') },
-    @{ Name = 'clinicaldb'; MigrationId = '20260728093306_InitialCreate'; Tables = @('public|clinical_notes', 'public|encounters', 'public|encounter_diagnoses', 'public|encounter_procedures', 'public|outbox_messages') },
-    @{ Name = 'labdb'; MigrationId = '20260728145356_InitialCreate'; Tables = @('public|CriticalAlertRules', 'public|CriticalAlerts', 'public|LabOrders', 'public|OutboxMessages', 'public|CriticalAlertAuditEntries', 'public|LabTests', 'public|LabResults') },
-    @{ Name = 'billingdb'; MigrationId = '20260728093539_InitialCreate'; Tables = @('billing|Invoices', 'billing|OutboxMessages', 'billing|InvoiceLineItems', 'billing|Payments') },
-    @{ Name = 'pharmacydb'; MigrationId = '20260728145334_InitialCreate'; Tables = @('public|Medications', 'public|OutboxMessages', 'public|Prescriptions') }
+    @{ Name = 'patientdb'; MigrationId = '20260827084638___SnapshotSync'; AllowedMigrationIds = @('20260728145428_InitialCreate', '20260728145504_InitialCreate', '20260730035207_AddFacilityScope', '20260801063608_OptimizeReadIndexes', '20260827080000_StandardizeDataLifecycle', '20260827084638___SnapshotSync'); Tables = @('public|outbox_messages', 'public|patients', 'public|allergies', 'public|medical_conditions') },
+    @{ Name = 'appointmentdb'; MigrationId = '20260827084635___SnapshotSync'; AllowedMigrationIds = @('20260728151050_InitialCreate', '20260730035207_AddFacilityScope', '20260801064127_OptimizeReadIndexes', '20260827080000_StandardizeDataLifecycle', '20260827081000_StandardizePhysicalIdentifiers', '20260827084635___SnapshotSync'); Tables = @('public|appointments', 'public|outbox_messages') },
+    @{ Name = 'clinicaldb'; MigrationId = '20260827081000_StandardizePhysicalIdentifiers'; AllowedMigrationIds = @('20260728093306_InitialCreate', '20260730035207_AddFacilityScope', '20260801063740_OptimizeReadIndexes', '20260803090000_SyncOutboxClaimingColumns', '20260827080000_StandardizeDataLifecycle', '20260827081000_StandardizePhysicalIdentifiers'); Tables = @('public|clinical_notes', 'public|encounters', 'public|encounter_diagnoses', 'public|encounter_procedures', 'public|outbox_messages') },
+    @{ Name = 'labdb'; MigrationId = '20260827082000_StandardizePhysicalIdentifiers'; AllowedMigrationIds = @('20260728145356_InitialCreate', '20260730035207_AddFacilityScope', '20260801060426_SyncOutboxClaimingColumnsGenerated', '20260801063744_OptimizeReadIndexes', '20260803090000_SyncOutboxClaimingColumns', '20260827080000_StandardizeDataLifecycle', '20260827082000_StandardizePhysicalIdentifiers'); Tables = @('public|CriticalAlertRules', 'public|CriticalAlerts', 'public|LabOrders', 'public|OutboxMessages', 'public|CriticalAlertAuditEntries', 'public|LabTests', 'public|LabResults') },
+    @{ Name = 'billingdb'; MigrationId = '20260827080000_StandardizeDataLifecycle'; AllowedMigrationIds = @('20260728093539_InitialCreate', '20260730035207_AddFacilityScope', '20260801064218_OptimizeReadIndexes', '20260803090000_SyncOutboxClaimingColumns', '20260827080000_StandardizeDataLifecycle'); Tables = @('billing|Invoices', 'billing|OutboxMessages', 'billing|InvoiceLineItems', 'billing|Payments') },
+    @{ Name = 'pharmacydb'; MigrationId = '20260827084633___SnapshotSync'; AllowedMigrationIds = @('20260728145334_InitialCreate', '20260730035207_AddFacilityScope', '20260801063751_OptimizeReadIndexes', '20260803090000_SyncOutboxClaimingColumns', '20260827080000_StandardizeDataLifecycle', '20260827082000_StandardizePhysicalIdentifiers', '20260827084633___SnapshotSync'); Tables = @('public|Medications', 'public|OutboxMessages', 'public|Prescriptions') }
 )
 
 function Invoke-Psql([string]$Database, [string]$Sql) {
-    $output = & docker exec $PostgresContainer psql -U $PostgresUser -d $Database -v ON_ERROR_STOP=1 -At -c $Sql
+    # Feed SQL through stdin so Windows PowerShell does not strip quoted
+    # PostgreSQL identifiers such as "__EFMigrationsHistory".
+    $output = $Sql | & docker exec $PostgresContainer psql -U $PostgresUser -d $Database -v ON_ERROR_STOP=1 -At -f -
     if ($LASTEXITCODE -ne 0) {
         throw "psql failed for $Database"
     }

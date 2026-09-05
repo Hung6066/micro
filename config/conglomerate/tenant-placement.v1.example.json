@@ -1,0 +1,33 @@
+{
+  "version": "1",
+  "enabled": false,
+  "defaultTier": "shared",
+  "services": {
+    "manufacturing": {
+      "defaultConnectionName": "ManufacturingDb"
+    },
+    "commerce": {
+      "defaultConnectionName": "CommerceDb"
+    },
+    "content": {
+      "defaultConnectionName": "ContentDb"
+    }
+  },
+  "placements": [
+    {
+      "tenantKey": "customer-enterprise-y",
+      "tier": "dedicated",
+      "dataRegion": "eu-west-1",
+      "active": false,
+      "reason": "example-only — set active=true and enabled=true only after contract/compliance approval",
+      "services": {
+        "manufacturing": {
+          "connectionName": "ManufacturingDb_customer_enterprise_y"
+        },
+        "commerce": {
+          "connectionName": "CommerceDb_customer_enterprise_y"
+        }
+      }
+    }
+  ]
+}

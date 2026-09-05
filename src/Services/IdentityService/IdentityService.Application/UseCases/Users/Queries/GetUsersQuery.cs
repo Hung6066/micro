@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.Contracts.Pagination;
 
 namespace His.Hope.IdentityService.Application.UseCases.Users.Queries;
 
@@ -10,12 +11,13 @@ namespace His.Hope.IdentityService.Application.UseCases.Users.Queries;
 /// Paginated user search query with filtering by role, search term, and active status.
 /// </summary>
 public record GetUsersQuery(
-    int Page = 1,
-    int PageSize = 20,
+    int Page = PaginationDefaults.DefaultPage,
+    int PageSize = PaginationDefaults.DefaultPageSize,
     string? Search = null,
     string? Role = null,
     bool? IsActive = null,
-    string? Sort = null)
+    string? Sort = null,
+    IReadOnlyList<string>? TenantMembershipKeys = null)
     : IRequest<PagedResult<UserDetailDto>>;
 
 public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<UserDetailDto>>
@@ -30,7 +32,9 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
     public async Task<PagedResult<UserDetailDto>> Handle(GetUsersQuery request,
         CancellationToken cancellationToken)
     {
-        IQueryable<User> query = _context.Users.AsNoTracking();
+        ValidatePagination(request.Page, request.PageSize);
+        IQueryable<User> query = _context.Users.AsNoTracking()
+            .TagWith("Identity.Users.GetUsers");
 
         // Apply search filter across name fields
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -61,6 +65,19 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
                 .Any(name => name == roleName));
         }
 
+        if (request.TenantMembershipKeys is { Count: > 0 } tenantKeys)
+        {
+            var normalizedKeys = tenantKeys
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key.Trim().ToLowerInvariant())
+                .Distinct()
+                .ToArray();
+            query = query.Where(user => _context.UserClaims.Any(claim =>
+                claim.UserId == user.Id &&
+                claim.ClaimType == "tenant_membership" &&
+                claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower())));
+        }
+
         // Get total count before pagination
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -68,14 +85,14 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
         var descending = sort?.Length > 1 && string.Equals(sort[1], "desc", StringComparison.OrdinalIgnoreCase);
         query = (sort?.FirstOrDefault()?.ToLowerInvariant(), descending) switch
         {
-            ("username", false) => query.OrderBy(u => u.UserName),
-            ("username", true) => query.OrderByDescending(u => u.UserName),
-            ("email", false) => query.OrderBy(u => u.Email),
-            ("email", true) => query.OrderByDescending(u => u.Email),
-            ("isactive", false) => query.OrderBy(u => u.IsActive),
-            ("isactive", true) => query.OrderByDescending(u => u.IsActive),
-            ("createdat", false) => query.OrderBy(u => u.CreatedAt),
-            _ => query.OrderByDescending(u => u.CreatedAt)
+            ("username", false) => query.OrderBy(u => u.UserName).ThenBy(u => u.Id),
+            ("username", true) => query.OrderByDescending(u => u.UserName).ThenByDescending(u => u.Id),
+            ("email", false) => query.OrderBy(u => u.Email).ThenBy(u => u.Id),
+            ("email", true) => query.OrderByDescending(u => u.Email).ThenByDescending(u => u.Id),
+            ("isactive", false) => query.OrderBy(u => u.IsActive).ThenBy(u => u.Id),
+            ("isactive", true) => query.OrderByDescending(u => u.IsActive).ThenByDescending(u => u.Id),
+            ("createdat", false) => query.OrderBy(u => u.CreatedAt).ThenBy(u => u.Id),
+            _ => query.OrderByDescending(u => u.CreatedAt).ThenByDescending(u => u.Id)
         };
 
         var users = await query
@@ -104,4 +121,12 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
         user.FirstName, user.LastName, user.MiddleName,
         user.FullName, user.LicenseNumber, user.Specialty,
         user.IsActive, user.CreatedAt, user.LastLoginAt, roles, user.ConcurrencyStamp);
+
+    private static void ValidatePagination(int page, int pageSize)
+    {
+        if (page < PaginationDefaults.DefaultPage || page > PaginationDefaults.MaxPageNumber)
+            throw new ArgumentOutOfRangeException(nameof(page), $"Page must be between {PaginationDefaults.DefaultPage} and {PaginationDefaults.MaxPageNumber}; use cursor pagination for deep navigation.");
+        if (pageSize < 1 || pageSize > PaginationDefaults.MaxPageSize)
+            throw new ArgumentOutOfRangeException(nameof(pageSize), $"PageSize must be between 1 and {PaginationDefaults.MaxPageSize}.");
+    }
 }

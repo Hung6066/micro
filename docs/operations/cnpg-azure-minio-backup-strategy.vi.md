@@ -16,7 +16,7 @@ Overlay production dùng:
 
 - `k8s/production-ha/cnpg-barman-object-store-azure.yaml`
 - `k8s/production-ha/spire-postgres-cluster-azure-patch.yaml`
-- `k8s/overlays/prod-spire-azure/kustomization.yaml`
+- `k8s/overlays/prod-spire-azure-shared-storage/kustomization.yaml`
 
 Secret runtime `spire-postgres-azure-backup-credentials` được tạo bởi script bootstrap từ `D:\secure\his-hope\azure-production.env`; không commit secret vào Git.
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.AspNetCore.ProblemDetails;
 
@@ -8,8 +9,8 @@ public static class HisHopeCorrelation
     private static readonly AsyncLocal<string?> Current = new();
 
     public static string GetId(HttpContext context) =>
-        context.Response.Headers["X-Correlation-Id"].FirstOrDefault()
-        ?? context.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+        context.Response.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
+        ?? context.Request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
         ?? Current.Value
         ?? context.TraceIdentifier;
 
@@ -24,7 +25,7 @@ internal sealed class CorrelationMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault();
+        var correlationId = context.Request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault();
         correlationId = string.IsNullOrWhiteSpace(correlationId)
             ? Guid.NewGuid().ToString("N")[..12]
             : correlationId;
@@ -32,7 +33,7 @@ internal sealed class CorrelationMiddleware(RequestDelegate next)
         HisHopeCorrelation.CurrentId = correlationId;
         context.Response.OnStarting(() =>
         {
-            context.Response.Headers["X-Correlation-Id"] = correlationId;
+            context.Response.Headers[HisHopeProtocolConstants.Headers.CorrelationId] = correlationId;
             return Task.CompletedTask;
         });
 

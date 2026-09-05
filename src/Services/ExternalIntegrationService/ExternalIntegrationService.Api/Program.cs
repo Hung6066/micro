@@ -1,35 +1,30 @@
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.IntegrationEvents.Appointment;
 using His.Hope.IntegrationEvents.Billing;
 using His.Hope.IntegrationEvents.Clinical;
 using His.Hope.IntegrationEvents.Lab;
 using His.Hope.IntegrationEvents.Patient;
 using His.Hope.IntegrationEvents.Pharmacy;
+using His.Hope.ServiceDefaults;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "external-integration-service");
 
 builder.Services.AddOptions<ExternalIntegrationOptions>()
     .Bind(builder.Configuration.GetSection("ExternalIntegration"))
     .PostConfigure(options => options.Validate());
 
-builder.Services.AddRabbitMQEventBus(options =>
-{
-    options.HostName = builder.Configuration.GetValue("EventBus:HostName", "localhost")!;
-    options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
-    options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
-    options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
-    options.ExternalExchangeName = builder.Configuration.GetValue("ExternalIntegration:ExchangeName", "his_hope_external_exchange")!;
-    options.PublisherChannelPoolSize = builder.Configuration.GetValue("EventBus:PublisherChannelPoolSize", 8);
-    options.PublisherConfirmTimeoutMilliseconds = builder.Configuration.GetValue("EventBus:PublisherConfirmTimeoutMilliseconds", 5000);
-});
+builder.Services.AddHisHopeLegacyRabbitMqEventBus(builder.Configuration);
 
 builder.Services.AddTransient(typeof(ExternalIntegrationForwarder<>));
 
 var app = builder.Build();
+app.UseHisHopeServiceDefaults();
 
 using (var scope = app.Services.CreateScope())
 {
@@ -48,6 +43,7 @@ using (var scope = app.Services.CreateScope())
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "external-integration-service" }));
 app.MapGet("/ready", () => Results.Ok(new { status = "ready" }));
 
+app.MapHisHopeHealthEndpoints();
 app.Run();
 
 public sealed class ExternalIntegrationOptions

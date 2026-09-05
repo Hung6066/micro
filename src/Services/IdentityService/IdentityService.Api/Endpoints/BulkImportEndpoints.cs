@@ -1,7 +1,9 @@
 using System.IO.Compression;
 using System.Xml.Linq;
+using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.Contracts;
+using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -12,31 +14,38 @@ public static class BulkImportEndpoints
     public static RouteGroupBuilder MapBulkImportEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/users/bulk", BulkImportUsers)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
         group.MapPost("/users/bulk/csv", BulkImportCsv)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
         group.MapPost("/users/bulk/file", BulkImportFile)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
         group.MapPost("/users/bulk/preview", PreviewImport)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         return group;
     }
 
     private static async Task<Results<Ok<BulkImportResult>, ProblemHttpResult>> BulkImportUsers(
-        BulkImportRequest request, BulkUserImportService importService, CancellationToken ct)
+        BulkImportRequest request, IdentityDbContext db, BulkUserImportService importService, HttpContext http, CancellationToken ct)
     {
         if (request.Users.Count == 0)
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkUsersRequired });
         if (request.Users.Count > 10000)
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkUsersLimitExceeded });
 
+        _ = IamTenantHttpContext.RequireFilter(http);
+
         var result = await importService.ImportAsync(request, ct);
         return TypedResults.Ok(result);
     }
 
     private static async Task<Results<Ok<BulkImportResult>, ProblemHttpResult>> BulkImportCsv(
-        HttpRequest httpRequest, BulkUserImportService importService, CancellationToken ct)
+        HttpRequest httpRequest, IdentityDbContext db, BulkUserImportService importService, HttpContext http, CancellationToken ct)
     {
+        _ = IamTenantHttpContext.RequireFilter(http);
+
         using var reader = new StreamReader(httpRequest.Body);
         var csvContent = await reader.ReadToEndAsync();
 
@@ -49,8 +58,10 @@ public static class BulkImportEndpoints
         return TypedResults.Ok(result);
     }
 
-    private static async Task<IResult> BulkImportFile(HttpRequest httpRequest, BulkUserImportService importService, CancellationToken ct)
+    private static async Task<IResult> BulkImportFile(HttpRequest httpRequest, IdentityDbContext db, BulkUserImportService importService, HttpContext http, CancellationToken ct)
     {
+        _ = IamTenantHttpContext.RequireFilter(http);
+
         try
         {
             var users = await ParseImportAsync(httpRequest, ct);
@@ -84,7 +95,7 @@ public static class BulkImportEndpoints
             throw new InvalidOperationException("Import is limited to 10 MB.");
 
         var isXlsx = request.ContentType?.Contains("spreadsheetml", StringComparison.OrdinalIgnoreCase) == true ||
-                     request.Headers.ContentDisposition.Any(value => value.Contains(".xlsx", StringComparison.OrdinalIgnoreCase));
+                     request.Headers.ContentDisposition.ToString().Contains(".xlsx", StringComparison.OrdinalIgnoreCase);
         if (isXlsx)
         {
             using var buffer = new MemoryStream();

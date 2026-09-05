@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ============================================================
 # BUILD STAGE
 # ============================================================
@@ -16,6 +14,7 @@ COPY ["src/Bff/His.Hope.Bff.Core/*.csproj", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/*.csproj", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/*.csproj", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/*.csproj", "Shared/Persistence/His.Hope.Persistence/"]
 COPY ["src/Shared/Core/His.Hope.Core/*.csproj", "Shared/Core/His.Hope.Core/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/*.csproj", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/*.csproj", "Shared/Contracts/His.Hope.Contracts/"]
@@ -34,7 +33,7 @@ COPY ["src/Shared/Observability/His.Hope.Observability.OpenTelemetry/*.csproj", 
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,id=his-hope-identity-api-nuget,target=/root/.nuget/packages \
+RUN \
     dotnet restore "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj"
 
 # --- Copy source and publish ---
@@ -46,6 +45,7 @@ COPY ["src/Bff/His.Hope.Bff.Core/", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/", "Shared/Persistence/His.Hope.Persistence/"]
 COPY ["src/Shared/Core/His.Hope.Core/", "Shared/Core/His.Hope.Core/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/", "Shared/Contracts/His.Hope.Contracts/"]
@@ -66,8 +66,9 @@ COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
 COPY ["config/assurance-policy.v1.json", "Services/IdentityService/IdentityService.Api/config/assurance-policy.v1.json"]
+COPY ["config/conglomerate/", "Services/IdentityService/IdentityService.Api/config/conglomerate/"]
 
-RUN --mount=type=cache,id=his-hope-identity-api-nuget,target=/root/.nuget/packages \
+RUN \
     dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
     -c Release \
     -o /app/publish

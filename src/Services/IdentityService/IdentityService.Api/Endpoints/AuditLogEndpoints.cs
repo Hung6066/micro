@@ -1,11 +1,15 @@
 using His.Hope.IdentityService.Application.UseCases.AuditLogs.Queries;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using His.Hope.IdentityService.Api.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Query;
@@ -70,7 +74,7 @@ public static class AuditLogEndpoints
             if (denied is not null) return denied;
 
             var authenticatedUserId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? httpContext.User.FindFirst("sub")?.Value
+                ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
                 ?? string.Empty;
             var userName = httpContext.User.Identity?.Name
                 ?? httpContext.User.FindFirst(ClaimTypes.Name)?.Value;
@@ -128,6 +132,7 @@ public static class AuditLogEndpoints
             DateTime? dateTo = null,
             string? sort = null,
             [FromServices] IMediator mediator = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try { new QueryRequest(page, pageSize, Sort: sort).Validate(); SortContract.Parse(sort, new HashSet<string>(["action", "resourcetype", "timestamp"], StringComparer.OrdinalIgnoreCase)); }
@@ -135,21 +140,107 @@ public static class AuditLogEndpoints
             if (new[] { userId, action, resourceType, resourceId }.Any(value => value?.Length > 100))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["filter"] = ["Audit filters must be 100 characters or fewer."] });
 
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
             var result = await mediator.Send(
                 new GetAuditLogsQuery(page, pageSize, userId, action,
-                    resourceType, resourceId, dateFrom, dateTo, sort), ct);
+                    resourceType, resourceId, dateFrom, dateTo, sort,
+                    tenantFilter.AllowedTenantKeys?.ToArray()), ct);
             return Results.Ok(result);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
+
+        // GET /api/v1/audit-logs/export - bounded CSV export for compliance tooling.
+        // Keep this server-side and tenant-scoped; callers must not be able to
+        // turn an export into an unbounded table scan or CSV formula injection.
+        group.MapGet("/audit-logs/export", async (
+            int? limit,
+            string? userId,
+            string? action,
+            string? resourceType,
+            string? resourceId,
+            DateTime? dateFrom,
+            DateTime? dateTo,
+            IdentityDbContext db,
+            HttpContext http,
+            CancellationToken ct) =>
+        {
+            var exportLimit = Math.Clamp(limit ?? 1000, 1, 10_000);
+            if (dateFrom.HasValue && dateTo.HasValue && dateFrom > dateTo)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["dateRange"] = ["dateFrom must be earlier than or equal to dateTo."] });
+            if (new[] { userId, action, resourceType, resourceId }.Any(value => value?.Length > 100))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["filter"] = ["Audit filters must be 100 characters or fewer."] });
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            var query = db.AuditLogs.AsNoTracking();
+            if (tenantFilter.AllowedTenantKeys is not null)
+                query = query.WhereTenantActor(db, tenantFilter.AllowedTenantKeys);
+            if (!string.IsNullOrWhiteSpace(userId)) query = query.Where(x => x.UserId == userId);
+            if (!string.IsNullOrWhiteSpace(action)) query = query.Where(x => x.Action == action);
+            if (!string.IsNullOrWhiteSpace(resourceType)) query = query.Where(x => x.ResourceType == resourceType);
+            if (!string.IsNullOrWhiteSpace(resourceId)) query = query.Where(x => x.ResourceId == resourceId);
+            if (dateFrom.HasValue) query = query.Where(x => x.Timestamp >= dateFrom.Value.ToUniversalTime());
+            if (dateTo.HasValue) query = query.Where(x => x.Timestamp <= dateTo.Value.ToUniversalTime());
+
+            var rows = await query.OrderByDescending(x => x.Timestamp).Take(exportLimit).ToListAsync(ct);
+            var csv = new StringBuilder("id,timestamp,userId,userName,action,resourceType,resourceId,outcome,source,correlationId\r\n");
+            foreach (var row in rows)
+            {
+                csv.AppendJoin(',',
+                    Csv(row.Id.ToString()), Csv(row.Timestamp.ToString("O")), Csv(row.UserId),
+                    Csv(row.UserName), Csv(row.Action), Csv(row.ResourceType), Csv(row.ResourceId),
+                    Csv(row.Outcome), Csv(row.Source), Csv(row.CorrelationId));
+                csv.Append("\r\n");
+            }
+
+            db.AuditLogs.Add(new AuditLog
+            {
+                UserId = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? string.Empty,
+                UserName = http.User.Identity?.Name,
+                Action = "export",
+                ResourceType = "AuditLog",
+                Details = JsonSerializer.Serialize(new { count = rows.Count, limit = exportLimit }),
+                IpAddress = http.Connection.RemoteIpAddress?.ToString(),
+                UserAgent = http.Request.Headers.UserAgent.ToString(),
+                CorrelationId = http.TraceIdentifier,
+                Outcome = "accepted",
+                Source = "audit-export",
+                Timestamp = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+
+            return Results.File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv; charset=utf-8", $"audit-export-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         // GET /api/v1/audit-logs/{id} - Audit log detail
         group.MapGet("/audit-logs/{id:guid}", async (
             Guid id,
             [FromServices] IMediator mediator = null!,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
+            if (tenantFilter.AllowedTenantKeys is not null &&
+                !await db.AuditLogs.AsNoTracking()
+                    .Where(item => item.Id == id)
+                    .WhereTenantActor(db, tenantFilter.AllowedTenantKeys)
+                    .AnyAsync(ct))
+                Guard.Against.NotFound(await db.AuditLogs.AsNoTracking()
+                    .Where(item => item.Id == id)
+                    .WhereTenantActor(db, tenantFilter.AllowedTenantKeys)
+                    .AnyAsync(ct) ? new object() : null, "AuditLog", id);
+
             var log = await mediator.Send(new GetAuditLogByIdQuery(id), ct);
-            return log is null ? Results.NotFound() : Results.Ok(log);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+            Guard.Against.NotFound(log, "AuditLog", id);
+            return Results.Ok(log);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         return group;
     }
@@ -203,6 +294,14 @@ public static class AuditLogEndpoints
         return details.Value.TryGetProperty(propertyName, out var property)
             ? property.ToString()
             : null;
+    }
+
+    private static string Csv(string? value)
+    {
+        var text = value ?? string.Empty;
+        // Prefix formula-like values so spreadsheet viewers cannot execute them.
+        if (text.Length > 0 && "=+-@".Contains(text[0])) text = "'" + text;
+        return $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
     }
 
     private static string Truncate(string? value, int maxLength)

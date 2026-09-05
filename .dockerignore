@@ -77,6 +77,62 @@ Thumbs.db
 **/.tekton/
 **/pipeline-runs/
 
+# --- Local runtime, diagnostics and generated evidence ---
+# The .NET Dockerfiles build from the monorepo root, so keep generated local
+# state out of every service build context. These files are never required by
+# restore/publish and can otherwise add gigabytes to Docker's upload step.
+**/.runtime/
+**/.worktrees/
+**/artifacts/
+**/audit-artifact/
+**/backend-diag*/
+**/backend-diagnostics/
+**/ci-*/
+**/coverage-*/
+**/diag-*/
+**/*-log-extracted/
+**/test-results/
+**/StrykerOutput/
+**/trivy-archive/
+**/tmpcov/
+**/.playwright-mcp/
+**/.npm-cache-foundation/
+
+# Service Dockerfiles only need the .NET source tree and repository build
+# metadata. Tests, documentation, frontends and local tooling are never read
+# by `dotnet restore/publish` and must not be uploaded as build context.
+tests/
+docs/
+admin-app/
+operator-mobile/
+manufacturing-buyer-app/
+mobile-app/
+dashboard-app/
+customer-portal-app/
+internal-operator-app/
+feature-tree/
+.tmp/
+.tools/
+
+# The two standalone frontend Dockerfiles build from the monorepo root and
+# explicitly copy these application trees. Keep their sources in the context;
+# the other frontend trees remain excluded from backend image builds.
+!manufacturing-buyer-app/
+!manufacturing-buyer-app/**
+!internal-operator-app/
+!internal-operator-app/**
+!admin-app/
+!admin-app/**
+!dashboard-app/
+!dashboard-app/**
+# Re-apply generated/dependency exclusions after the application allow-list.
+admin-app/node_modules/
+admin-app/dist/
+admin-app/.angular/
+dashboard-app/node_modules/
+dashboard-app/dist/
+dashboard-app/.angular/
+
 # --- Python (ML services) ---
 **/__pycache__/
 **/*.pyc

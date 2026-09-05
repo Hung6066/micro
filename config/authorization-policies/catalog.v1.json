@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "authorization-policy-catalog.v1",
+  "policies": [
+    {
+      "key": "clinical-sensitive-read",
+      "owner": "clinical",
+      "description": "Sensitive clinical reads require a scoped facility, approved purpose, fresh device posture and MFA.",
+      "rules": {
+        "requiredFacility": true,
+        "allowedPurposeOfUse": ["treatment", "operations"],
+        "requireFreshDevicePosture": true,
+        "requiredAssurance": "mfa"
+      },
+      "fixtures": [
+        { "name": "valid-treatment", "context": { "facilityId": "facility-a", "purposeOfUse": "treatment", "devicePostureFresh": true, "assurance": "mfa" }, "allow": true, "reason": "abac_context_match" },
+        { "name": "missing-facility", "context": { "purposeOfUse": "treatment", "devicePostureFresh": true, "assurance": "mfa" }, "allow": false, "reason": "facility_required" },
+        { "name": "stale-device", "context": { "facilityId": "facility-a", "purposeOfUse": "treatment", "devicePostureFresh": false, "assurance": "mfa" }, "allow": false, "reason": "device_posture_stale" },
+        { "name": "wrong-purpose", "context": { "facilityId": "facility-a", "purposeOfUse": "billing", "devicePostureFresh": true, "assurance": "mfa" }, "allow": false, "reason": "purpose_of_use_denied" },
+        { "name": "insufficient-assurance", "context": { "facilityId": "facility-a", "purposeOfUse": "treatment", "devicePostureFresh": true, "assurance": "passkey" }, "allow": false, "reason": "assurance_insufficient" }
+      ]
+    },
+    {
+      "key": "no-break-glass-for-export",
+      "owner": "identity-service",
+      "description": "Exports cannot be performed through break-glass elevation.",
+      "rules": { "allowBreakGlass": false },
+      "fixtures": [
+        { "name": "normal-export", "context": { "isBreakGlass": false }, "allow": true, "reason": "abac_context_match" },
+        { "name": "break-glass-export", "context": { "isBreakGlass": true }, "allow": false, "reason": "break_glass_denied" }
+      ]
+    }
+  ]
+}

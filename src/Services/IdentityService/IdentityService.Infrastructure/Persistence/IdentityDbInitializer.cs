@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text.Json;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Services;
@@ -127,22 +128,38 @@ public static class IdentityDbInitializer
             ("LabTechnician", "Kỹ thuật viên xét nghiệm"),
             ("Pharmacist", "Dược sĩ — cấp phát thuốc"),
             ("BillingClerk", "Nhân viên thanh toán"),
+            ("ManufacturingFieldOperator", "Vận hành hiện trường (mobile)"),
+            ("ManufacturingPlantManager", "Quản lý nhà máy — chịu trách nhiệm vận hành đầu cuối"),
+            ("ManufacturingProductionPlanner", "Điều phối kế hoạch và năng lực sản xuất"),
+            ("ManufacturingProductionOperator", "Vận hành sản xuất tại dây chuyền"),
+            ("ManufacturingQualityInspector", "Kiểm tra và ghi nhận chất lượng tại hiện trường"),
+            ("ManufacturingQualityManager", "Quản lý và phê duyệt chất lượng"),
+            ("ManufacturingRecipeManager", "Quản lý công thức và đặc tả sản phẩm"),
+            ("ManufacturingMaintenanceTechnician", "Kỹ thuật viên bảo trì máy móc"),
+            ("ManufacturingCostController", "Kiểm soát giá vốn và hao hụt"),
         };
 
         logger.LogInformation("Seeding roles...");
         foreach (var (name, description) in roleConfigs)
+            await EnsureSystemRoleAsync(roleManager, name, description);
+
+        // Manufacturing roles follow least privilege and four-eyes approval.
+        // Governance metadata is synchronized without changing authorization
+        // versions, so a restart is safe and does not create noisy revisions.
+        var manufacturingGovernance = new Dictionary<string, (string Owner, string RiskTier, int ReviewCadenceDays)>
         {
-            if (!await roleManager.RoleExistsAsync(name))
-            {
-                await roleManager.CreateAsync(new Role
-                {
-                    Name = name,
-                    Description = description,
-                    IsSystem = true,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
-        }
+            ["ManufacturingPlantManager"] = ("manufacturing-governance", "high", 90),
+            ["ManufacturingProductionPlanner"] = ("manufacturing-planning", "standard", 180),
+            ["ManufacturingProductionOperator"] = ("manufacturing-operations", "standard", 180),
+            ["ManufacturingQualityInspector"] = ("manufacturing-quality", "standard", 180),
+            ["ManufacturingQualityManager"] = ("manufacturing-quality", "high", 90),
+            ["ManufacturingRecipeManager"] = ("manufacturing-engineering", "high", 90),
+            ["ManufacturingMaintenanceTechnician"] = ("manufacturing-maintenance", "standard", 180),
+            ["ManufacturingCostController"] = ("manufacturing-finance", "high", 90),
+            ["ManufacturingFieldOperator"] = ("manufacturing-operations", "standard", 180),
+        };
+        foreach (var (roleName, governance) in manufacturingGovernance)
+            await EnsureRoleGovernanceAsync(context, roleName, governance.Owner, governance.RiskTier, governance.ReviewCadenceDays, ct);
         logger.LogInformation("Roles seeded successfully.");
 
         // ──────────────────────────────────────────────
@@ -231,12 +248,85 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Patients.View,
                 HisHopePermissions.Dashboard.View,
             },
+
+            ["ManufacturingFieldOperator"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.ProductionExecute,
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Manufacturing.MaintenanceComplete,
+                HisHopePermissions.Dashboard.View,
+            },
+
+            // Segregated manufacturing workforce roles. Approval permissions
+            // are deliberately not granted to execution/inspection roles.
+            ["ManufacturingPlantManager"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.ProductionExecute,
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Manufacturing.QualityApprove,
+                HisHopePermissions.Manufacturing.RecipeApprove,
+                HisHopePermissions.Manufacturing.SpecificationApprove,
+                HisHopePermissions.Manufacturing.SopApprove,
+                HisHopePermissions.Manufacturing.BusinessSign,
+                HisHopePermissions.Manufacturing.MaintenanceComplete,
+                HisHopePermissions.Manufacturing.CostManage,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingProductionPlanner"] = new HashSet<string>
+            {
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingProductionOperator"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.ProductionExecute,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingQualityInspector"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingQualityManager"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.QualityInspect,
+                HisHopePermissions.Manufacturing.QualityApprove,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingRecipeManager"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.RecipeApprove,
+                HisHopePermissions.Manufacturing.SpecificationApprove,
+                HisHopePermissions.Manufacturing.SopApprove,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingMaintenanceTechnician"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.MaintenanceComplete,
+                HisHopePermissions.Dashboard.View,
+            },
+            ["ManufacturingCostController"] = new HashSet<string>
+            {
+                HisHopePermissions.Manufacturing.CostManage,
+                HisHopePermissions.Dashboard.View,
+            },
         };
 
         foreach (var (roleName, permissions) in rolePermissionMap)
         {
             var role = await context.Roles.FirstOrDefaultAsync(r => r.Name == roleName, ct);
             if (role is null) continue;
+
+            // System manufacturing roles are managed templates. Remove stale
+            // grants so a previously elevated employee role cannot retain a
+            // permission after the catalog is tightened.
+            if (roleName.StartsWith("Manufacturing", StringComparison.Ordinal))
+            {
+                var staleGrants = await context.RolePermissions
+                    .Where(link => link.RoleId == role.Id && !permissions.Contains(link.PermissionCode))
+                    .ToListAsync(ct);
+                if (staleGrants.Count > 0)
+                    context.RolePermissions.RemoveRange(staleGrants);
+            }
 
             foreach (var permissionCode in permissions)
             {
@@ -358,7 +448,11 @@ public static class IdentityDbInitializer
                 await userManager.RemoveFromRoleAsync(adminUser, "Provider");
                 logger.LogInformation("Admin user removed from Provider role.");
             }
+
         }
+
+        if (hostEnvironment?.IsProduction() == true)
+            await ValidateProductionSuperAdminsAsync(configuration, userManager, context, logger, ct);
 
         // ──────────────────────────────────────────────
         // Step 5: Seed OpenIddict Application (idempotent)
@@ -538,6 +632,8 @@ public static class IdentityDbInitializer
             await UpdateClientUrisAsync(appManager, existingMobileClient, oidcClients[mobileClientId], ct);
         }
 
+        await SeedAdditionalConfiguredOidcClientsAsync(appManager, oidcClients, configuration, logger, ct);
+
         var m2mClients = new[]
         {
             new { ClientId = "patient-service", DisplayName = "Patient Service (M2M)", Scopes = "hishop:patients hishop:appointments" },
@@ -608,7 +704,7 @@ public static class IdentityDbInitializer
             "hishop:permissions", "hishop:patients", "hishop:appointments",
             "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy",
             "hishop:admin", "fhir.patient.read", "fhir.encounter.read",
-            "platform.continuity.write", "scim.read", "scim.write"
+            "platform.continuity.write", "scim.read", "scim.write", "manufacturing.api"
         };
         foreach (var scopeName in scopeNames)
         {
@@ -623,16 +719,864 @@ public static class IdentityDbInitializer
             }
         }
 
+        // Manufacturing portal requests an explicit resource scope in addition
+        // to the IAM workload audience. Keep the client registration idempotent
+        // and never persist a client secret in configuration or seed data.
+        var manufacturingClient = await appManager.FindByClientIdAsync("manufacturing-app", ct);
+        if (manufacturingClient is not null)
+        {
+            var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor();
+            await appManager.PopulateAsync(descriptor, manufacturingClient, ct);
+            var manufacturingScopePermission = OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "manufacturing.api";
+            if (!descriptor.Permissions.Any(permission => string.Equals(permission, manufacturingScopePermission, StringComparison.Ordinal)))
+            {
+                descriptor.Permissions.Add(manufacturingScopePermission);
+                await appManager.UpdateAsync(manufacturingClient, descriptor, ct);
+                logger.LogInformation("Granted OIDC scope manufacturing.api to client manufacturing-app.");
+            }
+        }
+
         logger.LogInformation("OIDC scopes seeded successfully.");
-        await SeedControlPlaneSampleDataAsync(context, logger, ct);
+        await SeedControlPlaneSampleDataAsync(context, configuration, userManager, logger, ct);
+        if (configuration?.GetValue("Conglomerate:Enabled", false) == true)
+        {
+            if (configuration.GetValue("Conglomerate:SeedPilotUsers", true))
+            {
+                await SeedConglomeratePilotUsersAsync(
+                    userManager,
+                    roleManager,
+                    configuration,
+                    hostEnvironment,
+                    logger,
+                    ct);
+                await EnsureRolePermissionsAsync(
+                    context,
+                    "ManufacturingFieldOperator",
+                    [
+                        HisHopePermissions.Manufacturing.ProductionExecute,
+                        HisHopePermissions.Manufacturing.QualityInspect,
+                        HisHopePermissions.Manufacturing.MaintenanceComplete,
+                        HisHopePermissions.Dashboard.View,
+                    ],
+                    logger,
+                    ct);
+            }
+
+            if (configuration.GetValue("Conglomerate:SkipDemoHospitalScope", true))
+            {
+                await SeedConglomerateIamGraphAsync(context, userManager, configuration, logger, ct);
+            }
+
+            if (configuration.GetValue("Conglomerate:SeedPilotMemberships", true))
+            {
+                await SeedConglomeratePilotMembershipsAsync(userManager, configuration, logger, ct);
+            }
+        }
         logger.LogInformation("Database seeding completed successfully.");
+    }
+
+    private static async Task EnsureSystemRoleAsync(
+        RoleManager<Role> roleManager,
+        string name,
+        string description)
+    {
+        if (await roleManager.RoleExistsAsync(name))
+            return;
+
+        var created = await roleManager.CreateAsync(new Role
+        {
+            Name = name,
+            Description = description,
+            IsSystem = true,
+            CreatedAt = DateTime.UtcNow
+        });
+        if (created.Succeeded)
+            return;
+
+        if (await roleManager.RoleExistsAsync(name))
+            return;
+
+        throw new InvalidOperationException(
+            $"Unable to create system role '{name}': {string.Join(", ", created.Errors.Select(error => error.Description))}");
+    }
+
+    private static async Task EnsureRolePermissionsAsync(
+        IdentityDbContext context,
+        string roleName,
+        IReadOnlyCollection<string> permissionCodes,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var role = await context.Roles.FirstOrDefaultAsync(
+            item => item.Name == roleName,
+            ct);
+        if (role is null)
+            return;
+
+        foreach (var permissionCode in permissionCodes)
+        {
+            if (!await context.Permissions.AnyAsync(permission => permission.Code == permissionCode, ct))
+            {
+                logger.LogWarning("Permission {PermissionCode} not found in database, creating it.", permissionCode);
+                context.Permissions.Add(new Permission
+                {
+                    Code = permissionCode,
+                    Name = permissionCode,
+                    Group = "Auto-created",
+                    IsSystem = true,
+                    CreatedAt = DateTime.UtcNow
+                });
+                await context.SaveChangesAsync(ct);
+            }
+
+            if (!await context.RolePermissions.AnyAsync(
+                    item => item.RoleId == role.Id && item.PermissionCode == permissionCode,
+                    ct))
+            {
+                context.RolePermissions.Add(new RolePermission
+                {
+                    RoleId = role.Id,
+                    PermissionCode = permissionCode
+                });
+            }
+        }
+
+        await context.SaveChangesAsync(ct);
+    }
+
+    private static async Task EnsureRoleGovernanceAsync(
+        IdentityDbContext context,
+        string roleName,
+        string owner,
+        string riskTier,
+        int reviewCadenceDays,
+        CancellationToken ct)
+    {
+        var role = await context.Roles.FirstOrDefaultAsync(item => item.Name == roleName, ct);
+        if (role is null || !role.IsSystem)
+            return;
+
+        var changed = !string.Equals(role.Owner, owner, StringComparison.Ordinal)
+            || !string.Equals(role.RiskTier, riskTier, StringComparison.Ordinal)
+            || role.ReviewCadenceDays != reviewCadenceDays;
+        if (!changed)
+            return;
+
+        role.Owner = owner;
+        role.RiskTier = riskTier;
+        role.ReviewCadenceDays = reviewCadenceDays;
+        role.PublishedAt ??= DateTime.UtcNow;
+        role.LifecycleStatus = "active";
+        await context.SaveChangesAsync(ct);
+    }
+
+    private static async Task SeedConglomeratePilotMembershipsAsync(
+        UserManager<User> userManager,
+        IConfiguration configuration,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var admin = await userManager.FindByNameAsync(AdminBootstrapConfiguration.DefaultUserName);
+        if (admin is null)
+            admin = await userManager.FindByEmailAsync(AdminBootstrapConfiguration.DefaultEmail);
+        if (admin is null)
+        {
+            logger.LogWarning("Skipping conglomerate pilot memberships because the admin user does not exist.");
+            return;
+        }
+
+        var tenantSections = configuration.GetSection("Conglomerate:Tenants").GetChildren().ToArray();
+        var existingClaims = await userManager.GetClaimsAsync(admin);
+        foreach (var tenantSection in tenantSections)
+        {
+            var tenantKey = tenantSection["Key"];
+            if (string.IsNullOrWhiteSpace(tenantKey))
+                continue;
+
+            if (existingClaims.Any(claim =>
+                    claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership &&
+                    string.Equals(claim.Value, tenantKey, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            await userManager.AddClaimAsync(admin, new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, tenantKey));
+            logger.LogInformation("Granted tenant membership '{TenantKey}' to admin user.", tenantKey);
+        }
+    }
+
+    private static async Task SeedConglomerateIamGraphAsync(
+        IdentityDbContext db,
+        UserManager<User> userManager,
+        IConfiguration configuration,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var actor = await db.Users.AsNoTracking().OrderBy(x => x.UserName).FirstOrDefaultAsync(ct);
+        if (actor is null)
+        {
+            logger.LogWarning("Skipping conglomerate IAM graph seed because no actor user exists.");
+            return;
+        }
+
+        var actorId = actor.Id;
+        var seedDocument = LoadConglomerateSeedDocument(configuration, logger);
+        if (seedDocument is null)
+            return;
+
+        var serviceDefinitions = new (string Key, string Name, string Prefix)[]
+        {
+            ("identity", "Identity Service", "identity"), ("patients", "Patient Service", "patients"),
+            ("clinical", "Clinical Service", "clinical"), ("appointments", "Appointment Service", "appointments"),
+            ("billing", "Billing Service", "billing"), ("pharmacy", "Pharmacy Service", "pharmacy"),
+            ("lab", "Laboratory Service", "lab"),
+            ("fhir", "FHIR Service", "fhir"),
+            ("external-integration", "External Integration Service", "external"),
+            ("database-continuity", "Database Continuity Service", "admin"),
+            ("remediation", "Remediation Operator", "admin"),
+            ("mobile", "Mobile Platform", "admin"),
+            ("manufacturing", "Manufacturing Service", "manufacturing")
+        };
+        foreach (var definition in serviceDefinitions)
+        {
+            if (!await db.IamServiceDefinitions.AnyAsync(x => x.Key == definition.Key, ct))
+            {
+                db.IamServiceDefinitions.Add(new IamServiceDefinition
+                {
+                    Key = definition.Key,
+                    DisplayName = definition.Name,
+                    PermissionPrefix = definition.Prefix,
+                    Owner = "identity-service"
+                });
+            }
+        }
+        await db.SaveChangesAsync(ct);
+
+        var scopes = await db.IamScopes.AsNoTracking().ToListAsync(ct);
+        foreach (var tenantSeed in seedDocument.RootElement.GetProperty("tenants").EnumerateArray())
+        {
+            var tenantKey = tenantSeed.GetProperty("key").GetString();
+            if (string.IsNullOrWhiteSpace(tenantKey))
+                continue;
+
+            var tenantScope = scopes.FirstOrDefault(x => x.Kind == "tenant" && x.Key == tenantKey);
+            if (tenantScope is null)
+            {
+                logger.LogWarning("Skipping conglomerate seed for unknown tenant '{TenantKey}'.", tenantKey);
+                continue;
+            }
+
+            var accountScope = scopes.FirstOrDefault(x => x.Kind == "account" && x.ParentId == tenantScope.Id);
+            var configuredTenant = configuration.GetSection("Conglomerate:Tenants").GetChildren()
+                .FirstOrDefault(section => string.Equals(section["Key"], tenantKey, StringComparison.OrdinalIgnoreCase));
+            var expectedEnvironmentKey = configuredTenant?["EnvironmentKey"] ?? $"{tenantKey}-staging";
+            var environmentScope = accountScope is null
+                ? null
+                : scopes.FirstOrDefault(x => x.Kind == "environment" && x.ParentId == accountScope.Id && x.Key == expectedEnvironmentKey);
+            if (environmentScope is null)
+            {
+                logger.LogWarning("Skipping conglomerate seed graph for tenant '{TenantKey}' without environment scope.", tenantKey);
+                continue;
+            }
+
+            if (tenantSeed.TryGetProperty("groups", out var groups) && groups.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var groupSeed in groups.EnumerateArray())
+                {
+                    var groupKey = groupSeed.GetProperty("key").GetString();
+                    var groupName = groupSeed.GetProperty("displayName").GetString();
+                    if (string.IsNullOrWhiteSpace(groupKey) || string.IsNullOrWhiteSpace(groupName))
+                        continue;
+
+                    if (!await db.IamGroups.AnyAsync(x => x.Key == groupKey && x.ScopeId == tenantScope.Id, ct))
+                    {
+                        db.IamGroups.Add(new IamGroup
+                        {
+                            Key = groupKey,
+                            DisplayName = groupName,
+                            ScopeId = tenantScope.Id,
+                            CreatedBy = actorId.ToString()
+                        });
+                    }
+                }
+            }
+
+            if (tenantSeed.TryGetProperty("permissionSets", out var permissionSets) &&
+                permissionSets.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var setSeed in permissionSets.EnumerateArray())
+                {
+                    var setKey = setSeed.GetProperty("key").GetString();
+                    var setName = setSeed.GetProperty("displayName").GetString();
+                    if (string.IsNullOrWhiteSpace(setKey) || string.IsNullOrWhiteSpace(setName))
+                        continue;
+
+                    var permissions = setSeed.GetProperty("permissions").EnumerateArray()
+                        .Where(item => item.ValueKind == JsonValueKind.String)
+                        .Select(item => item.GetString()!)
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .ToArray();
+                    var permissionsJson = JsonSerializer.Serialize(permissions);
+
+                    var existingPermissionSet = await db.IamPermissionSets.FirstOrDefaultAsync(
+                        x => x.Key == setKey && x.ScopeId == environmentScope.Id,
+                        ct);
+                    if (existingPermissionSet is null)
+                    {
+                        db.IamPermissionSets.Add(new IamPermissionSet
+                        {
+                            Key = setKey,
+                            DisplayName = setName,
+                            ScopeId = environmentScope.Id,
+                            PermissionsJson = permissionsJson,
+                            LifecycleStatus = "published",
+                            CreatedBy = actorId.ToString(),
+                            PublishedAt = DateTime.UtcNow
+                        });
+                    }
+                    else if (!string.Equals(existingPermissionSet.PermissionsJson, permissionsJson, StringComparison.Ordinal))
+                    {
+                        existingPermissionSet.DisplayName = setName;
+                        existingPermissionSet.PermissionsJson = permissionsJson;
+                        existingPermissionSet.Version++;
+                        existingPermissionSet.LifecycleStatus = "published";
+                        existingPermissionSet.PublishedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+
+            await db.SaveChangesAsync(ct);
+
+            var permissionSetsByKey = await db.IamPermissionSets.AsNoTracking()
+                .Where(set => set.ScopeId == environmentScope.Id)
+                .ToDictionaryAsync(set => set.Key, StringComparer.Ordinal, ct);
+            var groupsByKey = await db.IamGroups.AsNoTracking()
+                .Where(group => group.ScopeId == tenantScope.Id)
+                .ToDictionaryAsync(group => group.Key, StringComparer.Ordinal, ct);
+
+            if (tenantSeed.TryGetProperty("groupMemberships", out var memberships) &&
+                memberships.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var membershipSeed in memberships.EnumerateArray())
+                {
+                    var groupKey = membershipSeed.GetProperty("groupKey").GetString();
+                    var userName = membershipSeed.GetProperty("userName").GetString();
+                    if (string.IsNullOrWhiteSpace(groupKey) || string.IsNullOrWhiteSpace(userName))
+                        continue;
+                    if (!groupsByKey.TryGetValue(groupKey, out var group))
+                        continue;
+                    var user = await userManager.FindByNameAsync(userName);
+                    if (user is null)
+                        continue;
+                    if (!await db.IamGroupMemberships.AnyAsync(
+                            membership => membership.GroupId == group.Id && membership.UserId == user.Id, ct))
+                    {
+                        db.IamGroupMemberships.Add(new IamGroupMembership
+                        {
+                            GroupId = group.Id,
+                            UserId = user.Id,
+                            CreatedBy = actorId.ToString()
+                        });
+                    }
+                }
+            }
+
+            if (tenantSeed.TryGetProperty("assignments", out var assignments) &&
+                assignments.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var assignmentSeed in assignments.EnumerateArray())
+                {
+                    var permissionSetKey = assignmentSeed.GetProperty("permissionSetKey").GetString();
+                    var principalType = assignmentSeed.TryGetProperty("principalType", out var typeElement)
+                        ? typeElement.GetString() ?? "human"
+                        : "human";
+                    if (string.IsNullOrWhiteSpace(permissionSetKey) ||
+                        !permissionSetsByKey.TryGetValue(permissionSetKey, out var permissionSet))
+                        continue;
+
+                    Guid principalId;
+                    if (string.Equals(principalType, "group", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var groupKey = assignmentSeed.GetProperty("groupKey").GetString();
+                        if (string.IsNullOrWhiteSpace(groupKey) || !groupsByKey.TryGetValue(groupKey, out var group))
+                            continue;
+                        principalId = group.Id;
+                    }
+                    else
+                    {
+                        var userName = assignmentSeed.GetProperty("userName").GetString();
+                        if (string.IsNullOrWhiteSpace(userName))
+                            continue;
+                        var user = await userManager.FindByNameAsync(userName);
+                        if (user is null)
+                            continue;
+                        principalId = user.Id;
+                    }
+
+                    if (!await db.IamPermissionSetAssignments.AnyAsync(assignment =>
+                            assignment.PermissionSetId == permissionSet.Id &&
+                            assignment.PrincipalId == principalId &&
+                            assignment.PrincipalType == principalType &&
+                            assignment.ScopeId == environmentScope.Id, ct))
+                    {
+                        db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment
+                        {
+                            PermissionSetId = permissionSet.Id,
+                            PrincipalId = principalId,
+                            PrincipalType = principalType,
+                            ScopeId = environmentScope.Id,
+                            CreatedBy = actorId.ToString()
+                        });
+                    }
+                }
+            }
+
+            if (tenantSeed.TryGetProperty("boundaries", out var boundaries) &&
+                boundaries.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var boundarySeed in boundaries.EnumerateArray())
+                {
+                    var userName = boundarySeed.GetProperty("userName").GetString();
+                    var boundaryTenantKey = boundarySeed.GetProperty("tenantKey").GetString();
+                    if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(boundaryTenantKey))
+                        continue;
+                    var user = await userManager.FindByNameAsync(userName);
+                    if (user is null)
+                        continue;
+
+                    var allowedPermissions = boundarySeed.GetProperty("allowedPermissions").EnumerateArray()
+                        .Where(item => item.ValueKind == JsonValueKind.String)
+                        .Select(item => item.GetString()!)
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .ToArray();
+
+                    var allowedPermissionsJson = JsonSerializer.Serialize(allowedPermissions);
+                    var existingBoundary = await db.IamPermissionBoundaries.FirstOrDefaultAsync(boundary =>
+                        boundary.PrincipalId == user.Id &&
+                        boundary.PrincipalType == AuthorizationConstants.PrincipalTypes.Human &&
+                        boundary.ScopeId == environmentScope.Id, ct);
+                    if (existingBoundary is null)
+                    {
+                        db.IamPermissionBoundaries.Add(new IamPermissionBoundary
+                        {
+                            PrincipalId = user.Id,
+                            PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
+                            ScopeId = environmentScope.Id,
+                            AllowedPermissionsJson = allowedPermissionsJson,
+                            ResourceConstraintsJson = JsonSerializer.Serialize(new { tenant = boundaryTenantKey }),
+                            CreatedBy = actorId.ToString()
+                        });
+                    }
+                    else if (!string.Equals(existingBoundary.AllowedPermissionsJson, allowedPermissionsJson, StringComparison.Ordinal))
+                    {
+                        existingBoundary.AllowedPermissionsJson = allowedPermissionsJson;
+                        existingBoundary.ResourceConstraintsJson =
+                            JsonSerializer.Serialize(new { tenant = boundaryTenantKey });
+                        existingBoundary.IsActive = true;
+                    }
+                }
+            }
+
+            // Optional service-principal/workload graph. Workload roles are the
+            // persisted service-principal and API-audience model; OAuth client
+            // registrations and trusted issuers remain configuration-backed.
+            if (tenantSeed.TryGetProperty("workloadRoles", out var workloadSeeds) && workloadSeeds.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var roleSeed in workloadSeeds.EnumerateArray())
+                {
+                    var key = roleSeed.GetProperty("key").GetString();
+                    var displayName = roleSeed.GetProperty("displayName").GetString();
+                    var audience = roleSeed.GetProperty("audience").GetString();
+                    if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(audience)) continue;
+                    var permissions = roleSeed.TryGetProperty("permissions", out var permissionElement)
+                        ? permissionElement.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray()
+                        : [];
+                    var role = await db.IamWorkloadRoles.FirstOrDefaultAsync(x => x.Key == key && x.ScopeId == environmentScope.Id, ct);
+                    if (role is null)
+                    {
+                        db.IamWorkloadRoles.Add(new IamWorkloadRole { Key = key, DisplayName = displayName, ScopeId = environmentScope.Id, Audience = audience, PermissionsJson = JsonSerializer.Serialize(permissions), TrustPolicyJson = JsonSerializer.Serialize(new { principals = new[] { audience }, conditions = new { tenant = tenantKey } }), MaxSessionSeconds = 900 });
+                    }
+                    else
+                    {
+                        role.DisplayName = displayName;
+                        role.Audience = audience;
+                        role.PermissionsJson = JsonSerializer.Serialize(permissions);
+                        role.TrustPolicyJson = JsonSerializer.Serialize(new { principals = new[] { audience }, conditions = new { tenant = tenantKey } });
+                        role.IsActive = true;
+                    }
+                }
+                await db.SaveChangesAsync(ct);
+                foreach (var role in await db.IamWorkloadRoles.Where(x => x.ScopeId == environmentScope.Id).ToListAsync(ct))
+                {
+                    var permissions = role.PermissionsJson;
+                    var runtimeSetKey = $"{role.Key}-permissions";
+                    var runtimeSet = await db.IamPermissionSets.FirstOrDefaultAsync(x => x.Key == runtimeSetKey && x.ScopeId == environmentScope.Id, ct);
+                    if (runtimeSet is null)
+                    {
+                        runtimeSet = new IamPermissionSet { Key = runtimeSetKey, DisplayName = $"{role.DisplayName} permissions", ScopeId = environmentScope.Id, PermissionsJson = permissions, LifecycleStatus = "published", CreatedBy = actorId.ToString(), PublishedAt = DateTime.UtcNow };
+                        db.IamPermissionSets.Add(runtimeSet);
+                        await db.SaveChangesAsync(ct);
+                    }
+                    else if (!string.Equals(runtimeSet.PermissionsJson, permissions, StringComparison.Ordinal))
+                    {
+                        runtimeSet.PermissionsJson = permissions;
+                        runtimeSet.Version++;
+                        runtimeSet.LifecycleStatus = "published";
+                        runtimeSet.PublishedAt = DateTime.UtcNow;
+                    }
+                    if (!await db.IamPermissionSetAssignments.AnyAsync(x => x.PermissionSetId == runtimeSet.Id && x.PrincipalId == role.Id && x.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload && x.ScopeId == environmentScope.Id, ct))
+                        db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment { PermissionSetId = runtimeSet.Id, PrincipalId = role.Id, PrincipalType = AuthorizationConstants.PrincipalTypes.Workload, ScopeId = environmentScope.Id, CreatedBy = actorId.ToString() });
+                    if (!await db.IamPermissionBoundaries.AnyAsync(x => x.PrincipalId == role.Id && x.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload && x.ScopeId == environmentScope.Id, ct))
+                        db.IamPermissionBoundaries.Add(new IamPermissionBoundary { PrincipalId = role.Id, PrincipalType = AuthorizationConstants.PrincipalTypes.Workload, ScopeId = environmentScope.Id, AllowedPermissionsJson = permissions, ResourceConstraintsJson = JsonSerializer.Serialize(new { tenant = tenantKey }), CreatedBy = actorId.ToString() });
+                }
+            }
+
+            if (tenantSeed.TryGetProperty("resourcePolicies", out var resourceSeeds) && resourceSeeds.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var policySeed in resourceSeeds.EnumerateArray())
+                {
+                    var serviceKey = policySeed.GetProperty("serviceKey").GetString();
+                    var pattern = policySeed.GetProperty("resourcePattern").GetString();
+                    if (string.IsNullOrWhiteSpace(serviceKey) || string.IsNullOrWhiteSpace(pattern)) continue;
+                    var statements = policySeed.TryGetProperty("statements", out var statementElement) ? statementElement.GetRawText() : "[]";
+                    var existing = await db.IamResourcePolicies.FirstOrDefaultAsync(x => x.ScopeId == environmentScope.Id && x.ServiceKey == serviceKey && x.ResourcePattern == pattern, ct);
+                    if (existing is null) db.IamResourcePolicies.Add(new IamResourcePolicy { ScopeId = environmentScope.Id, ServiceKey = serviceKey, ResourcePattern = pattern, StatementsJson = statements, LifecycleStatus = "published", PublishedAt = DateTime.UtcNow, CreatedBy = actorId.ToString() });
+                    else { existing.StatementsJson = statements; existing.LifecycleStatus = "published"; existing.PublishedAt ??= DateTime.UtcNow; }
+                }
+            }
+
+            if (tenantSeed.TryGetProperty("policies", out var policySeeds) && policySeeds.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var policySeed in policySeeds.EnumerateArray())
+                {
+                    var key = policySeed.GetProperty("key").GetString();
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    var existing = await db.AuthorizationPolicies.FirstOrDefaultAsync(x => x.Key == key, ct);
+                    var rules = policySeed.TryGetProperty("rules", out var rulesElement) ? rulesElement.GetRawText() : "{}";
+                    if (existing is null) db.AuthorizationPolicies.Add(new AuthorizationPolicyDefinition { Key = key, Description = policySeed.TryGetProperty("description", out var d) ? d.GetString() ?? key : key, Owner = policySeed.TryGetProperty("owner", out var o) ? o.GetString() ?? "manufacturing" : "manufacturing", RulesJson = rules, LifecycleStatus = "published", PublishedAt = DateTime.UtcNow, PublishedBy = actorId.ToString(), CreatedBy = actorId.ToString() });
+                    else { existing.Description = policySeed.TryGetProperty("description", out var d) ? d.GetString() ?? existing.Description : existing.Description; existing.RulesJson = rules; existing.LifecycleStatus = "published"; existing.PublishedAt ??= DateTime.UtcNow; }
+                }
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Conglomerate IAM graph seeded from seed-data document.");
+    }
+
+    private static async Task SeedConglomeratePilotUsersAsync(
+        UserManager<User> userManager,
+        RoleManager<Role> roleManager,
+        IConfiguration configuration,
+        IHostEnvironment? hostEnvironment,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var pilots = ResolveConglomeratePilotSeeds(configuration, logger);
+        if (pilots.Count == 0)
+        {
+            logger.LogWarning("Skipping conglomerate pilot users because no pilot seed entries were found.");
+            return;
+        }
+
+        var password = ResolveConglomeratePilotPassword(configuration, hostEnvironment, logger);
+        if (string.IsNullOrWhiteSpace(password))
+            return;
+
+        foreach (var pilot in pilots)
+        {
+            var userName = pilot.UserName;
+            var email = pilot.Email;
+            var tenantKey = pilot.TenantKey;
+            var roleName = pilot.RoleName;
+            if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(tenantKey))
+                continue;
+
+            var user = await userManager.FindByNameAsync(userName);
+            if (user is null)
+            {
+                user = new User
+                {
+                    UserName = userName,
+                    Email = email,
+                    EmailConfirmed = true,
+                    IsActive = true,
+                    FirstName = pilot.FirstName,
+                    LastName = pilot.LastName,
+                };
+                var createResult = await userManager.CreateAsync(user, password);
+                if (!createResult.Succeeded)
+                {
+                    logger.LogWarning(
+                        "Unable to create conglomerate pilot user '{UserName}': {Errors}",
+                        userName,
+                        string.Join(", ", createResult.Errors.Select(error => error.Description)));
+                    continue;
+                }
+
+                logger.LogInformation("Created conglomerate pilot user.");
+            }
+            else
+            {
+                var updated = false;
+                if (!user.IsActive)
+                {
+                    user.IsActive = true;
+                    updated = true;
+                }
+
+                if (!user.EmailConfirmed)
+                {
+                    user.EmailConfirmed = true;
+                    updated = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(user.Email) &&
+                    !string.IsNullOrWhiteSpace(email))
+                {
+                    user.Email = email;
+                    updated = true;
+                }
+
+                if (updated)
+                    await userManager.UpdateAsync(user);
+
+                if (ShouldResetPilotPasswords(configuration))
+                {
+                    var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+                    var resetResult = await userManager.ResetPasswordAsync(user, resetToken, password);
+                    if (!resetResult.Succeeded)
+                    {
+                        logger.LogWarning(
+                            "Unable to reset conglomerate pilot password for '{UserName}': {Errors}",
+                            userName,
+                            string.Join(", ", resetResult.Errors.Select(error => error.Description)));
+                    }
+                    else
+                    {
+                        logger.LogInformation("Reset conglomerate pilot password.");
+                    }
+                }
+            }
+
+            var claims = await userManager.GetClaimsAsync(user);
+            if (!claims.Any(claim =>
+                    claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership &&
+                    string.Equals(claim.Value, tenantKey, StringComparison.OrdinalIgnoreCase)))
+            {
+                await userManager.AddClaimAsync(user, new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, tenantKey));
+            }
+
+            if (!string.IsNullOrWhiteSpace(roleName))
+            {
+                await EnsureSystemRoleAsync(roleManager, roleName, roleName);
+                if (!await userManager.IsInRoleAsync(user, roleName))
+                {
+                    var addRole = await userManager.AddToRoleAsync(user, roleName);
+                    if (!addRole.Succeeded)
+                    {
+                        throw new InvalidOperationException(
+                            $"Unable to assign role '{roleName}' to conglomerate pilot '{userName}': {string.Join(", ", addRole.Errors.Select(error => error.Description))}");
+                    }
+                }
+            }
+            else if (await userManager.IsInRoleAsync(user, "Admin"))
+            {
+                await userManager.RemoveFromRoleAsync(user, "Admin");
+                logger.LogInformation(
+                    "Removed global Admin role from conglomerate pilot user '{UserName}'.",
+                    userName);
+            }
+        }
+
+        logger.LogInformation("Conglomerate pilot user seed completed for {PilotCount} entries.", pilots.Count);
+    }
+
+    private sealed record ConglomeratePilotSeed(
+        string UserName,
+        string Email,
+        string TenantKey,
+        string RoleName,
+        string FirstName,
+        string LastName);
+
+    private static IReadOnlyList<ConglomeratePilotSeed> ResolveConglomeratePilotSeeds(
+        IConfiguration configuration,
+        ILogger logger)
+    {
+        var seedDocument = LoadConglomerateSeedDocument(configuration, logger);
+        if (seedDocument is not null &&
+            seedDocument.RootElement.TryGetProperty("pilotUsers", out var pilotsFromFile) &&
+            pilotsFromFile.ValueKind == JsonValueKind.Array)
+        {
+            return pilotsFromFile.EnumerateArray()
+                .Select(ParseConglomeratePilotSeed)
+                .Where(pilot => pilot is not null)
+                .Select(pilot => pilot!)
+                .ToArray();
+        }
+
+        var pilotsFromConfig = configuration.GetSection("Conglomerate:PilotUsers").GetChildren().ToArray();
+        if (pilotsFromConfig.Length == 0)
+            return [];
+
+        return pilotsFromConfig
+            .Select(section => ParseConglomeratePilotSeed(section))
+            .Where(pilot => pilot is not null)
+            .Select(pilot => pilot!)
+            .ToArray();
+    }
+
+    private static ConglomeratePilotSeed? ParseConglomeratePilotSeed(JsonElement pilot)
+    {
+        var userName = pilot.TryGetProperty("userName", out var userNameElement) ? userNameElement.GetString() : null;
+        var email = pilot.TryGetProperty("email", out var emailElement) ? emailElement.GetString() : null;
+        var tenantKey = pilot.TryGetProperty("tenantKey", out var tenantElement) ? tenantElement.GetString() : null;
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(tenantKey))
+            return null;
+
+        return new ConglomeratePilotSeed(
+            userName,
+            email,
+            tenantKey,
+            pilot.TryGetProperty("role", out var roleElement) ? roleElement.GetString() ?? "" : "",
+            pilot.TryGetProperty("firstName", out var firstNameElement) ? firstNameElement.GetString() ?? "" : "",
+            pilot.TryGetProperty("lastName", out var lastNameElement) ? lastNameElement.GetString() ?? "" : "");
+    }
+
+    private static ConglomeratePilotSeed? ParseConglomeratePilotSeed(IConfigurationSection section)
+    {
+        var userName = section["UserName"] ?? section["userName"];
+        var email = section["Email"] ?? section["email"];
+        var tenantKey = section["TenantKey"] ?? section["tenantKey"];
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(tenantKey))
+            return null;
+
+        return new ConglomeratePilotSeed(
+            userName,
+            email,
+            tenantKey,
+            section["Role"] ?? section["role"] ?? "",
+            section["FirstName"] ?? section["firstName"] ?? "",
+            section["LastName"] ?? section["lastName"] ?? "");
+    }
+
+    private static async Task ValidateProductionSuperAdminsAsync(
+        IConfiguration? configuration,
+        UserManager<User> userManager,
+        IdentityDbContext context,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var configuredIds = configuration?.GetSection("Identity:SuperAdmin:UserIds")
+            .Get<string[]>() ?? [];
+        if (configuredIds.Length == 0)
+            throw new InvalidOperationException(
+                "Production requires at least one configured Identity:SuperAdmin:UserIds entry.");
+
+        foreach (var configuredId in configuredIds)
+        {
+            if (!Guid.TryParse(configuredId, out var userId))
+                throw new InvalidOperationException(
+                    $"Production super-admin ID '{configuredId}' is not a valid user GUID.");
+
+            var user = await userManager.FindByIdAsync(userId.ToString("D"));
+            if (user is null || !user.IsActive)
+                throw new InvalidOperationException(
+                    $"Production super-admin '{userId:D}' must exist and be active before IdentityService can start.");
+            if (!user.EmailConfirmed)
+                throw new InvalidOperationException(
+                    $"Production super-admin '{userId:D}' must have a confirmed email before IdentityService can start.");
+
+            var hasMfa = await context.Set<UserMfa>()
+                .AsNoTracking()
+                .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, cancellationToken);
+            var passkeyCount = await context.Set<PasskeyCredential>()
+                .AsNoTracking()
+                .CountAsync(item => item.UserId == user.Id.ToString(), cancellationToken);
+            if (!hasMfa && passkeyCount < 2)
+                throw new InvalidOperationException(
+                    $"Production super-admin '{userId:D}' must enroll MFA or at least two passkeys before IdentityService can start.");
+
+            if (!user.TwoFactorEnabled)
+            {
+                user.TwoFactorEnabled = true;
+                var result = await userManager.UpdateAsync(user);
+                if (!result.Succeeded)
+                    throw new InvalidOperationException(
+                        $"Failed to enable MFA enforcement for production super-admin '{userId:D}'.");
+                logger.LogInformation("Production super-admin MFA enforcement enabled for {UserId}.", userId);
+            }
+        }
+    }
+
+    private static string? ResolveConglomeratePilotPassword(
+        IConfiguration configuration,
+        IHostEnvironment? hostEnvironment,
+        ILogger logger)
+    {
+        var password = configuration["Conglomerate:PilotUserPassword"]
+            ?? configuration["IDENTITY_CONGLOMERATE_PILOT_PASSWORD"];
+        if (!string.IsNullOrWhiteSpace(password))
+            return password.Trim();
+
+        if (hostEnvironment?.IsDevelopment() == true)
+        {
+            const string developmentFallbackPassword = "ConglomeratePilot@Dev1";
+            logger.LogWarning(
+                "Conglomerate:PilotUserPassword is not configured; using the Development fallback pilot password.");
+            return developmentFallbackPassword;
+        }
+
+        logger.LogWarning("Skipping conglomerate pilot users because Conglomerate:PilotUserPassword is not configured.");
+        return null;
+    }
+
+    private static JsonDocument? LoadConglomerateSeedDocument(IConfiguration configuration, ILogger logger)
+    {
+        var relativePath = configuration["Conglomerate:SeedDataPath"] ?? "config/conglomerate/seed-data.v1.json";
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, relativePath),
+            Path.Combine(Directory.GetCurrentDirectory(), relativePath),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", relativePath))
+        };
+
+        foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!File.Exists(candidate))
+                continue;
+
+            try
+            {
+                logger.LogInformation("Loading conglomerate seed document from '{Path}'.", candidate);
+                return JsonDocument.Parse(File.ReadAllText(candidate));
+            }
+            catch (JsonException exception)
+            {
+                logger.LogError(exception, "Conglomerate seed document at '{Path}' is invalid JSON.", candidate);
+                return null;
+            }
+        }
+
+        logger.LogWarning("Conglomerate seed document not found at '{Path}'.", relativePath);
+        return null;
     }
 
     private static async Task SeedControlPlaneSampleDataAsync(
         IdentityDbContext db,
+        IConfiguration? configuration,
+        UserManager<User> userManager,
         ILogger logger,
         CancellationToken ct)
     {
+        if (configuration?.GetValue("Conglomerate:Enabled", false) == true)
+        {
+            await SeedConglomerateScopesAsync(db, configuration, logger, ct);
+            if (configuration.GetValue("Conglomerate:SkipDemoHospitalScope", true))
+            {
+                logger.LogInformation("Conglomerate scopes seeded; IAM graph runs after pilot users.");
+                return;
+            }
+        }
+
         // Stable sample graph used by the admin-app local/demo environment.
         // Every lookup is by a canonical key so rerunning startup remains idempotent.
         var actor = await db.Users.AsNoTracking().OrderBy(x => x.UserName).FirstOrDefaultAsync(ct);
@@ -662,7 +1606,8 @@ public static class IdentityDbInitializer
             ("external-integration", "External Integration Service", "external"),
             ("database-continuity", "Database Continuity Service", "admin"),
             ("remediation", "Remediation Operator", "admin"),
-            ("mobile", "Mobile Platform", "admin")
+            ("mobile", "Mobile Platform", "admin"),
+            ("manufacturing", "Manufacturing Service", "manufacturing")
         };
         foreach (var definition in serviceDefinitions)
         {
@@ -904,6 +1849,135 @@ public static class IdentityDbInitializer
         }
     }
 
+    private static readonly HashSet<string> KnownOidcClientIds = new(StringComparer.Ordinal)
+    {
+        "his-hope-spa",
+        "his-hope-dashboard",
+        "his-hope-admin",
+        "his-hope-mobile",
+    };
+
+    private static async Task SeedConglomerateScopesAsync(
+        IdentityDbContext db,
+        IConfiguration configuration,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var orgKey = configuration["Conglomerate:Organization:Key"];
+        var orgName = configuration["Conglomerate:Organization:DisplayName"];
+        if (string.IsNullOrWhiteSpace(orgKey) || string.IsNullOrWhiteSpace(orgName))
+        {
+            throw new InvalidOperationException(
+                "Conglomerate:Enabled requires Conglomerate:Organization:Key and DisplayName.");
+        }
+
+        var tenantSections = configuration.GetSection("Conglomerate:Tenants").GetChildren().ToArray();
+        if (tenantSections.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "Conglomerate:Enabled requires at least one Conglomerate:Tenants entry.");
+        }
+
+        async Task<IamScope> Scope(string key, string name, string kind, Guid? parentId)
+        {
+            // Environment keys such as "staging" repeat under every account.
+            // Resolve by parent scope as well so each tenant gets its own subtree.
+            var item = await db.IamScopes.FirstOrDefaultAsync(
+                x => x.Key == key && x.Kind == kind && x.ParentId == parentId,
+                ct);
+            if (item is not null) return item;
+            item = new IamScope { Key = key, DisplayName = name, Kind = kind, ParentId = parentId };
+            db.IamScopes.Add(item);
+            await db.SaveChangesAsync(ct);
+            return item;
+        }
+
+        var organization = await Scope(orgKey, orgName, "organization", null);
+        foreach (var tenantSection in tenantSections)
+        {
+            var tenantKey = tenantSection["Key"];
+            var tenantName = tenantSection["DisplayName"];
+            if (string.IsNullOrWhiteSpace(tenantKey) || string.IsNullOrWhiteSpace(tenantName))
+            {
+                throw new InvalidOperationException("Each Conglomerate:Tenants entry requires Key and DisplayName.");
+            }
+
+            var tenant = await Scope(tenantKey, tenantName, "tenant", organization.Id);
+            var accountKey = tenantSection["AccountKey"] ?? $"{tenantKey}-account";
+            var accountName = tenantSection["AccountDisplayName"] ?? $"{tenantName} account";
+            var account = await Scope(accountKey, accountName, "account", tenant.Id);
+            // iam_scopes enforces UNIQUE(kind, key). Environment display names
+            // repeat ("staging") but keys must be tenant-specific.
+            var environmentKey = tenantSection["EnvironmentKey"] ?? $"{tenantKey}-staging";
+            var environmentName = tenantSection["EnvironmentDisplayName"] ?? "Azure staging";
+            await Scope(environmentKey, environmentName, "environment", account.Id);
+        }
+
+        logger.LogInformation(
+            "Conglomerate IAM scopes seeded for organization '{OrganizationKey}' ({TenantCount} tenants).",
+            orgKey,
+            tenantSections.Length);
+    }
+
+    private static async Task SeedAdditionalConfiguredOidcClientsAsync(
+        OpenIddict.Abstractions.IOpenIddictApplicationManager appManager,
+        IReadOnlyDictionary<string, OidcClientUris> oidcClients,
+        IConfiguration? configuration,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        foreach (var (clientId, uris) in oidcClients)
+        {
+            if (KnownOidcClientIds.Contains(clientId)) continue;
+
+            var displayName = configuration?[$"Conglomerate:OidcClientDisplayNames:{clientId}"] ?? clientId;
+            var existing = await appManager.FindByClientIdAsync(clientId, ct);
+            if (existing is null)
+            {
+                var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+                {
+                    ClientId = clientId,
+                    ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
+                    DisplayName = displayName,
+                    Permissions =
+                    {
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Revocation,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid",
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "profile",
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "email",
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "roles",
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "offline_access",
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:permissions",
+                    },
+                    Requirements =
+                    {
+                        OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
+                    }
+                };
+
+                if (clientId is "tech-console" or "group-hq-admin")
+                {
+                    descriptor.Permissions.Add(
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:admin");
+                }
+
+                AddClientUris(descriptor, uris);
+                await appManager.CreateAsync(descriptor, ct);
+                logger.LogInformation("OIDC application '{ClientId}' created.", clientId);
+            }
+            else
+            {
+                await UpdateClientUrisAsync(appManager, existing, uris, ct);
+            }
+        }
+    }
+
     private static void AddClientUris(
         OpenIddict.Abstractions.OpenIddictApplicationDescriptor descriptor,
         OidcClientUris uris)
@@ -963,6 +2037,9 @@ public static class IdentityDbInitializer
 
     public static bool ShouldResetAdminPassword(IConfiguration? configuration)
         => configuration?.GetValue<bool>("Identity:BootstrapAdmin:ResetPassword") == true;
+
+    private static bool ShouldResetPilotPasswords(IConfiguration? configuration)
+        => configuration?.GetValue("Conglomerate:ResetPilotPasswords", false) == true;
 
     public sealed record AdminBootstrapConfiguration(string? Password, bool SkipUserSeed)
     {

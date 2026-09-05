@@ -18,6 +18,7 @@ public interface IApplicationDbContext
     DbSet<Domain.Entities.User> Users { get; }
     DbSet<Role> Roles { get; }
     DbSet<IdentityUserRole<Guid>> UserRoles { get; }
+    DbSet<IdentityUserClaim<Guid>> UserClaims { get; }
     DbSet<TableView> TableViews { get; }
     DbSet<MobileDeviceRegistration> MobileDeviceRegistrations { get; }
     DbSet<MobileTelemetryEvent> MobileTelemetryEvents { get; }
@@ -30,6 +31,8 @@ public interface IApplicationDbContext
     DbSet<AccessReview> AccessReviews { get; }
     DbSet<RoleTemplateVersion> RoleTemplateVersions { get; }
     DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies { get; }
+    DbSet<AuthorizationPolicyBundleArtifact> AuthorizationPolicyBundles { get; }
+    DbSet<AuthorizationChangeRequest> AuthorizationChangeRequests { get; }
     DbSet<IamScope> IamScopes { get; }
     DbSet<IamServiceDefinition> IamServiceDefinitions { get; }
     DbSet<IamPermissionSet> IamPermissionSets { get; }

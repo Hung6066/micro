@@ -1,9 +1,12 @@
 [CmdletBinding()]
 param(
-    [string]$ProdOverlay = (Join-Path $PSScriptRoot '..\k8s\overlays\prod')
+    [string]$ProdOverlay
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($ProdOverlay)) {
+    $ProdOverlay = Join-Path $PSScriptRoot '..\k8s\overlays\prod'
+}
 $overlayPath = (Resolve-Path -LiteralPath $ProdOverlay).Path
 $files = @(Get-ChildItem -LiteralPath $overlayPath -Recurse -File -Include '*.yaml', '*.yml')
 if ($files.Count -eq 0) {

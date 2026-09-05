@@ -1,5 +1,6 @@
-# Local HTTP compatibility profile. Replace with the HTTPS identity issuer
-# before production internet exposure.
+# Local K3s JWT key mounting compatibility. The final production overlay
+# applies enterprise-runtime-security-patch.yaml after this file and enforces
+# HTTPS metadata plus Jwt__AllowHttp=false.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -1,4 +1,6 @@
 using His.Hope.AspNetCore;
+using His.Hope.Configuration;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
 using His.Hope.Observability;
@@ -13,11 +15,11 @@ using His.Hope.FhirGateway.Application;
 using His.Hope.FhirGateway.Api;
 using His.Hope.PatientGrpc;
 using His.Hope.ClinicalGrpc;
-using Grpc.Net.ClientFactory;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "FhirGateway");
+var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "fhir-gateway");
+builder.Services.AddHisHopeServicePlatform(builder.Configuration, "fhir-gateway");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
@@ -37,20 +39,8 @@ builder.Services.AddFhirGatewayApplication();
 // FHIR is an interoperability facade. Resolve source records through the
 // owning services so their resource-level permission and facility filters are
 // evaluated with the caller's token instead of manufacturing data locally.
-builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(options =>
-{
-    options.Address = new Uri(
-        builder.Configuration["Services:PatientGrpc"]
-        ?? builder.Configuration["GrpcServices:PatientService"]
-        ?? "http://patientservice:5006");
-});
-builder.Services.AddGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(options =>
-{
-    options.Address = new Uri(
-        builder.Configuration["Services:ClinicalGrpc"]
-        ?? builder.Configuration["GrpcServices:ClinicalService"]
-        ?? "http://clinicalservice:5009");
-});
+builder.Services.AddHisHopeGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(runtimeEndpoints, "patient-grpc");
+builder.Services.AddHisHopeGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(runtimeEndpoints, "clinical-grpc");
 builder.Services.AddScoped<IFhirBackendClient, GrpcFhirBackendClient>();
 
 // SECURITY: Use the shared OIDC/JWT configuration so encrypted access tokens
@@ -89,8 +79,7 @@ builder.Services.AddAuthorizationBuilder()
             new ScopeRequirement("fhir.encounter.read"),
             new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human)));
 
-// Enterprise Infrastructure
-builder.Services.AddHisHopeServicePlatform(builder.Configuration, "fhir-gateway");
+// Enterprise infrastructure is registered once through the Base Service.
 
 // CORS
 builder.Services.AddCors(options =>
@@ -141,6 +130,7 @@ app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
 
 app.MapControllers();
 

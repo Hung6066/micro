@@ -15,6 +15,8 @@ spec:
       labels:
         app.kubernetes.io/name: spire-agent
         app.kubernetes.io/component: agent
+      annotations:
+        his-hope.io/security-exception: spire-node-agent-integration
     spec:
       hostPID: true
       hostNetwork: true
@@ -38,6 +40,13 @@ spec:
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
           volumeMounts:
             - name: config
               mountPath: /run/spire/config

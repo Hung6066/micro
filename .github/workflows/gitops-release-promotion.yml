@@ -60,7 +60,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/release-image-refs
           gh run download "${{ steps.release.outputs.run_id }}" --repo "$GITHUB_REPOSITORY" --pattern 'image-ref-*' --dir artifacts/release-image-refs
-          test "$(find artifacts/release-image-refs -name '*.image-ref.txt' -type f | wc -l)" -eq 19
+          test "$(find artifacts/release-image-refs -name '*.image-ref.txt' -type f | wc -l)" -eq 22
 
       - name: Install Harbor trust chain and Cosign
         shell: bash
@@ -91,6 +91,9 @@ jobs:
         run: |
           ./scripts/validate-kustomize-release.ps1 -Environment prod
           ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          python scripts/validate-production-ha-contract.py
+          python scripts/validate-production-data-plane-ha-contract.py
+          ./scripts/validate-signature-controller-contract.ps1
           git diff --check
 
       - name: Create review-required promotion PR
@@ -103,7 +106,7 @@ jobs:
           body: |
             This PR was generated from successful release run `${{ steps.release.outputs.run_id }}`.
 
-            - All 19 application digests are immutable and verified with keyless Cosign signature plus SLSA provenance.
+            - All 22 application digests are immutable and verified with keyless Cosign signature plus SLSA provenance.
             - Production manifests were rendered before this PR was opened.
             - Merge requires normal repository review. Argo CD reconciles only after the reviewed commit reaches the internal Git mirror.
           labels: gitops,security-review

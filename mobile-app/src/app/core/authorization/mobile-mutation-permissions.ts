@@ -5,7 +5,6 @@ export type MobileMutationSurface = MobileResource | "mfa" | "notifications";
 /** Single source of truth for the permission each mobile mutation requires. */
 export function mutationPermission(
   surface: MobileMutationSurface,
-  _action: string,
 ): string {
   switch (surface) {
     case "clients":

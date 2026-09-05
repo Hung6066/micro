@@ -34,6 +34,15 @@ foreach ($key in @('AZURE_STORAGE_ACCOUNT', 'AZURE_STORAGE_CONTAINER', 'AZURE_ST
     }
 }
 
+$retentionVerifier = Join-Path $PSScriptRoot 'validate-azure-blob-retention.py'
+if (-not (Test-Path -LiteralPath $retentionVerifier -PathType Leaf)) {
+    throw 'Azure immutable-retention verifier is missing.'
+}
+& python $retentionVerifier --env-file $EnvFile --minimum-days 30
+if ($LASTEXITCODE -ne 0) {
+    throw 'Azure Blob immutable retention must be locked for at least 30 days before CNPG bootstrap/apply.'
+}
+
 $endpoint = $values['AZURE_STORAGE_ENDPOINT'].TrimEnd('/')
 $account = $values['AZURE_STORAGE_ACCOUNT'].Trim()
 $container = $values['AZURE_STORAGE_CONTAINER'].Trim()

@@ -21,6 +21,7 @@ public class GetUserByIdQueryHandler : IRequestHandler<GetUserByIdQuery, UserDet
         CancellationToken cancellationToken)
     {
         var user = await _userManager.Users
+            .TagWith("Identity.Users.GetUserById")
             .FirstOrDefaultAsync(u => u.Id == request.Id, cancellationToken);
 
         if (user is null) return null;

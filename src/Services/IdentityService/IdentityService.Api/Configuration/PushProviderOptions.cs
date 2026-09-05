@@ -15,6 +15,8 @@ public sealed class PushProviderOptions
     public bool ApnsEnabled { get; set; } = true;
     public string FirebaseCredentialsJson { get; set; } = string.Empty;
     public string FirebaseCredentialsFile { get; set; } = string.Empty;
+    public string FirebaseCredentialsSecretPath { get; set; } = string.Empty;
+    public string FirebaseCredentialsSecretKey { get; set; } = "credentials_json";
     public string ApnsKeyId { get; set; } = string.Empty;
     public string ApnsTeamId { get; set; } = string.Empty;
     public string ApnsPrivateKey { get; set; } = string.Empty;
@@ -26,7 +28,7 @@ public sealed class PushProviderOptions
         if (!Uri.TryCreate(ApnsEndpoint, UriKind.Absolute, out var apnsEndpoint) ||
             apnsEndpoint.Scheme != Uri.UriSchemeHttps)
             yield return new ValidationResult("PushProviders:ApnsEndpoint must be an HTTPS URL");
-        if (!IsValidFirebaseCredentials(FirebaseCredentialsJson))
+        if (!IsValidFirebaseCredentials(FirebaseCredentialsJson) && string.IsNullOrWhiteSpace(FirebaseCredentialsSecretPath))
             yield return new ValidationResult("PushProviders:FirebaseCredentialsJson is required");
         if (!ApnsEnabled)
             yield break;

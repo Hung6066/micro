@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using His.Hope.Contracts;
+using His.Hope.AspNetCore.ProblemDetails;
+using His.Hope.AspNetCore.Tenancy;
 
 namespace His.Hope.AspNetCore;
 
@@ -25,6 +27,8 @@ public static class HisHopeAspNetCoreExtensions
             throw new ArgumentOutOfRangeException(nameof(configure), "MaximumCorrelationIdLength must be positive.");
 
         services.AddSingleton(options);
+        services.AddScoped<HisHopeTenantContext>();
+        services.AddScoped<IHisHopeTenantContext>(sp => sp.GetRequiredService<HisHopeTenantContext>());
         services.AddProblemDetails(problemDetails =>
         {
             problemDetails.CustomizeProblemDetails = context =>
@@ -53,6 +57,7 @@ public static class HisHopeAspNetCoreExtensions
     public static IApplicationBuilder UseHisHopeAspNetCore(this IApplicationBuilder app)
     {
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<ErrorContractMiddleware>();
         app.UseStatusCodePages(async statusContext =>
         {
             var httpContext = statusContext.HttpContext;

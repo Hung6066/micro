@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.SharedKernel.Domain.Exceptions;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -84,11 +85,11 @@ public sealed class IdentityServiceBehaviorCoverageTests(IdentityServiceTestFixt
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             identity.RefreshTokenAsync(new RefreshTokenRequest("invalid", "invalid")));
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             identity.GetUserByIdAsync(Guid.NewGuid()));
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             identity.GeneratePasswordResetTokenAsync($"missing-{Guid.NewGuid():N}@test.test"));
-        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+        await Assert.ThrowsAsync<NotFoundException>(() =>
             identity.GenerateEmailConfirmationTokenAsync(Guid.NewGuid()));
     }
 

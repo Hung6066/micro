@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.WebUtilities;
 using StackExchange.Redis;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.IdentityService.Api.Services;
 
@@ -91,17 +92,18 @@ public sealed class OidcLoginCompletionService(
     SignInManager<User> signInManager,
     UserManager<User> userManager,
     IdentityDbContext db,
+    IIdentityService identityService,
     IMfaSecretEncryptor encryptor,
     TotpService totpService,
     IDataProtectionProvider dataProtectionProvider,
     IConnectionMultiplexer redis,
     IConfiguration configuration)
 {
-    private const string CookieName = "hishop_oidc_mfa";
-    private const string SessionCookieName = "hishop_oidc_mfa_session";
-      private const string TrustedDeviceCookieName = "hishop_trusted_device";
-      private const string BrowserSessionCookieName = "hishop_sid";
-      private const string BrowserCsrfCookieName = "hishop_csrf";
+    private const string CookieName = HisHopeProtocolConstants.Cookies.OidcMfa;
+    private const string SessionCookieName = HisHopeProtocolConstants.Cookies.OidcMfaSession;
+    private const string TrustedDeviceCookieName = HisHopeProtocolConstants.Cookies.TrustedDevice;
+    private const string BrowserSessionCookieName = HisHopeProtocolConstants.Cookies.BrowserSession;
+    private const string BrowserCsrfCookieName = HisHopeProtocolConstants.Cookies.BrowserCsrf;
     private static readonly TimeSpan PendingMfaLifetime = TimeSpan.FromMinutes(5);
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("HisHope.OidcMfa.v1");
     private readonly IDatabase redisDb = redis.GetDatabase();
@@ -113,7 +115,7 @@ public sealed class OidcLoginCompletionService(
         IReadOnlyCollection<string> authenticationMethods,
         CancellationToken cancellationToken = default)
     {
-        var safeReturnUrl = ResolveSafeReturnUrl(returnUrl);
+        var safeReturnUrl = ResolveSafeReturnUrl(context, returnUrl);
         var mfaEnabled = user.TwoFactorEnabled || await db.UserMfas
             .AsNoTracking()
             .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, cancellationToken);
@@ -170,7 +172,7 @@ public sealed class OidcLoginCompletionService(
             hasTotp,
             pending.IsUnfamiliarDevice);
 
-        return methods with { RedirectHandle = CreateRedirectHandle(pending.ReturnUrl) };
+        return methods with { RedirectHandle = CreateRedirectHandle(context, pending.ReturnUrl) };
     }
 
     public async Task<string?> CompleteMfaAsync(HttpContext context, string code, CancellationToken cancellationToken)
@@ -271,28 +273,24 @@ public sealed class OidcLoginCompletionService(
 
     private async Task SignInAsync(User user, IReadOnlyCollection<string> authenticationMethods)
     {
-        var roles = await userManager.GetRolesAsync(user);
-        var permissions = await db.RolePermissions
-            .Where(mapping => roles.Contains(mapping.Role.Name!))
-            .Select(mapping => mapping.PermissionCode)
-            .Distinct()
-            .ToListAsync();
+        var (permissions, tenantClaims) = await HumanSessionAuthClaims.ResolveAsync(
+            userManager,
+            identityService,
+            user);
 
         var claims = authenticationMethods
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(value => new Claim("amr", value))
-            // Interactive browser sessions are human principals. This
-            // discriminator is required by the HumanAdmin policy when
-            // the shared Identity cookie (rather than a bearer token) is
-            // presented by admin-app.
+            .Select(value => new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, value))
+            .Append(new Claim(
+                "auth_time",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ClaimValueTypes.Integer64))
             .Append(new Claim(
                 AuthorizationConstants.Claims.PrincipalType,
                 AuthorizationConstants.PrincipalTypes.Human))
-            // Keep cookie authorization equivalent to the issued JWT. This
-            // prevents granular admin endpoints from falling back to a stale
-            // role-only principal after a successful form login.
-            .Concat(permissions.Select(permission => new Claim("permissions", permission)))
+            .Concat(permissions.Select(permission => new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, permission)))
+            .Concat(tenantClaims)
             .ToArray();
 
         await signInManager.SignInWithClaimsAsync(user, isPersistent: false, additionalClaims: claims);
@@ -314,12 +312,28 @@ public sealed class OidcLoginCompletionService(
         return pending.ReturnUrl;
     }
 
-    private string ResolveSafeReturnUrl(string? value) =>
-        AuthenticationRedirectValidator.ResolveSafeReturnUrl(value, configuration);
+    private string ResolveSafeReturnUrl(HttpContext context, string? value) =>
+        AuthenticationRedirectValidator.ResolveSafeReturnUrl(
+            value,
+            configuration,
+            context.Request.Headers.Referer.FirstOrDefault(),
+            ReadSpaOriginHint(context));
 
-    private string CreateRedirectHandle(string returnUrl)
+    private static string? ReadSpaOriginHint(HttpContext context)
     {
-        var safeReturnUrl = ResolveSafeReturnUrl(returnUrl);
+        if (context.Request.HasFormContentType)
+        {
+            var formValue = context.Request.Form["spaOrigin"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(formValue))
+                return formValue;
+        }
+
+        return context.Request.Query["spaOrigin"].FirstOrDefault();
+    }
+
+    private string CreateRedirectHandle(HttpContext context, string returnUrl)
+    {
+        var safeReturnUrl = ResolveSafeReturnUrl(context, returnUrl);
         var delimiterIndex = safeReturnUrl.IndexOfAny(['?', '#']);
         return delimiterIndex >= 0 ? safeReturnUrl[..delimiterIndex] : safeReturnUrl;
     }

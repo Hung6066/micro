@@ -411,7 +411,7 @@ spec:
 ### 6.3 Image Promotion
 
 ```yaml
-# k8s/overlays/prod/image-digests.yaml
+# k8s/overlays/prod/image-digests/kustomization.yaml
 images:
   - name: his-hope/patient-service
     newTag: v1.2.0           # Cập nhật khi release GA

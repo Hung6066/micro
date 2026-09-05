@@ -2,7 +2,9 @@ using His.Hope.BillingService.Domain.Repositories;
 using His.Hope.BillingService.Domain.Events;
 using His.Hope.BillingService.Infrastructure.Persistence;
 using His.Hope.BillingService.Infrastructure.Persistence.Repositories;
+using His.Hope.BillingService.Infrastructure.CommercePayments;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Infrastructure.Events;
 using His.Hope.IntegrationEvents.Billing;
 using His.Hope.SharedKernel.Domain.Common;
@@ -19,6 +21,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SoftDeleteInterceptor>();
         services.AddDbContext<BillingDbContext>((serviceProvider, options) =>
             options.UseHisHopeNpgsql(
                 serviceProvider,
@@ -30,9 +34,13 @@ public static class DependencyInjection
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 })
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(new OutboxDomainEventInterceptor()));
+            .AddInterceptors(new OutboxDomainEventInterceptor(), serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
 
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<CommercePaymentWorkflow>();
+        services.AddSingleton<IOutboxMessageHandler, CommercePaymentOutboxHandler>();
+        services.AddHostedService<CommercePaymentAuthorizationConsumer>();
+        services.AddHostedService<CommercePaymentCommandConsumer>();
         services.AddScoped<DomainEventDispatcher>();
         services.AddOutbox<BillingDbContext>();
         services.AddIntegrationEventMapping<InvoiceCreatedDomainEvent, InvoiceCreatedIntegrationEvent>(

@@ -32,6 +32,7 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { AdminPageQuery, User } from "../../core/contracts/admin.contracts";
 import { UsersApiService } from "../../core/services/users-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopePageQuery } from "@his-hope/frontend-foundation";
 import { UserEditDialogComponent } from "./user-edit-dialog.component";
 import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
@@ -138,6 +139,7 @@ import { downloadAdminTableExport } from "../../core/services/admin-query.util";
 })
 export class UsersPageComponent implements OnInit {
   private readonly api = inject(UsersApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly toast = inject(HisHopeToastService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -212,6 +214,7 @@ export class UsersPageComponent implements OnInit {
   ngOnInit(): void {
     this.table.loadServerView(() => this.api.getTableViews("users"));
     this.loadUsers();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadUsers());
   }
 
   loadUsers(query = this.query): void {

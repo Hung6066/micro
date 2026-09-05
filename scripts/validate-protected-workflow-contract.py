@@ -146,6 +146,24 @@ def main() -> int:
                 fail("k3s-production-go-live-gate.yml must fail when any required step is skipped or unsuccessful")
             if "Production go-live gate failed after evidence collection" not in raw:
                 fail("k3s-production-go-live-gate.yml must aggregate and report failed evidence steps")
+            for required in (
+                "PRODUCTION_STORAGE_ATTESTATION_SHA256",
+                "-ExpectedSha256 $env:ATTESTATION_SHA256",
+                "must be a 64-character SHA-256 digest",
+            ):
+                if required not in raw:
+                    fail(
+                        "k3s-production-go-live-gate.yml must bind storage attestation to a protected SHA-256 digest; "
+                        f"missing: {required}"
+                    )
+            step_ids = set(re.findall(r"(?m)^\s+id:\s*([A-Za-z0-9_-]+)\s*$", raw)) - {"runtime-inputs"}
+            aggregated_ids = set(re.findall(r"steps\.([A-Za-z0-9_-]+)\.outcome", raw))
+            missing_ids = sorted(step_ids - aggregated_ids)
+            if missing_ids:
+                fail(
+                    "k3s-production-go-live-gate.yml must aggregate every validation step outcome; "
+                    f"missing: {', '.join(missing_ids)}"
+                )
     print(f"Protected workflow contract PASS: workflows={len(PROTECTED)}")
     return 0
 

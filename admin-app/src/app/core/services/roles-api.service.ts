@@ -49,6 +49,7 @@ export class RolesApiService {
   }
 
   getTableViews(_resource: "roles"): Observable<AdminTableView[]> {
+    void _resource;
     return this.tableApi.getViews("roles");
   }
 
@@ -84,32 +85,18 @@ export class RolesApiService {
     );
   }
 
-  publishRole(id: string): Observable<{
-    id: string;
-    authorizationVersion: number;
-    lifecycleStatus: string;
-    publishedAt: string;
-  }> {
-    return this.http.post<{
-      id: string;
-      authorizationVersion: number;
-      lifecycleStatus: string;
-      publishedAt: string;
-    }>(`${this.baseUrl}/roles/${encodeURIComponent(id)}/publish`, {});
+  publishRole(id: string): Observable<RoleMutationResponse> {
+    return this.http.post<RoleMutationResponse>(
+      `${this.baseUrl}/roles/${encodeURIComponent(id)}/publish`,
+      {},
+    );
   }
 
-  rollbackRole(id: string): Observable<{
-    id: string;
-    authorizationVersion: number;
-    lifecycleStatus: string;
-    restoredFromVersion: number;
-  }> {
-    return this.http.post<{
-      id: string;
-      authorizationVersion: number;
-      lifecycleStatus: string;
-      restoredFromVersion: number;
-    }>(`${this.baseUrl}/roles/${encodeURIComponent(id)}/rollback`, {});
+  rollbackRole(id: string): Observable<RoleMutationResponse> {
+    return this.http.post<RoleMutationResponse>(
+      `${this.baseUrl}/roles/${encodeURIComponent(id)}/rollback`,
+      {},
+    );
   }
 
   getPermissions(): Observable<PermissionDefinition[]> {
@@ -119,4 +106,18 @@ export class RolesApiService {
   getRoleOwners(): Observable<RoleOwnerOption[]> {
     return this.http.get<RoleOwnerOption[]>(`${this.baseUrl}/role-owners`);
   }
+
+  /* Kept as a named contract so 202 approval requests are not mistaken for
+     an executed role mutation by callers. */
+}
+
+export interface RoleMutationResponse {
+  id?: string;
+  authorizationVersion?: number;
+  lifecycleStatus?: string;
+  publishedAt?: string;
+  restoredFromVersion?: number;
+  changeRequestId?: string;
+  status?: string;
+  expiresAt?: string;
 }

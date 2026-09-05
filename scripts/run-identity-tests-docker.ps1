@@ -98,7 +98,7 @@ try {
     # Docker Desktop runners share memory with the host; the default project
     # graph parallelism can be OOM-killed (exit 137) while compiling the full
     # Identity integration suite. Test execution itself remains unchanged.
-    $testCommand = "export HOME=/tmp/dotnet-home DOTNET_CLI_HOME=/tmp/dotnet-home DOTNET_CLI_TELEMETRY_OPTOUT=1 NUGET_PACKAGES=/tmp/nuget NUGET_FALLBACK_PACKAGES= && mkdir -p /tmp/dotnet-home /tmp/nuget && echo $nugetConfig | base64 -d > /tmp/nuget.docker.config && find /src -type d -name obj -prune -exec rm -rf {} + && dotnet restore $project --disable-parallel --force --force-evaluate --configfile /tmp/nuget.docker.config -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RestoreFallbackFolders= -p:RestoreAdditionalProjectFallbackFolders= && dotnet test $project --no-restore --logger 'console;verbosity=minimal' -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false"
+    $testCommand = "export DOTNET_CLI_TELEMETRY_OPTOUT=1 NUGET_PACKAGES=/root/.nuget/packages NUGET_FALLBACK_PACKAGES= && echo $nugetConfig | base64 -d > /tmp/nuget.docker.config && (find /src/src /src/tests -type d -name obj -prune -exec rm -rf {} + || true) && dotnet restore $project --disable-parallel --force --force-evaluate --configfile /tmp/nuget.docker.config -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false && dotnet test $project --no-restore --logger 'console;verbosity=minimal' -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false"
     if ($Filter) { $testCommand += " --filter '$Filter'" }
     if ($CollectCoverage) { $testCommand += " --collect:'XPlat Code Coverage' --results-directory /src/$ResultsDirectory" }
 
@@ -106,20 +106,15 @@ try {
     # "unexpected EOF" while a long foreground process streams output even
     # though the container itself is healthy; polling its state avoids that
     # transport race and lets us preserve the actual test exit code.
-    # The repository is mounted back into the runner workspace. Match the
-    # GitHub runner uid/gid so generated obj/bin files remain writable by the
-    # subsequent host-side dotnet test steps.
-    $dockerUserArguments = @()
-    if (Get-Command id -ErrorAction SilentlyContinue) {
-        $runnerUid = (& id -u).Trim()
-        $runnerGid = (& id -g).Trim()
-        $dockerUserArguments = @('--user', "${runnerUid}:${runnerGid}")
-    }
-    Invoke-Docker (@('run', '-d', '--name', $runner) + $dockerUserArguments + @('--memory', '6g', '--memory-swap', '6g', '--network', $testNetwork,
-        '-v', "${repo}:/src", '-v', "${nuget}:/tmp/nuget", '-w', '/src',
+    # Keep a deterministic ceiling that works on Docker Desktop hosts with
+    # the application compose stack already running. A 6 GiB hard limit can
+    # make Docker's runtime fail to allocate a process even when the runner
+    # is otherwise idle; 4 GiB is sufficient with serialized MSBuild.
+    Invoke-Docker @('run', '-d', '--name', $runner, '--memory', '4g', '--memory-swap', '4g', '--network', $testNetwork,
+        '-v', "${repo}:/src", '-v', "${nuget}:/root/.nuget/packages", '-w', '/src',
         '-e', "IDENTITY_TEST_POSTGRES_CONNECTION=Host=$postgres;Port=5432;Database=hishopetest;Username=testuser;Password=testpass123",
         '-e', "IDENTITY_TEST_REDIS_CONNECTION=${redis}:6379",
-        'mcr.microsoft.com/dotnet/sdk:8.0', 'bash', '-lc', $testCommand))
+        'mcr.microsoft.com/dotnet/sdk:8.0', 'bash', '-lc', $testCommand)
 
     $finished = $false
     for ($attempt = 0; $attempt -lt 1800; $attempt++) {

@@ -13,7 +13,7 @@ You are a Playwright-powered end-to-end testing specialist for the His.Hope hosp
 - **Frontend unit/component tests**: 451 (managed by @testing-frontend)
 - **E2E Playwright tests**: 65 tests across 2 spec files
 - **Test coverage targets**: 75% frontend overall, 68 E2E critical path tests
-- **Mock credentials**: admin / Admin@123, dr.nguyen / Doctor@123, dr.tran / Doctor@123
+- **Credentials**: injected from protected local/CI secret storage; no credentials are committed.
 - **Mock services**: `environment.useMockServices = true` — no real backend needed
 
 ## Team Context
@@ -53,9 +53,9 @@ You have access to Playwright MCP tools (`@playwright/mcp`). Use them to:
 
 | User | Username | Password | Roles | Permissions |
 |------|----------|----------|-------|-------------|
-| Admin | `admin` | `Admin@123` | admin | All permissions |
-| Doctor | `dr.nguyen` | `Doctor@123` | doctor | patients.view, appointments.view, clinical.view, lab.view, pharmacy.view, reports.view |
-| Nurse | `dr.tran` | `Doctor@123` | nurse | patients.view, appointments.view, clinical.view, lab.view |
+| Admin | injected secret | injected secret | admin | All permissions |
+| Doctor | injected secret | injected secret | doctor | patients.view, appointments.view, clinical.view, lab.view, pharmacy.view, reports.view |
+| Nurse | injected secret | injected secret | nurse | patients.view, appointments.view, clinical.view, lab.view |
 
 ## Complete Route Map
 
@@ -375,7 +375,7 @@ When asked to run tests, follow this procedure:
 
 ## Critical Notes
 
-1. **Always login first** — use admin credentials for full access: `admin` / `Admin@123`
+1. **Always login first** — use credentials from protected secret storage for full access
 2. **Wait for Angular** — use `playwright_evaluate` to check `document.querySelector('router-outlet')` is populated
 3. **Handle async** — mock services use `delay(randomMs())`, so wait for spinners to disappear
 4. **Screenshot naming** — use test number and description: `01-login-page.png`

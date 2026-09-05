@@ -18,6 +18,7 @@ import {
   HisHopeMaterialFormRendererComponent,
 } from "@his-hope/frontend-foundation/forms";
 import { iamScopeOptions } from "../../core/utils/iam-display.util";
+import { PermissionExplorerComponent } from "../permission-sets/permission-explorer.component";
 export interface BoundaryEditDialogData {
   scopes: IamScope[];
   users: User[];
@@ -27,7 +28,11 @@ export interface BoundaryEditDialogData {
 @Component({
   selector: "app-boundary-edit-dialog",
   standalone: true,
-  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  imports: [
+    HisHopeEntityDialogComponent,
+    HisHopeMaterialFormRendererComponent,
+    PermissionExplorerComponent,
+  ],
   template: `<hh-entity-dialog
     title="admin.createBoundary"
     titleFallback="Create permission boundary"
@@ -42,6 +47,11 @@ export interface BoundaryEditDialogData {
     (cancel)="dialogRef.close()"
   >
     <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+    <app-permission-explorer
+      [permissions]="activePermissions"
+      [value]="formGroup.controls.allowedPermissions.value"
+      (valueChange)="formGroup.controls.allowedPermissions.setValue($event)"
+    />
   </hh-entity-dialog>`,
 })
 export class BoundaryEditDialogComponent {
@@ -145,15 +155,6 @@ export class BoundaryEditDialogComponent {
         required: true,
         type: "select",
         options: this.scopeOptions,
-      },
-      {
-        key: "allowedPermissions",
-        label: this.i18n.t("admin.permissions", "Permissions"),
-        initialValue: [],
-        required: true,
-        type: "select",
-        multiple: true,
-        options: this.permissionOptions,
       },
       {
         key: "resourceConstraintsJson",

@@ -10,7 +10,10 @@ metadata:
 spec:
   configuration:
     destinationPath: s3://his-hope-spire/
-    endpointURL: http://minio.backup.svc.cluster.local:9000
+    endpointURL: https://minio.backup.svc.cluster.local:9000
+    endpointCA:
+      name: minio-tls
+      key: ca.crt
     s3Credentials:
       accessKeyId:
         name: spire-postgres-backup-credentials

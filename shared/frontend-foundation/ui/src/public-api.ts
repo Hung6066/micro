@@ -1,4 +1,5 @@
 export * from "./his-hope-page-header.component";
+export * from "./his-hope-app-shell.component";
 export * from "./his-hope-page-layout.component";
 export * from "./his-hope-command-palette.component";
 export * from "./his-hope-offline-banner.component";
@@ -54,3 +55,4 @@ export * from "./his-hope-multi-select.component";
 export * from "./his-hope-date-range.component";
 export * from "./his-hope-file-upload.component";
 export * from "./his-hope-phi-mask.directive";
+export * from "./his-hope-workflow-stepper.component";

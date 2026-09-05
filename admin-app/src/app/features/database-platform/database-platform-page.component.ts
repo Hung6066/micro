@@ -4,7 +4,6 @@ import {
   Component,
   DestroyRef,
   OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";

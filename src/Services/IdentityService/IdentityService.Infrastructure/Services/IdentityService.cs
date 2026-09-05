@@ -11,6 +11,7 @@ using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -18,7 +19,7 @@ using Microsoft.Extensions.Logging;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
-public class IdentityService : IIdentityService
+public partial class IdentityService : IIdentityService
 {
     private readonly UserManager<User> _userManager;
     private readonly RoleManager<Role> _roleManager;
@@ -105,7 +106,7 @@ public class IdentityService : IIdentityService
                 }
                 catch (JsonException)
                 {
-                    _logger.LogWarning("Ignoring malformed IAM permission set JSON for user {UserId}.", subjectUserId);
+                    LogMalformedPermissionSet(_logger, subjectUserId);
                 }
             }
 
@@ -136,13 +137,30 @@ public class IdentityService : IIdentityService
                 }
                 catch (JsonException)
                 {
-                    _logger.LogError("Denying permissions because boundary JSON is malformed for user {UserId}.", subjectUserId);
+                    LogMalformedPermissionBoundary(_logger, subjectUserId);
                     permissions = [];
                 }
             }
         }
 
         return permissions;
+    }
+
+    public async Task<IReadOnlyList<string>> GetEffectivePermissionsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return [];
+
+        var roles = await _userManager.GetRolesAsync(user);
+        var permissions = await GetPermissionsForRolesAsync(roles, userId, cancellationToken);
+        var configuredIds = _configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>() ?? [];
+        return _configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false) &&
+            configuredIds.Any(id => Guid.TryParse(id, out var configuredId) && configuredId == userId)
+            ? PrivilegedIdentityPermissionBoundary.Filter(permissions)
+            : permissions;
     }
 
     public async Task<TokenResponse> LoginAsync(LoginRequest request,
@@ -161,13 +179,12 @@ public class IdentityService : IIdentityService
                 "critical", request.IpAddress, request.UserAgent, request.DeviceInfo,
                 $"Account locked. Remaining: {remaining.TotalMinutes:F1}min");
 
-            _logger.LogWarning("Locked account login attempt: UserId={UserId}, IP={IP}, Remaining={Remaining}min",
-                user.Id, request.IpAddress, remaining.TotalMinutes);
+            LogLockedAccountAttempt(_logger, user.Id, request.IpAddress, remaining.TotalMinutes);
             throw new UnauthorizedAccessException(
                 $"Account temporarily locked. Try again in {remaining.TotalMinutes:F0} minutes.");
         }
 
-        if (user is null || !await _userManager.CheckPasswordAsync(user, request.Password))
+        if (user is null || !await _userManager.CheckPasswordAsync(user, request.Password ?? string.Empty))
         {
             // SECURITY: Record failed attempt, then check lockout
             if (user is not null)
@@ -191,12 +208,10 @@ public class IdentityService : IIdentityService
                     "critical", request.IpAddress, request.UserAgent, request.DeviceInfo,
                     $"Account locked after {MaxFailedAttempts} failed attempts");
 
-                _logger.LogCritical("Account locked due to brute force: UserId={UserId}, IP={IP}, Duration={Duration}min",
-                    user.Id, request.IpAddress, LockoutDuration.TotalMinutes);
+                LogAccountLocked(_logger, user.Id, request.IpAddress, LockoutDuration.TotalMinutes);
             }
 
-            _logger.LogWarning("Failed login attempt: Username={Username}, IP={IP}, UserAgent={UA}",
-                request.Username, request.IpAddress, request.UserAgent);
+            LogFailedLogin(_logger, request.Username, request.IpAddress, request.UserAgent);
             throw new UnauthorizedAccessException("Invalid username or password.");
         }
 
@@ -205,7 +220,7 @@ public class IdentityService : IIdentityService
             await LogSecurityEventAsync(user.Id, user.UserName!, "deactivated_login_attempt",
                 "warning", request.IpAddress, request.UserAgent, request.DeviceInfo,
                 "Attempted login on deactivated account");
-            _logger.LogWarning("Login attempt on deactivated account: UserId={UserId}", user.Id);
+            LogDeactivatedLogin(_logger, user.Id);
             throw new UnauthorizedAccessException("Account is deactivated.");
         }
 
@@ -214,7 +229,7 @@ public class IdentityService : IIdentityService
         if (user.LastPasswordChangedAt.HasValue &&
             (DateTime.UtcNow - user.LastPasswordChangedAt.Value).TotalDays > passwordMaxAgeDays)
         {
-            _logger.LogInformation("Password expired for UserId={UserId}, requiring change", user.Id);
+            LogPasswordExpired(_logger, user.Id);
             // Not blocking login — will be handled by client-side force-change
         }
 
@@ -249,9 +264,7 @@ public class IdentityService : IIdentityService
             "info", request.IpAddress, request.UserAgent, request.DeviceInfo,
             $"Roles: {string.Join(",", roles)}, MFA: false");
 
-        _logger.LogInformation(
-            "User logged in: UserId={UserId}, Roles={Roles}, Permissions={PermissionCount}, FamilyId={FamilyId}, IP={IP}",
-            user.Id, string.Join(",", roles), permissions.Count, familyId, request.IpAddress);
+        LogUserLoggedIn(_logger, user.Id, string.Join(",", roles), permissions.Count, familyId, request.IpAddress);
 
         return new TokenResponse(
             accessToken, refreshTokenValue, expiresAt, MapToDto(user, roles, permissions));
@@ -265,7 +278,7 @@ public class IdentityService : IIdentityService
         if (user is null) return;
 
         user.FailedLoginAttempts++;
-        await _userManager.UpdateAsync(default);
+        await _userManager.UpdateAsync(user);
 
         await LogSecurityEventAsync(user.Id, user.UserName!, "login_failed",
             "warning", request.IpAddress, request.UserAgent, request.DeviceInfo,
@@ -295,8 +308,8 @@ public class IdentityService : IIdentityService
             Id = Guid.NewGuid(),
             UserName = username,
             Email = request.Email,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
+            FirstName = request.FirstName ?? string.Empty,
+            LastName = request.LastName ?? string.Empty,
             MiddleName = request.MiddleName,
             LicenseNumber = request.LicenseNumber,
             Specialty = request.Specialty,
@@ -304,7 +317,7 @@ public class IdentityService : IIdentityService
             CreatedAt = DateTime.UtcNow
         };
 
-        var result = await _userManager.CreateAsync(user, request.Password);
+        var result = await _userManager.CreateAsync(user, request.Password ?? string.Empty);
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
@@ -333,9 +346,7 @@ public class IdentityService : IIdentityService
 
         await _refreshTokenStore.StoreAsync(refreshTokenRecord, cancellationToken);
 
-        _logger.LogInformation(
-            "User registered: UserId={UserId}, Username={Username}",
-            user.Id, request.Username);
+        LogUserRegistered(_logger, user.Id, request.Username);
 
         return new TokenResponse(accessToken, refreshTokenValue, expiresAt, MapToDto(user, roles, permissions));
     }
@@ -349,7 +360,7 @@ public class IdentityService : IIdentityService
 
         var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? principal.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
-            ?? principal.FindFirst("sub")?.Value;
+            ?? principal.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
         if (userId is null)
             throw new UnauthorizedAccessException("Invalid access token.");
 
@@ -360,10 +371,7 @@ public class IdentityService : IIdentityService
 
         if (wasReused)
         {
-            _logger.LogCritical(
-                "Refresh token reuse detected for UserId={UserId}, FamilyId={FamilyId}. " +
-                "This indicates token theft! All tokens in family revoked.",
-                userId, familyId);
+            LogRefreshTokenReuse(_logger, userId, familyId);
             throw new UnauthorizedAccessException(
                 "Security event detected. Please login again.");
         }
@@ -415,9 +423,7 @@ public class IdentityService : IIdentityService
 
         await _refreshTokenStore.StoreAsync(newRecord, cancellationToken);
 
-        _logger.LogInformation(
-            "Token refreshed: UserId={UserId}, FamilyId={FamilyId}, Generation={Gen}",
-            userId, newRecord.FamilyId, newRecord.Generation);
+        LogTokenRefreshed(_logger, userId, newRecord.FamilyId, newRecord.Generation);
 
         return new TokenResponse(accessToken, newRefreshTokenValue, expiresAt, MapToDto(user, roles, permissions));
     }
@@ -425,9 +431,10 @@ public class IdentityService : IIdentityService
     public async Task<UserDto> GetUserByIdAsync(Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
-        if (user is null)
-            throw new KeyNotFoundException("User not found.");
+        var user = Guard.Against.NotFound(
+            await _userManager.Users.AsNoTracking()
+            .TagWith("Identity.Users.ServiceGetUserById")
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken), nameof(User), userId);
 
         var roles = await _userManager.GetRolesAsync(user);
         var permissions = await GetPermissionsForRolesAsync(roles, user.Id, cancellationToken);
@@ -437,34 +444,34 @@ public class IdentityService : IIdentityService
     public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
         await _refreshTokenStore.RevokeAsync(refreshToken, cancellationToken);
-        _logger.LogInformation("User logout - refresh token revoked");
+        LogUserLogout(_logger);
     }
 
-    public async Task<string> GeneratePasswordResetTokenAsync(string email)
+    public async Task<string> GeneratePasswordResetTokenAsync(string email, CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.FindByEmailAsync(email);
-        if (user is null)
-            throw new KeyNotFoundException("User not found.");
+        var user = Guard.Against.NotFound(
+            await _userManager.FindByEmailAsync(email), nameof(User), email);
 
         return await _userManager.GeneratePasswordResetTokenAsync(user);
     }
 
-    public async Task ResetPasswordAsync(string email, string token, string newPassword)
+    public async Task ResetPasswordAsync(string email, string token, string newPassword, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email)
-            ?? throw new KeyNotFoundException("User not found.");
+            ?? Guard.Against.NotFound<User>(null, nameof(User), email);
 
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
             var hasher = new PasswordHasher<User>();
             var priorHash = user.PasswordHash;
-            var recentHashes = await _context.UserPasswordHistories
+            var recentHashes = await _context.UserPasswordHistories.AsNoTracking()
+                .TagWith("Identity.Password.ResetRecentHistory")
                 .Where(item => item.UserId == user.Id)
                 .OrderByDescending(item => item.ChangedAt)
                 .Take(5)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
             foreach (var oldHash in recentHashes)
             {
                 var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
@@ -481,19 +488,19 @@ public class IdentityService : IIdentityService
 
             user.LastPasswordChangedAt = DateTime.UtcNow;
             if (!string.IsNullOrWhiteSpace(priorHash))
-                await RecordPasswordHistoryAsync(user.Id, priorHash);
+                await RecordPasswordHistoryAsync(user.Id, priorHash, cancellationToken);
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
                 throw new InvalidOperationException("Unable to persist password policy metadata.");
-            await transaction.CommitAsync();
-            _logger.LogInformation("Password reset completed for UserId={UserId}", user.Id);
+            await transaction.CommitAsync(cancellationToken);
+            LogPasswordReset(_logger, user.Id);
         });
     }
 
-    public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
-            ?? throw new KeyNotFoundException("User not found.");
+            ?? Guard.Against.NotFound<User>(null, nameof(User), userId);
 
         var checkResult = await _userManager.CheckPasswordAsync(user, currentPassword);
         if (!checkResult)
@@ -501,15 +508,16 @@ public class IdentityService : IIdentityService
 
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
             var hasher = new PasswordHasher<User>();
             var priorHash = user.PasswordHash;
-            var recentHashes = await _context.UserPasswordHistories
+            var recentHashes = await _context.UserPasswordHistories.AsNoTracking()
+                .TagWith("Identity.Password.ChangeRecentHistory")
                 .Where(item => item.UserId == user.Id)
                 .OrderByDescending(item => item.ChangedAt)
                 .Take(5)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
             foreach (var oldHash in recentHashes)
             {
                 var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
@@ -526,16 +534,16 @@ public class IdentityService : IIdentityService
 
             user.LastPasswordChangedAt = DateTime.UtcNow;
             if (!string.IsNullOrWhiteSpace(priorHash))
-                await RecordPasswordHistoryAsync(user.Id, priorHash);
+                await RecordPasswordHistoryAsync(user.Id, priorHash, cancellationToken);
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
                 throw new InvalidOperationException("Unable to persist password policy metadata.");
-            await transaction.CommitAsync();
-            _logger.LogInformation("Password changed for UserId={UserId}", user.Id);
+            await transaction.CommitAsync(cancellationToken);
+            LogPasswordChanged(_logger, user.Id);
         });
     }
 
-    private async Task RecordPasswordHistoryAsync(Guid userId, string passwordHash)
+    private async Task RecordPasswordHistoryAsync(Guid userId, string passwordHash, CancellationToken cancellationToken)
     {
         _context.UserPasswordHistories.Add(new UserPasswordHistory
         {
@@ -544,27 +552,28 @@ public class IdentityService : IIdentityService
             ChangedAt = DateTime.UtcNow
         });
 
-        var stale = await _context.UserPasswordHistories
+        var stale = await _context.UserPasswordHistories.AsNoTracking()
+            .TagWith("Identity.Password.TrimHistory")
             .Where(item => item.UserId == userId)
             .OrderByDescending(item => item.ChangedAt)
             .Skip(5)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         _context.UserPasswordHistories.RemoveRange(stale);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<string> GenerateEmailConfirmationTokenAsync(Guid userId)
+    public async Task<string> GenerateEmailConfirmationTokenAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
-            ?? throw new KeyNotFoundException("User not found.");
+            ?? Guard.Against.NotFound<User>(null, nameof(User), userId);
 
         return await _userManager.GenerateEmailConfirmationTokenAsync(user);
     }
 
-    public async Task ConfirmEmailAsync(string email, string token)
+    public async Task ConfirmEmailAsync(string email, string token, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email)
-            ?? throw new KeyNotFoundException("User not found.");
+            ?? Guard.Against.NotFound<User>(null, nameof(User), email);
 
         var result = await _userManager.ConfirmEmailAsync(user, token);
         if (!result.Succeeded)
@@ -573,7 +582,7 @@ public class IdentityService : IIdentityService
             throw new InvalidOperationException($"Email confirmation failed: {errors}");
         }
 
-        _logger.LogInformation("Email confirmed for UserId={UserId}", user.Id);
+        LogEmailConfirmed(_logger, user.Id);
     }
 
     private static UserDto MapToDto(User user, IList<string> roles, IList<string>? permissions = null) => new(
@@ -623,8 +632,56 @@ public class IdentityService : IIdentityService
         catch (Exception ex)
         {
             // SECURITY: Never let event logging block the auth flow
-            _logger.LogError(ex, "Failed to log security event: {EventType}", eventType);
+            LogSecurityEventFailed(_logger, ex, eventType);
         }
     }
+
+    [LoggerMessage(EventId = 4301, Level = LogLevel.Warning, Message = "Malformed IAM permission set for subject {SubjectUserId}.")]
+    private static partial void LogMalformedPermissionSet(ILogger logger, Guid subjectUserId);
+
+    [LoggerMessage(EventId = 4302, Level = LogLevel.Warning, Message = "Malformed IAM permission boundary for subject {SubjectUserId}.")]
+    private static partial void LogMalformedPermissionBoundary(ILogger logger, Guid subjectUserId);
+
+    [LoggerMessage(EventId = 4303, Level = LogLevel.Warning, Message = "Locked account login attempt for user {UserId} from {IpAddress}; remaining lockout minutes {RemainingMinutes}.")]
+    private static partial void LogLockedAccountAttempt(ILogger logger, Guid userId, string? ipAddress, double remainingMinutes);
+
+    [LoggerMessage(EventId = 4304, Level = LogLevel.Warning, Message = "Account {UserId} locked after repeated failed login attempts from {IpAddress}; lockout minutes {LockoutMinutes}.")]
+    private static partial void LogAccountLocked(ILogger logger, Guid userId, string? ipAddress, double lockoutMinutes);
+
+    [LoggerMessage(EventId = 4305, Level = LogLevel.Warning, Message = "Failed login for {Username} from {IpAddress} using {UserAgent}.")]
+    private static partial void LogFailedLogin(ILogger logger, string? username, string? ipAddress, string? userAgent);
+
+    [LoggerMessage(EventId = 4306, Level = LogLevel.Warning, Message = "Deactivated login attempt for user {UserId}.")]
+    private static partial void LogDeactivatedLogin(ILogger logger, Guid userId);
+
+    [LoggerMessage(EventId = 4307, Level = LogLevel.Warning, Message = "Password expired for user {UserId}.")]
+    private static partial void LogPasswordExpired(ILogger logger, Guid userId);
+
+    [LoggerMessage(EventId = 4308, Level = LogLevel.Information, Message = "User {UserId} logged in with roles {Roles}, permissions {PermissionCount}, family {FamilyId} from {IpAddress}.")]
+    private static partial void LogUserLoggedIn(ILogger logger, Guid userId, string roles, int permissionCount, string familyId, string? ipAddress);
+
+    [LoggerMessage(EventId = 4309, Level = LogLevel.Information, Message = "User {UserId} registered with username {Username}.")]
+    private static partial void LogUserRegistered(ILogger logger, Guid userId, string? username);
+
+    [LoggerMessage(EventId = 4310, Level = LogLevel.Critical, Message = "Refresh token reuse detected for user {UserId}, family {FamilyId}.")]
+    private static partial void LogRefreshTokenReuse(ILogger logger, string userId, string? familyId);
+
+    [LoggerMessage(EventId = 4311, Level = LogLevel.Debug, Message = "Refresh token issued for user {UserId}, family {FamilyId}, generation {Generation}.")]
+    private static partial void LogTokenRefreshed(ILogger logger, string userId, string familyId, int generation);
+
+    [LoggerMessage(EventId = 4312, Level = LogLevel.Information, Message = "User logged out.")]
+    private static partial void LogUserLogout(ILogger logger);
+
+    [LoggerMessage(EventId = 4313, Level = LogLevel.Information, Message = "Password reset completed for user {UserId}.")]
+    private static partial void LogPasswordReset(ILogger logger, Guid userId);
+
+    [LoggerMessage(EventId = 4314, Level = LogLevel.Information, Message = "Password changed for user {UserId}.")]
+    private static partial void LogPasswordChanged(ILogger logger, Guid userId);
+
+    [LoggerMessage(EventId = 4315, Level = LogLevel.Information, Message = "Email confirmed for user {UserId}.")]
+    private static partial void LogEmailConfirmed(ILogger logger, Guid userId);
+
+    [LoggerMessage(EventId = 4316, Level = LogLevel.Error, Message = "Security event logging failed for event type {EventType}.")]
+    private static partial void LogSecurityEventFailed(ILogger logger, Exception exception, string eventType);
 
 }

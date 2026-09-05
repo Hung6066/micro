@@ -14,7 +14,11 @@ function Assert-Condition([bool]$Condition, [string]$Message) {
 Assert-Condition (Test-Path "k8s/observability/production-secrets.yaml") "Vault observability SecretProviderClass exists"
 Assert-Condition (Test-Path "k8s/observability/production-linkerd-authorization.yaml") "production Linkerd mTLS authorization exists"
 $secretText = Get-Content "k8s/observability/production-secrets.yaml" -Raw
-Assert-Condition ($secretText -notmatch "admin|xxxxx|example.com|SLACK_WEBHOOK_URL: https") "no placeholder receiver credential is committed"
+# Resource names and Vault paths legitimately contain words such as
+# `grafana-admin`; inspect only inline `value:` assignments so the check does
+# not reject secret references while still failing on committed credentials.
+$inlineValues = ($secretText -split "`r?`n" | Where-Object { $_ -match '^\s*value:\s*' }) -join "`n"
+Assert-Condition ($inlineValues -notmatch "(?i)\b(?:admin|xxxxx)\b|example\.com|SLACK_WEBHOOK_URL:\s*https") "no placeholder receiver credential is committed"
 Assert-Condition ($secretText -match "secret/data/his-hope/observability/grafana-oidc") "Grafana OIDC Vault path is declared"
 Assert-Condition ($secretText -match "secret/data/his-hope/observability/alertmanager") "Alertmanager Vault path is declared"
 Assert-Condition ($secretText -match "secret/data/his-hope/observability/object-store") "object-store Vault path is declared"

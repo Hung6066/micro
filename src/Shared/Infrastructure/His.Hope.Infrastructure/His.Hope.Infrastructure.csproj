@@ -55,18 +55,17 @@
     <PackageReference Include="Unleash.Client" Version="4.1.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\..\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
 <ProjectReference Include="..\..\EventBus\Src\His.Hope.EventBus\His.Hope.EventBus.csproj" />
     <ProjectReference Include="..\..\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Redis\His.Hope.Messaging.Redis.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Sql\His.Hope.Messaging.Sql.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.RabbitMq\His.Hope.Messaging.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
     <ProjectReference Include="..\..\Observability\His.Hope.Observability.OpenTelemetry\His.Hope.Observability.OpenTelemetry.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Infrastructure.Tests" />
-  </ItemGroup>
-  <ItemGroup>
-    <Protobuf Include="..\..\..\Shared\Protos\identity.proto" GrpcServices="Client" Link="Protos\identity.proto" />
   </ItemGroup>
 </Project>

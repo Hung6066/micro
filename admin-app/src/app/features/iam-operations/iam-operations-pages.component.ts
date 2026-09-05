@@ -24,6 +24,7 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { catchError, forkJoin, of, tap } from "rxjs";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import {
   IamAuditIntegrations,
   SecuritySignalOutboxEntry,
@@ -75,6 +76,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamWorkloadSessionsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -112,6 +114,7 @@ export class IamWorkloadSessionsPageComponent implements OnInit {
   }
   ngOnInit() {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load() {
     this.error = "";

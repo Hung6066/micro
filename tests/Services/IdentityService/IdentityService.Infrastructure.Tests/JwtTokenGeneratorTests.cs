@@ -86,6 +86,30 @@ public sealed class JwtTokenGeneratorTests
     }
 
     [Fact]
+    public void GenerateAccessToken_EmitsSuperAdminClaimOnlyForConfiguredUser()
+    {
+        using var rsa = RSA.Create(2048);
+        using var signingRsa = RSA.Create(2048);
+        var userId = Guid.NewGuid();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:Issuer"] = "http://identity.test",
+                ["Jwt:Audience"] = "His.Hope",
+                ["Jwt:RsaPrivateKey"] = signingRsa.ExportPkcs8PrivateKeyPem(),
+                ["Jwt:RsaEncryptionPrivateKey"] = rsa.ExportPkcs8PrivateKeyPem(),
+                ["Identity:SuperAdmin:UserIds:0"] = userId.ToString()
+            })
+            .Build();
+        var user = new User { Id = userId, UserName = "admin", Email = "admin@test.invalid" };
+
+        var (token, _) = new JwtTokenGenerator(configuration).GenerateAccessToken(user, ["Admin"]);
+        var principal = new JwtTokenGenerator(configuration).GetPrincipalFromExpiredToken(token);
+
+        Assert.Equal("true", principal!.FindFirst("super_admin")?.Value);
+    }
+
+    [Fact]
     public void ProductionRotation_RetainsOldEncryptionKeyForDecryption()
     {
         var directory = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"jwe-rotation-{Guid.NewGuid():N}"));

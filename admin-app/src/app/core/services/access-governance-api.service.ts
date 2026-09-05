@@ -11,6 +11,7 @@ import {
   AccessRequest,
   AccessReview,
   AuthorizationChange,
+  AuthorizationChangeRequest,
   AuthorizationPolicy,
   AuditLogRow,
   BreakGlassRequest,
@@ -24,6 +25,7 @@ export type {
   AccessRequest,
   AccessReview,
   AuthorizationChange,
+  AuthorizationChangeRequest,
   AuthorizationPolicy,
   AuditLogRow,
   BreakGlassRequest,
@@ -131,17 +133,16 @@ export class AccessGovernanceApiService {
     page: number;
     pageSize: number;
   }> {
+    const params: Record<string, string> = {
+      page: String(query.page ?? 1),
+      pageSize: String(query.pageSize ?? 50),
+    };
     return this.http.get<{
       items: AuditLogRow[];
       totalCount: number;
       page: number;
       pageSize: number;
-    }>(`${this.baseUrl.replace(/\/admin$/, "")}/audit-logs`, {
-      params: {
-        page: String(query.page ?? 1),
-        pageSize: String(query.pageSize ?? 50),
-      },
-    });
+    }>(`${this.baseUrl.replace(/\/admin$/, "")}/audit-logs`, { params });
   }
 
   getBreakGlassRequests(): Observable<BreakGlassRequest[]> {
@@ -153,6 +154,30 @@ export class AccessGovernanceApiService {
   getAuthorizationChanges(): Observable<AuthorizationChange[]> {
     return this.http.get<AuthorizationChange[]>(
       `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChanges)}`,
+    );
+  }
+
+  getAuthorizationChangeRequests(): Observable<AuthorizationChangeRequest[]> {
+    return this.http.get<AuthorizationChangeRequest[]>(
+      `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChangeRequests)}`,
+    );
+  }
+
+  approveAuthorizationChangeRequest(
+    id: string,
+  ): Observable<AuthorizationChangeRequest> {
+    return this.http.post<AuthorizationChangeRequest>(
+      `${this.baseUrl}${identityWorkbenchActionPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChangeRequests, id, "approve")}`,
+      {},
+    );
+  }
+
+  rejectAuthorizationChangeRequest(
+    id: string,
+  ): Observable<AuthorizationChangeRequest> {
+    return this.http.post<AuthorizationChangeRequest>(
+      `${this.baseUrl}${identityWorkbenchActionPath(IDENTITY_WORKBENCH_RESOURCES.authorizationChangeRequests, id, "reject")}`,
+      {},
     );
   }
 

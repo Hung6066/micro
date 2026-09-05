@@ -1,3 +1,4 @@
+using His.Hope.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,11 +20,11 @@ public static class DeadLetterServiceExtensions
         IConfiguration configuration)
         where TDbContext : DbContext
     {
-        var hostName = configuration.GetValue("EventBus:HostName", "localhost")!;
-        var port = configuration.GetValue("EventBus:Port", 5672);
-        var userName = configuration.GetValue("EventBus:UserName", "admin")!;
-        var password = configuration.GetValue("EventBus:Password", "admin")!;
-        var virtualHost = configuration.GetValue("EventBus:VirtualHost", "/")!;
+        var hostName = configuration.GetValue(HisHopeConfigurationKeys.EventBus.HostName, "localhost")!;
+        var port = configuration.GetValue(HisHopeConfigurationKeys.EventBus.Port, 5672);
+        var userName = configuration.GetValue(HisHopeConfigurationKeys.EventBus.UserName, "admin")!;
+        var password = EventBusSecurity.GetPassword(configuration);
+        var virtualHost = configuration.GetValue(HisHopeConfigurationKeys.EventBus.VirtualHost, "/")!;
 
         var autoReprocessEnabled = configuration.GetValue("DeadLetter:AutoReprocess:Enabled", false);
         var maxRetryCount = configuration.GetValue("DeadLetter:AutoReprocess:MaxRetryCount", 3);

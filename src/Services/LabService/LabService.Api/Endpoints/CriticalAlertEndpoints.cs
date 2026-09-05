@@ -68,10 +68,3 @@ public static class CriticalAlertEndpoints
     }
 }
 
-public record CriticalAlertRuleUpsertRequest(
-    string TestCode,
-    string TestName,
-    string? Unit,
-    decimal? LowCriticalValue,
-    decimal? HighCriticalValue,
-    bool IsActive = true);

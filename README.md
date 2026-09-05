@@ -488,7 +488,7 @@ His.Hope/
 
 1. **Build** — Tekton Pipeline: `dotnet build` + `npm build` + unit tests + lint + Trivy vulnerability scan
 2. **Container Image** — Build distroless `noble-chiseled` images, push lên container registry
-3. **GitOps Update** — Cập nhật image digest trong `k8s/overlays/prod/image-digests.yaml`
+3. **GitOps Update** — Cập nhật image digest trong `k8s/overlays/prod/image-digests/kustomization.yaml` và release metadata
 4. **ArgoCD Sync** — Tự động đồng bộ cluster với Git state
 5. **Canary Deployment** — Linkerd TrafficSplit: 10% traffic → service mới, 90% → service cũ
 6. **SLO Validation** — Prometheus kiểm tra latency (p99 < 500ms), error rate (< 0.1%)

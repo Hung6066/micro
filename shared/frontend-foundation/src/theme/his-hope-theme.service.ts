@@ -158,6 +158,7 @@ export class HisHopeThemeService {
       "--color-primary": preset.tokens.primary,
       "--color-primary-hover": preset.tokens.primaryHover,
       "--color-primary-soft": preset.tokens.primarySoft,
+      "--color-on-primary": this.getOnColor(preset.tokens.primary),
       "--color-focus": preset.tokens.focus,
       "--shell-header-bg": preset.tokens.header,
       "--font-sans": preset.typography.body,
@@ -183,20 +184,38 @@ export class HisHopeThemeService {
   private applyDarkVariables(preset: HisHopeDesignPreset): void {
     const root = this.document.documentElement;
     const cssVars: Record<string, string> = {
-      "--bg-warm": "#111815",
-      "--surface-white": "#18211C",
-      "--surface-muted": "#223029",
-      "--text-primary": "#F1F7F2",
-      "--text-secondary": "#B8C8BE",
-      "--border-default": "#405249",
-      "--color-primary": preset.tokens.primary,
-      "--color-primary-hover": preset.tokens.primaryHover,
-      "--color-primary-soft": "#1E4D37",
-      "--color-focus": preset.tokens.focus,
-      "--shell-header-bg": "#0D2C1F",
+      "--bg-warm": preset.tokens.darkCanvas,
+      "--surface-white": preset.tokens.darkSurface,
+      "--surface-muted": preset.tokens.darkSurfaceMuted,
+      "--text-primary": preset.tokens.darkInk,
+      "--text-secondary": preset.tokens.darkInkMuted,
+      "--border-default": preset.tokens.darkBorder,
+      "--color-primary": preset.tokens.darkPrimary,
+      "--color-primary-hover": preset.tokens.darkPrimaryHover,
+      "--color-primary-soft": preset.tokens.darkPrimarySoft,
+      "--color-focus": preset.tokens.darkFocus,
+      "--shell-header-bg": preset.tokens.darkHeader,
+      "--color-on-primary": preset.tokens.darkOnPrimary,
     };
     Object.entries(cssVars).forEach(([name, value]) =>
       root.style.setProperty(name, value),
     );
+  }
+
+  private getOnColor(background: string): string {
+    const value = background.trim().replace(/^#/, "");
+    if (!/^[0-9a-f]{6}$/i.test(value)) return "var(--surface-white)";
+    const channels = [0, 2, 4].map((offset) =>
+      Number.parseInt(value.slice(offset, offset + 2), 16) / 255,
+    );
+    const luminance = channels.reduce((sum, channel, index) => {
+      const linear = channel <= 0.03928
+        ? channel / 12.92
+        : Math.pow((channel + 0.055) / 1.055, 2.4);
+      return sum + linear * [0.2126, 0.7152, 0.0722][index];
+    }, 0);
+    return luminance > 0.179
+      ? "var(--text-primary)"
+      : "var(--surface-white)";
   }
 }
