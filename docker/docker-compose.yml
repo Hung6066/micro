@@ -152,6 +152,7 @@ services:
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       ConnectionStrings__CommerceDb: "Host=manufacturing-postgres;Database=commercedb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
+      Persistence__RunMigrationsOnStartup: "true"
       REDIS_URL: redis://manufacturing-redis:6379
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
       TenantPlacement__Enabled: "true"

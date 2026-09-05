@@ -59,10 +59,19 @@ public sealed class CommerceOrderConsumer(
         channel.ExchangeDeclare(DeadLetterExchange, ExchangeType.Topic, durable: true, autoDelete: false);
         if (queueExists)
         {
-            // Preserve an existing queue during rolling deployment; its DLX is
-            // migrated by broker policy without deleting messages.
-            channel.QueueDeclare(Queue, durable: true, exclusive: false, autoDelete: false);
-            logger.LogInformation("Existing queue {Queue} preserved during rolling deployment; broker DLX policy must remain configured", Queue);
+            // Queue arguments are immutable in RabbitMQ. Re-declare the current
+            // DLX contract so rolling deployments preserve the existing queue.
+            channel.QueueDeclare(
+                Queue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: new Dictionary<string, object>
+                {
+                    ["x-dead-letter-exchange"] = DeadLetterExchange,
+                    ["x-dead-letter-routing-key"] = $"dlq.{RoutingKey}",
+                });
+            logger.LogInformation("Existing queue {Queue} preserved during rolling deployment", Queue);
         }
         else
         {
