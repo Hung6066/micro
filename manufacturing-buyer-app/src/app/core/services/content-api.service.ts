@@ -11,7 +11,7 @@ import { environment } from "../../../environments/environment";
 
 /** The buyer portal is provisioned for one customer tenant; keep this identity
  * in one place and always send it as canonical request context. */
-export const BUYER_TENANT_KEY = "manufacturing";
+export const BUYER_TENANT_KEY = "customer-factory-x";
 
 @Injectable({ providedIn: "root" })
 export class ContentApiService {
@@ -26,7 +26,8 @@ export class ContentApiService {
     let params = new HttpParams();
     if (locale) params = params.set("locale", locale);
     return this.http.get<HisHopeContentHomeDto>(`${this.base}/public/home`, {
-      params, headers: this.tenantHeaders(),
+      params,
+      headers: this.tenantHeaders(),
     });
   }
 
@@ -40,9 +41,12 @@ export class ContentApiService {
   }
 
   getArticle(slug: string) {
-    return this.http.get<HisHopeContentArticleDto>(`${this.base}/public/articles/${encodeURIComponent(slug)}`, {
-      headers: this.tenantHeaders(),
-    });
+    return this.http.get<HisHopeContentArticleDto>(
+      `${this.base}/public/articles/${encodeURIComponent(slug)}`,
+      {
+        headers: this.tenantHeaders(),
+      },
+    );
   }
 
   submitPartnershipInquiry(body: HisHopeCreatePartnershipInquiryRequest) {
