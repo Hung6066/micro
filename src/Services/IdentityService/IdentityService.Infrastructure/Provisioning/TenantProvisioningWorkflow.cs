@@ -100,7 +100,7 @@ public sealed class TenantProvisioningConsumer(IServiceScopeFactory scopeFactory
             UserName = configuration["EventBus:UserName"] ?? "admin",
             Password = EventBusSecurity.GetPassword(configuration),
             DispatchConsumersAsync = true
-        };
+        }.ApplyPlatformTls(configuration);
         using var connection = factory.CreateConnection();
         const string queue = "identity.tenant-provisioning.v1";
         const string deadLetterRoutingKey = "dlq.identity.tenant-provisioning.v1";
@@ -186,7 +186,7 @@ public sealed class TenantProvisioningOutboxDispatcher(IServiceScopeFactory scop
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var message = await db.TenantProvisioningOutbox.Where(x => x.ProcessedOn == null).OrderBy(x => x.OccurredAt).FirstOrDefaultAsync(ct);
         if (message is null) return false;
-        var factory = new ConnectionFactory { HostName = configuration["EventBus:HostName"] ?? "rabbitmq", Port = configuration.GetValue("EventBus:Port", 5672), UserName = configuration["EventBus:UserName"] ?? "admin", Password = EventBusSecurity.GetPassword(configuration) };
+        var factory = new ConnectionFactory { HostName = configuration["EventBus:HostName"] ?? "rabbitmq", Port = configuration.GetValue("EventBus:Port", 5672), UserName = configuration["EventBus:UserName"] ?? "admin", Password = EventBusSecurity.GetPassword(configuration) }.ApplyPlatformTls(configuration);
         using var connection = factory.CreateConnection();
         using var channel = connection.CreateModel();
         channel.ExchangeDeclare(SagaMessagingContract.IdentityExchange, ExchangeType.Topic, true, false);

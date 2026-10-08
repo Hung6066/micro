@@ -11,6 +11,7 @@ using Microsoft.Extensions.Options;
 using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 
+His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCommerceServiceHost(builder.Configuration, builder.Environment);
 

@@ -20,6 +20,7 @@ public static class RabbitMqCompatibilityExtensions
         return services.AddRabbitMQEventBus(options =>
         {
             options.HostName = configuration.GetValue(HisHopeConfigurationKeys.EventBus.HostName, "localhost")!;
+            options.VirtualHost = configuration.GetValue(HisHopeConfigurationKeys.EventBus.VirtualHost, "/")!;
             options.Port = configuration.GetValue(HisHopeConfigurationKeys.EventBus.Port, 5672);
             options.UserName = configuration.GetValue(HisHopeConfigurationKeys.EventBus.UserName, "admin")!;
             options.Password = EventBusSecurity.GetPassword(configuration);
@@ -33,6 +34,9 @@ public static class RabbitMqCompatibilityExtensions
                 HisHopeConfigurationKeys.EventBus.PublisherConfirmTimeoutMilliseconds, 5000);
             options.UseSsl = configuration.GetValue(HisHopeConfigurationKeys.EventBus.UseSsl, false);
             options.ClientCertificatePath = configuration[HisHopeConfigurationKeys.EventBus.ClientCertificatePath];
+            options.ClientPrivateKeyPath = configuration[HisHopeConfigurationKeys.EventBus.ClientPrivateKeyPath];
+            options.CaCertificatePath = configuration[HisHopeConfigurationKeys.EventBus.CaCertificatePath];
+            options.SslServerName = configuration[HisHopeConfigurationKeys.EventBus.SslServerName];
             options.ClientCertificatePassword = configuration[HisHopeConfigurationKeys.EventBus.ClientCertificatePassword];
         });
     }

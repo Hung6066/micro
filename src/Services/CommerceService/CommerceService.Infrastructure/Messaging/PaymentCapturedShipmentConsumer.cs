@@ -38,7 +38,7 @@ public sealed partial class PaymentCapturedShipmentConsumer(
             UserName = configuration.GetValue("EventBus:UserName", "admin"),
             Password = EventBusSecurity.GetPassword(configuration),
             DispatchConsumersAsync = true,
-        };
+        }.ApplyPlatformTls(configuration);
         using var connection = factory.CreateConnection();
         using var channel = connection.CreateModel();
         channel.ExchangeDeclare(SagaMessagingContract.PaymentExchange, ExchangeType.Topic, durable: true, autoDelete: false);

@@ -266,6 +266,7 @@ services:
 
       ConnectionStrings__ManufacturingDb: "Host=manufacturing-postgres;Database=manufacturingdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
       ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      Persistence__RunMigrationsOnStartup: "true"
       TenantPlacement__Enabled: "false"
       TenantPlacement__Services__manufacturing__DefaultConnectionName: ManufacturingDb
       TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
@@ -355,7 +356,8 @@ services:
       manufacturingservice: { condition: service_started }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      test:
+        ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -375,7 +377,8 @@ services:
       manufacturingservice: { condition: service_started }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      test:
+        ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5

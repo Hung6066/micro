@@ -17,6 +17,7 @@ using His.Hope.Configuration;
 using His.Hope.SharedKernel.Protocol;
 using His.Hope.ServiceDefaults;
 
+His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
 var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "ApiGateway");
 var pluginRegistry = new ServicePluginRegistry(builder.Configuration);
@@ -418,11 +419,11 @@ app.Use(async (context, next) =>
 // The session exchange is exempt because it creates the CSRF cookie.
 app.Use(async (context, next) =>
 {
-      if (context.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE"
-          && context.Request.Path.StartsWithSegments("/api")
-          && !context.Request.Path.StartsWithSegments("/api/v1/auth/session/exchange")
-          // Preserve logout for sessions issued before the CSRF cookie rollout.
-          && !context.Request.Path.StartsWithSegments("/api/v1/auth/logout"))
+    if (context.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE"
+        && context.Request.Path.StartsWithSegments("/api")
+        && !context.Request.Path.StartsWithSegments("/api/v1/auth/session/exchange")
+        // Preserve logout for sessions issued before the CSRF cookie rollout.
+        && !context.Request.Path.StartsWithSegments("/api/v1/auth/logout"))
     {
         var sessionId = context.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
         if (!string.IsNullOrWhiteSpace(sessionId))

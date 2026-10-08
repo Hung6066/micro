@@ -20,5 +20,7 @@ public class EventBusOptions
     public bool UseSsl { get; set; } = false;
     public string? SslServerName { get; set; }
     public string? ClientCertificatePath { get; set; }
+    public string? ClientPrivateKeyPath { get; set; }
+    public string? CaCertificatePath { get; set; }
     public string? ClientCertificatePassword { get; set; }
 }

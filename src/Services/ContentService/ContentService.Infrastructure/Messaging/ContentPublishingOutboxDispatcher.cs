@@ -36,7 +36,7 @@ public sealed class ContentPublishingOutboxDispatcher(IServiceScopeFactory scope
             if (message is null) continue;
         try
         {
-            var connection = new ConnectionFactory { HostName = configuration["EventBus:HostName"] ?? "rabbitmq", Port = configuration.GetValue("EventBus:Port", 5672), UserName = configuration["EventBus:UserName"] ?? "admin", Password = EventBusSecurity.GetPassword(configuration) }.CreateConnection();
+            var connection = new ConnectionFactory { HostName = configuration["EventBus:HostName"] ?? "rabbitmq", Port = configuration.GetValue("EventBus:Port", 5672), UserName = configuration["EventBus:UserName"] ?? "admin", Password = EventBusSecurity.GetPassword(configuration) }.ApplyPlatformTls(configuration).CreateConnection();
             using (connection)
             using (var channel = connection.CreateModel())
             {

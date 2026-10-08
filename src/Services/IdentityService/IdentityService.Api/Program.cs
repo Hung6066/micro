@@ -2,6 +2,7 @@ using His.Hope.IdentityService.Api.Composition;
 using His.Hope.Infrastructure;
 using His.Hope.ServiceDefaults;
 
+His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
 builder.AddIdentityService();
 

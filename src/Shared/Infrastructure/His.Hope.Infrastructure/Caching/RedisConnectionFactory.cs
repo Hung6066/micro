@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using System.Net.Security;
 using Microsoft.Extensions.Configuration;
 using StackExchange.Redis;
 
@@ -15,31 +16,47 @@ public static class RedisConnectionFactory
         options.SyncTimeout = Math.Min(options.SyncTimeout, 5000);
 
         var caPath = configuration["Redis:TlsCaFile"];
-        if (string.IsNullOrWhiteSpace(caPath))
-            return options;
-
-        // A configured production CA is a security contract, not an optional
-        // hint. Do not silently downgrade to the platform trust store or to
-        // plaintext when the CA mount/connection scheme is wrong.
-        if (!File.Exists(caPath))
-            throw new InvalidOperationException($"Redis TLS CA file '{caPath}' is missing.");
-        if (!options.Ssl)
-            throw new InvalidOperationException("Redis TLS CA is configured but the Redis connection is not using TLS.");
-
-        var caCertificate = new X509Certificate2(caPath);
-        options.CertificateValidation += (_, certificate, _, errors) =>
+        if (!string.IsNullOrWhiteSpace(caPath))
         {
-            if (errors == System.Net.Security.SslPolicyErrors.None)
-                return true;
-            if (certificate is null)
-                return false;
+            // A configured production CA is a security contract, not an optional
+            // hint. Do not silently downgrade to the platform trust store or to
+            // plaintext when the CA mount/connection scheme is wrong.
+            if (!File.Exists(caPath))
+                throw new InvalidOperationException($"Redis TLS CA file '{caPath}' is missing.");
+            if (!options.Ssl)
+                throw new InvalidOperationException("Redis TLS CA is configured but the Redis connection is not using TLS.");
 
-            using var chain = new X509Chain();
-            chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-            chain.ChainPolicy.CustomTrustStore.Add(caCertificate);
-            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-            return chain.Build(new X509Certificate2(certificate));
-        };
+            var caCertificate = new X509Certificate2(caPath);
+            options.CertificateValidation += (_, certificate, _, errors) =>
+            {
+                if (errors == System.Net.Security.SslPolicyErrors.None)
+                    return true;
+                if (certificate is null)
+                    return false;
+
+                using var chain = new X509Chain();
+                chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                chain.ChainPolicy.CustomTrustStore.Add(caCertificate);
+                chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                return chain.Build(new X509Certificate2(certificate));
+            };
+        }
+
+        var clientCertificatePem = configuration["Redis:TlsClientCertificatePem"];
+        var clientPrivateKeyPem = configuration["Redis:TlsClientPrivateKeyPem"];
+        if (!string.IsNullOrWhiteSpace(clientCertificatePem) || !string.IsNullOrWhiteSpace(clientPrivateKeyPem))
+        {
+            if (!options.Ssl)
+                throw new InvalidOperationException("Redis client certificate is configured but the Redis connection is not using TLS.");
+            if (string.IsNullOrWhiteSpace(clientCertificatePem) || string.IsNullOrWhiteSpace(clientPrivateKeyPem))
+                throw new InvalidOperationException("Both Redis client certificate and private key must be configured.");
+
+            var clientCertificate = X509Certificate2.CreateFromPem(clientCertificatePem, clientPrivateKeyPem);
+            options.SslClientAuthenticationOptions = _ => new SslClientAuthenticationOptions
+            {
+                ClientCertificates = new X509CertificateCollection { clientCertificate }
+            };
+        }
 
         return options;
     }
@@ -62,6 +79,8 @@ public static class RedisConnectionFactory
         if (!string.IsNullOrWhiteSpace(redisUri.UserInfo))
         {
             var credentials = Uri.UnescapeDataString(redisUri.UserInfo).Split(':', 2);
+            if (credentials.Length == 2 && !string.IsNullOrWhiteSpace(credentials[0]))
+                parts.Add($"user={credentials[0]}");
             if (credentials.Length == 2 && !string.IsNullOrWhiteSpace(credentials[1]))
                 parts.Add($"password={credentials[1]}");
         }
@@ -72,6 +91,19 @@ public static class RedisConnectionFactory
 
         if (redisUri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase))
             parts.Add("ssl=True");
+
+        var query = redisUri.Query.TrimStart('?');
+        foreach (var item in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = item.IndexOf('=');
+            if (separator <= 0)
+                continue;
+
+            var key = Uri.UnescapeDataString(item[..separator]);
+            var value = Uri.UnescapeDataString(item[(separator + 1)..]);
+            if (key.Equals("serviceName", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(value))
+                parts.Add($"serviceName={value}");
+        }
 
         return string.Join(',', parts);
     }

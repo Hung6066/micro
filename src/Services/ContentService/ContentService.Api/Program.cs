@@ -14,6 +14,7 @@ using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
+His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
 builder.Services.AddContentInfrastructure(builder.Configuration);

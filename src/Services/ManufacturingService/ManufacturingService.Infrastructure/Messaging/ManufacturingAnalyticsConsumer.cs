@@ -31,7 +31,7 @@ public sealed class ManufacturingAnalyticsConsumer(
             UserName = configuration["EventBus:UserName"] ?? "admin",
             Password = EventBusSecurity.GetPassword(configuration),
             DispatchConsumersAsync = true
-        };
+        }.ApplyPlatformTls(configuration);
 
         using var connection = factory.CreateConnection();
         const string exchange = CommerceMessagingContract.ManufacturingExchange;
@@ -229,8 +229,11 @@ public sealed class ManufacturingAnalyticsConsumer(
 
             db.EventReceipts.Add(new ManufacturingEventReceiptEntity
             {
-                Id = Guid.NewGuid(), EventType = eventType, AggregateId = aggregateId,
-                Content = content, ReceivedAt = DateTime.UtcNow
+                Id = Guid.NewGuid(),
+                EventType = eventType,
+                AggregateId = aggregateId,
+                Content = content,
+                ReceivedAt = DateTime.UtcNow
             });
             await db.SaveChangesAsync(cancellationToken);
             return true;

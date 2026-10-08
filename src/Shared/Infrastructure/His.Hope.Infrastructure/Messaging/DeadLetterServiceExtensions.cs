@@ -36,7 +36,8 @@ public static class DeadLetterServiceExtensions
             var logger = sp.GetRequiredService<ILogger<DeadLetterConsumer<TDbContext>>>();
             return new DeadLetterConsumer<TDbContext>(
                 scopeFactory, logger, hostName, port, userName, password, virtualHost,
-                autoReprocessEnabled, maxRetryCount, delayMinutes);
+                autoReprocessEnabled, maxRetryCount, delayMinutes,
+                factory => factory.ApplyPlatformTls(configuration));
         });
 
         return services;

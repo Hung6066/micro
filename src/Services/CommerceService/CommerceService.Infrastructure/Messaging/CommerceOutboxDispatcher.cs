@@ -2,6 +2,7 @@ using His.Hope.Contracts.Commerce;
 using His.Hope.Contracts.Saga;
 using His.Hope.Contracts.Messaging;
 using His.Hope.CommerceService.Infrastructure.Persistence;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -90,7 +91,7 @@ public sealed partial class CommerceOutboxDispatcher(
                 UserName = configuration.GetValue("EventBus:UserName", "admin"),
                 Password = GetRequiredEventBusPassword(configuration),
                 DispatchConsumersAsync = true,
-            };
+            }.ApplyPlatformTls(configuration);
             using var connection = connectionFactory.CreateConnection();
             using var channel = connection.CreateModel();
             channel.ExchangeDeclare(Exchange, ExchangeType.Topic, durable: true, autoDelete: false);

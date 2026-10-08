@@ -40,7 +40,7 @@ public sealed class CommerceOrderConsumer(
             UserName = configuration["EventBus:UserName"] ?? "admin",
             Password = EventBusSecurity.GetPassword(configuration),
             DispatchConsumersAsync = true,
-        };
+        }.ApplyPlatformTls(configuration);
 
         using var connection = factory.CreateConnection();
         using var probeChannel = connection.CreateModel();

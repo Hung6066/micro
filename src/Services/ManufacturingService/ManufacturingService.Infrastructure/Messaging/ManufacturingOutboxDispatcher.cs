@@ -74,7 +74,7 @@ public sealed class ManufacturingOutboxDispatcher(
                 UserName = configuration.GetValue("EventBus:UserName", "admin"),
                 Password = EventBusSecurity.GetPassword(configuration),
                 DispatchConsumersAsync = true
-            };
+            }.ApplyPlatformTls(configuration);
             using var connection = factoryOptions.CreateConnection();
             using var channel = connection.CreateModel();
             channel.ExchangeDeclare(Exchange, ExchangeType.Topic, durable: true, autoDelete: false);

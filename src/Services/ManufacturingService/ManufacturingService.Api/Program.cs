@@ -9,6 +9,7 @@ using His.Hope.Infrastructure.Middleware;
 using His.Hope.Configuration;
 using Microsoft.AspNetCore.DataProtection;
 
+His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHisHopeTenantPlacement(builder.Configuration);

@@ -75,12 +75,22 @@ public class RabbitMQConnection : IAsyncDisposable
 
             if (!string.IsNullOrEmpty(_options.ClientCertificatePath))
             {
-                var cert = string.IsNullOrEmpty(_options.ClientCertificatePassword)
-                    ? new X509Certificate2(_options.ClientCertificatePath)
-                    : new X509Certificate2(_options.ClientCertificatePath, _options.ClientCertificatePassword);
+                var cert = !string.IsNullOrEmpty(_options.ClientPrivateKeyPath)
+                    ? X509Certificate2.CreateFromPemFile(_options.ClientCertificatePath, _options.ClientPrivateKeyPath)
+                    : string.IsNullOrEmpty(_options.ClientCertificatePassword)
+                        ? new X509Certificate2(_options.ClientCertificatePath)
+                        : new X509Certificate2(_options.ClientCertificatePath, _options.ClientCertificatePassword);
 
                 factory.Ssl.Certs = new X509Certificate2Collection { cert };
                 factory.Ssl.CertificateValidationCallback = SslCertificateValidation;
+            }
+
+            if (!string.IsNullOrEmpty(_options.CaCertificatePath))
+            {
+                var roots = new X509Certificate2Collection();
+                roots.ImportFromPemFile(_options.CaCertificatePath);
+                factory.Ssl.CertificateValidationCallback = (_, certificate, _, errors) =>
+                    ValidateAgainstPrivateCa(roots, certificate, errors);
             }
         }
 
@@ -101,6 +111,20 @@ public class RabbitMQConnection : IAsyncDisposable
         X509Chain? chain, SslPolicyErrors sslPolicyErrors)
     {
         return sslPolicyErrors == SslPolicyErrors.None;
+    }
+
+    private static bool ValidateAgainstPrivateCa(
+        X509Certificate2Collection roots, X509Certificate? certificate, SslPolicyErrors errors)
+    {
+        if (errors == SslPolicyErrors.None) return true;
+        if (certificate is null) return false;
+        if ((errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != SslPolicyErrors.None) return false;
+
+        using var chain = new X509Chain();
+        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+        chain.ChainPolicy.CustomTrustStore.AddRange(roots);
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        return chain.Build(new X509Certificate2(certificate));
     }
 
     public async ValueTask DisposeAsync()

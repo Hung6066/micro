@@ -53,7 +53,8 @@ public partial class DeadLetterConsumer<TDbContext> : BackgroundService
         string virtualHost = "/",
         bool autoReprocessEnabled = false,
         int maxRetryCount = 3,
-        int delayMinutes = 5)
+        int delayMinutes = 5,
+        Action<ConnectionFactory>? configureConnection = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
@@ -73,6 +74,7 @@ public partial class DeadLetterConsumer<TDbContext> : BackgroundService
             AutomaticRecoveryEnabled = true,
             NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
         };
+        configureConnection?.Invoke(_connectionFactory);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

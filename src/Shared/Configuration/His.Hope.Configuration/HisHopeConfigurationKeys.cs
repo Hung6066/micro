@@ -18,6 +18,9 @@ public static class HisHopeConfigurationKeys
         public const string PublisherConfirmTimeoutMilliseconds = "EventBus:PublisherConfirmTimeoutMilliseconds";
         public const string UseSsl = "EventBus:UseSsl";
         public const string ClientCertificatePath = "EventBus:ClientCertificatePath";
+        public const string ClientPrivateKeyPath = "EventBus:ClientPrivateKeyPath";
+        public const string CaCertificatePath = "EventBus:CaCertificatePath";
+        public const string SslServerName = "EventBus:SslServerName";
         public const string ClientCertificatePassword = "EventBus:ClientCertificatePassword";
     }
 
