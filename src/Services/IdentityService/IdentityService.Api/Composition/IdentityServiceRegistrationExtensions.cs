@@ -549,6 +549,17 @@ public static class IdentityServiceRegistrationExtensions
 
         builder.Services.Configure<ConglomerateOptions>(
             builder.Configuration.GetSection(ConglomerateOptions.SectionName));
+        // Client ids contain hyphens, which orchestrators reject in environment variable names, so the
+        // client -> tenant map may also be supplied as one JSON object in Conglomerate:OidcClientTenantsJson.
+        builder.Services.PostConfigure<ConglomerateOptions>(options =>
+        {
+            var json = builder.Configuration["Conglomerate:OidcClientTenantsJson"];
+            if (string.IsNullOrWhiteSpace(json)) return;
+            var entries = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            if (entries is null) return;
+            foreach (var (clientId, tenantKey) in entries)
+                options.OidcClientTenants[clientId] = tenantKey;
+        });
         builder.Services.AddIdentityApplication();
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.DevicePosture.DevicePosturePolicyEvaluator>();
 

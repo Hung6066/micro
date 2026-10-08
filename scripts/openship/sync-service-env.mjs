@@ -97,9 +97,12 @@ function main() {
       continue;
     }
     // spawnSync (not execFileSync) so a failure never echoes the secret-bearing argv.
+    // OPENSHIP_BIN / OPENSHIP_BIN_ARGS let Windows callers run `node <cli>/dist/node-entry.js` instead of the .cmd shim.
+    const bin = process.env.OPENSHIP_BIN || "openship";
+    const prefix = process.env.OPENSHIP_BIN_ARGS ? process.env.OPENSHIP_BIN_ARGS.split(" ") : [];
     const { status } = spawnSync(
-      "openship",
-      ["service", "env", "set", service, ...pairs, "-p", opts.project, "-e", opts.environment, "--replace", "--secret"],
+      bin,
+      [...prefix, "service", "env", "set", service, ...pairs, "-p", opts.project, "-e", opts.environment, "--replace", "--secret"],
       { stdio: "inherit" },
     );
     if (status !== 0) throw new Error(`openship service env set failed for ${service} (exit ${status}).`);
