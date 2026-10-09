@@ -1,0 +1,484 @@
+name: manufacturing
+
+# Standalone Manufacturing backend stack.
+# This file intentionally does not include Patient, Appointment, Clinical,
+# Lab, Billing, Pharmacy, API Gateway, or frontend apps.
+# Identity/OIDC, Commerce and Content are included because they are shared
+# dependencies of the Manufacturing business flow. Unrelated clinical and
+# hospital services are intentionally absent.
+
+services:
+  identity-keys-init:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+    image: alpine:3.20
+    container_name: manufacturing-identity-keys-init
+    environment:
+      VAULT_ADDR: ${VAULT_ADDR:-https://vault.openship-vault.svc.cluster.local:8200}
+      VAULT_CACERT: /run/secrets/vault_ca.pem
+      VAULT_CLIENT_CERT: /run/secrets/vault_client_cert.pem
+      VAULT_CLIENT_KEY: /run/secrets/vault_client_key.pem
+      VAULT_ROLE_ID_FILE: /run/secrets/vault_role_id
+      VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id
+      VAULT_APPROLE_MOUNT: ${VAULT_APPROLE_MOUNT:-approle}
+      VAULT_TRANSIT_MOUNT: ${VAULT_TRANSIT_MOUNT:-transit}
+      VAULT_KV_MOUNT: ${VAULT_KV_MOUNT:-secret}
+      VAULT_KEY_PATH: ${VAULT_IDENTITY_KEY_PATH:-micro/identity}
+    entrypoint: ["/bin/sh", "/run/vault/identity-keys-init.sh"]
+    volumes:
+      - identity_keys:/etc/hishop/certs
+      - ./vault/identity-keys-init.sh:/run/vault/identity-keys-init.sh:ro
+    secrets: [vault_ca.pem, vault_client_cert.pem, vault_client_key.pem, vault_role_id, vault_secret_id]
+    restart: "no"
+  manufacturing-postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+    image: pgvector/pgvector:pg16
+    container_name: manufacturing-standalone-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}
+      POSTGRES_MULTIPLE_DATABASES: identitydb,manufacturingdb,commercedb,contentdb
+    ports:
+      - "${MANUFACTURING_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    networks: [manufacturing]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d manufacturingdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  manufacturing-redis:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+    image: redis:7-alpine
+    container_name: manufacturing-standalone-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${MANUFACTURING_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks: [manufacturing]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  manufacturing-rabbitmq:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+    image: rabbitmq:3-management-alpine
+    container_name: manufacturing-standalone-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${MANUFACTURING_RABBITMQ_USER:?MANUFACTURING_RABBITMQ_USER is required}
+      RABBITMQ_DEFAULT_PASS: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
+    ports:
+      - "${MANUFACTURING_RABBITMQ_PORT:-5672}:5672"
+      - "${MANUFACTURING_RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks: [manufacturing]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  identityservice:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ..
+      dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
+    container_name: manufacturing-standalone-identity
+    ports:
+      - "${MANUFACTURING_IDENTITY_PORT:-5001}:5003"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5003
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      ConnectionStrings__IdentityDb: "Host=manufacturing-postgres;Database=identitydb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
+      Persistence__RunMigrationsOnStartup: "true"
+      ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      Redis__ConnectionString: manufacturing-redis
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Jwt__AllowHttp: "true"
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      OpenIddict__Issuer: ${MANUFACTURING_OIDC_ISSUER:-http://localhost:5001}
+      OpenIddict__InternalJwksUri: http://identityservice:5003/.well-known/jwks
+      OpenIddict__Signing__PrivateKeyPath: /etc/hishop/certs/jwt-private-key.pem
+      OpenIddict__Encryption__PrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      OpenIddict__Encryption__KeyId: manufacturing-oidc-encryption-v1
+      Identity__BootstrapAdmin__Password: ${MANUFACTURING_IDENTITY_BOOTSTRAP_PASSWORD:-}
+      Identity__BootstrapAdmin__ResetPassword: ${MANUFACTURING_IDENTITY_RESET_PASSWORD:-false}
+      Conglomerate__Enabled: "true"
+      Conglomerate__Organization__Key: manufacturing
+      Conglomerate__Organization__DisplayName: Manufacturing
+      Conglomerate__SeedPilotMemberships: "true"
+      Conglomerate__SeedPilotUsers: "true"
+      Conglomerate__Tenants__0__Key: manufacturing
+      Conglomerate__Tenants__0__DisplayName: Manufacturing
+      Conglomerate__Tenants__1__Key: tech-vendor
+      Conglomerate__Tenants__1__DisplayName: Technology Vendor
+      Conglomerate__Tenants__2__Key: group-hq
+      Conglomerate__Tenants__2__DisplayName: Group Headquarters
+      Conglomerate__Tenants__3__Key: customer-acme
+      Conglomerate__Tenants__3__DisplayName: Acme Healthcare
+      Conglomerate__Tenants__4__Key: customer-factory-x
+      Conglomerate__Tenants__4__DisplayName: Factory X Industrial
+      Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"group-hq","his-hope-admin":"group-hq","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
+      AUTHZ_PDP_MODE: disabled
+      Vault__Address: ""
+      Vault__RequireVault: "false"
+      Vault__EnableTransit: "false"
+      Vault__AllowStaticToken: "true"
+    volumes:
+      - identity_keys:/etc/hishop/certs
+    networks: [manufacturing, openship_observability]
+    depends_on:
+      identity-keys-init: { condition: service_completed_successfully }
+      manufacturing-postgres: { condition: service_healthy }
+      manufacturing-redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  commerceservice:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ../src
+      dockerfile: Services/CommerceService/CommerceService.Api/Dockerfile
+    container_name: manufacturing-standalone-commerce
+    ports:
+      - "${MANUFACTURING_COMMERCE_PORT:-5015}:5015"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5015
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      ConnectionStrings__CommerceDb: "Host=manufacturing-postgres;Database=commercedb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
+      Persistence__RunMigrationsOnStartup: "true"
+      REDIS_URL: redis://manufacturing-redis:6379
+      ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      TenantPlacement__Enabled: "true"
+      TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__AllowHttp: "true"
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Outbox__Enabled: "true"
+      EventBus__HostName: manufacturing-rabbitmq
+      EventBus__Port: "5672"
+      EventBus__UserName: ${MANUFACTURING_RABBITMQ_USER:?MANUFACTURING_RABBITMQ_USER is required}
+      EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
+    volumes:
+      - identity_keys:/etc/hishop/certs
+    networks: [manufacturing, openship_observability]
+    depends_on:
+      identityservice: { condition: service_healthy }
+      identity-keys-init: { condition: service_completed_successfully }
+      manufacturing-postgres: { condition: service_healthy }
+      manufacturing-redis: { condition: service_healthy }
+      manufacturing-rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  contentservice:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ../src
+      dockerfile: Services/ContentService/ContentService.Api/Dockerfile
+    container_name: manufacturing-standalone-content
+    ports:
+      - "${MANUFACTURING_CONTENT_PORT:-5016}:5016"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5016
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      ConnectionStrings__ContentDb: "Host=manufacturing-postgres;Database=contentdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
+      REDIS_URL: redis://manufacturing-redis:6379
+      ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      TenantPlacement__Enabled: "true"
+      TenantPlacement__Services__content__DefaultConnectionName: ContentDb
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__AllowHttp: "true"
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+    volumes:
+      - identity_keys:/etc/hishop/certs
+    networks: [manufacturing, openship_observability]
+    depends_on:
+      identityservice: { condition: service_healthy }
+      identity-keys-init: { condition: service_completed_successfully }
+      manufacturing-postgres: { condition: service_healthy }
+      manufacturing-redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  manufacturingservice:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ../src
+      dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
+    container_name: manufacturing-standalone-api
+    ports:
+      - "${MANUFACTURING_API_PORT:-5050}:5050"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5050
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+
+      ConnectionStrings__ManufacturingDb: "Host=manufacturing-postgres;Database=manufacturingdb;Username=${MANUFACTURING_POSTGRES_USER:?MANUFACTURING_POSTGRES_USER is required};Password=${MANUFACTURING_POSTGRES_PASSWORD:?MANUFACTURING_POSTGRES_PASSWORD is required}"
+      ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      Persistence__RunMigrationsOnStartup: "true"
+      TenantPlacement__Enabled: "false"
+      TenantPlacement__Services__manufacturing__DefaultConnectionName: ManufacturingDb
+      TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
+      TenantPlacement__Services__content__DefaultConnectionName: ContentDb
+
+      # Configure these when an external Identity/OIDC authority is available.
+      Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${MANUFACTURING_JWT_METADATA_ADDRESS:-http://identityservice:5003/.well-known/openid-configuration}
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__AllowHttp: "true"
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+
+      Outbox__Enabled: "true"
+      Manufacturing__Automation__Enabled: "true"
+      Manufacturing__Automation__IntervalSeconds: "300"
+      Manufacturing__Automation__BatchSize: "100"
+      Manufacturing__SeedDemoData: ${MANUFACTURING_SEED_DEMO_DATA:-true}
+      EventBus__HostName: manufacturing-rabbitmq
+      EventBus__Port: "5672"
+      EventBus__UserName: ${MANUFACTURING_RABBITMQ_USER:?MANUFACTURING_RABBITMQ_USER is required}
+      EventBus__Password: ${MANUFACTURING_RABBITMQ_PASSWORD:?MANUFACTURING_RABBITMQ_PASSWORD is required}
+      Consumers__AnalyticsEnabled: "true"
+      Consumers__CommerceOrdersEnabled: "true"
+    volumes:
+      - identity_keys:/etc/hishop/certs
+    networks: [manufacturing, openship_observability]
+    depends_on:
+      identityservice: { condition: service_healthy }
+      identity-keys-init: { condition: service_completed_successfully }
+      manufacturing-postgres: { condition: service_healthy }
+      manufacturing-redis: { condition: service_healthy }
+      manufacturing-rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  api-gateway:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ..
+      dockerfile: src/ApiGateway/Dockerfile
+    container_name: manufacturing-standalone-gateway
+    ports:
+      - "${MANUFACTURING_GATEWAY_PORT:-5000}:5000"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5000
+      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "0"
+      REDIS_URL: redis://manufacturing-redis:6379
+      ConnectionStrings__Redis: redis://manufacturing-redis:6379
+      Redis__ConnectionString: manufacturing-redis
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      SERVICE_IDENTITY_API_URL: http://identityservice:5003
+      SERVICE_COMMERCE_URL: http://commerceservice:5015
+      SERVICE_CONTENT_URL: http://contentservice:5016
+      SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      CORS__AllowedOrigins: "http://localhost:8083,http://localhost:4205,http://localhost:4300"
+    networks: [manufacturing, openship_observability]
+    depends_on:
+      identityservice: { condition: service_healthy }
+      commerceservice: { condition: service_healthy }
+      contentservice: { condition: service_healthy }
+      manufacturingservice: { condition: service_started }
+      manufacturing-redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  manufacturing-buyer-app:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ..
+      dockerfile: manufacturing-buyer-app/Dockerfile
+    container_name: manufacturing-standalone-buyer
+    ports:
+      - "${MANUFACTURING_BUYER_APP_PORT:-4205}:8080"
+    networks: [manufacturing]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      identityservice: { condition: service_healthy }
+      manufacturingservice: { condition: service_started }
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  internal-operator-app:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ..
+      dockerfile: internal-operator-app/Dockerfile
+    container_name: manufacturing-standalone-operator
+    ports:
+      - "${MANUFACTURING_OPERATOR_APP_PORT:-4300}:8080"
+    networks: [manufacturing]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      identityservice: { condition: service_healthy }
+      manufacturingservice: { condition: service_started }
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  admin-app:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "0.05"
+    build:
+      context: ..
+      dockerfile: admin-app/Dockerfile
+    container_name: manufacturing-standalone-admin
+    ports:
+      - "${MANUFACTURING_ADMIN_APP_PORT:-8083}:8080"
+    networks: [manufacturing]
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      identityservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+networks:
+  manufacturing:
+    name: manufacturing-standalone
+  openship_observability:
+    external: true
+    name: openship_observability
+
+volumes:
+  identity_keys:
+    name: manufacturing-identity-keys
+  postgres_data:
+    external: true
+    name: openship-micro-postgres_data
+  redis_data:
+    external: true
+    name: openship-micro-redis_data
+  rabbitmq_data:
+    external: true
+    name: openship-micro-rabbitmq_data
+  es_data:
+    external: true
+    name: openship-micro-es_data
+
+secrets:
+  vault_ca.pem: { file: "${VAULT_CA_FILE:?set Openship Vault CA file}" }
+  vault_client_cert.pem: { file: "${VAULT_CLIENT_CERT_HOST_FILE:?set Openship-CA-issued client certificate file}" }
+  vault_client_key.pem: { file: "${VAULT_CLIENT_KEY_HOST_FILE:?set client key file}" }
+  vault_role_id: { file: "${VAULT_ROLE_ID_HOST_FILE:?set AppRole role_id file}" }
+  vault_secret_id: { file: "${VAULT_SECRET_ID_HOST_FILE:?set AppRole secret_id file}" }
