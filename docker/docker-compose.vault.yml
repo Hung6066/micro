@@ -23,9 +23,8 @@ services:
       VAULT_ROLE_ID_FILE: /run/secrets/vault_role_id
       VAULT_SECRET_ID_FILE: /run/secrets/vault_secret_id
       VAULT_APPROLE_MOUNT: ${VAULT_APPROLE_MOUNT:-approle}
-      VAULT_TRANSIT_MOUNT: ${VAULT_TRANSIT_MOUNT:-transit}
-      VAULT_KV_MOUNT: ${VAULT_KV_MOUNT:-secret}
-      VAULT_KEY_PATH: ${VAULT_IDENTITY_KEY_PATH:-micro/identity}
+      VAULT_KV_MOUNT: ${VAULT_KV_MOUNT:-openship-runtime}
+      VAULT_KEY_PATH: ${VAULT_IDENTITY_KEY_PATH:-openship/projects/micro/development/identity-keys}
     entrypoint: ["/bin/sh", "/run/vault/identity-keys-init.sh"]
     volumes:
       - identity_keys:/etc/hishop/certs
