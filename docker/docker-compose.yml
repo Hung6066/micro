@@ -85,6 +85,10 @@ services:
     restart: unless-stopped
 
   identityservice:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ..
       dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
@@ -151,6 +155,10 @@ services:
     restart: unless-stopped
 
   commerceservice:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ../src
       dockerfile: Services/CommerceService/CommerceService.Api/Dockerfile
@@ -201,6 +209,10 @@ services:
     restart: unless-stopped
 
   contentservice:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ../src
       dockerfile: Services/ContentService/ContentService.Api/Dockerfile
@@ -244,6 +256,10 @@ services:
     restart: unless-stopped
 
   manufacturingservice:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ../src
       dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
@@ -298,6 +314,10 @@ services:
     restart: unless-stopped
 
   api-gateway:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
@@ -335,6 +355,10 @@ services:
       start_period: 30s
 
   manufacturing-buyer-app:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ..
       dockerfile: manufacturing-buyer-app/Dockerfile
@@ -356,6 +380,10 @@ services:
       start_period: 15s
 
   internal-operator-app:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ..
       dockerfile: internal-operator-app/Dockerfile
@@ -377,6 +405,10 @@ services:
       start_period: 15s
 
   admin-app:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
     build:
       context: ..
       dockerfile: admin-app/Dockerfile
