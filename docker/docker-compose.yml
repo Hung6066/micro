@@ -102,6 +102,7 @@ services:
 
   identityservice:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
@@ -172,6 +173,7 @@ services:
 
   commerceservice:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
@@ -226,6 +228,7 @@ services:
 
   contentservice:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
@@ -273,6 +276,7 @@ services:
 
   manufacturingservice:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
@@ -331,6 +335,7 @@ services:
 
   api-gateway:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
@@ -372,6 +377,7 @@ services:
 
   manufacturing-buyer-app:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
@@ -397,6 +403,7 @@ services:
 
   internal-operator-app:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
@@ -422,6 +429,7 @@ services:
 
   admin-app:
     deploy:
+      replicas: 2
       resources:
         limits:
           cpus: "0.05"
