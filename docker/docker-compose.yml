@@ -88,7 +88,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ..
       dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
@@ -158,7 +158,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ../src
       dockerfile: Services/CommerceService/CommerceService.Api/Dockerfile
@@ -212,7 +212,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ../src
       dockerfile: Services/ContentService/ContentService.Api/Dockerfile
@@ -259,7 +259,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ../src
       dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
@@ -317,7 +317,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
@@ -358,7 +358,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ..
       dockerfile: manufacturing-buyer-app/Dockerfile
@@ -383,7 +383,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ..
       dockerfile: internal-operator-app/Dockerfile
@@ -408,7 +408,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.2"
+          cpus: "0.1"
     build:
       context: ..
       dockerfile: admin-app/Dockerfile
