@@ -77,14 +77,17 @@ catch {
     throw $failure
 }
 finally {
+    $rtoMinutes = [math]::Round(([DateTime]::UtcNow - $started).TotalMinutes, 3)
     $doc = [pscustomobject]@{
         status = $status
         executedAtUtc = $started.ToString('o')
         rpoMinutes = $RpoMinutes
+        rtoMinutes = $rtoMinutes
         azureBackupPrefix = $prefix
         azureObjectFound = [bool]$blobName
         azureObjectName = if ($blobName) { [IO.Path]::GetFileName($blobName) } else { $null }
         restoreVerified = ($status -eq 'pass')
+        target = $TargetNamespace
         targetNamespace = $TargetNamespace
         failure = $failure
     }

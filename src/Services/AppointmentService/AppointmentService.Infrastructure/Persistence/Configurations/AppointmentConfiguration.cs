@@ -22,27 +22,27 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
                 value => AppointmentId.From(value));
 
         builder.Property(a => a.PatientId)
-            .HasColumnName("PatientId")
+            .HasColumnName("patient_id")
             .IsRequired();
 
         builder.Property(a => a.ProviderId)
-            .HasColumnName("ProviderId")
+            .HasColumnName("provider_id")
             .IsRequired();
 
         builder.Property(a => a.ScheduledDate)
-            .HasColumnName("ScheduledDate")
+            .HasColumnName("scheduled_date")
             .IsRequired();
 
         builder.Property(a => a.StartTime)
-            .HasColumnName("StartTime")
+            .HasColumnName("start_time")
             .IsRequired();
 
         builder.Property(a => a.EndTime)
-            .HasColumnName("EndTime")
+            .HasColumnName("end_time")
             .IsRequired();
 
         builder.Property(a => a.Status)
-            .HasColumnName("Status")
+            .HasColumnName("status")
             .HasConversion(
                 s => s.Code,
                 code => AppointmentStatus.FromCode(code))
@@ -50,7 +50,7 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .IsRequired();
 
         builder.Property(a => a.Type)
-            .HasColumnName("Type")
+            .HasColumnName("type")
             .HasConversion(
                 t => t.Code,
                 code => AppointmentType.FromCode(code))
@@ -58,23 +58,23 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .IsRequired();
 
         builder.Property(a => a.Reason)
-            .HasColumnName("Reason")
+            .HasColumnName("reason")
             .HasMaxLength(500);
 
         builder.Property(a => a.Notes)
-            .HasColumnName("Notes")
+            .HasColumnName("notes")
             .HasMaxLength(2000);
 
         builder.Property(a => a.Location)
-            .HasColumnName("Location")
+            .HasColumnName("location")
             .HasMaxLength(200);
 
         builder.Property(a => a.CreatedAt)
-            .HasColumnName("CreatedAt")
+            .HasColumnName("created_at")
             .IsRequired();
 
         builder.Property(a => a.UpdatedAt)
-            .HasColumnName("UpdatedAt");
+            .HasColumnName("updated_at");
 
         builder.Property(a => a.CheckedInAt)
             .HasColumnName("check_in_at");

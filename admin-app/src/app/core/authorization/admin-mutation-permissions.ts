@@ -1,6 +1,7 @@
 export type AdminMutationSurface = 'users' | 'roles' | 'clients' | 'breakglass' | 'sessions' | 'credentials' | 'settings' | 'provisioning' | 'security-signals' | 'mobile' | 'database';
 
 export function mutationPermission(surface: AdminMutationSurface, _action: string): string {
+  void _action;
   switch (surface) {
     case 'users': return 'admin.users.write';
     case 'roles': return 'admin.roles.write';

@@ -47,18 +47,29 @@ jobs:
       - name: Build mobile web artifact
         run: npm --workspace @his-hope/mobile-app run build
 
+      - name: Build operator mobile web artifact
+        run: npm --workspace @his-hope/operator-mobile run build
+
       - name: Provision Android release signing
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          OPERATOR_ANDROID_KEYSTORE_BASE64: ${{ secrets.OPERATOR_ANDROID_KEYSTORE_BASE64 }}
+          OPERATOR_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.OPERATOR_ANDROID_KEYSTORE_PASSWORD }}
+          OPERATOR_ANDROID_KEY_ALIAS: ${{ secrets.OPERATOR_ANDROID_KEY_ALIAS }}
+          OPERATOR_ANDROID_KEY_PASSWORD: ${{ secrets.OPERATOR_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "$ANDROID_KEYSTORE_BASE64"
           test -n "$ANDROID_KEYSTORE_PASSWORD"
           test -n "$ANDROID_KEY_ALIAS"
           test -n "$ANDROID_KEY_PASSWORD"
+          test -n "$OPERATOR_ANDROID_KEYSTORE_BASE64"
+          test -n "$OPERATOR_ANDROID_KEYSTORE_PASSWORD"
+          test -n "$OPERATOR_ANDROID_KEY_ALIAS"
+          test -n "$OPERATOR_ANDROID_KEY_PASSWORD"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile-app/android/release.keystore
           {
             echo "storeFile=release.keystore"
@@ -66,9 +77,21 @@ jobs:
             echo "keyAlias=$ANDROID_KEY_ALIAS"
             echo "keyPassword=$ANDROID_KEY_PASSWORD"
           } > mobile-app/android/keystore.properties
+          echo "$OPERATOR_ANDROID_KEYSTORE_BASE64" | base64 --decode > operator-mobile/android/release.keystore
+          {
+            echo "storeFile=release.keystore"
+            echo "storePassword=$OPERATOR_ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$OPERATOR_ANDROID_KEY_ALIAS"
+            echo "keyPassword=$OPERATOR_ANDROID_KEY_PASSWORD"
+          } > operator-mobile/android/keystore.properties
+          chmod 600 mobile-app/android/release.keystore mobile-app/android/keystore.properties operator-mobile/android/release.keystore operator-mobile/android/keystore.properties
 
       - name: Build signed Android release
         working-directory: mobile-app/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Build signed operator Android release
+        working-directory: operator-mobile/android
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload mobile web artifact
@@ -77,11 +100,23 @@ jobs:
           name: his-hope-mobile-web
           path: mobile-app/dist/mobile-app
 
+      - name: Upload operator mobile web artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: his-hope-operator-mobile-web
+          path: operator-mobile/dist/operator-mobile
+
       - name: Upload signed Android artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: his-hope-android-release
           path: mobile-app/android/app/build/outputs/apk/release/*.apk
+
+      - name: Upload signed operator Android artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: his-hope-operator-android-release
+          path: operator-mobile/android/app/build/outputs/apk/release/*.apk
 
   build-ios-native-security:
     name: Compile iOS native pinning path
@@ -115,8 +150,26 @@ jobs:
           npm --workspace @his-hope/mobile-app run build
           npx cap sync ios
 
+      - name: Build and sync operator mobile iOS bundle
+        run: |
+          npm --workspace @his-hope/operator-mobile run build
+          cd operator-mobile
+          npx cap sync ios
+
       - name: Compile iOS native security plugin
         working-directory: mobile-app/ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Compile operator mobile native security plugin
+        working-directory: operator-mobile/ios/App
         run: |
           xcodebuild \
             -workspace App.xcworkspace \

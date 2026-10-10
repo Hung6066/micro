@@ -7,16 +7,16 @@ $db = Join-Path $RepoRoot 'src\Services\IdentityService\IdentityService.Infrastr
 $catalog = Join-Path $RepoRoot 'src\Services\IdentityService\IdentityService.Infrastructure\Persistence\IdentityWorkbenchTableNames.cs'
 $ts = Join-Path $RepoRoot 'admin-app\src\app\core\contracts\identity-workbench.naming.ts'
 $menu = Join-Path $RepoRoot 'admin-app\src\app\app.component.ts'
-$dedicated = Join-Path $RepoRoot 'admin-app\src\app\features\iam-dedicated-pages\iam-dedicated-page-components.ts'
+$featureRoot = Join-Path $RepoRoot 'admin-app\src\app\features'
 $required = @('overview','scopes','services','permission-sets','assignments','workload-roles','groups','boundaries','resource-policies','api-audiences','trusted-issuers')
 
-foreach ($file in @($route,$db,$catalog,$ts,$menu,$dedicated)) { if (-not (Test-Path -LiteralPath $file)) { throw "missing_file:$file" } }
+foreach ($file in @($route,$db,$catalog,$ts,$menu,$featureRoot)) { if (-not (Test-Path -LiteralPath $file)) { throw "missing_file:$file" } }
 $routeText = Get-Content -Raw -LiteralPath $route
 $tsText = Get-Content -Raw -LiteralPath $ts
 $dbText = Get-Content -Raw -LiteralPath $db
 $catalogText = Get-Content -Raw -LiteralPath $catalog
 $menuText = Get-Content -Raw -LiteralPath $menu
-$dedicatedText = Get-Content -Raw -LiteralPath $dedicated
+$featureText = (Get-ChildItem -LiteralPath $featureRoot -Filter '*.ts' -Recurse | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
 
 foreach ($name in $required) {
   $camel = (($name -split '-') | ForEach-Object { $_.Substring(0,1).ToUpperInvariant() + $_.Substring(1) }) -join ''
@@ -40,9 +40,8 @@ if ($dbText -match 'ToTable\("iam_') { throw 'db_mapping_bypasses_table_catalog'
 if ($catalogText -notmatch 'iam_[a-z0-9_]+') { throw 'empty_table_catalog' }
 if ($tsText -notmatch "IDENTITY_WORKBENCH_ACTIONS") { throw 'missing_action_catalog' }
 if ($menuText -match 'id:\s*''[^'']+\s+[^'']') { throw 'menu_id_must_be_kebab_case' }
-if ($dedicatedText -match 'Component\(' -and $dedicatedText -notmatch '@Component') { throw 'dedicated_components_must_be_aot_decorated' }
-foreach ($routeComponent in @('IamOverviewPageComponent','IamUsersPageComponent','IamWorkloadSessionsPageComponent','IamRevocationsPageComponent','IamEffectiveAccessPageComponent','IamPolicySimulatorPageComponent','IamAccessDiffPageComponent','IamUnusedPermissionsPageComponent','IamAuditIntegrationsPageComponent')) {
-  if ($dedicatedText -notmatch "export class $routeComponent") { throw "missing_dedicated_component:$routeComponent" }
+foreach ($routeComponent in @('IamOverviewPageComponent','UsersPageComponent','IamWorkloadSessionsPageComponent','IamRevocationsPageComponent','IamEffectiveAccessPageComponent','IamPolicySimulatorPageComponent','IamAccessDiffPageComponent','IamUnusedPermissionsPageComponent','IamAuditIntegrationsPageComponent')) {
+  if ($featureText -notmatch "export class $routeComponent") { throw "missing_workbench_component:$routeComponent" }
 }
 
 Write-Output "IDENTITY_WORKBENCH_NAMING_VALIDATED resources=$($required.Count)"

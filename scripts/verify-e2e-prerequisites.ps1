@@ -5,13 +5,18 @@ param(
         "$(if ($env:E2E_ADMIN_URL) { $env:E2E_ADMIN_URL } else { 'http://localhost:8083' })/"
     ),
     [string] $AuthProbeUrl = $env:E2E_AUTH_PROBE_URL,
-    [string] $AuthToken = $env:E2E_AUTH_TOKEN
+    [string] $AuthToken = $env:E2E_AUTH_TOKEN,
+    [string] $AuthEmail = $env:E2E_EMAIL,
+    [string] $AuthPassword = $env:E2E_PASSWORD
 )
 
 $ErrorActionPreference = 'Stop'
 if ($env:E2E_AUTH_REQUIRED -ne 'true') { throw 'Authenticated E2E gate requires E2E_AUTH_REQUIRED=true.' }
 if ([string]::IsNullOrWhiteSpace($AuthProbeUrl)) { throw 'Authenticated E2E gate requires E2E_AUTH_PROBE_URL.' }
 if ([string]::IsNullOrWhiteSpace($AuthToken)) { throw 'Authenticated E2E gate requires E2E_AUTH_TOKEN.' }
+if ([string]::IsNullOrWhiteSpace($AuthEmail) -or [string]::IsNullOrWhiteSpace($AuthPassword)) {
+    throw 'Authenticated E2E gate requires E2E_EMAIL and E2E_PASSWORD from protected secret storage.'
+}
 
 $client = [System.Net.Http.HttpClient]::new()
 $client.Timeout = [TimeSpan]::FromSeconds(15)

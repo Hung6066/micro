@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Users.Commands;
 
@@ -25,7 +26,7 @@ public class AssignRolesCommandHandler : IRequestHandler<AssignRolesCommand, Use
     {
         var user = await _userManager.Users
             .FirstOrDefaultAsync(u => u.Id == request.UserId, cancellationToken)
-            ?? throw new KeyNotFoundException("User not found.");
+            ?? Guard.Against.NotFound<User>(null, "User", request.UserId);
 
         // Resolve role IDs to role names
         var roleNames = new List<string>();
@@ -45,7 +46,7 @@ public class AssignRolesCommandHandler : IRequestHandler<AssignRolesCommand, Use
         }
 
         if (RoleSeparationOfDuties.TryFindConflict(roleNames, out var conflict))
-            throw new InvalidOperationException($"ROLE_SOD_CONFLICT: The requested role set violates separation of duties ({conflict}).");
+            Guard.Against.Conflict(true, $"ROLE_SOD_CONFLICT: The requested role set violates separation of duties ({conflict}).");
 
         // Remove all current roles
         var currentRoles = await _userManager.GetRolesAsync(user);

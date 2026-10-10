@@ -1,13 +1,15 @@
 # =============================================================================
+# DEPRECATED: production now consumes image-digests/kustomization.yaml.
+# Keep this historical file for migration traceability; do not update it.
+#
 # His.Hope Production Image Digest Pinning Component
 #
 # This Kustomize component pins all container images to their content-addressable
 # digests (SHA256). This ensures immutable, verifiable deployments.
 #
 # USAGE:
-#   Include this component in the prod overlay:
-#     components:
-#       - image-digests.yaml
+#   The canonical production overlay includes:
+#     k8s/overlays/prod/image-digests/kustomization.yaml
 #
 # WORKFLOW (Cosign-based signing & verification):
 #   1. After building an image, tag it and push:
@@ -91,6 +93,7 @@ images:
   - name: his-hope/pharmacy-service
     newTag: redis-tls-fixed
     digest: sha256:5521cd88501bc328403e3a5178a5e43336cfe23c565016ea8586af70304d053b
+
 
   # frontend
   - name: his-hope/frontend

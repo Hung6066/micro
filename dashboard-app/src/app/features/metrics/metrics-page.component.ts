@@ -7,7 +7,6 @@ import {
   OnInit,
   effect,
   inject,
-  signal,
   ViewChild,
   ElementRef,
   AfterViewInit,
@@ -19,6 +18,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import type { ChartDataset as ChartJsDataset } from 'chart.js';
 import { BehaviorSubject, Subject, of, combineLatest } from 'rxjs';
 import { catchError, debounceTime, takeUntil } from 'rxjs/operators';
 import { MetricsService } from '../../core/services/metrics.service';
@@ -419,7 +419,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   currentMetric =
     METRIC_TYPES.find((m) => m.key === 'requests') ?? METRIC_TYPES[0];
 
-  private chart: Chart | null = null;
+  private chart: Chart<'line'> | null = null;
 
   constructor() {
     effect(() => {
@@ -635,10 +635,10 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
     const ctx = this.chartCanvas.nativeElement.getContext('2d');
     if (!ctx) return;
 
-    this.chart = new Chart(ctx, {
+    this.chart = new Chart<'line'>(ctx, {
       type: 'line',
       data: {
-        datasets: datasets as any,
+        datasets: datasets as unknown as ChartJsDataset<'line'>[],
       },
       options: {
         responsive: true,

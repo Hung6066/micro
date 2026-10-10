@@ -1,5 +1,12 @@
 import { DOCUMENT, isPlatformBrowser } from "@angular/common";
-import { Inject, Injectable, PLATFORM_ID, signal } from "@angular/core";
+import {
+  ApplicationRef,
+  Inject,
+  Injectable,
+  PLATFORM_ID,
+  inject,
+  signal,
+} from "@angular/core";
 import { HisHopeTranslationDictionary } from "@his-hope/frontend-foundation/contracts";
 import { hisHopeEn, hisHopeViVN } from "./dictionaries";
 
@@ -15,6 +22,7 @@ export class HisHopeI18nService {
     {};
   private readonly document: Document;
   private readonly platformId: object;
+  private readonly appRef = inject(ApplicationRef, { optional: true });
   private syncChannel?: BroadcastChannel;
 
   readonly dictionaries: Record<string, HisHopeTranslationDictionary> = {
@@ -48,15 +56,23 @@ export class HisHopeI18nService {
     if (isPlatformBrowser(this.platformId)) {
       localStorage.setItem("hh-locale", locale);
       if (broadcast) this.syncChannel?.postMessage({ type: "locale", locale });
+      queueMicrotask(() => this.refreshViews());
     }
+  }
+
+  /** Re-run change detection after locale or remote dictionary updates. */
+  refreshViews(): void {
+    if (!this.appRef || this.appRef.destroyed) return;
+    this.appRef.tick();
   }
 
   registerTranslations(
     locale: string,
     translations: Record<string, string>,
   ): void {
-    this.remoteDictionaries[locale] = {
-      ...this.remoteDictionaries[locale],
+    const apiLocale = locale === "en" ? "en-US" : locale;
+    this.remoteDictionaries[apiLocale] = {
+      ...this.remoteDictionaries[apiLocale],
       ...translations,
     };
   }
@@ -115,8 +131,32 @@ export class HisHopeI18nService {
     fallback = key,
     params: Record<string, string | number> = {},
   ): string {
+    const bundled = this.lookupDictionary(this.dictionary, key);
     const remoteValue = this.remoteDictionaries[this.apiLocale()]?.[key];
-    if (remoteValue) return this.interpolate(remoteValue, params);
+    let resolved = fallback;
+
+    if (remoteValue && remoteValue !== key) {
+      const englishBundled = this.lookupDictionary(hisHopeEn, key);
+      if (
+        this.locale() !== "en" &&
+        typeof bundled === "string" &&
+        remoteValue === englishBundled
+      ) {
+        resolved = bundled;
+      } else {
+        resolved = remoteValue;
+      }
+    } else if (typeof bundled === "string") {
+      resolved = bundled;
+    }
+
+    return this.interpolate(resolved, params);
+  }
+
+  private lookupDictionary(
+    dictionary: HisHopeTranslationDictionary,
+    key: string,
+  ): string | undefined {
     const value = key
       .split(".")
       .reduce<unknown>(
@@ -124,13 +164,9 @@ export class HisHopeI18nService {
           current && typeof current === "object"
             ? (current as HisHopeTranslationDictionary)[part]
             : undefined,
-        this.dictionary,
+        dictionary,
       );
-    return Object.entries(params).reduce(
-      (result, [name, replacement]) =>
-        result.split(`{{${name}}}`).join(String(replacement)),
-      typeof value === "string" ? value : fallback,
-    );
+    return typeof value === "string" ? value : undefined;
   }
 
   /** Locale-aware number formatting (currency, percent, plain) via `Intl`. */

@@ -1,5 +1,6 @@
 using His.Hope.Bff.Core.Aggregation;
 using His.Hope.ClinicalGrpc;
+using Grpc.Core;
 
 namespace ClinicalBff.Aggregation;
 
@@ -19,20 +20,27 @@ public class EncounterVitalsHandler : IAggregationHandler
     {
         var encounterId = context.RouteValues["id"]!;
 
-        var encounter = await _clinicalClient.GetEncounterAsync(
-            new EncounterRequest { Id = encounterId },
-            cancellationToken: context.CancellationToken).ResponseAsync;
-
-        return AggregationResult.Success(new
+        try
         {
-            encounter_id = encounter.Id,
-            patient_id = encounter.PatientId,
-            has_vitals = encounter.HasVitals,
-            diagnosis_count = encounter.DiagnosisCount,
-            encounter_date = encounter.EncounterDate,
-            encounter_type = encounter.EncounterTypeCode,
-            status = encounter.StatusCode,
-            chief_complaint = encounter.ChiefComplaint
-        });
+            var encounter = await _clinicalClient.GetEncounterAsync(
+                new EncounterRequest { Id = encounterId },
+                cancellationToken: context.CancellationToken).ResponseAsync;
+
+            return AggregationResult.Success(new
+            {
+                encounter_id = encounter.Id,
+                patient_id = encounter.PatientId,
+                has_vitals = encounter.HasVitals,
+                diagnosis_count = encounter.DiagnosisCount,
+                encounter_date = encounter.EncounterDate,
+                encounter_type = encounter.EncounterTypeCode,
+                status = encounter.StatusCode,
+                chief_complaint = encounter.ChiefComplaint
+            });
+        }
+        catch (RpcException ex) when (ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded)
+        {
+            return AggregationResult.Failed("ClinicalService unavailable");
+        }
     }
 }

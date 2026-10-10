@@ -94,7 +94,7 @@ public class BulkUserImportService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Bulk import failed for user {UserName}", record.UserName);
+                _logger.LogError(ex, "Bulk import failed for a user record");
                 failed++;
                 errors.Add(new BulkImportError(record.UserName, ex.Message));
             }

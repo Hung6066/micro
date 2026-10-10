@@ -40,6 +40,8 @@ public static class PasskeyEndpoints
             {
                 registered = credentials.Count > 0,
                 count = credentials.Count,
+                minimumRequired = 2,
+                meetsMinimum = credentials.Count >= 2,
                 createdAt = credentials.OrderByDescending(item => item.CreatedAt).Select(item => item.CreatedAt).FirstOrDefault()
             });
         });
@@ -62,7 +64,7 @@ public static class PasskeyEndpoints
             return Results.Ok(options);
         });
 
-        group.MapPost(IdentityApiRoutes.PasskeyRegisterCompleteSegment, async (HttpContext context, AuthenticatorAttestationRawResponse response, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db) =>
+        group.MapPost(IdentityApiRoutes.PasskeyRegisterCompleteSegment, async (HttpContext context, AuthenticatorAttestationRawResponse response, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db, CancellationToken ct) =>
         {
             var userId = GetUserId(context);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
@@ -89,7 +91,7 @@ public static class PasskeyEndpoints
                     PublicKey = Convert.ToBase64String(result.PublicKey),
                     SignatureCounter = result.SignCount
                 });
-                await db.SaveChangesAsync();
+                await db.SaveChangesAsync(ct);
                 await redis.GetDatabase().StringSetAsync(CredentialPointerKey(userId), credentialId, flags: CommandFlags.DemandMaster);
                 return Results.Ok(new { registered = true });
             }
@@ -102,7 +104,7 @@ public static class PasskeyEndpoints
         var login = app.MapGroup(IdentityApiRoutes.Passkeys)
             .AllowAnonymous()
             .RequireRateLimiting("auth");
-        login.MapPost(IdentityApiRoutes.PasskeyAuthenticateOptionsSegment, async (PasskeyUserRequest request, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db, UserManager<User> users) =>
+        login.MapPost(IdentityApiRoutes.PasskeyAuthenticateOptionsSegment, async (PasskeyUserRequest request, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db, UserManager<User> users, CancellationToken ct) =>
         {
             var requestedUserId = request.UserId;
             if (string.IsNullOrWhiteSpace(requestedUserId) && !string.IsNullOrWhiteSpace(request.UserName))
@@ -110,31 +112,32 @@ public static class PasskeyEndpoints
 
             if (string.IsNullOrWhiteSpace(requestedUserId))
                 return Results.UnprocessableEntity(new { errorCode = "passkey_account_required" });
-            var credential = await db.PasskeyCredentials.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.UserId == requestedUserId);
-            if (credential is null)
+            var credentials = await db.PasskeyCredentials.AsNoTracking()
+                .Where(item => item.UserId == requestedUserId)
+                .Select(item => item.CredentialId)
+                .ToListAsync(ct);
+            if (credentials.Count == 0)
                 return Results.UnprocessableEntity(new { errorCode = "passkey_not_enrolled", message = "Passkey not enrolled." });
-            var credentialId = credential.CredentialId;
             var redisDb = redis.GetDatabase();
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
-                AllowedCredentials = new[] { new PublicKeyCredentialDescriptor(Convert.FromBase64String(credentialId!)) },
+                AllowedCredentials = credentials
+                    .Select(credentialId => new PublicKeyCredentialDescriptor(Convert.FromBase64String(credentialId)))
+                    .ToArray(),
                 UserVerification = UserVerificationRequirement.Required
             });
-            await redisDb.StringSetAsync(CredentialPointerKey(requestedUserId), credentialId, TimeSpan.FromMinutes(5));
             await redisDb.StringSetAsync(AssertionKey(requestedUserId), options.ToJson(), TimeSpan.FromMinutes(5));
             return Results.Ok(new { userId = requestedUserId, options });
         });
 
         login.MapPost(IdentityApiRoutes.PasskeyAuthenticateCompleteSegment, async (PasskeyAssertionRequest request, HttpContext context, Fido2 fido2, IConnectionMultiplexer redis,
-            UserManager<User> users, OidcLoginCompletionService completion, IdentityDbContext db) =>
+            UserManager<User> users, OidcLoginCompletionService completion, IdentityDbContext db, CancellationToken ct) =>
         {
             var redisDb = redis.GetDatabase();
             var rawOptions = await redisDb.StringGetDeleteAsync(AssertionKey(request.UserId));
-            var credentialId = await redisDb.StringGetAsync(CredentialPointerKey(request.UserId));
-            if (!rawOptions.HasValue || !credentialId.HasValue) return Results.Unauthorized();
+            if (!rawOptions.HasValue || string.IsNullOrWhiteSpace(request.Response.Id)) return Results.Unauthorized();
             var stored = await db.PasskeyCredentials.SingleOrDefaultAsync(
-                credential => credential.UserId == request.UserId && credential.CredentialId == credentialId.ToString());
+                credential => credential.UserId == request.UserId && credential.CredentialId == request.Response.Id, ct);
             if (stored is null) return Results.Unauthorized();
             var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
             {
@@ -150,7 +153,7 @@ public static class PasskeyEndpoints
             stored.LastUsedAt = DateTime.UtcNow;
             var user = await users.FindByIdAsync(request.UserId);
             if (user is null || !user.IsActive) return Results.Unauthorized();
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             var completed = await completion.CompletePrimaryAsync(context, user, request.ReturnUrl, ["passkey"]);
             return Results.Ok(new
             {
@@ -165,25 +168,28 @@ public static class PasskeyEndpoints
             OidcLoginCompletionService completion,
             Fido2 fido2,
             IConnectionMultiplexer redis,
-            IdentityDbContext db) =>
+            IdentityDbContext db, CancellationToken ct) =>
         {
             var pending = completion.TryGetPendingMfaContext(context);
             if (pending is null) return Results.Unauthorized();
             var userId = pending.UserId;
 
-            var credential = await db.PasskeyCredentials.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.UserId == userId.ToString());
-            if (credential is null)
+            var credentials = await db.PasskeyCredentials.AsNoTracking()
+                .Where(item => item.UserId == userId.ToString())
+                .Select(item => item.CredentialId)
+                .ToListAsync(ct);
+            if (credentials.Count == 0)
                 return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled", message = "MFA passkey not enrolled." });
 
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
-                AllowedCredentials = new[] { new PublicKeyCredentialDescriptor(Convert.FromBase64String(credential.CredentialId)) },
+                AllowedCredentials = credentials
+                    .Select(credentialId => new PublicKeyCredentialDescriptor(Convert.FromBase64String(credentialId)))
+                    .ToArray(),
                 UserVerification = UserVerificationRequirement.Required
             });
             var redisDb = redis.GetDatabase();
             await redisDb.StringSetAsync(MfaAssertionKey(pending), options.ToJson(), TimeSpan.FromMinutes(5));
-            await redisDb.StringSetAsync(MfaCredentialPointerKey(pending), credential.CredentialId, TimeSpan.FromMinutes(5));
             return Results.Ok(new { userId, options });
         });
 
@@ -193,7 +199,7 @@ public static class PasskeyEndpoints
             Fido2 fido2,
             IConnectionMultiplexer redis,
             OidcLoginCompletionService completion,
-            IdentityDbContext db) =>
+            IdentityDbContext db, CancellationToken ct) =>
         {
             var pending = completion.TryGetPendingMfaContext(context);
             if (pending is null)
@@ -211,12 +217,11 @@ public static class PasskeyEndpoints
             // flow works with the minimum Redis version supported by local
             // test/dev installations as well as Redis 6.2+.
             var rawOptions = await GetAndDeleteAsync(redisDb, MfaAssertionKey(pending));
-            var credentialId = await GetAndDeleteAsync(redisDb, MfaCredentialPointerKey(pending));
-            if (!rawOptions.HasValue || !credentialId.HasValue)
+            if (!rawOptions.HasValue || string.IsNullOrWhiteSpace(request.Response.Id))
                 return Results.Unauthorized();
 
             var stored = await db.PasskeyCredentials.SingleOrDefaultAsync(
-                credential => credential.UserId == userId.ToString() && credential.CredentialId == credentialId.ToString());
+                credential => credential.UserId == userId.ToString() && credential.CredentialId == request.Response.Id, ct);
             if (stored is null) return Results.Unauthorized();
 
             var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
@@ -232,9 +237,9 @@ public static class PasskeyEndpoints
 
             stored.SignatureCounter = result.SignCount;
             stored.LastUsedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
 
-            var redirectUrl = await completion.CompleteMfaWithPasskeyAsync(context, userId, CancellationToken.None);
+            var redirectUrl = await completion.CompleteMfaWithPasskeyAsync(context, userId, ct);
             return redirectUrl is null
                 ? Results.Unauthorized()
                 : Results.Ok(new { redirectUrl });
@@ -269,7 +274,8 @@ public static class PasskeyEndpoints
             string ticket,
             HttpContext context,
             OidcLoginCompletionService completion,
-            IConnectionMultiplexer redis) =>
+            IConnectionMultiplexer redis,
+            CancellationToken ct) =>
         {
             var pending = completion.TryGetPendingMfaContext(context);
             if (pending is null)
@@ -308,7 +314,7 @@ public static class PasskeyEndpoints
             }
 
             await redis.GetDatabase().KeyDeleteAsync(NativeMfaKey(ticket));
-            var redirectUrl = await completion.CompleteMfaWithPasskeyAsync(context, state.UserId, CancellationToken.None);
+            var redirectUrl = await completion.CompleteMfaWithPasskeyAsync(context, state.UserId, ct);
             return redirectUrl is null
                 ? Results.Unauthorized()
                 : Results.Ok(new { status = "approved", redirectUrl });
@@ -319,7 +325,7 @@ public static class PasskeyEndpoints
             Fido2 fido2,
             IConnectionMultiplexer redis,
             OidcLoginCompletionService completion,
-            IdentityDbContext db) =>
+            IdentityDbContext db, CancellationToken ct) =>
         {
             var state = await ReadNativeMfaState(redis, request.Ticket);
             if (state is null ||
@@ -330,7 +336,7 @@ public static class PasskeyEndpoints
             }
 
             var credential = await db.PasskeyCredentials.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.UserId == state.UserId.ToString());
+                .FirstOrDefaultAsync(item => item.UserId == state.UserId.ToString(), ct);
             if (credential is null)
                 return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled", message = "MFA passkey not enrolled." });
 
@@ -379,7 +385,7 @@ public static class PasskeyEndpoints
             Fido2 fido2,
             IConnectionMultiplexer redis,
             OidcLoginCompletionService completion,
-            IdentityDbContext db) =>
+            IdentityDbContext db, CancellationToken ct) =>
         {
             var state = await ReadNativeMfaState(redis, request.Ticket);
             if (state is null ||
@@ -395,7 +401,7 @@ public static class PasskeyEndpoints
             if (!rawOptions.HasValue || !credentialId.HasValue) return Results.Unauthorized();
 
             var stored = await db.PasskeyCredentials.SingleOrDefaultAsync(
-                credential => credential.UserId == state.UserId.ToString() && credential.CredentialId == credentialId.ToString());
+                credential => credential.UserId == state.UserId.ToString() && credential.CredentialId == credentialId.ToString(), ct);
             if (stored is null) return Results.Unauthorized();
 
             var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
@@ -412,7 +418,7 @@ public static class PasskeyEndpoints
             stored.SignatureCounter = result.SignCount;
             stored.LastUsedAt = DateTime.UtcNow;
             state = state with { Approved = true, Rejected = false };
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             await redisDb.StringSetAsync(
                 NativeMfaKey(request.Ticket),
                 JsonSerializer.Serialize(state),
@@ -470,7 +476,7 @@ public static class PasskeyEndpoints
     }
 
     private static string? GetUserId(HttpContext context) =>
-        context.User.FindFirst("sub")?.Value ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
     public sealed record PasskeyUserRequest(string? UserId, string? UserName);
     public sealed record PasskeyAssertionRequest(string UserId, AuthenticatorAssertionRawResponse Response, string? ReturnUrl);

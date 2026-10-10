@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "security-assurance-mapping.v1",
+  "standardVersion": "OWASP ASVS 4.0.3",
+  "scope": "externally-exposed-http-apis",
+  "inventoryPath": "artifacts/evidence/authorization-endpoint-inventory.json",
+  "mappedInventoryPath": "artifacts/evidence/security-assurance-endpoint-mapping.json",
+  "controls": [
+    {
+      "id": "ASVS-V2.1.1",
+      "cwe": ["CWE-287"],
+      "status": "implemented",
+      "owner": "Identity Platform",
+      "objective": "Authenticate API callers through the shared JWT and sender-constrained token pipeline.",
+      "evidence": [
+        "scripts/verify-api-security.ps1",
+        "scripts/validate-dpop-coverage.ps1",
+        "docs/security/api-security-contract.md"
+      ],
+      "verificationCommands": [
+        "./scripts/verify-api-security.ps1",
+        "./scripts/validate-dpop-coverage.ps1"
+      ]
+    },
+    {
+      "id": "ASVS-V4.1.2",
+      "cwe": ["CWE-862"],
+      "status": "implemented",
+      "owner": "Application Platform",
+      "objective": "Deny mutating endpoints by default unless an explicit authorization classification exists.",
+      "evidence": [
+        "scripts/validate-authorization-endpoint-coverage.ps1",
+        "scripts/validate-authorization-policy-as-code.ps1",
+        "artifacts/evidence/authorization-endpoint-inventory.json"
+      ],
+      "verificationCommands": [
+        "./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json",
+        "./scripts/validate-authorization-policy-as-code.ps1 -OutputPath artifacts/evidence/authorization-policy-as-code.json"
+      ]
+    },
+    {
+      "id": "ASVS-V4.2.1",
+      "cwe": ["CWE-639"],
+      "status": "partial",
+      "owner": "Service Teams",
+      "objective": "Enforce object and tenant scope checks for protected business resources.",
+      "evidence": [
+        "scripts/verify-tenant-context-contract.ps1",
+        "docs/adr/017-customer-tenant-type.md",
+        "src/Services/IdentityService/IdentityService.Api/Jobs/AccessReviewExpiryWorker.cs",
+        "tests/Shared/Authorization.Tests/AuthorizationEvaluatorTests.cs",
+        "tests/IdentityService/IdentityService.IntegrationTests/AccessGovernanceEndpointTests.cs",
+        "tests/Services/PatientService/PatientService.Integration.Tests/PatientEndpointsTests.cs",
+        "tests/Services/AppointmentService/AppointmentService.Integration.Tests/AppointmentEndpointsTests.cs",
+        "tests/Services/PharmacyService/PharmacyService.Integration.Tests/PrescriptionEndpointsTests.cs"
+      ],
+      "verificationCommands": [
+        "./scripts/verify-tenant-context-contract.ps1",
+        "dotnet test tests/IdentityService/IdentityService.IntegrationTests/IdentityService.IntegrationTests.csproj --configuration Release"
+      ]
+    },
+    {
+      "id": "ASVS-V7.4.1",
+      "cwe": ["CWE-209"],
+      "status": "implemented",
+      "owner": "Application Platform",
+      "objective": "Return stable problem contracts without leaking exception details.",
+      "evidence": [
+        "scripts/verify-api-security.ps1",
+        "src/Shared/Contracts/His.Hope.Contracts/ApiContracts.cs"
+      ],
+      "verificationCommands": [
+        "./scripts/verify-api-security.ps1"
+      ]
+    },
+    {
+      "id": "ASVS-V9.1.1",
+      "cwe": ["CWE-319"],
+      "status": "implemented",
+      "owner": "Platform Engineering",
+      "objective": "Require secure transport and production security headers at the shared platform boundary.",
+      "evidence": [
+        "scripts/verify-api-security.ps1",
+        "src/Shared/Infrastructure/His.Hope.Infrastructure/Security/SecurityMiddlewareExtensions.cs"
+      ],
+      "verificationCommands": [
+        "./scripts/verify-api-security.ps1"
+      ]
+    },
+    {
+      "id": "ASVS-V11.1.1",
+      "cwe": ["CWE-400"],
+      "status": "partial",
+      "owner": "Platform Engineering",
+      "objective": "Limit abusive requests and preserve safe degradation when distributed rate-limit storage is unavailable.",
+      "evidence": [
+        "src/Shared/Infrastructure/His.Hope.Infrastructure/Abuse/PerUserRateLimitingMiddleware.cs",
+        "tests/Shared/Infrastructure.Tests/PerUserRateLimitingMiddlewareTests.cs",
+        "docs/security/3p-security-status.md"
+      ],
+      "verificationCommands": [
+        "dotnet test tests/Shared/Infrastructure.Tests/Infrastructure.Tests.csproj --configuration Release"
+      ]
+    }
+  ],
+  "classificationControls": {
+    "protected": ["ASVS-V2.1.1", "ASVS-V4.1.2", "ASVS-V4.2.1", "ASVS-V7.4.1", "ASVS-V9.1.1", "ASVS-V11.1.1"],
+    "anonymous": ["ASVS-V7.4.1", "ASVS-V9.1.1", "ASVS-V11.1.1"],
+    "custom-auth": ["ASVS-V2.1.1", "ASVS-V4.1.2", "ASVS-V9.1.1"],
+    "indirect-route-group": ["ASVS-V2.1.1", "ASVS-V4.1.2", "ASVS-V9.1.1"]
+  }
+}

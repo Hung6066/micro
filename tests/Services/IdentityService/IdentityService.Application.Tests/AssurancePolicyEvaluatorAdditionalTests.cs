@@ -55,7 +55,8 @@ public sealed class AssurancePolicyEvaluatorAdditionalTests
             Policy(forbiddenRecovery: ["backup-code"]),
             "clinical-read",
             "aal2",
-            recoveryMethod: "BACKUP-CODE");
+            recoveryMethod: "BACKUP-CODE",
+            currentFactor: "mfa");
 
         Assert.False(result.Allowed);
         Assert.Equal("Recovery method forbidden by policy.", result.Reason);
@@ -67,7 +68,7 @@ public sealed class AssurancePolicyEvaluatorAdditionalTests
     [InlineData("aal1")]
     public void Assurance_below_minimum_is_denied(string? assurance)
     {
-        var result = AssurancePolicyEvaluator.Evaluate(Policy(), "clinical-read", assurance);
+        var result = AssurancePolicyEvaluator.Evaluate(Policy(), "clinical-read", assurance, currentFactor: "mfa");
 
         Assert.False(result.Allowed);
         Assert.Equal("Assurance below journey minimum.", result.Reason);
@@ -81,7 +82,8 @@ public sealed class AssurancePolicyEvaluatorAdditionalTests
             "clinical-read",
             "mtls",
             devicePostureFresh: true,
-            isBreakGlass: true);
+            isBreakGlass: true,
+            currentFactor: "passkey");
 
         Assert.True(result.Allowed);
         Assert.Null(result.Reason);

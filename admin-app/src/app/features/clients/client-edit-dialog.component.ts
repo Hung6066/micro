@@ -440,7 +440,7 @@ export class ClientEditDialogComponent {
 
     saveRequest
       .pipe(
-        catchError((err) => {
+        catchError(() => {
           this.toast.error(
             this.i18n.t("admin.saveClientFailed", "Failed to save client"),
             { duration: 3000 },

@@ -10,7 +10,12 @@ public interface IMigrationRunner
     Task MigrateAsync(CancellationToken cancellationToken = default);
 }
 
-public sealed class EfCoreMigrationRunner<TDbContext>(TDbContext dbContext, ILogger<EfCoreMigrationRunner<TDbContext>> logger) : IMigrationRunner
+public interface IDbMigrationRunner
+{
+    Task MigrateAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed class EfCoreMigrationRunner<TDbContext>(TDbContext dbContext, ILogger<EfCoreMigrationRunner<TDbContext>> logger) : IMigrationRunner, IDbMigrationRunner
     where TDbContext : DbContext
 {
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
@@ -68,12 +73,25 @@ public sealed class EfCoreMigrationRunner<TDbContext>(TDbContext dbContext, ILog
     }
 }
 
+public sealed class CompositeMigrationRunner(IEnumerable<IDbMigrationRunner> runners) : IMigrationRunner
+{
+    public async Task MigrateAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var runner in runners)
+        {
+            await runner.MigrateAsync(cancellationToken);
+        }
+    }
+}
+
 public static class MigrationRunnerExtensions
 {
     public static IServiceCollection AddHisHopeMigrationRunner<TDbContext>(this IServiceCollection services)
         where TDbContext : DbContext
     {
-        services.AddScoped<IMigrationRunner, EfCoreMigrationRunner<TDbContext>>();
+        services.AddScoped<IDbMigrationRunner, EfCoreMigrationRunner<TDbContext>>();
+        services.AddScoped<CompositeMigrationRunner>();
+        services.AddScoped<IMigrationRunner>(sp => sp.GetRequiredService<CompositeMigrationRunner>());
         return services;
     }
 }

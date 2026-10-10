@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +12,8 @@ namespace His.Hope.Authorization;
 public sealed class AuthorizationEvaluator(
     IAuthorizationDecisionSink? decisionSink = null,
     IHttpContextAccessor? httpContextAccessor = null,
-    IAuthorizationShadowProbe? shadowProbe = null) : IResourceAuthorizationEvaluator
+    IAuthorizationShadowProbe? shadowProbe = null,
+    ICrossTenantAccessPolicy? crossTenantPolicy = null) : IResourceAuthorizationEvaluator
 {
     public async ValueTask<AuthorizationDecision> EvaluateAsync(
         AuthorizationContext context,
@@ -43,6 +45,11 @@ public sealed class AuthorizationEvaluator(
         else if (context.Resource is not null && !HasFacilityAccess(context.Principal, context.Resource.FacilityId))
         {
             decision = AuthorizationDecision.Deny(context.Action, "facility_scope_denied", resourceType);
+        }
+        else if (context.Resource is not null &&
+                 TenantAccessEvaluator.Evaluate(context.Principal, context.Resource, context.Action, crossTenantPolicy) is { } tenantReason)
+        {
+            decision = AuthorizationDecision.Deny(context.Action, tenantReason, resourceType);
         }
         else if (context.Resource is not null &&
                  AuthorizationConstraintEvaluator.Evaluate(context.Principal, context.Resource) is { } constraintReason)
@@ -91,7 +98,7 @@ public sealed class AuthorizationEvaluator(
     }
 
     private static bool HasPermission(ClaimsPrincipal principal, string action) =>
-        principal.FindAll("permissions")
+        principal.FindAll(HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Any(permission => string.Equals(permission, action, StringComparison.OrdinalIgnoreCase));
 
@@ -105,7 +112,7 @@ public sealed class AuthorizationEvaluator(
 
     private static string? SubjectId(ClaimsPrincipal principal) =>
         principal.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? principal.FindFirstValue("sub");
+        ?? principal.FindFirstValue(HisHopeProtocolConstants.Claims.Subject);
 }
 
 public sealed class NullAuthorizationDecisionSink : IAuthorizationDecisionSink

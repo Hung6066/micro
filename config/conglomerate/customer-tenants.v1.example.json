@@ -1,0 +1,58 @@
+{
+  "version": "1",
+  "customers": [
+    {
+      "key": "customer-acme",
+      "displayName": "Acme Healthcare",
+      "tenantClass": "customer",
+      "operatorHome": "tech-vendor",
+      "accountKey": "customer-acme-account",
+      "accountDisplayName": "Acme production account",
+      "environmentKey": "staging",
+      "environmentDisplayName": "Azure staging",
+      "contractId": "cust-acme-2026",
+      "dataRegion": "ap-southeast-1",
+      "portalClients": [
+        {
+          "clientId": "customer-acme-portal",
+          "portalClass": "customer_operator",
+          "displayName": "Acme Admin Portal"
+        },
+        {
+          "clientId": "customer-acme-app",
+          "portalClass": "end_user",
+          "displayName": "Acme Clinical App"
+        }
+      ]
+    }
+  ],
+  "crossTenantPolicy": {
+    "defaultDeny": true,
+    "allowedPairs": [
+      {
+        "source": "group-hq",
+        "targetClass": "customer",
+        "reason": "group-customer-audit-read",
+        "permissions": ["admin.audit.read"],
+        "requiresJit": false
+      },
+      {
+        "source": "tech-vendor",
+        "targetClass": "customer",
+        "operatorHomeMatch": true,
+        "reason": "vendor-support-read",
+        "permissions": ["admin.audit.read", "admin.users.read", "identity.view"],
+        "requiresJit": false
+      },
+      {
+        "source": "tech-vendor",
+        "targetClass": "customer",
+        "operatorHomeMatch": true,
+        "reason": "vendor-support-write",
+        "permissions": ["admin.users.write", "identity.update"],
+        "requiresJit": true,
+        "maxDurationMinutes": 60
+      }
+    ]
+  }
+}

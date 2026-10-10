@@ -1,12 +1,13 @@
 using His.Hope.AspNetCore;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
 using His.Hope.Observability;
-using System.Security.Cryptography.X509Certificates;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
@@ -39,7 +40,6 @@ using Serilog;
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "LabService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -71,17 +71,7 @@ builder.Services.AddGrpc(options =>
 builder.Services.AddSignalR();
 builder.Services.AddScoped<ICriticalAlertRealtimePublisher, CriticalAlertRealtimePublisher>();
 
-builder.Services.AddRabbitMQEventBus(options =>
-{
-    options.HostName = builder.Configuration.GetValue("EventBus:HostName", "localhost")!;
-    options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
-    options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
-    options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
-    options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
-    options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
-    options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
-});
+builder.Services.AddHisHopeLegacyRabbitMqEventBus(builder.Configuration);
 
 // Comprehensive Health Checks
 builder.Services.AddHealthChecks()
@@ -90,7 +80,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
         builder.Configuration.GetValue("EventBus:UserName", "admin")!,
-        builder.Configuration.GetValue("EventBus:Password", "admin")!,
+        His.Hope.Infrastructure.Messaging.EventBusSecurity.GetPassword(builder.Configuration),
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
@@ -128,18 +118,16 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    // Local development convenience only. Production schema is migration-owned.
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
-    db.Database.EnsureCreated();
-}
-else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
          builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+      await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+else if (!app.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "LabService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
@@ -169,6 +157,7 @@ app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
 
 
 app.UsePhiAudit();
@@ -371,7 +360,7 @@ labOrders.MapPut("/{id:guid}/cancel", async (
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabCancel).WithOpenApi();
 
 // Patient-specific lab-orders aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/lab-orders)
-app.MapGet("/api/v1/patients/{patientId:guid}/lab-orders", async (Guid patientId) =>
+app.MapGet("/api/v1/patients/{patientId:guid}/lab-orders", (Guid patientId) =>
 {
     return Results.Ok(new { patientId, items = new List<object>() });
 }).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView).WithOpenApi();
@@ -399,7 +388,6 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
                 status = e.Value.Status.ToString(),
                 description = e.Value.Description,
                 tags = e.Value.Tags,
-                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
         };
@@ -411,53 +399,4 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.MapHisHopeHealthEndpoints();
 app.Run();
-
-static X509Certificate2 LoadServerCertificate(IConfiguration config)
-{
-    var certPath = config["Certificates:Server:Path"];
-    var certPassword = config["Certificates:Server:Password"];
-    if (!string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword))
-        return new X509Certificate2(certPath, certPassword);
-    var pfxPath = Path.Combine(AppContext.BaseDirectory, "server.pfx");
-    if (File.Exists(pfxPath))
-        return new X509Certificate2(pfxPath, "his-hope-dev");
-    using var rsa = System.Security.Cryptography.RSA.Create(2048);
-    var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
-        "CN=his-hope-lab, O=His.Hope", rsa,
-        System.Security.Cryptography.HashAlgorithmName.SHA256,
-        System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, true));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509KeyUsageExtension(
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.DigitalSignature |
-        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.KeyEncipherment, false));
-    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
-        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1") }, true));
-    var san = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
-    san.AddDnsName("localhost"); san.AddDnsName("labservice");
-    req.CertificateExtensions.Add(san.Build());
-    var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
-    return cert;
-}
-
-// Request Records
-public record CreateLabOrderRequest(
-    Guid PatientId,
-    Guid ProviderId,
-    Guid? EncounterId,
-    string PriorityCode,
-    string? Notes,
-    IReadOnlyList<CreateTestItemRequest> Tests);
-
-public record CreateTestItemRequest(
-    string TestCode,
-    string TestName,
-    string? SpecimenType);
-
-public record RecordLabResultRequest(
-    Guid TestId,
-    string Value,
-    string? AbnormalFlagCode,
-    string? Notes);
-
-public record CancelLabOrderRequest(string Reason);
 

@@ -2,6 +2,7 @@ using His.Hope.Infrastructure.Locking;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace His.Hope.Infrastructure.Saga;
 
@@ -39,10 +40,17 @@ public sealed class SagaRecoveryService : BackgroundService
 
     public SagaRecoveryService(
         IServiceScopeFactory scopeFactory,
-        ILogger<SagaRecoveryService> logger)
+        ILogger<SagaRecoveryService> logger,
+        IOptions<SagaOptions>? options = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        if (options is not null)
+        {
+            CheckInterval = TimeSpan.FromSeconds(options.Value.RecoveryCheckIntervalSeconds);
+            StaleThreshold = TimeSpan.FromSeconds(options.Value.RecoveryStaleThresholdSeconds);
+            RecoveryLockTtl = TimeSpan.FromSeconds(options.Value.RecoveryLockTtlSeconds);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -74,7 +82,7 @@ public sealed class SagaRecoveryService : BackgroundService
 
     private async Task RecoverStaleSagasAsync(CancellationToken ct)
     {
-        using var scope = _scopeFactory.CreateScope();
+        await using var scope = _scopeFactory.CreateAsyncScope();
         var stateStore = scope.ServiceProvider.GetRequiredService<ISagaStateStore>();
         var lockManager = scope.ServiceProvider.GetRequiredService<ILockManager>();
         var handlers = scope.ServiceProvider.GetServices<ISagaRecoveryHandler>();

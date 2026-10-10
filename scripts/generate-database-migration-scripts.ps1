@@ -5,6 +5,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+function Get-Sha256([string]$Path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($Path))) -replace '-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+}
 $output = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $OutputDirectory))
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 
@@ -16,24 +21,43 @@ $contexts = @(
     @{ Name='billing'; Project='src/Services/BillingService/BillingService.Infrastructure/BillingService.Infrastructure.csproj'; Context='BillingDbContext' },
     @{ Name='patient'; Project='src/Services/PatientService/PatientService.Infrastructure/PatientService.Infrastructure.csproj'; Context='PatientDbContext' },
     @{ Name='patient-read'; Project='src/Services/PatientService/PatientService.Infrastructure/PatientService.Infrastructure.csproj'; Context='PatientReadDbContext' },
-    @{ Name='pharmacy'; Project='src/Services/PharmacyService/PharmacyService.Infrastructure/PharmacyService.Infrastructure.csproj'; Context='PharmacyDbContext' }
+    @{ Name='pharmacy'; Project='src/Services/PharmacyService/PharmacyService.Infrastructure/PharmacyService.Infrastructure.csproj'; Context='PharmacyDbContext' },
+    @{ Name='commerce'; Project='src/Services/CommerceService/CommerceService.Infrastructure/CommerceService.Infrastructure.csproj'; Context='CommerceDbContext'; MigrationDirectory='Persistence/Migrations' },
+    @{ Name='content'; Project='src/Services/ContentService/ContentService.Infrastructure/ContentService.Infrastructure.csproj'; Context='ContentDbContext'; MigrationDirectory='Migrations' },
+    @{ Name='manufacturing'; Project='src/Services/ManufacturingService/ManufacturingService.Infrastructure/ManufacturingService.Infrastructure.csproj'; Context='ManufacturingDbContext'; MigrationDirectory='Migrations' }
 )
 
 $manifest = [System.Collections.Generic.List[object]]::new()
 foreach ($item in $contexts) {
     $file = Join-Path $output "$($item.Name)-idempotent.sql"
     $projectPath = Join-Path $RepositoryRoot $item.Project
-    $releaseDeps = Join-Path (Split-Path -Parent $projectPath) 'bin/Release/net8.0'
-    if (-not (Test-Path (Join-Path $releaseDeps '*.deps.json'))) {
-        # The solution does not contain every service infrastructure project.
-        # Build missing projects explicitly so EF never falls back to Debug or
-        # fails on a missing project.assets/deps file.
-        dotnet build $projectPath --configuration Release --nologo --verbosity minimal
-        if ($LASTEXITCODE -ne 0) { throw "Release build failed for $($item.Context)." }
+    $projectDirectory = Split-Path -Parent $projectPath
+    $projectName = [IO.Path]::GetFileNameWithoutExtension($projectPath)
+    $depsPath = Join-Path $projectDirectory "bin/Release/net8.0/$projectName.deps.json"
+    $efArguments = @(
+        'ef', 'migrations', 'script', '--idempotent',
+        '--project', $projectPath,
+        '--startup-project', (Join-Path $RepositoryRoot $(if ($item.StartupProject) { $item.StartupProject } else { $item.Project })),
+        '--context', $item.Context,
+        '--configuration', 'Release',
+        '--no-color',
+        '--output', $file
+    )
+    $migrationDirectory = Join-Path $projectDirectory $(if ($item.MigrationDirectory) { $item.MigrationDirectory } else { 'Persistence/Migrations' })
+    $latestMigrationWrite = if (Test-Path -LiteralPath $migrationDirectory -PathType Container) {
+        (Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.cs' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
+    } else { [DateTime]::MinValue }
+    $assemblyPath = Join-Path $projectDirectory "bin/Release/net8.0/$projectName.dll"
+    if ((Test-Path -LiteralPath $depsPath -PathType Leaf) -and
+        (Test-Path -LiteralPath $assemblyPath -PathType Leaf) -and
+        (Get-Item -LiteralPath $assemblyPath).LastWriteTimeUtc -ge $latestMigrationWrite) {
+        $efArguments += '--no-build'
+    } else {
+        Write-Warning "Release output is missing or older than migration source for $($item.Context); rebuilding before script generation."
     }
-    dotnet ef migrations script --idempotent --project $projectPath --startup-project $projectPath --context $item.Context --configuration Release --no-build --no-color --output $file
+    dotnet @efArguments
     if ($LASTEXITCODE -ne 0) { throw "Migration script generation failed for $($item.Context)." }
-    $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    $hash = Get-Sha256 $file
     $manifest.Add([pscustomobject]@{ name = $item.Name; context = $item.Context; script = (Split-Path -Leaf $file); sha256 = $hash })
     Write-Output "Generated $file"
 }

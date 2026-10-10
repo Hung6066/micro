@@ -1,4 +1,5 @@
 using Grpc.Net.ClientFactory;
+using His.Hope.Configuration;
 using His.Hope.Identity.Grpc;
 using Microsoft.Extensions.DependencyInjection;
 using Polly;
@@ -15,10 +16,7 @@ public static class GrpcIdentityClientExtensions
         this IServiceCollection services,
         string identityServiceUrl)
     {
-        services.AddGrpcClient<IdentityService.IdentityServiceClient>(options =>
-        {
-            options.Address = new Uri(identityServiceUrl);
-        })
+        services.AddHisHopeGrpcClient<IdentityService.IdentityServiceClient>(new Uri(identityServiceUrl))
         .AddPolicyHandler(HttpPolicyExtensions
             .HandleTransientHttpError()
             .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable

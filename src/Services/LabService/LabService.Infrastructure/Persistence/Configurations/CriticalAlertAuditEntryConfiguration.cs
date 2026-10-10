@@ -8,7 +8,7 @@ public class CriticalAlertAuditEntryConfiguration : IEntityTypeConfiguration<Cri
 {
     public void Configure(EntityTypeBuilder<CriticalAlertAuditEntry> builder)
     {
-        builder.ToTable("CriticalAlertAuditEntries");
+        builder.ToTable("critical_alert_audit_entries");
 
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).HasColumnName("id");

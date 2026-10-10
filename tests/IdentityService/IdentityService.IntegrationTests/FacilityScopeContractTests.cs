@@ -8,7 +8,6 @@ namespace His.Hope.IdentityService.IntegrationTests;
 public sealed class FacilityScopeContractTests
 {
     [Theory]
-    [InlineData(typeof(DevicePostureEndpoints))]
     [InlineData(typeof(MtlsEndpoints))]
     [InlineData(typeof(DirectoryProvisioningEndpoints))]
     public void SingleFacilityClaimIsIncludedInAllowedScope(Type endpointType)
@@ -26,7 +25,7 @@ public sealed class FacilityScopeContractTests
     [Fact]
     public void MultiFacilityScopeIsDeduplicatedCaseInsensitively()
     {
-        var helper = typeof(DevicePostureEndpoints).GetMethod("GetAllowedFacilities", BindingFlags.NonPublic | BindingFlags.Static);
+        var helper = typeof(MtlsEndpoints).GetMethod("GetAllowedFacilities", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(helper);
 
         var context = new FacilityContext

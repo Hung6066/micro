@@ -16,7 +16,11 @@ public class VaultMfaSecretEncryptor : IMfaSecretEncryptor, IDisposable
     private readonly string _keyName;
     private readonly bool _configured;
 
-    public VaultMfaSecretEncryptor(IConfiguration config, ILogger<VaultMfaSecretEncryptor> logger, IVaultTokenProvider tokenProvider)
+    public VaultMfaSecretEncryptor(
+        IConfiguration config,
+        ILogger<VaultMfaSecretEncryptor> logger,
+        IVaultTokenProvider tokenProvider,
+        IHttpClientFactory httpClientFactory)
     {
         _config = config;
         _logger = logger;
@@ -28,11 +32,8 @@ public class VaultMfaSecretEncryptor : IMfaSecretEncryptor, IDisposable
 
         if (_configured)
         {
-            _httpClient = new HttpClient
-            {
-                BaseAddress = new Uri(vaultAddr!.TrimEnd('/')),
-                Timeout = TimeSpan.FromSeconds(5)
-            };
+            _httpClient = httpClientFactory.CreateClient("vault-transit");
+            _httpClient.BaseAddress ??= new Uri(vaultAddr!.TrimEnd('/') + "/");
             _logger.LogInformation("VaultMfaSecretEncryptor: Vault transit mode for key '{KeyName}'", _keyName);
         }
         else
@@ -103,7 +104,7 @@ public class VaultMfaSecretEncryptor : IMfaSecretEncryptor, IDisposable
         }
     }
 
-    public void Dispose() => _httpClient?.Dispose();
+    public void Dispose() { }
 
     private static string ReadRequiredString(JsonElement root, string propertyName, string operation)
     {

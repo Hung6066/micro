@@ -33,4 +33,5 @@ resources:
   - dashboard-app-deployment.yaml
   - dashboard-app-service.yaml
   - dashboard-bff.yaml
+  - manufacturing-platform-services.yaml
   - network-policies.yaml

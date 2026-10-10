@@ -5,6 +5,7 @@ using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.Degradation;
 using His.Hope.Infrastructure.Events;
+using His.Hope.Infrastructure.FeatureFlags;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
@@ -17,6 +18,7 @@ using His.Hope.Messaging.Redis;
 using His.Hope.Messaging.Sql;
 using His.Hope.Messaging;
 using His.Hope.Observability.OpenTelemetry;
+using His.Hope.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -35,6 +37,7 @@ public static class DependencyInjection
         string redisConnectionString = "localhost:6379")
     {
         services.AddHisHopeOpenTelemetryExporters(configuration, serviceName);
+        services.AddFeatureFlags(configuration);
 
         // Register hybrid cache (L1 in-memory + L2 Redis) with stampede prevention.
         // Replaces the basic distributed (L2-only) cache.
@@ -60,7 +63,10 @@ public static class DependencyInjection
             var messagingConnection = configuration.GetConnectionString("Messaging")
                 ?? configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Messaging SQL is enabled but no Messaging or DefaultConnection connection string exists.");
-            services.AddHisHopeSqlMessaging(options => options.UseNpgsql(messagingConnection));
+            services.AddHisHopeSqlMessaging(options => options.UseNpgsql(
+                messagingConnection,
+                npgsql => npgsql.MigrationsAssembly(typeof(SqlMessagingDbContext).Assembly.GetName().Name)));
+            services.AddHisHopeMigrationRunner<SqlMessagingDbContext>();
         }
 
         services.AddHisHopeHybridCaching(redisConnectionString);
@@ -116,12 +122,12 @@ public static class DependencyInjection
     {
         // Adaptive concurrency limiter: self-tunes max parallelism based on
         // observed p99 latency. Must be singleton to maintain rolling window.
-        services.AddSingleton<AdaptiveConcurrencyLimiter>();
+        services.AddSingleton<AdaptiveConcurrencyLimiterRegistry>();
 
         services.AddSingleton(sp =>
         {
-            var limiter = sp.GetRequiredService<AdaptiveConcurrencyLimiter>();
-            var config = new ResilienceConfiguration(limiter);
+            var registry = sp.GetRequiredService<AdaptiveConcurrencyLimiterRegistry>();
+            var config = new ResilienceConfiguration(registry);
             configure?.Invoke(config);
             return config;
         });

@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ============================================================
 # BUILD STAGE
 # ============================================================
@@ -13,6 +11,11 @@ COPY ["src/Bff/His.Hope.Bff.Core/*.csproj", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/*.csproj", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/*.csproj", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/*.csproj", "Shared/Persistence/His.Hope.Persistence/"]
+COPY ["src/Shared/ServiceDefaults/His.Hope.ServiceDefaults/*.csproj", "Shared/ServiceDefaults/His.Hope.ServiceDefaults/"]
+COPY ["src/Shared/Resilience/His.Hope.Resilience/*.csproj", "Shared/Resilience/His.Hope.Resilience/"]
+COPY ["src/Shared/Validation/His.Hope.Validation/*.csproj", "Shared/Validation/His.Hope.Validation/"]
+COPY ["src/Shared/Secrets/His.Hope.Secrets/*.csproj", "Shared/Secrets/His.Hope.Secrets/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/*.csproj", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/*.csproj", "Shared/Contracts/His.Hope.Contracts/"]
 COPY ["src/Shared/Messaging/His.Hope.Messaging.Abstractions/*.csproj", "Shared/Messaging/His.Hope.Messaging.Abstractions/"]
@@ -24,7 +27,7 @@ COPY ["src/Shared/Observability/His.Hope.Observability.OpenTelemetry/*.csproj", 
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN \
     dotnet restore "ApiGateway/ApiGateway.csproj"
 
 # --- Copy source and publish ---
@@ -33,6 +36,11 @@ COPY ["src/Bff/His.Hope.Bff.Core/", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/", "Shared/Persistence/His.Hope.Persistence/"]
+COPY ["src/Shared/ServiceDefaults/His.Hope.ServiceDefaults/", "Shared/ServiceDefaults/His.Hope.ServiceDefaults/"]
+COPY ["src/Shared/Resilience/His.Hope.Resilience/", "Shared/Resilience/His.Hope.Resilience/"]
+COPY ["src/Shared/Validation/His.Hope.Validation/", "Shared/Validation/His.Hope.Validation/"]
+COPY ["src/Shared/Secrets/His.Hope.Secrets/", "Shared/Secrets/His.Hope.Secrets/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/", "Shared/Contracts/His.Hope.Contracts/"]
 COPY ["src/Shared/Messaging/His.Hope.Messaging.Abstractions/", "Shared/Messaging/His.Hope.Messaging.Abstractions/"]
@@ -46,7 +54,7 @@ COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN \
     dotnet publish "ApiGateway/ApiGateway.csproj" \
     -c Release \
     -o /app/publish

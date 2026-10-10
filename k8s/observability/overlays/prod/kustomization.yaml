@@ -6,6 +6,7 @@ kind: Kustomization
 resources:
   - ../../k3s-observability.yaml
   - ../../production-secrets.yaml
+  - ../../production-alertmanager-config.yaml
   - ../../security-exceptions.yaml
   # The base already owns Prometheus, Alertmanager, Grafana, Jaeger, OTEL and
   # Loki. Add only the monitoring-plane resources that are not duplicated by
@@ -31,10 +32,13 @@ resources:
   - ../../../monitoring/synthetic-monitor-config.yaml
   - ../../../jobs/synthetic-monitor-cronjob.yaml
 
+patchesStrategicMerge:
+  - ../../production-runtime-patches.yaml
+  - observability-security-patch.yaml
+  - observability-sa-patch.yaml
+  - promtail-mount-patch.yaml
+
 patches:
-  - path: observability-security-patch.yaml
-  - path: observability-sa-patch.yaml
-  - path: promtail-mount-patch.yaml
   - target:
       group: ""
       version: v1

@@ -5,6 +5,14 @@ export interface HisHopeRuntimeConfigContract {
   readonly defaultLocale?: string;
 }
 
+export type HisHopeRuntimeSourceConfig = Partial<HisHopeRuntimeConfigContract> & {
+  readonly clientId?: string;
+  readonly oidcScope?: string;
+  readonly sentryDsn?: string;
+  readonly sentryEnvironment?: string;
+  readonly pushNotificationsEnabled?: boolean;
+};
+
 export interface HisHopeWebRuntimeOptions {
   readonly clientId: string;
   readonly scope: string;
@@ -32,14 +40,9 @@ export interface HisHopeWebRuntimeConfig extends HisHopeRuntimeConfigContract {
 }
 
 declare global {
-  interface HisHopeWindowRuntimeConfig {
+  interface HisHopeWindowRuntimeConfig extends HisHopeRuntimeSourceConfig {
     readonly apiOrigin: string;
     readonly oidcAuthority: string;
-    readonly production?: boolean;
-    readonly defaultLocale?: string;
-    readonly sentryDsn?: string;
-    readonly sentryEnvironment?: string;
-    readonly pushNotificationsEnabled?: boolean;
   }
 
   interface Window {

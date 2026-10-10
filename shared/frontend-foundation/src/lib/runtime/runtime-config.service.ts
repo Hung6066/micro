@@ -1,5 +1,6 @@
 import {
   HisHopeRuntimeConfigContract,
+  HisHopeRuntimeSourceConfig,
   HisHopeWebRuntimeConfig,
   HisHopeWebRuntimeOptions,
 } from "./runtime-config.contract";
@@ -41,7 +42,8 @@ export class RuntimeConfigService {
   private resolved?: Readonly<HisHopeRuntimeConfigContract>;
 
   constructor(
-    private readonly source: Partial<HisHopeRuntimeConfigContract> | undefined = globalThis.window?.__HISHOPE_CONFIG__,
+    private readonly source: HisHopeRuntimeSourceConfig | undefined = globalThis
+      .window?.__HISHOPE_CONFIG__,
     private readonly location: LocationLike = globalThis.location,
   ) {}
 
@@ -98,8 +100,8 @@ export class RuntimeConfigService {
       silentRenewUrl: options.silentRenewPath
         ? joinUrl(appOrigin, options.silentRenewPath)
         : undefined,
-      clientId: options.clientId,
-      scope: options.scope,
+      clientId: this.source?.clientId?.trim() || options.clientId,
+      scope: this.source?.oidcScope?.trim() || options.scope,
       secureRoutes: [...options.secureRoutes],
       responseType: options.responseType ?? "code",
       maxIdTokenIatOffsetInSeconds:

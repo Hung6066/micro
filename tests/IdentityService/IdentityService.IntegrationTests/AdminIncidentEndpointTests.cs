@@ -93,6 +93,23 @@ public sealed class AdminIncidentEndpointTests(IdentityServiceTestFixture fixtur
     }
 
     [Fact]
+    public async Task Incident_controls_return_not_found_for_unknown_resources_when_reason_is_valid()
+    {
+        using var session = fixture.CreateSessionClient();
+        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsAdminAsync()).StatusCode);
+        var unknown = Guid.NewGuid();
+
+        var revokeSession = await session.DeleteWithCookiesAsync(
+            $"{IdentityApiRoutes.AdminUserSessions(unknown)}/missing-session?reason=incident-review");
+        var revokeAll = await session.PostWithCookiesAsync(
+            $"{IdentityApiRoutes.AdminUserSessions(unknown)}/revoke-all",
+            new { reason = "incident-review" });
+
+        Assert.Equal(HttpStatusCode.NotFound, revokeSession.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, revokeAll.StatusCode);
+    }
+
+    [Fact]
     public async Task Incident_controls_can_revoke_all_sessions_and_reset_credentials_for_an_admin()
     {
         using var session = fixture.CreateSessionClient();
@@ -101,15 +118,30 @@ public sealed class AdminIncidentEndpointTests(IdentityServiceTestFixture fixtur
         var reset = await session.PostWithCookiesAsync(
             IdentityApiRoutes.AdminUserCredentialReset(IdentityTestData.AdminId),
             new { resetMfa = true, revokePasskeys = true, reason = "automated incident regression" });
+        var resetMfaOnly = await session.PostWithCookiesAsync(
+            IdentityApiRoutes.AdminUserCredentialReset(IdentityTestData.AdminId),
+            new { resetMfa = true, revokePasskeys = false, reason = "automated incident mfa regression" });
+        var resetPasskeysOnly = await session.PostWithCookiesAsync(
+            IdentityApiRoutes.AdminUserCredentialReset(IdentityTestData.AdminId),
+            new { resetMfa = false, revokePasskeys = true, reason = "automated incident passkey regression" });
         var revokeAll = await session.PostWithCookiesAsync(
             $"{IdentityApiRoutes.AdminUserSessions(IdentityTestData.AdminId)}/revoke-all",
             new { reason = "automated incident regression" });
 
         Assert.Equal(HttpStatusCode.OK, revokeAll.StatusCode);
         Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, resetMfaOnly.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, resetPasskeysOnly.StatusCode);
         using var revokeBody = JsonDocument.Parse(await revokeAll.Content.ReadAsStringAsync());
+        using var resetBody = JsonDocument.Parse(await reset.Content.ReadAsStringAsync());
         Assert.Equal(IdentityTestData.AdminId, revokeBody.RootElement.GetProperty("userId").GetGuid());
         Assert.True(revokeBody.RootElement.TryGetProperty("revokedSessions", out var revoked));
         Assert.True(revoked.GetInt32() >= 0);
+        Assert.Equal(IdentityTestData.AdminId, resetBody.RootElement.GetProperty("userId").GetGuid());
+        Assert.True(resetBody.RootElement.TryGetProperty("removedMfa", out var removedMfa));
+        Assert.True(resetBody.RootElement.TryGetProperty("removedPasskeys", out var removedPasskeys));
+        Assert.True(resetBody.RootElement.GetProperty("tokensRevoked").GetBoolean());
+        Assert.True(removedMfa.GetInt32() >= 0);
+        Assert.True(removedPasskeys.GetInt32() >= 0);
     }
 }

@@ -1,0 +1,177 @@
+<hh-page-layout data-testid="operator-content">
+  <hh-page-header
+    hhPageHeader
+    [title]="'operator.content.title' | hhTranslate"
+    [subtitle]="'operator.content.subtitle' | hhTranslate"
+  />
+
+  @if (loading()) {
+    <hh-state kind="loading" [message]="'operator.content.loading' | hhTranslate" />
+  } @else if (error()) {
+    <hh-state kind="error" [message]="error() | hhTranslate" />
+  } @else {
+    <hh-tabs class="content-tabs" label="Content sections" data-testid="content-tabs">
+      <button role="tab" type="button" [attr.aria-selected]="activeTab() === 'articles'" [class.active]="activeTab() === 'articles'" (click)="selectTab('articles')">{{ 'operator.content.tab.articles' | hhTranslate }}</button>
+      <button role="tab" type="button" [attr.aria-selected]="activeTab() === 'inquiries'" [class.active]="activeTab() === 'inquiries'" (click)="selectTab('inquiries')">{{ 'operator.content.tab.inquiries' | hhTranslate }}</button>
+      <button role="tab" type="button" [attr.aria-selected]="activeTab() === 'media'" [class.active]="activeTab() === 'media'" (click)="selectTab('media')">{{ 'operator.content.tab.media' | hhTranslate }}</button>
+    </hh-tabs>
+    @if (activeTab() === 'articles') {
+        <div class="content-grid">
+          <section class="content-list">
+            <div class="content-list__head">
+              <h2>{{ "operator.content.tab.articles" | hhTranslate }}</h2>
+              <hh-action-button kind="primary" icon="add" [label]="'operator.content.newArticle' | hhTranslate" (pressed)="startNew()" />
+            </div>
+
+            @if (!articles().length) {
+              <hh-state kind="empty" [message]="'operator.content.emptyArticles' | hhTranslate" />
+            } @else {
+              @for (article of articles(); track article.id) {
+                <article class="content-card">
+                  <header>
+                    <strong>{{ article.title }}</strong>
+                    <span>{{ article.locale }} · {{ article.status }}</span>
+                  </header>
+                  <p>{{ article.excerpt }}</p>
+                  <div class="content-card__actions">
+                    <hh-action-button kind="secondary" icon="edit" [label]="'operator.content.editArticle' | hhTranslate" (pressed)="editArticle(article)" />
+                    <hh-action-button kind="danger" icon="delete" [label]="'operator.content.delete' | hhTranslate" (pressed)="deleteArticle(article.id)" />
+                  </div>
+                </article>
+              }
+            }
+          </section>
+
+          <form class="content-editor" (ngSubmit)="saveArticle()">
+            <h2>
+              {{
+                (editingId ? "operator.content.editArticle" : "operator.content.newArticle")
+                  | hhTranslate
+              }}
+            </h2>
+            <label>
+              {{ "operator.content.slug" | hhTranslate }}
+              <input [(ngModel)]="draft.slug" name="slug" required />
+            </label>
+            <label>
+              {{ "operator.content.articleTitle" | hhTranslate }}
+              <input [(ngModel)]="draft.title" name="title" required />
+            </label>
+            <label>
+              {{ "operator.content.excerpt" | hhTranslate }}
+              <textarea [(ngModel)]="draft.excerpt" name="excerpt" rows="2" required></textarea>
+            </label>
+            <label>
+              {{ "operator.content.body" | hhTranslate }}
+              <textarea [(ngModel)]="draft.bodyHtml" name="bodyHtml" rows="8" required></textarea>
+            </label>
+            <label>
+              {{ "operator.content.category" | hhTranslate }}
+              <input [(ngModel)]="draft.category" name="category" required />
+            </label>
+            <label>
+              {{ "operator.content.imageUrl" | hhTranslate }}
+              <input [(ngModel)]="draft.imageUrl" name="imageUrl" />
+            </label>
+            <label for="locale">
+              {{ "operator.content.locale" | hhTranslate }}
+              <hh-select id="locale" [(ngModel)]="draft.locale" name="locale">
+                <option value="vi-VN">vi-VN</option>
+                <option value="en-US">en-US</option>
+              </hh-select>
+            </label>
+            <label for="status">
+              {{ "operator.content.status" | hhTranslate }}
+              <hh-select id="status" [(ngModel)]="draft.status" name="status">
+                <option value="draft">{{ "operator.content.status.draft" | hhTranslate }}</option>
+                <option value="in_review">{{ "operator.content.status.in_review" | hhTranslate }}</option>
+                <option value="published">
+                  {{ "operator.content.status.published" | hhTranslate }}
+                </option>
+              </hh-select>
+            </label>
+
+            @if (statusKey()) {
+              <p class="content-status">{{ statusKey() | hhTranslate }}</p>
+            }
+
+            <hh-action-button kind="primary" icon="save" type="submit" [label]="'operator.content.save' | hhTranslate" [disabled]="saving()" />
+          </form>
+        </div>
+    }
+    @if (activeTab() === 'inquiries') {
+        @if (!inquiries().length) {
+          <hh-state kind="empty" [message]="'operator.content.emptyInquiries' | hhTranslate" />
+        } @else {
+          <div class="inquiry-list">
+            @for (inquiry of inquiries(); track inquiry.id) {
+              <article class="content-card">
+                <header>
+                  <strong>{{ inquiry.companyName }}</strong>
+                  <span>{{ inquiry.createdAt | date: "medium" }}</span>
+                </header>
+                <p>
+                  {{ inquiry.contactName }} · {{ inquiry.email }} · {{ inquiry.phone }}
+                </p>
+                <p>{{ inquiry.partnershipType }} — {{ inquiry.message }}</p>
+                <label for="inquiry-status-{{ inquiry.id }}">
+                  {{ "operator.content.inquiry.status" | hhTranslate }}
+                  <hh-select [id]="'inquiry-status-' + inquiry.id" [ngModel]="inquiry.status" (ngModelChange)="updateInquiryStatus(inquiry, $event)">
+                    <option value="new">{{ "operator.content.inquiry.status.new" | hhTranslate }}</option>
+                    <option value="in_progress">{{ "operator.content.inquiry.status.in_progress" | hhTranslate }}</option>
+                    <option value="closed">{{ "operator.content.inquiry.status.closed" | hhTranslate }}</option>
+                  </hh-select>
+                </label>
+              </article>
+            }
+          </div>
+        }
+    }
+    @if (activeTab() === 'media') {
+        <div class="media-panel">
+          <div class="media-panel__head">
+            <div>
+              <h2>{{ "operator.content.tab.media" | hhTranslate }}</h2>
+              <p>{{ "operator.content.media.hint" | hhTranslate }}</p>
+            </div>
+            <input
+              #mediaInput
+              type="file"
+              accept="image/*"
+              hidden
+              (change)="onMediaSelected($event)"
+              [disabled]="uploading()"
+            />
+            <hh-action-button kind="primary" icon="upload" [label]="(uploading() ? 'operator.content.media.uploading' : 'operator.content.media.upload') | hhTranslate" (pressed)="mediaInput.click()" [disabled]="uploading()" />
+          </div>
+
+          @if (mediaStatusKey()) {
+            <p class="content-status">{{ mediaStatusKey() | hhTranslate }}</p>
+          }
+
+          @if (!media().length) {
+            <hh-state kind="empty" [message]="'operator.content.media.empty' | hhTranslate" />
+          } @else {
+            <div class="media-grid">
+              @for (asset of media(); track asset.id) {
+                <article class="content-card media-card">
+                  @if (asset.contentType.startsWith("image/")) {
+                    <img [src]="asset.publicUrl" [alt]="asset.fileName" class="media-card__preview" />
+                  }
+                  <header>
+                    <strong>{{ asset.fileName }}</strong>
+                    <span>{{ asset.sizeBytes | number }} B</span>
+                  </header>
+                  <p class="media-card__url">{{ asset.publicUrl }}</p>
+                  <div class="content-card__actions">
+                    <hh-action-button kind="secondary" icon="content_copy" [label]="'operator.content.media.copy' | hhTranslate" (pressed)="copyMediaUrl(asset.publicUrl)" />
+                    <hh-action-button kind="secondary" icon="link" [label]="'operator.content.media.useInArticle' | hhTranslate" (pressed)="useMediaUrl(asset.publicUrl)" />
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </div>
+    }
+  }
+</hh-page-layout>

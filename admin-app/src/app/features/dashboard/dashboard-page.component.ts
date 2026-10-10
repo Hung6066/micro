@@ -11,6 +11,7 @@ import { CommonModule } from "@angular/common";
 import { MatButtonModule } from "@angular/material/button";
 import { DashboardStats } from "../../core/contracts/admin.contracts";
 import { DashboardApiService } from "../../core/services/dashboard-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import {
   HisHopeMetricCardComponent,
@@ -19,7 +20,6 @@ import {
   HisHopeStateComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
-  HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 
@@ -117,6 +117,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class DashboardPageComponent implements OnInit {
   private readonly api = inject(DashboardApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly cdr = inject(ChangeDetectorRef);
   stats: DashboardStats | null = null;
   private readonly destroyRef = inject(DestroyRef);
@@ -141,9 +142,12 @@ export class DashboardPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadDashboardStats();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadDashboardStats());
   }
 
   loadDashboardStats(): void {
-    this.state.load(this.api.getDashboardStats());
+    this.state.load(
+      this.api.getDashboardStats(),
+    );
   }
 }

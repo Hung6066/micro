@@ -27,6 +27,7 @@ import {
 import { RuntimeConfigService } from "@his-hope/frontend-foundation";
 import { routes } from "./app.routes";
 import { authInterceptor } from "./core/services/auth-interceptor.service";
+import { tenantScopeInterceptor } from "./core/interceptors/tenant-scope.interceptor";
 import { environment } from "../environments/environment";
 
 function defaultAdminRuntimeSource() {
@@ -81,6 +82,7 @@ export const appConfig: ApplicationConfig = {
       withInterceptors([
         hisHopeCorrelationIdInterceptor,
         hisHopeInternationalizationInterceptor,
+        tenantScopeInterceptor,
         hisHopeCookieSessionInterceptor,
         authInterceptor,
         hisHopeErrorInterceptor,

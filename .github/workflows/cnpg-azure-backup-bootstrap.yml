@@ -53,6 +53,7 @@ jobs:
           KUBECONFIG: ${{ steps.runtime.outputs.kube }}
         run: |
           python3 scripts/validate-azure-blob-access.py --env-file '${{ steps.runtime.outputs.azure }}'
+          python3 scripts/validate-azure-blob-retention.py --env-file '${{ steps.runtime.outputs.azure }}' --minimum-days 30
           $args = @('-File', './scripts/bootstrap-cnpg-azure-object-store.ps1',
             '-Context', '${{ inputs.kube_context }}',
             '-EnvFile', '${{ steps.runtime.outputs.azure }}',

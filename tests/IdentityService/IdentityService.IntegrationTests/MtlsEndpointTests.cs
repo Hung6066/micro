@@ -10,7 +10,7 @@ namespace His.Hope.IdentityService.IntegrationTests;
 [Collection("IdentityServiceIntegration")]
 public sealed class MtlsEndpointTests(IdentityServiceTestFixture fixture)
 {
-    private const string BindingsRoute = IdentityApiRoutes.Admin + "/mtls/bindings";
+    private const string BindingsRoute = IdentityApiRoutes.AdminMtlsBindings;
 
     [Fact]
     public async Task Admin_binding_crud_exercises_validation_conflict_and_revocation_paths()
@@ -72,6 +72,34 @@ public sealed class MtlsEndpointTests(IdentityServiceTestFixture fixture)
             notAfter = DateTime.UtcNow.AddHours(1)
         });
         Assert.True(post.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Redirect);
+    }
+
+    [Fact]
+    public async Task Binding_for_unassigned_user_is_forbidden_and_expired_binding_is_reported()
+    {
+        using var session = await LoginAsync();
+        var forbidden = await session.PostWithCookiesAsync(BindingsRoute, new
+        {
+            userId = Guid.NewGuid(),
+            thumbprint = $"expired-{Guid.NewGuid():N}",
+            notAfter = DateTime.UtcNow.AddMinutes(-1)
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        var expired = await session.PostWithCookiesAsync(BindingsRoute, new
+        {
+            userId = IdentityTestData.AdminId,
+            thumbprint = $"expired-{Guid.NewGuid():N}",
+            notAfter = DateTime.UtcNow.AddMinutes(-1)
+        });
+        Assert.Equal(HttpStatusCode.Created, expired.StatusCode);
+        var body = await expired.Content.ReadFromJsonAsync<JsonElement>();
+        var id = body.GetProperty("id").GetGuid();
+        var listed = await session.GetWithCookiesAsync(BindingsRoute);
+        Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
+        var bindings = await listed.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains(bindings.EnumerateArray(), item =>
+            item.GetProperty("id").GetGuid() == id && item.GetProperty("status").GetString() == "expired");
     }
 
     private async Task<SessionClient> LoginAsync()

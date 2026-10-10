@@ -11,9 +11,13 @@ using Microsoft.EntityFrameworkCore;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
 using His.Hope.Contracts.Bulk;
 using His.Hope.Contracts;
+using His.Hope.Authorization;
+using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Api.Jobs;
+using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -22,13 +26,17 @@ public static class AdminTableEndpoints
     public static RouteGroupBuilder MapAdminTableEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/tables/users/bulk", BulkUsers)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
         group.MapPost("/tables/roles/bulk", BulkRoles)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
         group.MapPost("/tables/clients/bulk", BulkClients)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite)
+            .WithTenantMutationScope();
         group.MapPost("/tables/{resource}/export", Export)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Reports.Export);
         group.MapGet("/tables/jobs/{jobId}", GetJob)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapGet("/tables/jobs/{jobId}/events", StreamJob)
@@ -52,8 +60,11 @@ public static class AdminTableEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Select between 1 and 1000 rows."] });
         if (request.ActionId is not ("activate" or "deactivate"))
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedBulkAction });
+
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         if (request.Async)
-            return await EnqueueBulkAsync("users", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), ct);
+            return await EnqueueBulkAsync("users", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), filter, null, ct);
 
         var ids = request.RowKeys
             .Select(value => Guid.TryParse(value, out var id) ? id : (Guid?)null)
@@ -61,7 +72,9 @@ public static class AdminTableEndpoints
             .Select(id => id!.Value)
             .Distinct()
             .ToArray();
-        var users = await db.Users.Where(user => ids.Contains(user.Id)).ToListAsync(ct);
+        var users = await db.Users.Where(user => ids.Contains(user.Id))
+            .WhereTenantMembership(db, filter.AllowedTenantKeys)
+            .ToListAsync(ct);
         foreach (var user in users)
             user.IsActive = request.ActionId == "activate";
         await db.SaveChangesAsync(ct);
@@ -74,6 +87,7 @@ public static class AdminTableEndpoints
         string resource,
         AdminExportRequest request,
         IdentityDbContext db,
+        IConglomerateTenantRegistry tenantRegistry,
         IAuditService audit,
         IAuthorizationService authorization,
         FacilityContext facilityContext,
@@ -102,24 +116,27 @@ public static class AdminTableEndpoints
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedExportFormat });
         if (request.RowKeys.Length > 10000)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Export is limited to 10000 rows."] });
+
+        var filter = IamTenantHttpContext.RequireFilter(http);
+        var allowedClientIds = IamTenantQueryExtensions.ResolveAllowedClientIds(tenantRegistry, filter);
+
         if (request.Async)
         {
             var store = http.RequestServices.GetRequiredService<RedisAdminJobStore>();
-            var state = NewState("export", resource, string.Empty, request.RowKeys, request, http, facilityContext);
+            var state = NewState("export", resource, string.Empty, request.RowKeys, request, http, filter, allowedClientIds, facilityContext);
             await store.CreateAndEnqueueAsync(state, ct);
             return Results.Accepted($"/api/v1/admin/tables/jobs/{state.JobId}", ToContract(state));
         }
 
         var rows = resource.ToLowerInvariant() switch
         {
-            "users" => await ExportUsers(request, db, facilityContext, ct),
-            "roles" => await ExportRoles(request, db, ct),
-            "clients" => await ExportClients(request, db, ct),
-            "audit" => await ExportAudit(request, db, ct),
+            "users" => await ExportUsers(request, db, facilityContext, filter.AllowedTenantKeys, ct),
+            "roles" => await ExportRoles(request, db, filter.AllowedTenantKeys, ct),
+            "clients" => await ExportClients(request, db, allowedClientIds, ct),
+            "audit" => await ExportAudit(request, db, filter.AllowedTenantKeys, ct),
             _ => null
         };
-        if (rows is null)
-            return Results.NotFound();
+        rows = Guard.Against.NotFound(rows, resource, resource);
         ApplyExportPolicy(rows, request);
 
         await AuditAsync(audit, http, "EXPORT", resource, format!, ct);
@@ -145,11 +162,14 @@ public static class AdminTableEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Select between 1 and 1000 rows."] });
         if (request.ActionId is not "delete")
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedBulkAction });
+
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         if (request.Async)
-            return await EnqueueBulkAsync("roles", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), ct);
+            return await EnqueueBulkAsync("roles", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), filter, null, ct);
 
         var ids = ParseIds(request.RowKeys);
-        var roles = await db.Roles.Where(role => ids.Contains(role.Id)).ToListAsync(ct);
+        var roles = await FilterRolesByTenant(db.Roles.Where(role => ids.Contains(role.Id)), db, filter.AllowedTenantKeys).ToListAsync(ct);
         if (roles.Any(role => role.IsSystem))
             return Results.Conflict(new { errorCode = "system_role_protected" });
         var assigned = await db.UserRoles.AnyAsync(link => ids.Contains(link.RoleId), ct);
@@ -165,6 +185,7 @@ public static class AdminTableEndpoints
     private static async Task<IResult> BulkClients(
         AdminBulkActionRequest request,
         IdentityDbContext db,
+        IConglomerateTenantRegistry tenantRegistry,
         IAuditService audit,
         HttpContext http,
         CancellationToken ct)
@@ -173,20 +194,27 @@ public static class AdminTableEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Select between 1 and 1000 rows."] });
         if (request.ActionId is not "delete")
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedBulkAction });
+
+        var filter = IamTenantHttpContext.RequireFilter(http);
+        var allowedClientIds = IamTenantQueryExtensions.ResolveAllowedClientIds(tenantRegistry, filter);
+
         if (request.Async)
-            return await EnqueueBulkAsync("clients", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), ct);
+            return await EnqueueBulkAsync("clients", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), filter, allowedClientIds, ct);
 
         var ids = request.RowKeys.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().ToArray();
-        var clients = await db.OpenIddictApplications.Where(client => client.Id != null && ids.Contains(client.Id)).ToListAsync(ct);
+        var clientQuery = db.OpenIddictApplications.Where(client => client.Id != null && ids.Contains(client.Id));
+        if (allowedClientIds is not null)
+            clientQuery = clientQuery.Where(client => allowedClientIds.Contains(client.ClientId ?? string.Empty));
+        var clients = await clientQuery.ToListAsync(ct);
         db.OpenIddictApplications.RemoveRange(clients);
         await db.SaveChangesAsync(ct);
         await AuditAsync(audit, http, "BULK_ACTION", "Client", request.ActionId, ct);
         return Results.Ok(new { actionId = request.ActionId, requestedCount = request.RowKeys.Length, updatedCount = clients.Count });
     }
 
-    private static async Task<List<Dictionary<string, object?>>> ExportUsers(AdminExportRequest request, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct)
+    private static async Task<List<Dictionary<string, object?>>> ExportUsers(AdminExportRequest request, IdentityDbContext db, FacilityContext facilityContext, HashSet<string>? allowedTenantKeys, CancellationToken ct)
     {
-        var query = db.Users.AsNoTracking();
+        var query = db.Users.AsNoTracking().WhereTenantMembership(db, allowedTenantKeys);
         if (!facilityContext.IsCrossFacility && facilityContext.AuthorizedFacilities.Count > 0)
         {
             var facilities = facilityContext.AuthorizedFacilities.ToArray();
@@ -206,9 +234,11 @@ public static class AdminTableEndpoints
         }).ToList();
     }
 
-    private static async Task<List<Dictionary<string, object?>>> ExportClients(AdminExportRequest request, IdentityDbContext db, CancellationToken ct)
+    private static async Task<List<Dictionary<string, object?>>> ExportClients(AdminExportRequest request, IdentityDbContext db, HashSet<string>? allowedClientIds, CancellationToken ct)
     {
         var query = db.OpenIddictApplications.AsNoTracking();
+        if (allowedClientIds is not null)
+            query = query.Where(client => allowedClientIds.Contains(client.ClientId ?? string.Empty));
         var ids = request.RowKeys.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
         if (ids.Length > 0) query = query.Where(client => client.Id != null && ids.Contains(client.Id));
         var clients = await query.OrderBy(client => client.ClientId).Take(10000).ToListAsync(ct);
@@ -221,9 +251,9 @@ public static class AdminTableEndpoints
         }).ToList();
     }
 
-    private static async Task<List<Dictionary<string, object?>>> ExportRoles(AdminExportRequest request, IdentityDbContext db, CancellationToken ct)
+    private static async Task<List<Dictionary<string, object?>>> ExportRoles(AdminExportRequest request, IdentityDbContext db, HashSet<string>? allowedTenantKeys, CancellationToken ct)
     {
-        var query = db.Roles.AsNoTracking();
+        var query = FilterRolesByTenant(db.Roles.AsNoTracking(), db, allowedTenantKeys);
         var ids = ParseIds(request.RowKeys);
         if (ids.Length > 0) query = query.Where(role => ids.Contains(role.Id));
         var roles = await query.OrderBy(role => role.Name).Take(10000).ToListAsync(ct);
@@ -237,9 +267,10 @@ public static class AdminTableEndpoints
         }).ToList();
     }
 
-    private static async Task<List<Dictionary<string, object?>>> ExportAudit(AdminExportRequest request, IdentityDbContext db, CancellationToken ct)
+    private static async Task<List<Dictionary<string, object?>>> ExportAudit(AdminExportRequest request, IdentityDbContext db, HashSet<string>? allowedTenantKeys, CancellationToken ct)
     {
         var logs = await db.AuditLogs.AsNoTracking()
+            .WhereTenantActor(db, allowedTenantKeys)
             .OrderByDescending(log => log.Timestamp)
             .Take(10000)
             .ToListAsync(ct);
@@ -255,6 +286,20 @@ public static class AdminTableEndpoints
             ["ipAddress"] = log.IpAddress,
             ["timestamp"] = log.Timestamp
         }).ToList();
+    }
+
+    private static IQueryable<Role> FilterRolesByTenant(IQueryable<Role> query, IdentityDbContext db, HashSet<string>? allowedTenantKeys)
+    {
+        if (allowedTenantKeys is null)
+            return query;
+
+        var normalizedKeys = allowedTenantKeys.Select(key => key.ToLowerInvariant()).ToArray();
+        return query.Where(role => db.Set<IdentityUserRole<Guid>>().Any(userRole =>
+            userRole.RoleId == role.Id &&
+            db.UserClaims.Any(claim =>
+                claim.UserId == userRole.UserId &&
+                claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
     }
 
     private static Guid[] ParseIds(IEnumerable<string> values) => values
@@ -343,14 +388,14 @@ public static class AdminTableEndpoints
     private static Task AuditAsync(IAuditService audit, HttpContext http, string action, string resource, string resourceId, CancellationToken ct) =>
         audit.LogPhiAccessAsync(new PhiAuditEntry
         {
-            UserId = http.User.FindFirst("sub")?.Value ?? "system",
+            UserId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system",
             UserRole = http.User.FindFirst("role")?.Value,
             ResourceType = resource,
             ResourceId = resourceId,
             Action = action,
             ClientIp = http.Connection.RemoteIpAddress?.ToString(),
             UserAgent = http.Request.Headers.UserAgent.ToString(),
-            CorrelationId = http.Response.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier,
+            CorrelationId = http.Response.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier,
             HttpMethod = http.Request.Method,
             Path = http.Request.Path
         }, ct);
@@ -360,9 +405,11 @@ public static class AdminTableEndpoints
         AdminBulkActionRequest request,
         HttpContext http,
         RedisAdminJobStore store,
+        IamTenantScopeFilter filter,
+        HashSet<string>? allowedClientIds,
         CancellationToken ct)
     {
-        var state = NewState("bulk", resource, request.ActionId, request.RowKeys, request, http);
+        var state = NewState("bulk", resource, request.ActionId, request.RowKeys, request, http, filter, allowedClientIds);
         foreach (var rowKey in request.RowKeys.Distinct(StringComparer.Ordinal))
             state.RowProgress[rowKey] = new BulkJobRowContract(rowKey, "queued");
         await store.CreateAndEnqueueAsync(state, ct);
@@ -376,6 +423,8 @@ public static class AdminTableEndpoints
         string[] rowKeys,
         object request,
         HttpContext http,
+        IamTenantScopeFilter filter,
+        HashSet<string>? allowedClientIds,
         FacilityContext? facilityContext = null) => new()
         {
             JobId = Guid.NewGuid().ToString("N"),
@@ -384,10 +433,12 @@ public static class AdminTableEndpoints
             ActionId = actionId,
             RowKeys = rowKeys,
             PayloadJson = JsonSerializer.Serialize(request),
-            ActorSubject = http.User.FindFirst("sub")?.Value ?? "system",
+            ActorSubject = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system",
             IsCrossFacility = facilityContext?.IsCrossFacility ?? false,
             AuthorizedFacilities = facilityContext?.AuthorizedFacilities.ToArray() ?? [],
-            CorrelationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier,
+            AllowedTenantKeys = filter.AllowedTenantKeys?.ToArray(),
+            AllowedClientIds = allowedClientIds?.ToArray(),
+            CorrelationId = http.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier,
             Total = rowKeys.Length
         };
 
@@ -399,7 +450,8 @@ public static class AdminTableEndpoints
     private static async Task<IResult> GetJob(string jobId, RedisAdminJobStore store, CancellationToken ct)
     {
         var state = await store.GetAsync(jobId, ct);
-        return state is null ? Results.NotFound() : Results.Ok(ToContract(state));
+        state = Guard.Against.NotFound(state, "AdminJob", jobId);
+        return Results.Ok(ToContract(state));
     }
 
     private static async Task StreamJob(string jobId, RedisAdminJobStore store, HttpResponse response, CancellationToken ct)
@@ -422,7 +474,7 @@ public static class AdminTableEndpoints
     private static async Task<IResult> CancelJob(string jobId, RedisAdminJobStore store, CancellationToken ct)
     {
         var state = await store.GetAsync(jobId, ct);
-        if (state is null) return Results.NotFound();
+        state = Guard.Against.NotFound(state, "AdminJob", jobId);
         await store.CancelAsync(state, ct);
         return Results.Ok(ToContract(state));
     }
@@ -451,6 +503,13 @@ public static class AdminTableEndpoints
         http.Request.Method = "JOB";
         http.Request.Path = $"/api/v1/admin/tables/{state.Resource}/{state.Kind}";
 
+        var allowedTenantKeys = state.AllowedTenantKeys is null
+            ? null
+            : state.AllowedTenantKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allowedClientIds = state.AllowedClientIds is null
+            ? null
+            : state.AllowedClientIds.ToHashSet(StringComparer.Ordinal);
+
         if (state.Kind == "export")
         {
             var request = JsonSerializer.Deserialize<AdminExportRequest>(state.PayloadJson) ?? throw new InvalidOperationException("Invalid export job payload.");
@@ -461,10 +520,10 @@ public static class AdminTableEndpoints
             };
             var rows = state.Resource switch
             {
-                "users" => await ExportUsers(request, db, facilityContext, ct),
-                "roles" => await ExportRoles(request, db, ct),
-                "clients" => await ExportClients(request, db, ct),
-                "audit" => await ExportAudit(request, db, ct),
+                "users" => await ExportUsers(request, db, facilityContext, allowedTenantKeys, ct),
+                "roles" => await ExportRoles(request, db, allowedTenantKeys, ct),
+                "clients" => await ExportClients(request, db, allowedClientIds, ct),
+                "audit" => await ExportAudit(request, db, allowedTenantKeys, ct),
                 _ => throw new InvalidOperationException("Unsupported export resource.")
             };
             ApplyExportPolicy(rows, request);
@@ -490,7 +549,9 @@ public static class AdminTableEndpoints
                 var userIds = ParseIds(state.RowKeys);
                 foreach (var id in userIds)
                 {
-                    var user = await db.Users.SingleOrDefaultAsync(x => x.Id == id, ct);
+                    var user = await db.Users.Where(x => x.Id == id)
+                        .WhereTenantMembership(db, allowedTenantKeys)
+                        .SingleOrDefaultAsync(ct);
                     if (user is null)
                     {
                         await CompleteRowAsync(state, store, id.ToString(), "not_found", ct);
@@ -504,7 +565,7 @@ public static class AdminTableEndpoints
             case "roles":
                 foreach (var id in ParseIds(state.RowKeys))
                 {
-                    var role = await db.Roles.SingleOrDefaultAsync(x => x.Id == id, ct);
+                    var role = await FilterRolesByTenant(db.Roles.Where(x => x.Id == id), db, allowedTenantKeys).SingleOrDefaultAsync(ct);
                     if (role is null) { await CompleteRowAsync(state, store, id.ToString(), "not_found", ct); continue; }
                     if (role.IsSystem) throw new InvalidOperationException("system_role_protected");
                     if (await db.UserRoles.AnyAsync(x => x.RoleId == id, ct)) throw new InvalidOperationException("role_in_use");
@@ -516,7 +577,10 @@ public static class AdminTableEndpoints
             case "clients":
                 foreach (var id in state.RowKeys.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
                 {
-                    var client = await db.OpenIddictApplications.SingleOrDefaultAsync(x => x.Id == id, ct);
+                    var clientQuery = db.OpenIddictApplications.Where(x => x.Id == id);
+                    if (allowedClientIds is not null)
+                        clientQuery = clientQuery.Where(x => allowedClientIds.Contains(x.ClientId ?? string.Empty));
+                    var client = await clientQuery.SingleOrDefaultAsync(ct);
                     if (client is not null) { db.OpenIddictApplications.Remove(client); await db.SaveChangesAsync(ct); }
                     await CompleteRowAsync(state, store, id, client is null ? "not_found" : "completed", ct);
                 }

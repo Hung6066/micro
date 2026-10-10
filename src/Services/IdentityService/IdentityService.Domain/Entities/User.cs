@@ -25,7 +25,7 @@ public class User : IdentityUser<Guid>
 
     // SECURITY: Account lockout
     public int FailedLoginAttempts { get; set; }
-    public DateTime? LockoutEnd { get; set; }
+    public new DateTime? LockoutEnd { get; set; }
 
     // SECURITY: Password policy
     public DateTime? LastPasswordChangedAt { get; set; }

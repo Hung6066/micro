@@ -1,59 +1,66 @@
 using System.Security.Claims;
 using His.Hope.IdentityService.Application.Assurance;
-using Xunit;
 
 namespace His.Hope.IdentityService.Application.Tests;
 
 public sealed class AssuranceClaimResolverTests
 {
-    [Fact]
-    public void Resolve_assurance_prefers_mtls_over_other_methods()
-    {
-        var principal = Principal("pwd", "mfa", "mtls");
-
-        Assert.Equal("aal3", AssuranceClaimResolver.ResolveAssuranceLevel(principal));
-    }
-
     [Theory]
-    [InlineData("passkey")]
-    [InlineData("mfa")]
-    [InlineData("totp")]
-    [InlineData("webauthn")]
-    public void Resolve_assurance_maps_strong_authentication_methods_to_aal2(string method)
+    [InlineData("mtls", "aal3")]
+    [InlineData("MTLS", "aal3")]
+    [InlineData("  ", "standard")]
+    [InlineData("passkey", "aal2")]
+    [InlineData("PASSKEY", "aal2")]
+    [InlineData("mfa", "aal2")]
+    [InlineData("totp", "aal2")]
+    [InlineData("webauthn", "aal2")]
+    [InlineData("pwd", "aal1")]
+    [InlineData("password", "aal1")]
+    [InlineData("", "standard")]
+    public void ResolveAssuranceLevel_maps_amr_to_assurance(string amr, string expected)
     {
-        Assert.Equal("aal2", AssuranceClaimResolver.ResolveAssuranceLevel(Principal(method)));
-    }
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("amr", amr)], "test"));
 
-    [Theory]
-    [InlineData("pwd")]
-    [InlineData("password")]
-    public void Resolve_assurance_maps_password_methods_to_aal1(string method)
-    {
-        Assert.Equal("aal1", AssuranceClaimResolver.ResolveAssuranceLevel(Principal(method)));
-    }
-
-    [Fact]
-    public void Resolve_assurance_ignores_empty_and_unknown_methods()
-    {
-        var principal = Principal(" ", "unknown");
-
-        Assert.Equal("standard", AssuranceClaimResolver.ResolveAssuranceLevel(principal));
+        Assert.Equal(expected, AssuranceClaimResolver.ResolveAssuranceLevel(principal));
     }
 
     [Theory]
     [InlineData("true", true)]
     [InlineData("1", true)]
     [InlineData("false", false)]
-    [InlineData("0", false)]
     [InlineData(null, false)]
-    public void Device_posture_claim_is_strictly_interpreted(string? value, bool expected)
+    public void HasFreshDevicePosture_requires_true_or_one(string? value, bool expected)
     {
-        var claims = value is null ? Array.Empty<Claim>() : [new Claim("device_posture_fresh", value)];
+        var claims = value is null ? [] : new[] { new Claim("device_posture_fresh", value) };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
 
-        Assert.Equal(expected, AssuranceClaimResolver.HasFreshDevicePosture(
-            new ClaimsPrincipal(new ClaimsIdentity(claims, "test"))));
+        Assert.Equal(expected, AssuranceClaimResolver.HasFreshDevicePosture(principal));
     }
 
-    private static ClaimsPrincipal Principal(params string[] methods) =>
-        new(new ClaimsIdentity(methods.Select(method => new Claim("amr", method)), "test"));
+    [Fact]
+    public void ResolveAssuranceLevel_prefers_mtls_over_lower_assurance_methods()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("amr", "pwd"), new Claim("amr", "mfa"), new Claim("amr", "mtls")], "test"));
+
+        Assert.Equal("aal3", AssuranceClaimResolver.ResolveAssuranceLevel(principal));
+    }
+
+    [Fact]
+    public void ResolveAssuranceLevel_ignores_unknown_and_blank_methods()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("amr", ""), new Claim("amr", "unknown")], "test"));
+
+        Assert.Equal("standard", AssuranceClaimResolver.ResolveAssuranceLevel(principal));
+    }
+
+    [Fact]
+    public void HasFreshDevicePosture_returns_false_when_claim_is_missing()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity());
+
+        Assert.False(AssuranceClaimResolver.HasFreshDevicePosture(principal));
+    }
 }

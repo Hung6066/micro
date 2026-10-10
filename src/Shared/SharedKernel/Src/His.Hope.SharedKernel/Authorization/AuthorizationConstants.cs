@@ -45,5 +45,6 @@ public static class AuthorizationConstants
     public static class Policies
     {
         public const string HumanAdmin = "HumanAdmin";
+        public const string HumanSuperAdmin = "HumanSuperAdmin";
     }
 }

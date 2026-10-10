@@ -76,9 +76,9 @@
               [alt]="'admin.mfaSetupStep1' | hhTranslate: 'MFA setup QR code'"
             />
           </div>
-          <label>{{ "admin.secretKey" | hhTranslate: "Secret key" }}</label
+          <span class="field-label">{{ "admin.secretKey" | hhTranslate: "Secret key" }}</span
           ><code>{{ mfa.secretKey }}</code>
-          <label>{{ "admin.otpUri" | hhTranslate: "OTP URI" }}</label
+          <span class="field-label">{{ "admin.otpUri" | hhTranslate: "OTP URI" }}</span
           ><textarea readonly rows="3" [value]="mfa.qrCodeUri"></textarea>
           <strong>{{
             "admin.mfaSetupStep2"

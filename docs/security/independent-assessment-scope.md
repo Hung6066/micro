@@ -31,14 +31,23 @@ Each JSON document must contain:
 ```json
 {
   "assessmentType": "oidc-conformance",
+  "evidenceSource": "external-independent",
   "status": "passed",
   "assessor": "independent assessor organization",
   "reportUri": "https://assessor.example/report/123",
-  "completedAt": "2026-07-29T00:00:00Z"
+  "completedAt": "2026-07-29T00:00:00Z",
+  "signature": {
+    "algorithm": "cosign",
+    "verified": true,
+    "verificationUri": "https://assessor.example/evidence/123.sig"
+  }
 }
 ```
 
 The penetration-test file uses `"assessmentType": "penetration-test"`.
+The `evidenceSource` marker and verified HTTPS signature metadata are mandatory
+so that locally generated automated reports cannot be promoted as independent
+assurance.
 Run `scripts/verify-independent-security-evidence.ps1` only after the
 assessor has supplied the real reports. Missing, malformed, or non-HTTPS
 evidence is a release failure.

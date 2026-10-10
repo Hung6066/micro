@@ -12,7 +12,7 @@ public sealed class JwtTransformProvider : ITransformProvider
 
     public void Apply(TransformBuilderContext context)
     {
-        context.AddRequestTransform(async transformContext =>
+        context.AddRequestTransform(transformContext =>
         {
             var jwt = transformContext.HttpContext.Items["SessionJwt"] as string;
             if (!string.IsNullOrEmpty(jwt))
@@ -20,6 +20,7 @@ public sealed class JwtTransformProvider : ITransformProvider
                 transformContext.ProxyRequest.Headers.Authorization =
                     new AuthenticationHeaderValue("Bearer", jwt);
             }
+            return ValueTask.CompletedTask;
         });
     }
 }

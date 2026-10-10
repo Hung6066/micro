@@ -1,0 +1,24 @@
+<section class="page-shell page-shell--narrow" data-testid="buyer-blog-detail">
+  <div class="fx-container">
+    @if (loading()) {
+      <div class="state">{{ "buyer.blog.loading" | hhTranslate }}</div>
+    } @else if (error()) {
+      <div class="state state--error">{{ error() | hhTranslate }}</div>
+      <a routerLink="/blog" class="back-link">{{ "buyer.blog.back" | hhTranslate }}</a>
+    } @else if (article(); as item) {
+      <a routerLink="/blog" class="back-link">{{ "buyer.blog.back" | hhTranslate }}</a>
+      <article class="article fx-card">
+        <div class="article__media">
+          <img [src]="item.imageUrl" [alt]="item.title" loading="lazy" />
+        </div>
+        <div class="article__body">
+          <span class="article__meta">
+            {{ item.publishedAt | date: "dd/MM/yyyy" }} · {{ item.category }}
+          </span>
+          <h1>{{ item.title }}</h1>
+          <div class="article__content" [innerHTML]="item.bodyHtml"></div>
+        </div>
+      </article>
+    }
+  </div>
+</section>

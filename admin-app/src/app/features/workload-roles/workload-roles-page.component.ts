@@ -9,7 +9,7 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
-import { forkJoin } from "rxjs";
+import { forkJoin, map } from "rxjs";
 import {
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,
@@ -27,6 +27,7 @@ import {
   PermissionDefinition,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { WorkloadRoleEditDialogComponent } from "./workload-role-edit-dialog.component";
 
@@ -88,6 +89,7 @@ import { WorkloadRoleEditDialogComponent } from "./workload-role-edit-dialog.com
 })
 export class WorkloadRolesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissionService = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -145,6 +147,7 @@ export class WorkloadRolesPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   constructor() {
     effect(() => {
@@ -167,7 +170,9 @@ export class WorkloadRolesPageComponent implements OnInit {
     this.state.load(
       forkJoin({
         roles: this.api.getIamWorkloadRoles(),
-        scopes: this.api.getIamScopes(),
+        scopes: this.api.getIamScopes().pipe(
+          map((scopes) => this.tenantContext.filterScopes(scopes)),
+        ),
         permissions: this.api.getPermissions(),
       }),
     );

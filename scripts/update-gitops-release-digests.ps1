@@ -21,6 +21,9 @@ $imageReferences = @(
 if ($imageReferences.Count -eq 0) {
     throw "No immutable image reference artifacts found under $imageDirectory."
 }
+if ($imageReferences.Count -ne 22) {
+    throw "Production promotion requires exactly 22 application image references; found $($imageReferences.Count)."
+}
 
 $digests = @{}
 foreach ($reference in $imageReferences) {
@@ -48,6 +51,28 @@ foreach ($name in ($digests.Keys | Sort-Object)) {
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to promote digest for $name."
     }
+}
+
+$versionPaths = @(
+    'k8s/overlays/prod/kustomization.yaml',
+    'k8s/overlays/prod/traefik-production.yaml',
+    'k8s/overlays/prod-spire-azure/kustomization.yaml'
+)
+foreach ($relativePath in $versionPaths) {
+    $versionPath = Join-Path $repositoryRoot $relativePath
+    if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
+        throw "Production release metadata path is missing: $relativePath"
+    }
+    $versionText = Get-Content -LiteralPath $versionPath -Raw
+    $updatedVersionText = [regex]::Replace(
+        $versionText,
+        '(?m)^(\s*app\.kubernetes\.io/version:\s*)[0-9a-f]{40}\s*$',
+        { param($match) "$($match.Groups[1].Value)$ReleaseSha" }
+    )
+    if ($updatedVersionText -eq $versionText) {
+        throw "Production release metadata does not contain an immutable app.kubernetes.io/version label: $relativePath"
+    }
+    [IO.File]::WriteAllText($versionPath, $updatedVersionText, [Text.UTF8Encoding]::new($false))
 }
 
 Write-Output "Updated $($digests.Count) approved production image digest(s) for release $ReleaseSha."

@@ -86,6 +86,7 @@ $adapterValues = [ordered]@{
     DATABASE_PHARMACY_URL                    = 'Host=postgres;Database=pharmacydb;Username=postgres;Password=postgres'
     DATABASE_AUDIT_URL                       = 'Host=postgres;Database=postgres;Username=postgres;Password=postgres'
     DATABASE_HARNESS_URL                     = 'Host=postgres;Database=harnessdb;Username=postgres;Password=postgres'
+    DATABASE_COMMERCE_URL                    = 'Host=postgres;Database=commercedb;Username=postgres;Password=postgres'
     POSTGRES_PASSWORD                        = 'postgres'
     RABBITMQ_PASSWORD                        = 'admin'
     REDIS_URL                                = 'redis://redis:6379'

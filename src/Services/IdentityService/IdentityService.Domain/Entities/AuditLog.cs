@@ -60,6 +60,21 @@ public class AuditLog
     public string? Source { get; set; }
 
     /// <summary>
+    /// Integrity hash of the preceding audit entry in this chain.
+    /// </summary>
+    public string? PreviousIntegrityHash { get; set; }
+
+    /// <summary>
+    /// SHA-256 hash of this entry and its preceding chain link.
+    /// </summary>
+    public string? IntegrityHash { get; set; }
+
+    /// <summary>
+    /// Monotonic sequence allocated under the database audit-chain lock.
+    /// </summary>
+    public long? IntegritySequence { get; set; }
+
+    /// <summary>
     /// UTC timestamp when the access occurred.
     /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;

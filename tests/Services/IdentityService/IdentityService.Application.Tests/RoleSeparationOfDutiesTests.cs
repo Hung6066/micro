@@ -20,4 +20,15 @@ public sealed class RoleSeparationOfDutiesTests
         RoleSeparationOfDuties.TryFindConflict(["Provider", "Nurse"], out _)
             .Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData("ManufacturingProductionOperator", "ManufacturingQualityManager")]
+    [InlineData("ManufacturingQualityInspector", "ManufacturingPlantManager")]
+    [InlineData("ManufacturingRecipeManager", "ManufacturingProductionOperator")]
+    public void Rejects_conflicting_manufacturing_four_eyes_roles(string executionRole, string approvalRole)
+    {
+        RoleSeparationOfDuties.TryFindConflict([executionRole, approvalRole], out var conflict)
+            .Should().BeTrue();
+        conflict.Should().Be($"{executionRole} + {approvalRole}");
+    }
 }

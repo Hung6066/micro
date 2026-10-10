@@ -152,7 +152,7 @@ public class MfaEndpointsTests
 
         var recoverResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaRecover,
             new { recoveryCode = "invalid-code-12345" });
-        Assert.Equal(HttpStatusCode.BadRequest, recoverResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, recoverResponse.StatusCode);
     }
 
     [Fact]

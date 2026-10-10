@@ -12,13 +12,24 @@ public sealed class AssurancePolicyService
 
     public AssurancePolicyDocument Policy => _policy;
 
-    public AssuranceEvaluationResult EvaluateJourney(ClaimsPrincipal principal, string journeyId, bool isBreakGlass = false) =>
-        AssurancePolicyEvaluator.Evaluate(
+    public AssuranceEvaluationResult EvaluateJourney(ClaimsPrincipal principal, string journeyId, bool isBreakGlass = false)
+    {
+        var journey = _policy.Journeys.FirstOrDefault(item =>
+            string.Equals(item.Id, journeyId, StringComparison.OrdinalIgnoreCase));
+        var authenticationFresh = journey is null || !journey.StepUpRequired ||
+            AssuranceClaimResolver.HasFreshAuthentication(
+                principal,
+                journey.MaxDurationMinutes ?? 15);
+
+        return AssurancePolicyEvaluator.Evaluate(
             _policy,
             journeyId,
             AssuranceClaimResolver.ResolveAssuranceLevel(principal),
             devicePostureFresh: AssuranceClaimResolver.HasFreshDevicePosture(principal),
-            isBreakGlass: isBreakGlass);
+            isBreakGlass: isBreakGlass,
+            authenticationFresh: authenticationFresh,
+            currentFactor: AssuranceClaimResolver.ResolveStrongestFactor(principal));
+    }
 
     public AssuranceEvaluationResult EvaluateRecovery(string recoveryMethod, string journeyId = "clinical-read") =>
         AssurancePolicyEvaluator.Evaluate(
@@ -26,7 +37,8 @@ public sealed class AssurancePolicyService
             journeyId,
             currentAssurance: "aal2",
             recoveryMethod: recoveryMethod,
-            devicePostureFresh: true);
+            devicePostureFresh: true,
+            currentFactor: recoveryMethod.Equals("passkey", StringComparison.OrdinalIgnoreCase) ? "passkey" : "mfa");
 
     public static AssurancePolicyDocument LoadConfiguredPolicy(IConfiguration configuration, IHostEnvironment environment)
     {

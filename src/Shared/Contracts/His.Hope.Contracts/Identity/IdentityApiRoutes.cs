@@ -84,6 +84,7 @@ public static class IdentityApiRoutes
         public const string AccessReviews = Base + "/access-reviews";
         public const string BreakGlassRequests = Base + "/break-glass/requests";
         public const string AuthorizationChanges = Base + "/authorization-changes";
+        public const string AuthorizationChangeRequests = Base + "/authorization-change-requests";
         public const string Sessions = Base + "/sessions";
         public const string WorkloadSessions = Base + "/workload-sessions";
         public const string Revocations = Base + "/revocations";
@@ -110,6 +111,7 @@ public static class IdentityApiRoutes
     public const string AdminAccessRequests = Admin + "/access-requests";
     public const string AdminAccessReviews = Admin + "/access-reviews";
     public const string AdminAuthorizationChanges = Admin + "/authorization-changes";
+    public const string AdminAuthorizationChangeRequests = Admin + "/authorization-change-requests";
     public const string AdminRebacListObjects = Admin + "/rebac/list-objects";
     public const string AdminBreakGlassRequests = Admin + "/break-glass/requests";
     public const string AdminPolicySimulate = Admin + "/policy/simulate";
@@ -153,6 +155,11 @@ public static class IdentityApiRoutes
     public const string MobilePushTokens = Mobile + "/push-tokens";
     public const string AuditEvents = ApiV1 + "/audit/events";
     public const string FederationSamlLogin = ApiV1 + "/federation/saml/login";
+    public const string MtlsLogin = Auth + "/mtls/login";
+    public const string AdminMtls = Admin + "/mtls";
+    public const string AdminMtlsBindings = AdminMtls + "/bindings";
+    public const string RadiusEapTls = Auth + "/radius/eap-tls";
+    public const string AdminRadiusEapTlsStatus = Admin + "/radius/eap-tls/status";
     public const string DevicePosture = ApiV1 + "/device-posture";
     public const string DevicePostureDecision = DevicePosture + "/decision";
     public const string AdminDevicePosture = Admin + "/device-posture";

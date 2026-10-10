@@ -1,6 +1,115 @@
 # Trạng thái triển khai blueprint Identity Control Plane
 
-Cập nhật: 2026-08-14
+Cập nhật: 2026-08-29
+
+## Xác thực phase tổng thể mới nhất (2026-08-29)
+
+Full integration matrix trên source hiện tại (`integration-matrix-current14`)
+đã xác nhận **15 project**, **618 test**, **616 pass**, **0 fail**, **2 skip**.
+Identity full-suite pass **460/460**; các BFF và service liên quan đều pass,
+bao gồm Manufacturing **56/56 executed**. Hai test Manufacturing bị skip vì
+thiếu customer database/credential external theo thiết kế môi trường.
+Vì vậy matrix không có regression test, nhưng trạng thái tổng hợp vẫn là
+**environment-blocked**, không gọi là xanh tuyệt đối.
+
+Sau khi sửa `RadiusEapTlsEndpointTests` tham gia cùng collection fixture,
+Identity integration suite chạy độc lập lần nữa với **460/460 pass** và chỉ
+còn một testhost/fixture lifecycle. Đây là hardening cho test isolation, không
+thay đổi authorization hoặc hạ tiêu chuẩn kiểm thử.
+
+Các phase production vẫn có trạng thái tổng hợp **environment-blocked**: DPoP/
+RFC 9700, DR contract, SIEM tamper drill, tenant-context, assurance policy,
+JWKS rotation, FAPI, SCIM, multi-region overlay và legacy-auth deprecation đều
+pass; service matrix cần được rerun trong môi trường ổn định trước promotion.
+
+Các điều kiện còn lại không phải lỗi build: service integration matrix còn 2
+test routing tenant external thiếu credential/database ngoài workspace; load
+baseline k6 chưa có vì không có `AUTH_TOKEN` hợp lệ; pentest/OIDC độc lập có chữ
+ký vẫn cần assessor bên ngoài. Không dùng các report automated/local để thay
+cho hai bằng chứng external này.
+
+Approval queue mới của admin-app đã được chuẩn hóa với i18n `vi-VN/en`, theme
+tokens và shared foundation (`hh-page-layout`, `hh-page-header`, `hh-alert`,
+`hh-data-table`, `hh-action-button`). Foundation build pass, admin production
+build pass, ChromeHeadless **35/35**, lint exit 0 với **299 warning** còn lại.
+Docker `his-hope-admin` healthy trên port `8083`, HTTP `200`; Identity health và
+readiness đều `200`.
+
+## Xác thực release-evidence mới nhất (2026-08-29)
+
+`scripts/validate-enterprise-production-phases.ps1 -Phase all` đã chạy xong với
+12 gate pass, 3 gate skip và 1 gate environment-blocked; trạng thái tổng hợp
+**environment-blocked**. Hai điều kiện còn
+chặn promotion là load baseline k6 chưa có artifact hợp lệ và báo cáo OIDC/
+pentest độc lập có chữ ký chưa được cung cấp. Các report tự sinh bởi test local
+chỉ là automated evidence, không được tính thay cho assessor bên ngoài.
+
+Verifier `scripts/verify-independent-security-evidence.ps1` hiện bắt buộc
+`evidenceSource=external-independent` cùng metadata chữ ký đã verify qua HTTPS;
+report local/legacy bị từ chối fail-closed. Runtime hiện có gateway health 200;
+`patientservice` và `appointmentservice` đã được build/start lại và protected
+endpoints trả 401 khi không có token. Load baseline vẫn chưa chạy vì workspace
+không có `AUTH_TOKEN` hợp lệ; k6 script đã fail-closed khi thiếu token thay vì
+dùng placeholder.
+
+Các static production contracts được refresh sau đó đều **PASS**: API security,
+authorization, DPoP, Identity secret wiring, observability, reliability,
+persistence/operational boundaries và migration contract (8/8 DbContext, hash
+integrity, destructive review, migration isolation và 7 migration Jobs). Full
+solution build hiện pass với 0 compiler/analyzer warning và 0 error. Admin-app
+production build pass; lint còn 299 warning không chặn build, chủ yếu
+là Angular control-flow/Material migration và import cũ.
+
+## Xác thực mới nhất (2026-08-28)
+
+Các gate sau đã được chạy lại trên source hiện tại; các mục `PASS` có exit code thành công,
+còn gate bị thiếu cấu hình được ghi rõ thay vì suy diễn là đã pass:
+
+| Gate | Kết quả | Ghi chú |
+|---|---:|---|
+| Identity integration Docker runner | **459/459** | 0 failed, 0 skipped; dùng PostgreSQL/Redis cô lập trên network Docker |
+| Manufacturing external tenant routing | **2/2 PASS** | Manifest pass; dedicated routing và Manufacturing schema pass khi chạy với `-SkipSharedRoutingTest` theo contract external-only. Không dùng default shared PostgreSQL credential local vì môi trường hiện tại không khớp |
+| Cross-service API contracts | **121/121** | 8 service contract projects |
+| Manufacturing integration suite | **55/55 + 2 external SKIP** | Testcontainers PostgreSQL; canonical tenant-context and workflow contracts pass; external tenant variables are loaded from secure connection file when available |
+| External-test discovery without credentials | **PASS** | 2 external tests are correctly discovered as `SKIP` (not false `FAIL`) when the secure connection file/env is absent |
+| Reliability platform | **24/24** | Testcontainers PostgreSQL/Redis |
+| API security / authorization / database-platform contracts | **PASS** | Không có route API thiếu security bootstrap |
+| Full solution build | **PASS** | Forced `dotnet build His.Hope.sln --no-restore --force` completed with 0 errors and 0 emitted warnings; targeted Identity API diagnostics remain tracked separately; duplicate generated gRPC type warnings were removed by centralizing `identity.proto` |
+| Shared foundation unit tests | **48/48** | Karma + ChromeHeadless pass trên source hiện tại, gồm `hh-select` và các UI/security contracts |
+| Admin app unit tests | **35/35** | Karma + ChromeHeadless pass sau tenant-switcher và capability API hardening |
+| Dashboard app unit tests | **34/34** | Karma + ChromeHeadless pass sau resource-card keyboard/event hardening |
+| Tenant context contract | **PASS** | Frontend gửi `X-HisHope-Tenant`, tự loại `tenantKey` khỏi query; Manufacturing API chỉ giữ query/body `tenantKey` cho tương thích và chặn body selector lệch context bằng `403 tenant_context_mismatch` |
+| Frontend lint/build (foundation/admin/dashboard/internal-operator/operator-mobile/manufacturing-buyer) | **PASS** | Shared foundation, 5 app production builds và lint đều pass; internal operator không còn lint warning; admin còn 299 warning và dashboard còn 30 warning không chặn; buyer đã được bổ sung lint target/config |
+| Docker Compose config/runtime | **PASS** | Template không chứa credential external; Manufacturing image đã rebuild/recreate, container `healthy`, `/health` trả 200 và protected endpoint anonymous trả 401 |
+
+Runtime smoke hiện tại: Identity `5001/health/ready`, Manufacturing `/health`,
+admin-app và operator-app đều trả HTTP 200; protected API khi anonymous trả
+401. Authenticated live tenant-switch smoke vẫn cần credential runtime hợp lệ,
+không dùng mật khẩu đoán hoặc tự ý reset để làm xanh gate.
+
+Validation update 2026-08-29: bộ migration SQL idempotent mới đã được tạo tại
+`artifacts/database-migrations-current-final/` cho đủ 8 DbContext, bao gồm
+`authorization_change_requests`; migration contract pass. Migration đã được
+apply additive vào local Docker `identitydb`, không xoá volume/dữ liệu.
+Authorization endpoint inventory sau khi thêm workflow
+maker-checker pass với **201 total, 119 protected, 4 anonymous, 0 missing**.
+Admin-app build và ChromeHeadless unit test lần cuối lần lượt pass và **35/35**;
+Angular lint exit code pass với 299 warning hiện hữu.
+Identity image runtime mới `sha256:c0f24216c94ada55c6a1571ee475decf3744686c834c9a15f5d3f62d7390c223`
+đã recreate thành công; migration và seed hoàn tất, health/ready đều `200`,
+approval queue anonymous trả `401`. Đồng bộ soft-delete query filter cho
+`UserPasswordHistory` và `UserClientCertificate` đã loại bỏ cảnh báo EF về
+required relationship với `User`; regression role/governance sau thay đổi
+vẫn pass **28/28** tại `artifacts/evidence/role-governance-filter-final/`.
+Sau khi đồng bộ filter, các API service warning về helper certificate không được
+gọi và nullable cache ở Pharmacy đã được loại bỏ; full solution build lần cuối
+vẫn **0 warning/0 error**. Pharmacy integration regression có TRX hiện tại
+pass **5/5** tại `artifacts/evidence/pharmacy-warning-cleanup/`.
+
+Shared-foundation Playwright đã được thử lại; 42 case đều bị guard chặn với
+`E2E_AUTH_REQUIRED=true` khi môi trường không có credential SSO. Đây là
+`environment-blocked`, không được hạ guard hoặc tính là UI pass giả. Public
+operator smoke (1/1) và buyer smoke (2/2) vẫn pass.
 
 Tài liệu này đối chiếu implementation hiện tại với blueprint
 `docs/research/2026-08-14-bigtech-identity-control-plane-standardization.vi.md`.
@@ -14,7 +123,7 @@ Tài liệu này đối chiếu implementation hiện tại với blueprint
 | Effective-permission source of truth | PASS | Login và `/api/v1/admin/me/permissions` đọc `RolePermissions` trong `IdentityDbContext`; break-glass chỉ cộng khi approved, chưa revoke và chưa hết hạn |
 | Role governance metadata | PASS | Role có owner, authorization version, risk tier, review cadence, lifecycle/publish metadata; migration `AddRoleGovernance` đã apply trong Compose PostgreSQL |
 | Role template lifecycle | PASS (pilot) | `role_template_versions` lưu snapshot immutable; Admin API có history, publish và rollback; rollback revokes user tokens và ghi `AUTHZ_ROLE_ROLLBACK` |
-| Policy catalog / ABAC context | PASS (pilot) | `authorization_policy_definitions` versioned draft/published/retired store; allow-listed fail-closed evaluator cho facility, purpose-of-use, device posture, break-glass và assurance; Admin-app hiển thị catalog; read-only lint endpoint và deterministic signed published-policy bundle đã có |
+| Policy catalog / ABAC context | PASS (pilot) | `authorization_policy_definitions` versioned draft/published/retired store; allow-listed fail-closed evaluator cho facility, purpose-of-use, device posture, break-glass và assurance; Admin-app hiển thị catalog; read-only lint/compile endpoint, repository policy-as-code fixtures và durable hash-addressed signed bundle registry đã có |
 | ReBAC/OpenFGA adapter | PASS (shadow pilot) | Shared `IOpenFgaClient` hỗ trợ `Check` và `ListObjects`; `AUTHZ_PDP_MODE=shadow|canary` chỉ ghi telemetry, không thể grant; endpoint list-objects bị bảo vệ và fail-closed khi adapter chưa cấu hình |
 | AuthorizationChange audit | PASS | Role create/update/delete và user role assignment ghi append-only `AUTHZ_*` vào `AuditLog` với actor, principal type, audience, reason, before/after và correlation id; có endpoint read-only |
 | Access request / maker-checker / SoD | PASS (pilot) | `access_requests` persisted workflow; approval yêu cầu MFA và approver khác requester; role conflicts Provider+BillingClerk và Pharmacist+BillingClerk bị fail-closed; token revocation và audit sau approve |
@@ -30,16 +139,18 @@ Tài liệu này đối chiếu implementation hiện tại với blueprint
 | Internal UI/API smoke | PASS | Docker internal smoke và frontend/admin/foundation test suites đã có bằng chứng pass trước rollout này |
 | Mutating endpoint authorization inventory | PASS | `scripts/validate-authorization-endpoint-coverage.ps1 -Strict` sinh `docs/integration/authorization-endpoint-inventory.json`: 95 routes, 86 protected, 6 anonymous, 0 missing; gate đã được đưa vào `.github/workflows/platform-quality-gates.yml` và upload evidence |
 | Admin-app P0/P1 mutation governance | PASS | Mutation controls now require explicit permission snapshots for users, roles, clients, break-glass, provisioning, mobile, settings and database operations; Role create/update dialog uses existing Identity API; design/plan: `docs/superpowers/specs/2026-08-14-admin-p0-p1-mutation-governance-design.md` |
+| Authorization change request control | PASS (repository/UI) | `authorization_change_requests` persists request/approve/reject/execute state; Role and AuthorizationPolicy publish/rollback require MFA, independent approver and unchanged version snapshot; admin-app has canonical approval queue. Live two-identity MFA approval remains environment evidence. |
 | Delegated role-grant governance | PASS | Identity API rejects unknown permission references, keeps system roles immutable, limits role create/update/publish/rollback and user-role/access-request approval to the actor's effective permission and active facility scope; `admin.permissions.write`/`facility.cross` are explicit elevation boundaries |
 
 ## Chưa thể gọi là hoàn tất toàn bộ blueprint
 
 Các phần dưới đây vẫn là workstream tiếp theo, không được suy ra là đã hoàn thành từ build hoặc catalog metadata:
 
-1. Role template lifecycle đã có bản pilot; còn thiếu đầy đủ maker-checker riêng cho mọi publish/rollback path và durable bundle artifact registry. Policy lint/signed snapshot endpoint đã có nhưng chưa thay thế signed CI artifact delivery.
-3. Policy-as-code compiler/linter và signed bundle delivery còn thiếu; catalog/evaluator ABAC context pilot đã có.
-4. ReBAC/OpenFGA production cutover còn thiếu: cần tenant/model/credentials, latency/error SLO dashboard, mismatch budget và canary approval gate. Adapter shadow pilot đã có.
-5. Live Google Workspace, Entra, SSF receiver, mTLS, RADIUS EAP-TLS, Chrome Device Trust và Windows local-login gates.
+1. Signed CI artifact delivery cần một lần chạy push `main` để tạo bằng chứng OIDC thực tế; repository contract đã pass.
+2. Production approval evidence cần hai danh tính MFA thật và live execute sau approval; automated contract hiện đã pass 28/28.
+3. ReBAC/OpenFGA production cutover còn thiếu tenant/model/credentials, latency/error SLO dashboard, mismatch budget và canary approval gate. Adapter shadow pilot đã có.
+4. Live Google Workspace, Entra, SSF receiver, mTLS, RADIUS EAP-TLS, Chrome Device Trust và Windows local-login gates.
+5. Independent pentest, k6 load baseline, external Manufacturing database placement và authenticated SSO E2E vẫn là external/environment evidence.
 
 ## Flow chuẩn hóa
 
@@ -96,7 +207,7 @@ server-backed contract, không chỉ việc item xuất hiện trên sidebar:
 | Overview | PASS | `/dashboard` có health, metrics và quick links. |
 | Organizations & tenants | PARTIAL | `/iam-control-plane` hiện có các projection Organizations & tenants và Accounts & environments từ `IamScope`; delegated admin và account/environment lifecycle riêng vẫn còn thiếu. |
 | Identities | PARTIAL | UI đã gom workforce users, groups và workload/service principals; external identities/provider có server-backed projection; membership mutation và lifecycle workflow chi tiết vẫn còn thiếu. |
-| Applications | PARTIAL | UI đã gom OAuth clients, service catalog và server-backed API-audience/trusted-issuer projections; lifecycle độc lập (create/update/rotate/revoke) vẫn còn thiếu. |
+| Applications | PASS (core lifecycle) / PARTIAL (enterprise federation) | Identity Service đã có lifecycle độc lập cho OAuth clients: list/get/create/update/delete, rotate secret, onboarding metadata; mutation có tenant access guard, optimistic concurrency, secret store và audit. `ClientEndpointTests.Admin_client_crud_and_onboarding_paths_are_exercised` đã xác minh create/list/get/onboarding/rotate/update conflict/update/delete. API-audience/trusted-issuer/service-catalog projections và Admin-app dùng boundary shared foundation/i18n/theme. Các năng lực federation nâng cao như live IdP validation, HSM/KMS/PKI-backed key lifecycle, dynamic registration production drill và workload credential inventory vẫn cần evidence môi trường enterprise. |
 | Authorization | PARTIAL | Service catalog, permission sets, assignments (GET/create/revoke), boundaries, resource policies, publish và effective access đã có server API/UI; policy editor/compiler chuyên dụng còn thiếu. |
 | Access governance | PARTIAL | Access request/review/SoD/break-glass đã có pilot endpoint và access-management summary; chưa có các trang workflow riêng cho request queue, campaign, JIT và break-glass approval. |
 | Sessions & credentials | PASS (core) / PARTIAL (workload) | Unified `GET /api/v1/admin/sessions` đã cấp inventory server-backed cho toàn bộ active users, redacted device metadata và revoke audited từ admin-app; workload-session inventory/credential rotation vẫn còn thiếu. |
@@ -777,3 +888,168 @@ that evidence.
 - IAM table actions now use shared foundation icon-button tokens with i18n `aria-label`/tooltip: edit, activate/deactivate, publish, lint, revoke and rollback. Missing `admin.edit`/`admin.activate`/`admin.deactivate` dictionary entries were added to both Vietnamese and English dictionaries, removing raw translation keys from the UI.
 - Shared foundation now owns the `.hh-form-card`/`.hh-form-grid` contract used by IAM CRUD forms: labels are block/grid fields, controls inherit theme tokens, focus/disabled states are accessible, and the grid collapses on narrow screens. This removes browser-default inline textbox rendering from Groups and the other IAM forms.
 - Analyzer pages now also use the shared `.hh-field` contract; direct action buttons inside page content no longer stretch to full width, and native select controls inherit the same themed dimensions and focus state.
+
+### Verification update — 2026-08-27 enterprise audit and scope safeguards
+
+- Identity Service now exposes bounded `GET /api/v1/audit-logs/export` CSV
+  export with tenant filtering, date/action/resource filters, a 10,000-row
+  ceiling, CSV formula-injection protection and an audit record for each export.
+- IAM scope create/update operations now write authorization audit records and
+  reject hierarchy cycles or kind changes that would invalidate active child
+  scopes. Existing activate/deactivate lifecycle checks remain enforced.
+- Identity API build passed with zero errors and infrastructure tests passed
+  `251/251`. External SIEM/WORM, HA/DR, FAPI, vendor-conformance and device-lab
+  gates remain operational prerequisites and are not claimed by local tests.
+
+### Verification update — 2026-08-27 runtime refresh and integration status
+
+- Rebuilt and recreated the `identityservice` Docker image after the session
+  guard change. Container health is `healthy`; `GET /health` returns `200` and
+  unauthenticated audit export returns `401` as required.
+- `InternalRefresh_WithoutSession_Returns401` passes in the Docker integration
+  runner. The local host build remains unavailable because the machine NuGet
+  cache is missing `Microsoft.CodeAnalysis.Analyzers`; Docker restore/build is
+  the authoritative build evidence.
+- The full Docker integration suite now passes `459/459`. Table-view CRUD is
+  covered on a fresh migrated PostgreSQL database; the shared lifecycle
+  interceptor now converts `DateTime` values to `DateTimeOffset` when required.
+  SAML coverage cleanup uses a test-only hard delete for global settings so
+  soft-delete cannot retain a stale primary key, and the BFF guard contract is
+  consistently asserted as `401` for a missing session.
+
+### Verification update — 2026-08-29 current workspace validation
+
+- `dotnet build His.Hope.sln --configuration Release --no-restore` passed with
+  `0 warning / 0 error`. Nullable comparisons against shared `ValueObject`
+  were corrected at the common operator contract and SharedKernel tests pass
+  `127/127`.
+- Static API security, authorization, DPoP, migration, Identity deployment,
+  observability, reliability, persistence and operational validators all pass;
+  `git diff --check` is clean.
+- Authorization endpoint inventory was regenerated in strict mode with
+  `198` routes, `116` protected, `4` explicitly anonymous and `0` missing
+  authorization mappings.
+- Policy-as-code catalog gate passes for the repository catalog with two
+  versioned policies and allow/deny fixtures; unknown rule keys, invalid
+  metadata and fixture expectation drift fail the gate.
+- Platform quality workflow now signs and verifies the policy catalog with
+  Cosign keyless OIDC on protected `main` pushes and uploads the signature and
+  certificate beside the catalog evidence. Pull requests still validate and
+  upload the unsigned repository evidence only; no local run is counted as
+  proof of the protected CI signature.
+- OpenFGA canary is now fail-closed for missing subject or unavailable PDP;
+  the local permission decision is never upgraded to allow during a canary
+  dependency failure. Shadow mode remains telemetry-only.
+- Full solution tests were attempted. Unit/domain/application groups pass,
+  but Content integration tests are **environment-blocked** by PostgreSQL
+  `28P01` credential mismatch (`postgres`), and the run was stopped while
+  another integration process waited for infrastructure timeout. This is not
+  counted as a green full-suite result.
+- Sau đó đã xác minh lại đúng runtime connection của Compose (`localhost:5433`,
+  database `contentdb`) và Content integration đạt **8/8**; RFC9700 conformance
+  đạt **9/9** trong Docker và Identity Infrastructure đạt **3/3**. Aggregate
+  full-suite vẫn chưa được tính là green vì runner không thu được một aggregate
+  exit artifact đáng tin cậy cho toàn bộ các project chạy đồng thời.
+- Frontend lint exits successfully with warnings: admin-app currently reports
+  `382` legacy warnings and mobile-app `2`; shared foundation, operator-app
+  and the other configured lint targets did not report blocking errors. These
+  warnings remain a migration backlog and are not suppressed by this audit.
+
+### Security update — privileged Identity operating model (2026-08-29)
+
+Database, Redis, object storage, backup/PITR và DR hardening runbook:
+[Database và Storage Security Hardening Runbook](../operations/database-storage-security-hardening-runbook.vi.md).
+
+The following six mandatory controls have now been implemented or connected to
+the existing Identity Control Plane. Production evidence remains separated
+from local development evidence; a healthy container is not treated as proof
+of a real FIDO2, Vault or external-SIEM integration.
+
+| Control | Status | Implementation / evidence |
+|---|---|---|
+| Separate privileged identity and portal | **PASS (production policy)** | Configured super-admins receive the `HumanSuperAdmin` policy and, when `Identity:SuperAdmin:RestrictToControlPlane=true`, the `privileged_operator` portal class and a backend control-plane permission boundary. They cannot receive normal clinical/manufacturing/commerce permissions from the token/session permission projection. |
+| Dual control / SoD | **PASS** | Support elevation is `pending` until another principal approves it; self-approval returns `maker_checker_conflict`; approve/revoke are audited. Existing access-request, access-review and break-glass workflows also require MFA and reject requester=self approver. |
+| Security keys and recovery | **PASS (contract/runtime logic)** | Production startup requires each configured super-admin to be active, email-confirmed and enrolled in TOTP or at least two passkeys. Passkey authentication and MFA challenges advertise all registered credentials. Recovery-code reset requires an already completed MFA step and revokes all user tokens after the reset. |
+| Privileged session and token binding | **PASS (source/config)** | Privileged BFF sessions use 15-minute idle and 4-hour absolute limits; ordinary sessions use 30-minute idle and 8-hour absolute limits. Idle expiry is refreshed only within the absolute limit. `his-hope-admin` is included in required DPoP clients; reference refresh-token rotation and zero reuse leeway remain enabled. |
+| Audit, SIEM and response | **PASS (internal pipeline); UNVERIFIED (external SIEM)** | Privileged elevation, MFA recovery, authorization changes and session/token revocations use durable audit. Security Signal Outbox/dispatcher and admin delivery-health endpoints are present. Delivery to a real external SIEM/receiver still requires production endpoint, credentials and signed receiver evidence. |
+| Change control and drift | **PASS (startup/governance); UNVERIFIED (scheduled production drill)** | Production validates configured super-admin IDs, active state, confirmed email and MFA/passkey posture at startup. Role/policy publish, rollback, versioning, lifecycle, audit and access-review controls are present. A live periodic drift-review run and rollback drill in production remain external release evidence. |
+
+Key source contracts:
+
+- `IdentityDbInitializer.ValidateProductionSuperAdminsAsync` — production
+  super-admin bootstrap and MFA/passkey posture gate.
+- `SupportElevationEndpoints` — pending/approve/revoke dual-control flow.
+- `PrivilegedIdentityPermissionBoundary` — backend control-plane permission
+  filtering; frontend visibility is not used as authorization.
+- `SessionData` and `SessionAuthMiddleware` — idle/absolute privileged session
+  enforcement and refresh.
+- `PasskeyEndpoints` — multi-key WebAuthn challenge and passkey status.
+
+Validation recorded for this update:
+
+- Identity API build: **0 errors** (existing compiler warnings remain tracked).
+- Identity Application tests: **278/278 PASS**.
+- Identity Infrastructure tests: **252/252 PASS**.
+- Shared Authorization tests: **42/42 PASS**.
+- BFF session tests: **18/18 PASS**.
+- MFA coverage tests: **12/12 PASS**; MFA endpoint tests: **9/9 PASS**.
+- Docker image rebuilt and Identity container recreated; final runtime
+  `healthy`, `/health=200`, unauthenticated admin API `401`.
+- `git diff --check`: **PASS**.
+
+Current full-solution build now succeeds with **0 warning / 0 error** after
+cleaning the remaining nullable converter, unnecessary async endpoint and
+test nullability warnings. Patient integration regression after the converter
+change passes **10/10**.
+
+The local Compose environment runs in development mode and intentionally does
+not prove production FIDO2 hardware, device posture/IP/VPN enforcement,
+Vault Transit bootstrap or external SIEM delivery. Production configuration
+must provide non-empty `Identity:SuperAdmin:UserIds`, enable
+`Identity:SuperAdmin:RestrictToControlPlane`, configure Vault/KMS and supply
+the registered admin device/network controls before promotion.
+
+### Integration matrix update — 2026-08-29
+
+- Shared `ErrorContractMiddleware` now bypasses REST response buffering for
+  native gRPC and grpc-web content types, preserving generated protobuf
+  response bodies and trailers. The authenticated in-facility gRPC contract
+  passes for Patient, Appointment, Billing, Clinical, Lab and Pharmacy: **6/6**.
+- Shared data lifecycle conventions no longer add independent lifecycle
+  shadow properties to owned value objects sharing the owner row; this prevents
+  conflicting `created_at` values in Patient persistence.
+- The sequential matrix runner covers **9** integration projects and counts
+  skipped outcomes from TRX result nodes. The authoritative rerun with
+  `-ContentDatabaseUrl 'Host=localhost;Port=5433;Database=contentdb;Username=postgres;Password=postgres'`
+  records **129 passed, 0 failed, and 2 skipped**; the aggregate status is
+  `environment-blocked` only because those two Manufacturing tests are
+  intentionally skipped. Evidence: `artifacts/evidence/integration-matrix-current4/`.
+- `validate-enterprise-production-phases.ps1` now consumes this matrix as a
+  first-class phase-1 check and fails closed on failed or skipped service
+  tests. The lightweight CI invocation explicitly records the matrix as
+  skipped; a release workflow must provide the matrix artifact before
+  promotion.
+- Full phase validation with the current matrix completed with all repository
+  checks passing except the expected external gates: `service-integration-matrix`
+  is blocked by the two intentional Manufacturing external-database skips,
+  `pentest-evidence` lacks signed independent reports, and
+  `load-test-baseline` has no k6 summary. RFC9700, DPoP, DR contract, SIEM
+  tamper drill, tenant context, assurance, JWKS, FAPI, SCIM, multi-region and
+  legacy-auth checks all pass. Evidence:
+  `artifacts/evidence/enterprise-production-phases.json`.
+- Identity role/governance contract rerun after aligning the tests with the
+  fail-closed behavior passes **28/28**. The suite now explicitly accepts
+  `403` before resource lookup when role publish/rollback lacks MFA and
+  `404` when a durable signed policy bundle has not been released.
+- The persisted four-eyes workflow is now implemented additively through
+  `authorization_change_requests` and canonical routes under both
+  `/api/v1/admin/authorization-change-requests` and
+  `/api/v1/admin/iam/authorization-change-requests`. Direct role/policy
+  publish and rollback now return `202 Accepted` with a request id until a
+  different MFA-authenticated approver approves it; execution requires the
+  approved request id, the same actor who approved it, and an unchanged
+  version snapshot. Supported pairs are explicitly restricted to Role
+  publish/rollback and AuthorizationPolicy publish/rollback. The current
+  contract regression is **28/28** pass; live approval/execution still needs
+  a two-identity MFA runtime fixture before it can be called production
+  evidence.

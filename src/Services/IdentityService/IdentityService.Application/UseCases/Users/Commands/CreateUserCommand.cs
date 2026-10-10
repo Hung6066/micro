@@ -2,6 +2,7 @@ using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Users.Commands;
 
@@ -33,12 +34,12 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
         // Check for duplicate username
         var existingUser = await _userManager.FindByNameAsync(request.Username);
         if (existingUser is not null)
-            throw new InvalidOperationException("Username already exists.");
+            Guard.Against.Conflict(true, "Username already exists.");
 
         // Check for duplicate email
         var existingEmail = await _userManager.FindByEmailAsync(request.Email);
         if (existingEmail is not null)
-            throw new InvalidOperationException("Email already registered.");
+            Guard.Against.Conflict(true, "Email already registered.");
 
         var user = new User
         {

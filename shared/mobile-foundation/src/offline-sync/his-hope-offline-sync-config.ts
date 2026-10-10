@@ -4,7 +4,8 @@ export interface HisHopeOfflineSyncConfig {
   readonly endpoint: string;
 }
 
-/** Minimum auth surface the mobile session service needs from the host app. */
+/** Minimum auth surface mobile shell security needs from the host app. */
 export interface HisHopeMobileAuthActions {
   login(): void;
+  logout?(): void;
 }

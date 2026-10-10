@@ -5,7 +5,7 @@ const { clinicalUrl } = require('./config/urls');
 const { signInThroughIdentity } = require('./helpers/sso-login');
 const { requireE2eCredentials } = require('./config/credentials');
 
-const STORAGE_STATE_FILE = path.join(__dirname, 'fixtures', 'shared-foundation-auth.json');
+const STORAGE_STATE_FILE = path.join(__dirname, 'fixtures', 'shared-foundation-auth.generated.json');
 
 module.exports = async () => {
   if (process.env.E2E_AUTH_REQUIRED !== 'true') {

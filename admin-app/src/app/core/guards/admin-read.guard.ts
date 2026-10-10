@@ -2,7 +2,7 @@ import { inject } from "@angular/core";
 import { ActivatedRouteSnapshot, CanActivateFn, Router } from "@angular/router";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { Observable, of } from "rxjs";
-import { catchError, map, switchMap, tap } from "rxjs/operators";
+import { catchError, map, tap } from "rxjs/operators";
 import { resolveAdminRoutePermission } from "../authorization/admin-route-permissions";
 import { AdminPermissionsApiService } from "../services/admin-permissions-api.service";
 

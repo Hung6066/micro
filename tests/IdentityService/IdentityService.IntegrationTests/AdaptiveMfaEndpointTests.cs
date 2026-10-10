@@ -165,7 +165,7 @@ public sealed class AdaptiveMfaEndpointTests
         var response = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.PasskeyMfaOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await response.Content.ReadAsStringAsync()).ToLowerInvariant().Should().Contain("not enrolled");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("mfa_passkey_not_enrolled");
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public sealed class AdaptiveMfaEndpointTests
         var response = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaOptions, new { ticket });
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await response.Content.ReadAsStringAsync()).ToLowerInvariant().Should().Contain("not enrolled");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("mfa_passkey_not_enrolled");
     }
 
     [Fact]

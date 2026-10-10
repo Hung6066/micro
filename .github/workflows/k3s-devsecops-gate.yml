@@ -14,6 +14,16 @@ on:
       - 'scripts/check-restricted-workloads.py'
       - 'scripts/validate-gitops-plane.ps1'
       - 'scripts/validate-storage-backup-contract.ps1'
+      - 'scripts/validate-database-storage-security-contract.ps1'
+      - 'scripts/tests/database-storage-security-contract.Tests.ps1'
+      - 'scripts/tests/non-integration-test-runner.Tests.ps1'
+      - 'scripts/tests/application-restore-smoke.Tests.ps1'
+      - 'scripts/tests/powershell-compatibility.Tests.ps1'
+      - 'scripts/validate-production-storage-attestation.ps1'
+      - 'scripts/tests/storage-attestation.Tests.ps1'
+      - 'scripts/validate-azure-blob-retention.py'
+      - 'scripts/configure-azure-blob-immutability.ps1'
+      - 'scripts/tests/test_azure_blob_retention.py'
       - 'scripts/validate-dr-evidence.ps1'
       - 'scripts/test-cnpg-restore-drill.ps1'
       - 'scripts/verify-production-backup-restore.ps1'
@@ -57,6 +67,8 @@ on:
       - 'scripts/tests/test_collect_dora_metrics.py'
       - 'scripts/validate-reliability-platform.ps1'
       - 'scripts/validate-production-ha-spire-k3s.ps1'
+      - 'scripts/validate-production-ha-contract.py'
+      - 'scripts/validate-production-data-plane-ha-contract.py'
       - 'scripts/validate-linkerd-spire-mtls-k3s.ps1'
       - 'scripts/validate-k3s-host-security-contract.py'
       - 'scripts/validate-linkerd-policy-contract.py'
@@ -178,6 +190,16 @@ jobs:
         shell: pwsh
         run: ./scripts/config/validate-kustomize-runtime.ps1 -Overlay '${{ matrix.environment }}'
 
+      - name: Validate production HA contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-production-ha-contract.py
+
+      - name: Validate production data-plane HA contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-production-data-plane-ha-contract.py
+
       - name: Validate production release invariants
         if: matrix.environment == 'prod'
         shell: pwsh
@@ -241,6 +263,11 @@ jobs:
         if: matrix.environment == 'prod'
         shell: pwsh
         run: ./scripts/validate-storage-backup-contract.ps1 -StaticOnly -OutputPath artifacts/evidence/storage-backup-contract.json
+
+      - name: Validate database and storage security promotion contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-database-storage-security-contract.ps1 -AllowEnvironmentBlocked -OutputPath artifacts/evidence/database-storage-security-contract.json
 
       - name: Validate measured DR evidence contract
         if: matrix.environment == 'prod'

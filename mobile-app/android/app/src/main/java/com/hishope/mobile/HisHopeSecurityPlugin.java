@@ -375,6 +375,7 @@ public final class HisHopeSecurityPlugin extends Plugin {
             public void checkServerTrusted(X509Certificate[] chain, String authType) throws java.security.cert.CertificateException {
                 systemTrust.checkServerTrusted(chain, authType);
                 if (chain == null || chain.length == 0) throw new java.security.cert.CertificateException("Empty server certificate chain");
+                String actual;
                 try {
                     actual = HisHopeSpkiPin.sha256SpkiPin(chain[0]);
                 } catch (java.security.cert.CertificateException ex) {

@@ -1,0 +1,42 @@
+@use "../shared/buyer-page";
+
+.back-link {
+  display: inline-block;
+  margin-bottom: var(--space-lg);
+  color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.article {
+  overflow: hidden;
+}
+
+.article__media img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  display: block;
+}
+
+.article__body {
+  padding: var(--space-xl) var(--space-2xl) var(--space-2xl);
+}
+
+.article__meta {
+  display: block;
+  margin-bottom: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.article h1 {
+  margin: 0 0 var(--space-lg);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  line-height: var(--leading-tight);
+}
+
+.article__content :global(p) {
+  margin: 0 0 var(--space-md);
+  color: var(--text-primary);
+  line-height: var(--leading-body);
+}

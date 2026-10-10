@@ -47,6 +47,39 @@ describe('HisHopeSelectComponent', () => {
     expect(document.querySelector('[role="listbox"]')).toBeTruthy();
   });
 
+  it('keeps the dropdown panel the same width as its trigger', () => {
+    const host: HTMLElement = fixture.nativeElement.querySelector('hh-select');
+    Object.defineProperty(host, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ width: 320, height: 40, top: 0, bottom: 40, left: 0, right: 320 }),
+    });
+
+    host.click();
+    fixture.detectChanges();
+
+    const pane = document.querySelector('.cdk-overlay-pane') as HTMLElement;
+    const panel = document.querySelector('.hh-select__panel') as HTMLElement;
+    expect(pane.style.width).toBe('320px');
+    expect(panel.style.width).toBe('100%');
+  });
+
+  it('uses the trigger typography in the detached dropdown overlay', () => {
+    const host: HTMLElement = fixture.nativeElement.querySelector('hh-select');
+    host.style.fontSize = '12px';
+    host.style.fontFamily = 'Test Sans';
+    host.style.fontWeight = '600';
+    host.style.lineHeight = '18px';
+
+    host.click();
+    fixture.detectChanges();
+
+    const pane = document.querySelector('.cdk-overlay-pane') as HTMLElement;
+    expect(pane.style.fontSize).toBe('12px');
+    expect(pane.style.fontFamily).toBe('Test Sans');
+    expect(pane.style.fontWeight).toBe('600');
+    expect(pane.style.lineHeight).toBe('18px');
+  });
+
   it('selects an option and updates the ngModel-bound value', () => {
     const host: HTMLElement = fixture.nativeElement.querySelector('hh-select');
     host.click();

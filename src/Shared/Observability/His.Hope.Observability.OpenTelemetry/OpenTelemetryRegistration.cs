@@ -45,6 +45,7 @@ public static class OpenTelemetryRegistration
                 .AddRuntimeInstrumentation()
                 .AddMeter("His.Hope.Identity")
                 .AddMeter("His.Hope.Identity.Audit")
+                .AddMeter("His.Hope.AspNetCore.Tenancy")
                 .AddPrometheusExporter());
 
         return services;

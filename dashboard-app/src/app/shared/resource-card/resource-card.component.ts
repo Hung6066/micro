@@ -98,7 +98,7 @@ import { Resource } from '../../core/models/resource.model';
                 'dashboard.resources.cpu' | hhTranslate: 'CPU'
               }}</span>
               <span class="meta-value">{{
-                resource.cpuPercent != null
+                resource.cpuPercent !== null && resource.cpuPercent !== undefined
                   ? (resource.cpuPercent | number: '1.1-1') + '%'
                   : '—'
               }}</span>
@@ -108,7 +108,7 @@ import { Resource } from '../../core/models/resource.model';
                 'dashboard.resources.memory' | hhTranslate: 'Memory'
               }}</span>
               <span class="meta-value">{{
-                resource.memoryUsedMb != null
+                resource.memoryUsedMb !== null && resource.memoryUsedMb !== undefined
                   ? (resource.memoryUsedMb | number: '1.0-0') + ' MB'
                   : '—'
               }}</span>
@@ -118,11 +118,11 @@ import { Resource } from '../../core/models/resource.model';
 
         <mat-divider></mat-divider>
 
-        <div class="card-actions" (click)="$event.stopPropagation()">
+        <div class="card-actions">
           <button
             mat-stroked-button
             size="small"
-            (click)="onStart()"
+            (click)="$event.stopPropagation(); onStart()"
             [disabled]="resource.status === 'Running'"
           >
             <mat-icon>play_arrow</mat-icon>
@@ -131,13 +131,13 @@ import { Resource } from '../../core/models/resource.model';
           <button
             mat-stroked-button
             size="small"
-            (click)="onStop()"
+            (click)="$event.stopPropagation(); onStop()"
             [disabled]="resource.status === 'Stopped'"
           >
             <mat-icon>stop</mat-icon>
             {{ 'dashboard.resources.stop' | hhTranslate: 'Stop' }}
           </button>
-          <button mat-stroked-button size="small" (click)="onRestart()">
+          <button mat-stroked-button size="small" (click)="$event.stopPropagation(); onRestart()">
             <mat-icon>refresh</mat-icon>
             {{ 'dashboard.resources.restart' | hhTranslate: 'Restart' }}
           </button>
@@ -147,10 +147,11 @@ import { Resource } from '../../core/models/resource.model';
           <mat-divider></mat-divider>
 
           <!-- Quick links to Logs, Traces, Metrics -->
-          <div class="quick-links" (click)="$event.stopPropagation()">
+          <div class="quick-links">
             <a
               mat-icon-button
               [routerLink]="['/logs']"
+              (click)="$event.stopPropagation()"
               [queryParams]="{ service: resource.name }"
               [matTooltip]="
                 'dashboard.resources.viewLogs' | hhTranslate: 'View logs'
@@ -164,6 +165,7 @@ import { Resource } from '../../core/models/resource.model';
             <a
               mat-icon-button
               [routerLink]="['/traces']"
+              (click)="$event.stopPropagation()"
               [queryParams]="{ service: resource.name }"
               [matTooltip]="
                 'dashboard.resources.viewTraces' | hhTranslate: 'View traces'
@@ -177,6 +179,7 @@ import { Resource } from '../../core/models/resource.model';
             <a
               mat-icon-button
               [routerLink]="['/metrics']"
+              (click)="$event.stopPropagation()"
               [queryParams]="{ service: resource.name }"
               [matTooltip]="
                 'dashboard.resources.viewMetrics' | hhTranslate: 'View metrics'

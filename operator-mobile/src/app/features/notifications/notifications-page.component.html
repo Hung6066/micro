@@ -1,0 +1,9 @@
+<section class="notifications-page" aria-labelledby="notifications-title">
+  <p class="eyebrow">{{ "mobile.operatorNotificationsEyebrow" | hhTranslate: "NOTIFICATIONS" }}</p>
+  <div class="heading-row"><h2 id="notifications-title">{{ "mobile.operatorNotificationsTitle" | hhTranslate: "Notifications" }}</h2><span>{{ unread }}</span></div>
+  <p class="lede">{{ "mobile.operatorNotificationsDescription" | hhTranslate: "Operational alerts and handover reminders for your current account." }}</p>
+  <div class="actions"><button type="button" [disabled]="loading" (click)="load()">{{ "mobile.operatorRefresh" | hhTranslate: "Refresh" }}</button><button type="button" [disabled]="!unread" (click)="markAllRead()">{{ "mobile.operatorMarkAllRead" | hhTranslate: "Mark all read" }}</button></div>
+  @if (error) { <p role="alert">{{ error }}</p> }
+  @if (!notifications.length && !loading) { <article class="empty">{{ "mobile.operatorNoNotifications" | hhTranslate: "No notifications." }}</article> }
+  @for (notification of notifications; track notification.id) { <article role="button" tabindex="0" [class.unread]="!notification.readAt" (click)="markRead(notification)" (keydown.enter)="markRead(notification)"><div><h3>{{ notification.title }}</h3><time [attr.datetime]="notification.createdAt">{{ notification.createdAt | date: "medium" }}</time></div><p>{{ notification.body }}</p></article> }
+</section>

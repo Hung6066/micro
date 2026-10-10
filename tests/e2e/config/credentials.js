@@ -1,19 +1,28 @@
-const DEFAULT_EMAIL = 'admin@hishop.com';
-const DEFAULT_PASSWORD = 'Test@123456';
-
 function getE2eCredentials() {
+  if (!process.env.E2E_EMAIL || !process.env.E2E_PASSWORD) {
+    throw new Error(
+      'Authenticated E2E requires E2E_EMAIL and E2E_PASSWORD from local secret storage.',
+    );
+  }
+
   return {
-    email: process.env.E2E_EMAIL || DEFAULT_EMAIL,
-    password: process.env.E2E_PASSWORD || DEFAULT_PASSWORD,
+    email: process.env.E2E_EMAIL,
+    password: process.env.E2E_PASSWORD,
   };
 }
 
 function requireE2eCredentials() {
-  const credentials = getE2eCredentials();
-  if (process.env.E2E_AUTH_REQUIRED === 'true' && !process.env.E2E_PASSWORD) {
-    throw new Error('E2E_AUTH_REQUIRED=true requires E2E_PASSWORD from local secret storage.');
-  }
-  return credentials;
+  return getE2eCredentials();
 }
 
-module.exports = { getE2eCredentials, requireE2eCredentials };
+function assertE2eCredentials(email, password) {
+  if (email && password) return true;
+  if (process.env.E2E_AUTH_REQUIRED === 'true') {
+    throw new Error(
+      'Authenticated E2E requires E2E_EMAIL and E2E_PASSWORD from protected secret storage.',
+    );
+  }
+  return false;
+}
+
+module.exports = { getE2eCredentials, requireE2eCredentials, assertE2eCredentials };

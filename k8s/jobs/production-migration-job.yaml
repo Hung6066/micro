@@ -48,7 +48,7 @@ spec:
         - name: harbor-pull
       initContainers:
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:
@@ -207,7 +207,7 @@ spec:
         - name: harbor-pull
       initContainers:
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:
@@ -352,7 +352,7 @@ spec:
         - name: harbor-pull
       initContainers:
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:
@@ -497,7 +497,7 @@ spec:
         - name: harbor-pull
       initContainers:
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:
@@ -642,7 +642,7 @@ spec:
         - name: harbor-pull
       initContainers:
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:
@@ -787,7 +787,7 @@ spec:
         - name: harbor-pull
       initContainers:
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:
@@ -932,7 +932,7 @@ spec:
         - name: harbor-pull
       initContainers:
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-ec"]
           args:

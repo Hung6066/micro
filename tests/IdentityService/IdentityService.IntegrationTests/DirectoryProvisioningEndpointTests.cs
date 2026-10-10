@@ -2,8 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Reflection;
+using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -132,6 +135,133 @@ public sealed class DirectoryProvisioningEndpointTests(IdentityServiceTestFixtur
         var ready = readiness.Invoke(null, ["scim", true, "https://scim.example", "https://scim.example/token", "client"])!;
         Assert.Equal("ready_for_dry_run", Status(ready));
         Assert.True((bool)ready.GetType().GetProperty("credentialConfigured")!.GetValue(ready)!);
+    }
+
+    [Fact]
+    public async Task Provisioning_delivery_health_reports_pending_failed_and_healthy_channels()
+    {
+        var configuration = fixture.Services.GetRequiredService<IConfiguration>();
+        var previous = configuration["SSF_ENABLED"];
+        configuration["SSF_ENABLED"] = "true";
+        var pendingTarget = $"scim-{Guid.NewGuid():N}";
+        var signalSubject = Guid.NewGuid().ToString();
+        try
+        {
+            await using (var scope = fixture.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+                db.DirectoryProvisioningOutbox.AddRange(
+                    new DirectoryProvisioningOutbox
+                    {
+                        Target = pendingTarget,
+                        Operation = "create",
+                        ResourceType = "Group",
+                        ResourceId = Guid.NewGuid().ToString(),
+                        AvailableAt = DateTime.UtcNow.AddMinutes(-2)
+                    },
+                    new DirectoryProvisioningOutbox
+                    {
+                        Target = pendingTarget,
+                        Operation = "update",
+                        ResourceType = "Group",
+                        ResourceId = Guid.NewGuid().ToString(),
+                        Attempts = 2,
+                        LastError = "upstream unavailable",
+                        AvailableAt = DateTime.UtcNow.AddMinutes(-1)
+                    });
+                db.SecuritySignalOutbox.Add(new SecuritySignalOutbox
+                {
+                    EventType = "https://schemas.openid.net/secevent/caep/event-type/session-revoked",
+                    Subject = signalSubject,
+                    Attempts = 1,
+                    LastError = "receiver unavailable",
+                    AvailableAt = DateTime.UtcNow.AddMinutes(-1)
+                });
+                await db.SaveChangesAsync();
+            }
+
+            using var session = await LoginAsync();
+            var response = await session.GetWithCookiesAsync(IdentityApiRoutes.AdminProvisioningDeliveryHealth);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.True(body.GetProperty("ssfEnabled").GetBoolean());
+            var deliveries = body.GetProperty("deliveries").EnumerateArray().ToArray();
+            var provisioning = deliveries.Single(item => item.GetProperty("target").GetString() == pendingTarget);
+            Assert.Equal(2, provisioning.GetProperty("pending").GetInt32());
+            Assert.Equal(1, provisioning.GetProperty("failed").GetInt32());
+            Assert.Equal("failed", provisioning.GetProperty("status").GetString());
+            var ssf = deliveries.Single(item => item.GetProperty("channel").GetString() == "ssf");
+            Assert.True(ssf.GetProperty("pending").GetInt32() >= 1);
+            Assert.Equal("failed", ssf.GetProperty("status").GetString());
+        }
+        finally
+        {
+            configuration["SSF_ENABLED"] = previous;
+            await using var cleanup = fixture.Services.CreateAsyncScope();
+            var db = cleanup.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            await db.DirectoryProvisioningOutbox
+                .Where(item => item.Target == pendingTarget)
+                .ExecuteDeleteAsync();
+            await db.SecuritySignalOutbox
+                .Where(item => item.Subject == signalSubject)
+                .ExecuteDeleteAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Provisioning_queue_rejects_payload_larger_than_256_kibibytes()
+    {
+        using var session = await LoginAsync();
+        var response = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminProvisioningQueue, new
+        {
+            target = "scim",
+            operation = "create",
+            resourceType = "Group",
+            resourceId = $"large-{Guid.NewGuid():N}",
+            payload = new { content = new string('x', 256 * 1024) }
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("payload", body.GetProperty("errors").EnumerateObject().Select(item => item.Name));
+    }
+
+    [Fact]
+    public async Task Provisioning_queue_accepts_update_delete_and_preserves_external_id()
+    {
+        using var session = await LoginAsync();
+        foreach (var operation in new[] { "update", "delete" })
+        {
+            var response = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminProvisioningQueue, new
+            {
+                target = "entra",
+                operation,
+                resourceType = "User",
+                resourceId = Guid.NewGuid().ToString(),
+                externalId = "external-user-1"
+            });
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(operation, body.GetProperty("operation").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task Provisioning_reconcile_valid_target_returns_idempotent_queue_result()
+    {
+        using var session = await LoginAsync();
+        var first = await session.PostWithCookiesAsync(
+            $"{IdentityApiRoutes.AdminProvisioningReconcile}/scim", new { });
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("scim", firstBody.GetProperty("target").GetString());
+        Assert.True(firstBody.GetProperty("sourceCount").GetInt32() >= 0);
+
+        var second = await session.PostWithCookiesAsync(
+            $"{IdentityApiRoutes.AdminProvisioningReconcile}/scim", new { });
+        Assert.Equal(HttpStatusCode.Accepted, second.StatusCode);
+        var secondBody = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, secondBody.GetProperty("queued").GetInt32());
     }
 
     private async Task<SessionClient> LoginAsync()

@@ -95,4 +95,37 @@ public sealed class ResourcePolicyClaimBuilderTests
         claim![0].Effect.Should().Be("deny");
         claim[0].Actions.Should().Equal("*");
     }
+
+    [Fact]
+    public async Task BuildMany_projects_policies_for_all_requested_scopes_in_one_result()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var firstScope = Guid.NewGuid();
+        var secondScope = Guid.NewGuid();
+        db.IamResourcePolicies.AddRange(
+            new IamResourcePolicy
+            {
+                ScopeId = firstScope,
+                ServiceKey = "patients",
+                ResourcePattern = "patient/*",
+                LifecycleStatus = "published",
+                StatementsJson = "[{\"principal\":\"svc-a\",\"actions\":[\"read\"]}]"
+            },
+            new IamResourcePolicy
+            {
+                ScopeId = secondScope,
+                ServiceKey = "billing",
+                ResourcePattern = "invoice/*",
+                LifecycleStatus = "published",
+                StatementsJson = "[{\"principal\":\"svc-a\",\"actions\":[\"read\"]}]"
+            });
+        await db.SaveChangesAsync();
+
+        var json = await ResourcePolicyClaimBuilder.BuildManyAsync(
+            db, new[] { firstScope, secondScope, firstScope }, new[] { "svc-a" }, CancellationToken.None);
+
+        var claims = JsonSerializer.Deserialize<ResourcePolicyClaim[]>(json!);
+        claims.Should().HaveCount(2);
+        claims!.Select(claim => claim.ServiceKey).Should().BeEquivalentTo("patients", "billing");
+    }
 }

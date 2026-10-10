@@ -1,104 +1,16 @@
-<mat-toolbar color="primary" class="app-toolbar">
-  <button
-    mat-icon-button
-    (click)="toggleSidenav()"
-    [attr.aria-label]="'mobile.adminNavigation' | hhTranslate"
-  >
-    <mat-icon>menu</mat-icon>
-  </button>
-  <span class="app-brand-mark" aria-hidden="true">+</span>
-  <span class="app-title">{{
-    "app.admin.title" | hhTranslate: "His.Hope Admin"
-  }}</span>
-  <span class="toolbar-spacer"></span>
-  <hh-language-switcher></hh-language-switcher>
-  <button
-    mat-icon-button
-    type="button"
-    (click)="paletteOpen = true"
-    [attr.aria-label]="'admin.openCommandPalette' | hhTranslate"
-  >
-    <mat-icon>search</mat-icon>
-  </button>
-  <button
-    mat-icon-button
-    type="button"
-    (click)="toggleTheme()"
-    [attr.aria-label]="'admin.toggleTheme' | hhTranslate"
-  >
-    <mat-icon>brightness_6</mat-icon>
-  </button>
-  <button
-    mat-icon-button
-    type="button"
-    (click)="toggleUserMenu()"
-    [attr.aria-expanded]="userMenuOpen"
-    [attr.aria-label]="'admin.userMenu' | hhTranslate"
-  >
-    <mat-icon>account_circle</mat-icon>
-  </button>
-  @if (userMenuOpen) {
-    <div class="user-menu" role="menu">
-      @if (isAuthenticated$ | async) {
-        <button type="button" role="menuitem" (click)="onLogout()">
-          <mat-icon>logout</mat-icon>
-          <span>{{ "admin.logout" | hhTranslate }}</span>
-        </button>
-      } @else {
-        <button type="button" role="menuitem" (click)="onLogin()">
-          <mat-icon>login</mat-icon>
-          <span>{{ "admin.login" | hhTranslate }}</span>
-        </button>
-      }
-    </div>
-  }
-</mat-toolbar>
-
-<hh-offline-banner></hh-offline-banner>
-<hh-command-palette
-  [open]="paletteOpen"
-  [commands]="commands"
-  (closed)="paletteOpen = false"
-  (selected)="onCommand($event.id)"
-/>
-
-<mat-sidenav-container class="sidenav-container">
-  <mat-sidenav
-    #sidenav
-    [mode]="(isMobile$ | async) ? 'over' : 'side'"
-    [opened]="sidenavOpened$ | async"
-    class="app-sidenav"
-  >
-    <hh-brand
-      [caption]="'admin.identityAdministration' | hhTranslate"
-    ></hh-brand>
-    <mat-nav-list>
-      @for (section of navSections; track section.id) {
-        @if (visibleNavItems(section).length) {
-          <div class="nav-section-label">
-            {{ section.labelKey | hhTranslate: section.fallback }}
-          </div>
-          @for (item of visibleNavItems(section); track item.id) {
-            <a
-              mat-list-item
-              [routerLink]="routePath(item.route)"
-              [queryParams]="routeQuery(item.route)"
-              routerLinkActive="active-link"
-            >
-              <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
-              <span matListItemTitle>{{
-                item.labelKey | hhTranslate: item.fallback
-              }}</span>
-            </a>
-          }
-        }
-      }
-    </mat-nav-list>
-  </mat-sidenav>
-  <mat-sidenav-content class="sidenav-content">
-    <main class="main-content">
-      <router-outlet></router-outlet>
-    </main>
-  </mat-sidenav-content>
-</mat-sidenav-container>
-<hh-toast-outlet />
+<hh-app-shell [title]="'app.admin.title' | hhTranslate: 'His.Hope Admin'" [open]="(sidenavOpened$ | async) || false" [mobile]="(isMobile$ | async) || false" [toggleLabel]="'mobile.adminNavigation' | hhTranslate" (navigationToggle)="toggleSidenav()">
+  <div class="hh-shell-toolbar-slot" hhShellToolbar>
+    @if (tenantOptions$ | async; as tenantOptions) { @if (tenantOptions.length > 0) { <app-tenant-switcher class="tenant-selector" [tenants]="tenantOptions" [activeKey]="activeTenantKey" (tenantChange)="onTenantChange($event)" /> } }
+    <hh-language-switcher />
+    <button class="shell-icon-button" type="button" (click)="paletteOpen = true" [attr.aria-label]="'admin.openCommandPalette' | hhTranslate"><span class="material-icons" aria-hidden="true">search</span></button>
+    <button class="shell-icon-button" type="button" (click)="toggleTheme()" [attr.aria-label]="'admin.toggleTheme' | hhTranslate"><span class="material-icons" aria-hidden="true">brightness_6</span></button>
+    <button class="shell-icon-button" type="button" (click)="toggleUserMenu()" [attr.aria-expanded]="userMenuOpen" [attr.aria-label]="'admin.userMenu' | hhTranslate"><span class="material-icons" aria-hidden="true">account_circle</span></button>
+    @if (userMenuOpen) { <div class="user-menu" role="menu"><button type="button" role="menuitem" (click)="onLogout()"><span class="material-icons" aria-hidden="true">logout</span><span>{{ "admin.logout" | hhTranslate }}</span></button></div> }
+  </div>
+  <nav hhShellNavigation aria-label="Primary navigation">
+    <hh-brand [caption]="'admin.identityAdministration' | hhTranslate" />
+    @for (section of navSections; track section.id) { @if (visibleNavItems(section).length) { <div class="nav-section-label">{{ section.labelKey | hhTranslate: section.fallback }}</div> @for (item of visibleNavItems(section); track item.id) { <a class="nav-item" [routerLink]="routePath(item.route)" [queryParams]="routeQuery(item.route)" routerLinkActive="active-link"><span class="material-icons nav-item__icon" aria-hidden="true">{{ item.icon }}</span><span>{{ item.labelKey | hhTranslate: item.fallback }}</span></a> } } }
+  </nav>
+  <main hhShellContent><router-outlet /></main>
+</hh-app-shell>
+<hh-offline-banner /><hh-command-palette [open]="paletteOpen" [commands]="commands" (closed)="paletteOpen = false" (selected)="onCommand($event.id)" /><hh-toast-outlet />

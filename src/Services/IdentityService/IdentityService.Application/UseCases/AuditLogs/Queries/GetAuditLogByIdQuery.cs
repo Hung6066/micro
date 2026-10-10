@@ -21,7 +21,8 @@ public class GetAuditLogByIdQueryHandler
     public async Task<AuditLogDto?> Handle(GetAuditLogByIdQuery request,
         CancellationToken cancellationToken)
     {
-        var log = await _context.AuditLogs
+        var log = await _context.AuditLogs.AsNoTracking()
+            .TagWith("Identity.AuditLogs.GetAuditLogById")
             .FirstOrDefaultAsync(al => al.Id == request.Id, cancellationToken);
 
         if (log is null) return null;

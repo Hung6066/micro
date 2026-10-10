@@ -4,8 +4,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>His.Hope.AppointmentService.Api</RootNamespace>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <Protobuf Include="..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
     <Protobuf Include="..\..\..\Shared\Protos\appointment.proto" GrpcServices="Both" Link="Protos\appointment.proto" />
   </ItemGroup>
@@ -33,6 +35,7 @@
     <ProjectReference Include="..\..\..\Shared\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
     <ProjectReference Include="..\..\..\Shared\ServiceDefaults\His.Hope.ServiceDefaults\His.Hope.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\..\Shared\Authorization\His.Hope.Authorization\His.Hope.Authorization.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
     <ProjectReference Include="..\..\..\Shared\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
   </ItemGroup>

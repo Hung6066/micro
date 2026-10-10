@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -10,15 +11,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FROM_RE = re.compile(r"^\s*FROM\s+(?P<image>mcr\.microsoft\.com/dotnet/[^\s]+)")
+IGNORED_DIRS = {'.git', '.worktrees', 'node_modules', 'dist', 'bin', 'obj', 'artifacts'}
+
+
+def is_generated(path: Path) -> bool:
+    return any(part in IGNORED_DIRS for part in path.parts)
+
+
+def discover_dockerfiles() -> list[Path]:
+    discovered: list[Path] = []
+    for directory, subdirectories, filenames in os.walk(ROOT):
+        subdirectories[:] = [name for name in subdirectories if name not in IGNORED_DIRS]
+        for filename in filenames:
+            if filename != "Dockerfile":
+                continue
+            path = Path(directory) / filename
+            if not is_generated(path):
+                discovered.append(path)
+    return sorted(discovered)
 
 
 def main() -> int:
     errors: list[str] = []
-    dockerfiles = sorted(
-        path
-        for path in ROOT.rglob("Dockerfile")
-        if ".git" not in path.parts and ".worktrees" not in path.parts
-    )
+    dockerfiles = discover_dockerfiles()
     if not dockerfiles:
         errors.append("No Dockerfiles were found.")
 

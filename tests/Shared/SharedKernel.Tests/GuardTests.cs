@@ -6,6 +6,46 @@ namespace His.Hope.SharedKernel.Tests;
 
 public class GuardTests
 {
+    public class NotFoundTests
+    {
+        [Fact]
+        public void NotFound_WithMissingValue_ShouldThrowSharedNotFoundException()
+        {
+            var act = () => Guard.Against.NotFound<string>(null, "User", "user-1");
+
+            act.Should().Throw<NotFoundException>()
+                .WithMessage("Entity 'User' with key 'user-1' was not found.");
+        }
+
+        [Fact]
+        public void NotFound_WithValue_ShouldReturnValue()
+        {
+            var result = Guard.Against.NotFound("user", "User", "user-1");
+
+            result.Should().Be("user");
+        }
+    }
+
+    public class ConflictTests
+    {
+        [Fact]
+        public void Conflict_WhenConditionIsTrue_ShouldThrowSharedConflictException()
+        {
+            var act = () => Guard.Against.Conflict(true, "Role is immutable.");
+
+            act.Should().Throw<ConflictException>()
+                .WithMessage("Role is immutable.");
+        }
+
+        [Fact]
+        public void Conflict_WhenConditionIsFalse_ShouldNotThrow()
+        {
+            var act = () => Guard.Against.Conflict(false, "Role is immutable.");
+
+            act.Should().NotThrow();
+        }
+    }
+
     public class NullOrWhiteSpaceTests
     {
         [Theory]

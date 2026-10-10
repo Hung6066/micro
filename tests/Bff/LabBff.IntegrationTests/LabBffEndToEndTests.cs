@@ -23,7 +23,9 @@ public class LabBffEndToEndTests : IAsyncLifetime
         await _redis.StartAsync();
 
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redis.GetConnectionString());
-        Environment.SetEnvironmentVariable("Services__Lab", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("REDIS_URL", $"redis://{_redis.GetConnectionString()}");
+        Environment.SetEnvironmentVariable("SERVICE_LAB_API_URL", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("SERVICE_LAB_GRPC_URL", "http://localhost:5099");
 
         _bff = new WebApplicationFactory<Program>();
         _client = _bff.CreateClient();
@@ -37,10 +39,10 @@ public class LabBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt-token",
+            Jwt = string.Empty,
             Permissions = new[] { "lab.view" },
             CsrfToken = "csrf-test",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -70,10 +72,10 @@ public class LabBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = Array.Empty<string>(),
             CsrfToken = "csrf",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow.AddHours(-2),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1)
         };
@@ -93,12 +95,14 @@ public class LabBffEndToEndTests : IAsyncLifetime
         _client.Dispose();
         await _bff.DisposeAsync();
         await _redis.DisposeAsync();
+        Environment.SetEnvironmentVariable("REDIS_URL", null);
     }
 
     private static string ComputeSha256(string input)
     {
         var bytes = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
 }

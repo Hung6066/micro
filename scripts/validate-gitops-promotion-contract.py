@@ -50,6 +50,10 @@ def main() -> int:
         "HARBOR_CA_CHAIN_B64",
         "update-ca-certificates",
         "Create review-required promotion PR",
+        "-eq 22",
+        "All 22 application digests",
+        "validate-production-ha-contract.py",
+        "validate-production-data-plane-ha-contract.py",
     )
     for fragment in required_fragments:
         if fragment not in raw:
@@ -58,13 +62,18 @@ def main() -> int:
         fail("missing scripts/update-gitops-digest.ps1")
     if not RELEASE_UPDATER.is_file():
         fail("missing scripts/update-gitops-release-digests.ps1")
+    release_updater = RELEASE_UPDATER.read_text(encoding="utf-8")
+    if "exactly 22 application image references" not in release_updater:
+        fail("release updater must fail closed when the complete 22-image promotion set is absent")
+    if "app.kubernetes.io/version" not in release_updater or "prod-spire-azure/kustomization.yaml" not in release_updater:
+        fail("release updater must align immutable version labels across application and data-plane production overlays")
     updater = UPDATER.read_text(encoding="utf-8")
     if "ReleaseSha" not in updater or "newTag:" not in updater:
         fail("digest updater must align the image tag with ReleaseSha when promoting a digest")
 
     if not re.search(r"\^sha256:\[0-9a-f\]\{64\}\$", raw) and not re.search(
         r"sha256:\[0-9a-f\]\{64\}",
-        RELEASE_UPDATER.read_text(encoding="utf-8"),
+        release_updater,
     ):
         fail("workflow must validate lowercase immutable sha256 input")
     if not re.search(r"\^https://github\.com/\$\{(?:GITHUB_REPOSITORY|env:GITHUB_REPOSITORY)\}/\.github/workflows/container-release\.yml", raw):

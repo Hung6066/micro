@@ -60,6 +60,16 @@ public sealed class SecurityServiceTests
     }
 
     [Fact]
+    public void Recovery_codes_support_empty_generation_and_known_sha256_vector()
+    {
+        var service = new RecoveryCodeService();
+
+        service.GenerateCodes(0).Should().BeEmpty();
+        service.HashCode("abc").Should().Be(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    }
+
+    [Fact]
     public void Scim_scope_checks_require_authenticated_identity_and_exact_scope()
     {
         var authenticated = Principal("scim.read scim.write");

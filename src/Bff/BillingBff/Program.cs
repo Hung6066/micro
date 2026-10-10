@@ -18,8 +18,7 @@ builder.Configuration["ReverseProxy:Clusters:billing-service:Destinations:billin
 builder.Services.AddBffCore(builder.Configuration, "BillingBff");
 builder.Services.AddBffProxy(builder.Configuration);
 
-builder.Services.AddGrpcClient<BillingGrpcService.BillingGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("billing-grpc"));
+builder.Services.AddHisHopeGrpcClient<BillingGrpcService.BillingGrpcServiceClient>(runtimeEndpoints, "billing-grpc");
 
 builder.Services.AddTransient<IAggregationHandler, InvoiceDetailedHandler>();
 

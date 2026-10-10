@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Api.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -27,44 +29,84 @@ public static class AccessGovernanceEndpoints
 {
     public static RouteGroupBuilder MapAccessGovernanceEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/policies", async (IApplicationDbContext db, CancellationToken ct) =>
+        group.MapGet("/policies", async (
+            IApplicationDbContext db,
+            IdentityDbContext identityDb,
+            HttpContext http,
+            CancellationToken ct) =>
         {
-            var policies = await db.AuthorizationPolicies.AsNoTracking()
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
+            var policyOwners = await IamTenantQueryExtensions.ResolveTenantPolicyOwnersAsync(db, tenantFilter, ct);
+            var policyQuery = db.AuthorizationPolicies.AsNoTracking();
+            if (policyOwners is not null)
+                policyQuery = policyQuery.Where(item => policyOwners.Contains(item.Owner));
+
+            var policies = await policyQuery
                 .OrderBy(item => item.Key).ThenByDescending(item => item.Version)
                 .Take(500)
                 .Select(item => new AuthorizationPolicyDto(item.Id, item.Key, item.Description, item.Owner, item.Version, item.LifecycleStatus, item.RulesJson, item.CreatedBy, item.CreatedAt, item.PublishedAt, item.PublishedBy))
                 .ToListAsync(ct);
             return Results.Ok(policies);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate)
+            .WithTenantReadScope(HisHopePermissions.Admin.PolicySimulate);
 
-        // Consumers receive a deterministic, signed snapshot rather than
-        // reading mutable draft rows. The private signing key remains behind
-        // IVaultKeyProvider; the signature is only an integrity envelope.
+        // Consumers receive the latest durable, deterministic signed snapshot.
+        // Draft rows are never exposed as a bundle. A missing artifact is an
+        // explicit release/configuration error rather than an implicit publish.
         group.MapGet("/policies/bundle", async (
             IApplicationDbContext db,
-            IVaultKeyProvider keyProvider,
             CancellationToken ct) =>
         {
-            var policies = await db.AuthorizationPolicies.AsNoTracking()
-                .Where(item => item.LifecycleStatus == "published")
-                .OrderBy(item => item.Key).ThenBy(item => item.Version)
-                .Select(item => new { item.Key, item.Description, item.Owner, item.Version, item.RulesJson })
-                .ToListAsync(ct);
-            var canonical = JsonSerializer.Serialize(policies, new JsonSerializerOptions { WriteIndented = false });
-            var bytes = Encoding.UTF8.GetBytes(canonical);
-            var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-            var signature = await keyProvider.SignAsync(bytes, ct);
-            var key = (await keyProvider.GetJwksAsync(ct)).FirstOrDefault();
+            var artifact = await db.AuthorizationPolicyBundles.AsNoTracking()
+                .OrderByDescending(item => item.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+            if (artifact is null)
+                return Results.NotFound("published_policy_bundle_not_found");
+            using var policies = JsonDocument.Parse(artifact.PoliciesJson);
             return Results.Ok(new
             {
-                schemaVersion = "authorization-policy-bundle.v1",
-                hash,
-                keyId = key?.Kid,
-                signature,
-                generatedAt = DateTime.UtcNow,
-                policies
+                schemaVersion = artifact.SchemaVersion,
+                hash = artifact.Hash,
+                keyId = artifact.KeyId,
+                signature = artifact.Signature,
+                generatedAt = artifact.CreatedAt,
+                policies = policies.RootElement.Clone()
             });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate);
+
+        group.MapPost("/policies/bundle/publish", async (
+            IApplicationDbContext db,
+            IVaultKeyProvider keyProvider,
+            HttpContext http,
+            CancellationToken ct) =>
+        {
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var artifact = await CreatePolicyBundleArtifactAsync(db, keyProvider, Actor(http), ct);
+            var existing = await db.AuthorizationPolicyBundles.AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Hash == artifact.Hash, ct);
+            if (existing is not null)
+                return Results.Ok(new
+                {
+                    existing.Id,
+                    schemaVersion = existing.SchemaVersion,
+                    existing.Hash,
+                    existing.KeyId,
+                    existing.CreatedAt,
+                    idempotent = true
+                });
+            db.AuthorizationPolicyBundles.Add(artifact);
+            await db.SaveChangesAsync(ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "POLICY_BUNDLE_PUBLISH", "AuthorizationPolicyBundle", artifact.Id.ToString(), "Published signed authorization policy bundle.", null, artifact.Hash, ct);
+            return Results.Created($"/api/v1/admin/policies/bundle/{artifact.Id}", new
+            {
+                artifact.Id,
+                schemaVersion = artifact.SchemaVersion,
+                artifact.Hash,
+                artifact.KeyId,
+                artifact.CreatedAt
+            });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         // Lint is deliberately read-only and available before publish so the
         // admin workbench can show deterministic policy errors without
@@ -74,9 +116,9 @@ public static class AccessGovernanceEndpoints
             IApplicationDbContext db,
             CancellationToken ct) =>
         {
-            var policy = await db.AuthorizationPolicies.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             var valid = AbacPolicyEvaluator.TryValidate(policy.RulesJson, out var errors);
             return Results.Ok(new
             {
@@ -97,9 +139,9 @@ public static class AccessGovernanceEndpoints
             IApplicationDbContext db,
             CancellationToken ct) =>
         {
-            var policy = await db.AuthorizationPolicies.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             if (!AbacPolicyEvaluator.TryValidate(policy.RulesJson, out var errors))
                 return Results.Ok(new
                 {
@@ -181,8 +223,8 @@ public static class AccessGovernanceEndpoints
         {
             if (!AbacPolicyEvaluator.TryValidate(request.RulesJson, out var errors))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["rulesJson"] = errors });
-            var policy = await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             if (policy.LifecycleStatus == "published") return Results.Conflict(new { errorCode = "published_policy_immutable" });
             var before = policy.RulesJson;
             policy.Description = request.Description.Trim();
@@ -199,13 +241,43 @@ public static class AccessGovernanceEndpoints
             HttpContext http,
             CancellationToken ct) =>
         {
-            if (!HasMfa(http)) return Results.Forbid();
-            var policy = await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (policy is null) return Results.NotFound();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var policy = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             if (policy.CreatedBy is not null && string.Equals(policy.CreatedBy, Actor(http), StringComparison.Ordinal))
                 return Results.Conflict(new { errorCode = "maker_checker_required" });
             if (!AbacPolicyEvaluator.TryValidate(policy.RulesJson, out var errors))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["rulesJson"] = errors });
+
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "AuthorizationPolicy", id, "policy.publish",
+                    AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("version", out var version) || version.GetInt32() != policy.Version)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "AuthorizationPolicy", id, "policy.publish",
+                    JsonSerializer.Serialize(new { version = policy.Version }),
+                    "Authorization policy publish requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt
+                });
+            }
+
             var previous = await db.AuthorizationPolicies.Where(item => item.Key == policy.Key && item.LifecycleStatus == "published").ToListAsync(ct);
             foreach (var item in previous) item.LifecycleStatus = "retired";
             policy.LifecycleStatus = "published";
@@ -213,6 +285,7 @@ public static class AccessGovernanceEndpoints
             policy.PublishedBy = Actor(http);
             await db.SaveChangesAsync(ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "POLICY_PUBLISH", "AuthorizationPolicy", policy.Id.ToString(), "ABAC policy published after MFA maker-checker.", null, policy.RulesJson, ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange!, http, ct);
             return Results.Ok(ToPolicyDto(policy));
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
@@ -222,13 +295,46 @@ public static class AccessGovernanceEndpoints
             HttpContext http,
             CancellationToken ct) =>
         {
-            if (!HasMfa(http)) return Results.Forbid();
-            var current = await db.AuthorizationPolicies.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (current is null) return Results.NotFound();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var current = Guard.Against.NotFound(
+                await db.AuthorizationPolicies.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct), "AuthorizationPolicy", id);
             var previous = await db.AuthorizationPolicies.AsNoTracking()
                 .Where(item => item.Key == current.Key && item.LifecycleStatus == "retired" && item.Version < current.Version)
                 .OrderByDescending(item => item.Version).FirstOrDefaultAsync(ct);
             if (previous is null) return Results.Conflict(new { errorCode = "no_previous_policy" });
+
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "AuthorizationPolicy", id, "policy.rollback",
+                    AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("currentVersion", out var currentVersion) ||
+                    !snapshot.RootElement.TryGetProperty("targetVersion", out var targetVersion) ||
+                    currentVersion.GetInt32() != current.Version || targetVersion.GetInt32() != previous.Version)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "AuthorizationPolicy", id, "policy.rollback",
+                    JsonSerializer.Serialize(new { currentVersion = current.Version, targetVersion = previous.Version }),
+                    $"Authorization policy rollback to version {previous.Version} requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt,
+                    targetVersion = previous.Version
+                });
+            }
+
             var published = await db.AuthorizationPolicies.Where(item => item.Key == current.Key && item.LifecycleStatus == "published").ToListAsync(ct);
             foreach (var item in published) item.LifecycleStatus = "retired";
             var rollback = new AuthorizationPolicyDefinition
@@ -246,15 +352,23 @@ public static class AccessGovernanceEndpoints
             db.AuthorizationPolicies.Add(rollback);
             await db.SaveChangesAsync(ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "POLICY_ROLLBACK", "AuthorizationPolicy", rollback.Id.ToString(), $"ABAC policy rolled back to version {previous.Version}.", current.RulesJson, rollback.RulesJson, ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange!, http, ct);
             return Results.Ok(ToPolicyDto(rollback));
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         group.MapGet("/authorization-changes", async (
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var changes = await db.AuditLogs.AsNoTracking()
-                .Where(item => item.Source == "authorization-control-plane")
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
+            var changeQuery = db.AuditLogs.AsNoTracking()
+                .Where(item => item.Source == "authorization-control-plane");
+            changeQuery = changeQuery.WhereTenantActor(db, tenantFilter.AllowedTenantKeys);
+
+            var changes = await changeQuery
                 .OrderByDescending(item => item.Timestamp)
                 .Take(200)
                 .Select(item => new
@@ -272,13 +386,26 @@ public static class AccessGovernanceEndpoints
                 })
                 .ToListAsync(ct);
             return Results.Ok(changes);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         group.MapGet("/access-requests", async (
-            IApplicationDbContext db,
+            IdentityDbContext db,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var requests = await db.AccessRequests.AsNoTracking()
+            var filter = IamTenantHttpContext.RequireFilter(http);
+
+            var query = db.AccessRequests.AsNoTracking();
+            if (filter.AllowedTenantKeys is { Count: > 0 } allowedTenantKeys)
+            {
+                query = query.Where(item => db.UserClaims.Any(claim =>
+                    claim.UserId == item.SubjectUserId &&
+                    claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                    claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue)));
+            }
+
+            var requests = await query
                 .OrderByDescending(item => item.RequestedAt)
                 .Take(200)
                 .Select(item => new AccessRequestDto(item.Id, item.SubjectUserId, item.RequestedBy,
@@ -286,17 +413,23 @@ public static class AccessGovernanceEndpoints
                     item.RequestedAt, item.DecidedAt, item.ExpiresAt))
                 .ToListAsync(ct);
             return Results.Ok(requests);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         group.MapPost("/access-requests", async (
             AccessRequestCreateRequest request,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             RoleManager<Role> roleManager,
             CancellationToken ct) =>
         {
             if (request.SubjectUserId == Guid.Empty || request.RoleIds is not { Length: > 0 } || request.Reason.Trim().Length < 10)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["subjectUserId, at least one role and a reason of at least 10 characters are required."] });
+
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, request.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
 
             var roleNames = new List<string>();
             foreach (var roleId in request.RoleIds)
@@ -308,7 +441,7 @@ public static class AccessGovernanceEndpoints
             if (RoleSeparationOfDuties.TryFindConflict(roleNames, out var conflict))
                 return Results.Conflict(new { errorCode = "role_sod_conflict", conflict });
 
-            var requestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var requestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             var item = new AccessRequest
             {
                 SubjectUserId = request.SubjectUserId,
@@ -322,27 +455,59 @@ public static class AccessGovernanceEndpoints
             db.AccessRequests.Add(item);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/v1/admin/access-requests/{item.Id}", new { item.Id, item.Status, item.ExpiresAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
-        group.MapGet("/access-reviews", async (IApplicationDbContext db, CancellationToken ct) =>
+        group.MapGet("/access-reviews", async (
+            IdentityDbContext db,
+            HttpContext http,
+            CancellationToken ct) =>
         {
-            var reviews = await db.AccessReviews.AsNoTracking()
+            var filter = IamTenantHttpContext.RequireFilter(http);
+
+            var query = db.AccessReviews.AsNoTracking();
+            if (filter.AllowedTenantKeys is { Count: > 0 } allowedTenantKeys)
+            {
+                query = query.Where(item => db.UserClaims.Any(claim =>
+                    claim.UserId == item.SubjectUserId &&
+                    claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                    claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue)));
+            }
+
+            var now = DateTime.UtcNow;
+            var reviews = await query
                 .OrderBy(item => item.DueAt).Take(200)
-                .Select(item => new AccessReviewDto(item.Id, item.SubjectUserId, item.Reviewer, item.RoleIdsJson,
-                    item.Status, item.DecisionReason, item.CreatedAt, item.DueAt, item.DecidedAt))
+                .Select(item => new
+                {
+                    item.Id,
+                    item.SubjectUserId,
+                    item.Reviewer,
+                    item.RoleIdsJson,
+                    Status = item.Status == "pending" && item.DueAt <= now ? "overdue" : item.Status,
+                    item.DecisionReason,
+                    item.CreatedAt,
+                    item.DueAt,
+                    item.DecidedAt
+                })
                 .ToListAsync(ct);
-            return Results.Ok(reviews);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+            return Results.Ok(reviews.Select(item => new AccessReviewDto(item.Id, item.SubjectUserId, item.Reviewer, item.RoleIdsJson,
+                item.Status, item.DecisionReason, item.CreatedAt, item.DueAt, item.DecidedAt)));
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         group.MapPost("/access-reviews", async (
             AccessReviewCreateRequest request,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             CancellationToken ct) =>
         {
             if (request.SubjectUserId == Guid.Empty || request.RoleIds is not { Length: > 0 })
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["subjectUserId and roleIds are required."] });
-            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, request.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
+            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             var review = new AccessReview
             {
                 SubjectUserId = request.SubjectUserId,
@@ -353,17 +518,32 @@ public static class AccessGovernanceEndpoints
             db.AccessReviews.Add(review);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/v1/admin/access-reviews/{review.Id}", new { review.Id, review.Status, review.DueAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-reviews/{id:guid}/certify", async (
-            Guid id, HttpContext http, IApplicationDbContext db, IAuditService audit, CancellationToken ct) =>
+            Guid id, HttpContext http, IApplicationDbContext db,
+            IdentityDbContext identityDb, IAuditService audit, CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var review = await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (review is null) return Results.NotFound();
-            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var review = Guard.Against.NotFound(
+                await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct), "AccessReview", id);
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, review.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
+            var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             if (review.Reviewer == reviewer || review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
+            if (review.DueAt <= DateTime.UtcNow)
+            {
+                review.Status = "overdue";
+                review.DecisionReason = "Access review exceeded its due date and requires re-issuance.";
+                review.DecidedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), review.DecisionReason, review.RoleIdsJson, null, ct);
+                await AdminAudit.LogAsync(audit, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), ct);
+                return Results.Conflict(new { errorCode = "review_overdue" });
+            }
             review.Status = "certified";
             review.DecisionReason = "Access retained after reviewer certification.";
             review.DecidedAt = DateTime.UtcNow;
@@ -371,19 +551,34 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_CERTIFY", "AccessReview", id.ToString(), review.DecisionReason, null, review.RoleIdsJson, ct);
             await AdminAudit.LogAsync(audit, http, "REVIEW_CERTIFY", "AccessReview", id.ToString(), ct);
             return Results.Ok(new { review.Id, review.Status, review.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-reviews/{id:guid}/revoke", async (
-            Guid id, HttpContext http, IApplicationDbContext db, UserManager<User> userManager,
+            Guid id, HttpContext http, IApplicationDbContext db,
+            IdentityDbContext identityDb, UserManager<User> userManager,
             RoleManager<Role> roleManager, ITokenBlacklistService tokenBlacklist, IAuditService audit, CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var review = await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (review is null) return Results.NotFound();
+            var review = Guard.Against.NotFound(
+                await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct), "AccessReview", id);
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, review.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
+            if (review.DueAt <= DateTime.UtcNow)
+            {
+                review.Status = "overdue";
+                review.DecisionReason = "Access review exceeded its due date and requires re-issuance.";
+                review.DecidedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), review.DecisionReason, review.RoleIdsJson, null, ct);
+                await AdminAudit.LogAsync(audit, http, "REVIEW_OVERDUE", "AccessReview", id.ToString(), ct);
+                return Results.Conflict(new { errorCode = "review_overdue" });
+            }
             var subject = await userManager.FindByIdAsync(review.SubjectUserId.ToString());
-            if (subject is null) return Results.NotFound(new { errorCode = "user_not_found" });
+            subject = Guard.Against.NotFound(subject, "User", review.SubjectUserId);
             var roleIds = JsonSerializer.Deserialize<string[]>(review.RoleIdsJson) ?? [];
             var roleNames = new List<string>();
             foreach (var roleId in roleIds)
@@ -400,23 +595,28 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_REVOKE", "AccessReview", id.ToString(), review.DecisionReason, review.RoleIdsJson, null, ct);
             await AdminAudit.LogAsync(audit, http, "REVIEW_REVOKE", "AccessReview", id.ToString(), ct);
             return Results.Ok(new { review.Id, review.Status, review.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-requests/{id:guid}/approve", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             UserManager<User> userManager,
             RoleManager<Role> roleManager,
             ITokenBlacklistService tokenBlacklist,
             IAuditService audit,
             CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var item = await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
-            var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            var item = Guard.Against.NotFound(
+                await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "AccessRequest", id);
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
+            var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             if (string.Equals(item.RequestedBy, approver, StringComparison.OrdinalIgnoreCase))
                 return Results.Conflict(new { errorCode = "maker_checker_conflict" });
             if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
@@ -437,7 +637,7 @@ public static class AccessGovernanceEndpoints
             if (RoleSeparationOfDuties.TryFindConflict(roleNames, out var conflict))
                 return Results.Conflict(new { errorCode = "role_sod_conflict", conflict });
             var user = await userManager.FindByIdAsync(item.SubjectUserId.ToString());
-            if (user is null) return Results.NotFound(new { errorCode = "user_not_found" });
+            user = Guard.Against.NotFound(user, "User", item.SubjectUserId);
             var currentRoles = await userManager.GetRolesAsync(user);
             if (currentRoles.Count > 0) await userManager.RemoveFromRolesAsync(user, currentRoles);
             var result = await userManager.AddToRolesAsync(user, roleNames);
@@ -450,46 +650,71 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ACCESS_APPROVE", "AccessRequest", id.ToString(), item.Reason, null, item.RoleIdsJson, ct);
             await AdminAudit.LogAsync(audit, http, "ACCESS_APPROVE", "AccessRequest", id.ToString(), ct);
             return Results.Ok(new { item.Id, item.Status, item.ApprovedBy, item.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-requests/{id:guid}/reject", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             CancellationToken ct) =>
         {
-            var item = await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
+            var item = Guard.Against.NotFound(
+                await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "AccessRequest", id);
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (item.Status != "pending") return Results.Conflict(new { errorCode = "request_not_pending" });
             item.Status = "rejected";
-            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             item.DecidedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ACCESS_REJECT", "AccessRequest", id.ToString(), item.Reason, item.RoleIdsJson, null, ct);
             await AdminAudit.LogAsync(audit, http, "ACCESS_REJECT", "AccessRequest", id.ToString(), ct);
             return Results.Ok(new { item.Id, item.Status, item.ApprovedBy, item.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapGet("/users/{id:guid}/effective-access", async (
             Guid id,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (user is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, id, filter, ct) is { } accessError)
+                return accessError;
+
+            var userEntity = Guard.Against.NotFound(
+                await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct), "User", id);
             var roleIds = await db.UserRoles.AsNoTracking().Where(link => link.UserId == id).Select(link => link.RoleId).ToArrayAsync(ct);
             var roles = await db.Roles.AsNoTracking().Where(role => roleIds.Contains(role.Id)).Select(role => role.Name!).ToArrayAsync(ct);
             var permissions = await db.RolePermissions.AsNoTracking().Where(link => roleIds.Contains(link.RoleId)).Select(link => link.PermissionCode).Distinct().OrderBy(code => code).ToArrayAsync(ct);
             var facilities = await db.UserFacilities.AsNoTracking().Where(item => item.UserId == id && item.IsActive).Select(item => item.FacilityId).OrderBy(facility => facility).ToArrayAsync(ct);
-            return Results.Ok(new { userId = id, isActive = user.IsActive, roles, permissions, facilityIds = facilities, evaluatedAt = DateTime.UtcNow });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            return Results.Ok(new { userId = id, isActive = userEntity.IsActive, roles, permissions, facilityIds = facilities, evaluatedAt = DateTime.UtcNow });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
 
         group.MapGet("/break-glass/requests", async (
-            IApplicationDbContext db,
+            IdentityDbContext db,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var requests = await db.BreakGlassRequests.AsNoTracking()
+            var filter = IamTenantHttpContext.RequireFilter(http);
+
+            var query = db.BreakGlassRequests.AsNoTracking();
+            if (filter.AllowedTenantKeys is { Count: > 0 } allowedTenantKeys)
+            {
+                query = query.Where(item => db.UserClaims.Any(claim =>
+                    claim.UserId == item.SubjectUserId &&
+                    claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                    claim.ClaimValue != null && allowedTenantKeys.Contains(claim.ClaimValue)));
+            }
+
+            var requests = await query
                 .OrderByDescending(item => item.RequestedAt)
                 .Take(200)
                 .Select(item => new BreakGlassRequestDto(
@@ -499,12 +724,14 @@ public static class AccessGovernanceEndpoints
                     item.ApprovedAt, item.ExpiresAt, item.RevokedAt))
                 .ToListAsync(ct);
             return Results.Ok(requests);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.BreakGlassRead);
 
         group.MapPost("/break-glass/requests", async (
             BreakGlassCreateRequest request,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             CancellationToken ct) =>
         {
@@ -514,6 +741,10 @@ public static class AccessGovernanceEndpoints
                 {
                     ["request"] = ["subjectUserId, facilityId, permissionCode and a reason of at least 10 characters are required."]
                 });
+
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, request.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
 
             var registeredPrefixes = await db.IamServiceDefinitions.AsNoTracking()
                 .Select(service => service.PermissionPrefix)
@@ -527,7 +758,7 @@ public static class AccessGovernanceEndpoints
             var now = DateTime.UtcNow;
             var expiresAt = now.AddMinutes(Math.Clamp(request.DurationMinutes, 1, 30));
             var requestedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? http.User.FindFirstValue("sub") ?? "unknown";
+                ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             var item = new BreakGlassRequest
             {
                 Id = Guid.NewGuid(),
@@ -547,18 +778,23 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_REQUEST", "BreakGlassRequest", item.Id.ToString(), ct);
             return Results.Created($"/api/v1/admin/break-glass/requests/{item.Id}",
                 new { item.Id, item.Status, item.ExpiresAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/break-glass/requests/{id:guid}/revoke", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             ITokenBlacklistService tokenBlacklist,
             CancellationToken ct) =>
         {
-            var item = await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
+            var item = Guard.Against.NotFound(
+                await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "BreakGlassRequest", id);
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (item.Status is "revoked" or "expired") return Results.Conflict(new { errorCode = "request_closed" });
             item.Status = "revoked";
             item.RevokedAt = DateTime.UtcNow;
@@ -566,30 +802,36 @@ public static class AccessGovernanceEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(item.SubjectUserId.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_REVOKE", "BreakGlassRequest", id.ToString(), ct);
             return Results.NoContent();
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/break-glass/requests/{id:guid}/approve", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             ITokenBlacklistService tokenBlacklist,
             CancellationToken ct) =>
         {
-            if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
-            var item = await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
-            if (item is null) return Results.NotFound();
+            var item = Guard.Against.NotFound(
+                await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "BreakGlassRequest", id);
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
                 return Results.Conflict(new { errorCode = "request_not_pending" });
             item.Status = "approved";
-            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
+            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
             item.ApprovedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await tokenBlacklist.RevokeAllUserTokensAsync(item.SubjectUserId.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_APPROVE", "BreakGlassRequest", id.ToString(), ct);
             return Results.Ok(new { item.Id, item.Status, item.ExpiresAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/policy/simulate", async (
             PolicySimulationRequest request,
@@ -603,7 +845,7 @@ public static class AccessGovernanceEndpoints
                 });
 
             var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == request.UserId, ct);
-            if (user is null) return Results.NotFound(new { errorCode = "user_not_found" });
+            user = Guard.Against.NotFound(user, "User", request.UserId);
             var roles = await db.UserRoles.AsNoTracking().Where(link => link.UserId == request.UserId).Select(link => link.RoleId).ToArrayAsync(ct);
             var hasRolePermission = await db.RolePermissions.AsNoTracking().AnyAsync(link => roles.Contains(link.RoleId) && link.PermissionCode == request.PermissionCode, ct);
             var hasBreakGlassPermission = await db.BreakGlassRequests.AsNoTracking().AnyAsync(item =>
@@ -616,7 +858,7 @@ public static class AccessGovernanceEndpoints
             if (!string.IsNullOrWhiteSpace(request.PolicyKey))
             {
                 var policy = await db.AuthorizationPolicies.AsNoTracking().Where(item => item.Key == request.PolicyKey.Trim().ToLowerInvariant() && item.LifecycleStatus == "published").OrderByDescending(item => item.Version).FirstOrDefaultAsync(ct);
-                if (policy is null) return Results.NotFound(new { errorCode = "policy_not_found" });
+                policy = Guard.Against.NotFound(policy, "AuthorizationPolicy", request.PolicyKey);
                 abacDecision = AbacPolicyEvaluator.Evaluate(policy.RulesJson, new AbacPolicyContext(request.FacilityId, request.PurposeOfUse, request.DevicePostureFresh, request.IsBreakGlass, request.Assurance));
             }
             var allowed = user.IsActive && hasPermission && facilityAllowed && abacDecision.Allowed;
@@ -648,8 +890,27 @@ public static class AccessGovernanceEndpoints
     public sealed record AccessReviewCreateRequest(Guid SubjectUserId, string[] RoleIds, int DueDays = 30);
     public sealed record AccessReviewDto(Guid Id, Guid SubjectUserId, string Reviewer, string RoleIdsJson, string Status, string? DecisionReason, DateTime CreatedAt, DateTime DueAt, DateTime? DecidedAt);
 
-    private static string Actor(HttpContext http) => http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "system";
-    private static bool HasMfa(HttpContext http) => http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase));
+    private static string Actor(HttpContext http) => http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "system";
     private static AuthorizationPolicyDto ToPolicyDto(AuthorizationPolicyDefinition item) => new(item.Id, item.Key, item.Description, item.Owner, item.Version, item.LifecycleStatus, item.RulesJson, item.CreatedBy, item.CreatedAt, item.PublishedAt, item.PublishedBy);
+    private static async Task<AuthorizationPolicyBundleArtifact> CreatePolicyBundleArtifactAsync(IApplicationDbContext db, IVaultKeyProvider keyProvider, string actor, CancellationToken ct)
+    {
+        var policies = await db.AuthorizationPolicies.AsNoTracking()
+            .Where(item => item.LifecycleStatus == "published")
+            .OrderBy(item => item.Key).ThenBy(item => item.Version)
+            .Select(item => new { item.Key, item.Description, item.Owner, item.Version, item.RulesJson })
+            .ToListAsync(ct);
+        var canonical = JsonSerializer.Serialize(policies, new JsonSerializerOptions { WriteIndented = false });
+        var bytes = Encoding.UTF8.GetBytes(canonical);
+        var key = (await keyProvider.GetJwksAsync(ct)).FirstOrDefault();
+        return new AuthorizationPolicyBundleArtifact
+        {
+            PoliciesJson = canonical,
+            Hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+            Signature = await keyProvider.SignAsync(bytes, ct),
+            KeyId = key?.Kid,
+            CreatedBy = actor,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
     private static string NormalizeRelation(string relation) => relation.Trim().Replace(':', '_').Replace('.', '_').Replace('/', '_');
 }

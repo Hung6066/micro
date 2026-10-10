@@ -2,6 +2,7 @@ using System.Security.Claims;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Contracts;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
@@ -21,7 +22,7 @@ public static class TableViewEndpoints
 
     private static Guid? Subject(HttpContext context) =>
         Guid.TryParse(
-            context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.User.FindFirstValue("sub"),
+            context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? context.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject),
             out var id)
             ? id
             : null;
@@ -67,7 +68,16 @@ public static class TableViewEndpoints
         }
         view.PayloadJson = request.PayloadJson;
         view.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException exception)
+        {
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(TableViewEndpoints))
+                .LogError(exception, "Failed to persist table view {Resource}/{Name} for user {UserId}.", normalizedResource, normalizedName, userId);
+            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = "table_view_persistence_failed" });
+        }
         return Results.Ok(new { view.Name, view.PayloadJson, view.UpdatedAt });
     }
 
@@ -81,7 +91,7 @@ public static class TableViewEndpoints
         if (!TryNormalize(resource, out var normalizedResource) || !TryNormalize(name, out var normalizedName))
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidViewIdentifier });
         var view = await db.TableViews.SingleOrDefaultAsync(item => item.UserId == userId && item.Resource == normalizedResource && item.Name == normalizedName, ct);
-        if (view is null) return Results.NotFound();
+        view = Guard.Against.NotFound(view, "TableView", $"{normalizedResource}/{normalizedName}");
         db.TableViews.Remove(view);
         await db.SaveChangesAsync(ct);
         return Results.NoContent();

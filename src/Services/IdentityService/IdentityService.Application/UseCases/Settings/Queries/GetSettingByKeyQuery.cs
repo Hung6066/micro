@@ -20,7 +20,8 @@ public class GetSettingByKeyQueryHandler : IRequestHandler<GetSettingByKeyQuery,
     public async Task<SystemSettingDto?> Handle(GetSettingByKeyQuery request,
         CancellationToken cancellationToken)
     {
-        var setting = await _context.SystemSettings
+        var setting = await _context.SystemSettings.AsNoTracking()
+            .TagWith("Identity.Settings.GetSettingByKey")
             .Where(s => s.Key == request.Key && (s.ScopeId == IdentityScope.Global || s.ScopeId == (request.ScopeId ?? IdentityScope.Global)))
             .OrderByDescending(s => s.ScopeId == request.ScopeId && request.ScopeId != null)
             .FirstOrDefaultAsync(cancellationToken);

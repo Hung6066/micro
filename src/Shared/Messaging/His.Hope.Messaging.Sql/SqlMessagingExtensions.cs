@@ -29,6 +29,7 @@ public sealed class SqlMessagingDbContext(DbContextOptions<SqlMessagingDbContext
         modelBuilder.Entity<SqlIdempotencyRecord>().ToTable("his_hope_idempotency").HasKey(x => x.Key);
         modelBuilder.Entity<SqlOutboxMessage>().Property(x => x.EventJson).IsRequired();
         modelBuilder.Entity<SqlInboxMessage>().Property(x => x.Consumer).HasMaxLength(200);
+        modelBuilder.Entity<SqlInboxMessage>().Property(x => x.ProcessingAt).HasColumnType("timestamp with time zone");
         modelBuilder.Entity<SqlIdempotencyRecord>().Property(x => x.Key).HasMaxLength(255);
     }
 }
@@ -47,7 +48,21 @@ public sealed class SqlInboxMessage
 {
     public Guid EventId { get; set; }
     public string Consumer { get; set; } = string.Empty;
+    public DateTimeOffset? ProcessingAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
+}
+
+internal static class SqlInboxLeasePolicy
+{
+    public static readonly TimeSpan ProcessingTimeout = TimeSpan.FromMinutes(10);
+
+    public static bool ShouldReclaim(
+        DateTimeOffset? completedAt,
+        DateTimeOffset? processingAt,
+        DateTimeOffset now) =>
+        completedAt is null &&
+        processingAt is not null &&
+        now - processingAt.Value >= ProcessingTimeout;
 }
 
 public sealed class SqlIdempotencyRecord
@@ -105,10 +120,34 @@ internal sealed class SqlInboxStore(SqlMessagingDbContext db) : IInboxStore
 {
     public async ValueTask<bool> TryBeginAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default)
     {
-        if (await db.InboxMessages.AnyAsync(x => x.EventId == eventId && x.Consumer == consumer, cancellationToken)) return false;
-        db.InboxMessages.Add(new SqlInboxMessage { EventId = eventId, Consumer = consumer });
+        var existing = await db.InboxMessages
+            .SingleOrDefaultAsync(x => x.EventId == eventId && x.Consumer == consumer, cancellationToken);
+        if (existing is not null)
+        {
+            if (!SqlInboxLeasePolicy.ShouldReclaim(existing.CompletedAt, existing.ProcessingAt, DateTimeOffset.UtcNow))
+                return false;
+
+            var reclaimed = await db.InboxMessages
+                .Where(x => x.EventId == eventId && x.Consumer == consumer &&
+                            x.CompletedAt == null && x.ProcessingAt == existing.ProcessingAt)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(
+                    x => x.ProcessingAt, DateTimeOffset.UtcNow), cancellationToken);
+            return reclaimed == 1;
+        }
+
+        var message = new SqlInboxMessage
+        {
+            EventId = eventId,
+            Consumer = consumer,
+            ProcessingAt = DateTimeOffset.UtcNow
+        };
+        db.InboxMessages.Add(message);
         try { await db.SaveChangesAsync(cancellationToken); return true; }
-        catch (DbUpdateException) { return false; }
+        catch (DbUpdateException ex) when (SqlExceptionClassifier.IsUniqueViolation(ex))
+        {
+            db.Entry(message).State = EntityState.Detached;
+            return false;
+        }
     }
 
     public async ValueTask MarkCompletedAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default)
@@ -137,9 +176,14 @@ internal sealed class SqlIdempotencyStore(SqlMessagingDbContext db) : IIdempoten
 
     public async ValueTask<bool> TryBeginAsync(string key, string requestFingerprint, CancellationToken cancellationToken = default)
     {
-        db.IdempotencyRecords.Add(new SqlIdempotencyRecord { Key = key, RequestFingerprint = requestFingerprint });
+        var record = new SqlIdempotencyRecord { Key = key, RequestFingerprint = requestFingerprint };
+        db.IdempotencyRecords.Add(record);
         try { await db.SaveChangesAsync(cancellationToken); return true; }
-        catch (DbUpdateException) { return false; }
+        catch (DbUpdateException ex) when (SqlExceptionClassifier.IsUniqueViolation(ex))
+        {
+            db.Entry(record).State = EntityState.Detached;
+            return false;
+        }
     }
 
     public async ValueTask CompleteAsync(string key, int statusCode, string response, CancellationToken cancellationToken = default)

@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Identity;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Users.Commands;
 
@@ -20,7 +21,7 @@ public class ActivateUserCommandHandler : IRequestHandler<ActivateUserCommand>
     {
         var user = await _userManager.Users
             .FirstOrDefaultAsync(u => u.Id == request.Id, cancellationToken)
-            ?? throw new KeyNotFoundException("User not found.");
+            ?? Guard.Against.NotFound<User>(null, "User", request.Id);
 
         user.IsActive = true;
         var result = await _userManager.UpdateAsync(user);

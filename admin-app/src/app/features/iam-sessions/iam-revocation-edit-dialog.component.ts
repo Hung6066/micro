@@ -23,7 +23,6 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
-import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 export interface IamRevocationEditDialogData {
   users: User[];
   workloadRoles: IamWorkloadRole[];

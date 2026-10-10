@@ -35,7 +35,7 @@
     "@capacitor/push-notifications": "^7.0.7",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/material-symbols-rounded": "^5.3.1",
-    "@his-hope/frontend-foundation": "file:../shared/frontend-foundation",
+    "@his-hope/frontend-foundation": "^1.1.0",
     "@his-hope/mobile-foundation": "file:../shared/mobile-foundation",
     "@sentry/angular": "^10.68.0",
     "@types/qrcode": "^1.5.6",

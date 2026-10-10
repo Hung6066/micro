@@ -106,4 +106,87 @@ public class AuditLogTests
         log.Invoking(l => l.IpAddress = null).Should().NotThrow();
         log.Invoking(l => l.UserAgent = null).Should().NotThrow();
     }
+
+    [Fact]
+    public void IntegrityHash_ShouldBeStableForTheSameCanonicalEntry()
+    {
+        var log = new AuditLog
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            UserId = "user-1",
+            Action = "READ",
+            ResourceType = "Patient",
+            ResourceId = "patient-1",
+            IntegritySequence = 1,
+            Timestamp = new DateTime(2024, 6, 15, 10, 30, 0, DateTimeKind.Utc)
+        };
+
+        var first = AuditLogIntegrity.ComputeHash(log, null);
+        var second = AuditLogIntegrity.ComputeHash(log, null);
+
+        first.Should().Be(second);
+        first.Should().Be("4081fb2a50c31d89da485d10ade10d42fb1ccbb96108fdace80c0e08d795e461");
+    }
+
+    [Fact]
+    public void VerifyChain_ShouldRejectTamperedEntry()
+    {
+        var first = new AuditLog
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            UserId = "user-1", Action = "READ", ResourceType = "Patient",
+            IntegritySequence = 1,
+            Timestamp = new DateTime(2024, 6, 15, 10, 30, 0, DateTimeKind.Utc)
+        };
+        first.IntegrityHash = AuditLogIntegrity.ComputeHash(first, null);
+
+        var second = new AuditLog
+        {
+            Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            UserId = "user-1", Action = "UPDATE", ResourceType = "Patient",
+            IntegritySequence = 2,
+            Timestamp = new DateTime(2024, 6, 15, 10, 31, 0, DateTimeKind.Utc),
+            PreviousIntegrityHash = first.IntegrityHash
+        };
+        second.IntegrityHash = AuditLogIntegrity.ComputeHash(second, second.PreviousIntegrityHash);
+        second.Action = "DELETE";
+
+        AuditLogIntegrity.VerifyChain([first, second]).Should().BeFalse();
+    }
+
+    [Fact]
+    public void VerifyChainDetailed_ShouldIdentifyTamperedEntry()
+    {
+        var entry = new AuditLog
+        {
+            UserId = "user-1",
+            Action = "READ",
+            ResourceType = "Patient",
+            IntegritySequence = 1,
+            IntegrityHash = "not-the-computed-hash"
+        };
+
+        var result = AuditLogIntegrity.VerifyChainDetailed([entry]);
+
+        result.IsValid.Should().BeFalse();
+        result.EntriesChecked.Should().Be(0);
+        result.InvalidIndex.Should().Be(0);
+        result.FailureReason.Should().Be("hash-mismatch");
+        result.ActualSequence.Should().Be(1);
+    }
+
+    [Fact]
+    public void VerifyChainDetailed_ShouldReportLegacyEntryWithoutSequence()
+    {
+        var result = AuditLogIntegrity.VerifyChainDetailed([new AuditLog
+        {
+            UserId = "legacy-user",
+            Action = "READ",
+            ResourceType = "Patient"
+        }]);
+
+        result.IsValid.Should().BeFalse();
+        result.FailureReason.Should().Be("missing-sequence");
+        result.EntriesChecked.Should().Be(0);
+    }
 }

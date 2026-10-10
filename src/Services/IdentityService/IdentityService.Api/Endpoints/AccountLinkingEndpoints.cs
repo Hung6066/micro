@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using His.Hope.Contracts;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -38,14 +39,12 @@ public static class AccountLinkingEndpoints
     private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> UnlinkAccount(
         string provider, HttpContext httpContext, UserManager<User> userManager)
     {
-        var user = await GetCurrentUser(httpContext, userManager);
-        if (user is null) return TypedResults.NotFound();
+        var user = Guard.Against.NotFound(await GetCurrentUser(httpContext, userManager), "User", "current");
 
         var logins = await userManager.GetLoginsAsync(user);
-        var login = logins.FirstOrDefault(l =>
-            l.LoginProvider.Equals(provider, StringComparison.OrdinalIgnoreCase));
-
-        if (login is null) return TypedResults.NotFound();
+        var login = Guard.Against.NotFound(
+            logins.FirstOrDefault(l => l.LoginProvider.Equals(provider, StringComparison.OrdinalIgnoreCase)),
+            "ExternalLogin", provider);
 
         var hasPassword = await userManager.HasPasswordAsync(user);
         if (logins.Count == 1 && !hasPassword)
@@ -114,7 +113,7 @@ public static class AccountLinkingEndpoints
     private static async Task<User?> GetCurrentUser(HttpContext httpContext, UserManager<User> userManager)
     {
         var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
-                  ?? httpContext.User.FindFirstValue("sub");
+                  ?? httpContext.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
         if (string.IsNullOrEmpty(userId)) return null;
         return await userManager.FindByIdAsync(userId);
     }

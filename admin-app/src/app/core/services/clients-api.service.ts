@@ -105,6 +105,7 @@ export class ClientsApiService {
   }
 
   getTableViews(_resource: "clients"): Observable<AdminTableView[]> {
+    void _resource;
     return this.tableApi.getViews("clients");
   }
 

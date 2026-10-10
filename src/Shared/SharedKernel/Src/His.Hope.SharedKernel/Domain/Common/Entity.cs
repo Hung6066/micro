@@ -10,7 +10,9 @@ public abstract class Entity<TId> : IEquatable<Entity<TId>>, IHasDomainEvents
 
     protected Entity(TId id) => Id = id;
 
-    protected Entity() { }
+    // EF Core requires a parameterless constructor; initialize the key to keep
+    // nullable analysis honest until materialization assigns the persisted value.
+    protected Entity() => Id = default!;
 
     public override bool Equals(object? obj) =>
         obj is Entity<TId> entity && Id.Equals(entity.Id);

@@ -14,11 +14,6 @@ public interface IDegradedResponseProvider
     Task<T?> GetDegradedResponseAsync<T>(string cacheKey, CancellationToken ct = default) where T : class;
 
     /// <summary>
-    /// Checks whether a degraded (stale) response exists for the given cache key.
-    /// </summary>
-    bool HasDegradedResponse(string cacheKey);
-
-    /// <summary>
     /// Stores a successful response as a stale backup for future degraded scenarios.
     /// The data is kept with an extended TTL beyond the normal cache expiration.
     /// </summary>

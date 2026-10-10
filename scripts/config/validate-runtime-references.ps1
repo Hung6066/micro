@@ -220,8 +220,8 @@ function Get-ComposeReferences {
         # Accept both PORT:CONTAINER and HOST_IP:PORT:CONTAINER forms. The
         # latter is used by local Compose to avoid Docker Desktop's ambiguous
         # dual-stack publish path while preserving the container port contract.
-        if ($inPorts -and $currentService -and $line -match '^\s{6}-\s*["'']?(?:[^"''\s:]+:)?([0-9]+):([0-9]+)["'']?\s*$') {
-            $references[$currentService] += [int]$Matches[2]
+        if ($inPorts -and $currentService -and $line -match '^\s{6}-\s*["'']?(?:.*:)?([0-9]+)["'']?\s*$') {
+            $references[$currentService] += [int]$Matches[1]
         }
     }
 

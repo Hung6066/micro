@@ -1,0 +1,833 @@
+# Manufacturing platform services.  These workloads are deliberately kept as
+# separate Deployments so Commerce, Content and Manufacturing can scale and
+# roll independently while sharing only the declared platform contracts.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: commerce-service
+  labels:
+    app.kubernetes.io/name: commerce-service
+    app.kubernetes.io/component: backend
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: content-service
+  labels:
+    app.kubernetes.io/name: content-service
+    app.kubernetes.io/component: backend
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: manufacturing-service
+  labels:
+    app.kubernetes.io/name: manufacturing-service
+    app.kubernetes.io/component: backend
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: commerce-service-config
+  labels:
+    app.kubernetes.io/name: commerce-service
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  SERVICE_IDENTITY_URL: http://identity-service:5003
+  Jwt__Authority: http://identity-service:5003
+  Jwt__MetadataAddress: http://identity-service:5003/.well-known/openid-configuration
+  Jwt__RequireHttpsMetadata: "true"
+  Jwt__AllowHttp: "false"
+  Outbox__Enabled: "true"
+  EventBus__HostName: rabbitmq
+  EventBus__Port: "5672"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: content-service-config
+  labels:
+    app.kubernetes.io/name: content-service
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  SERVICE_IDENTITY_URL: http://identity-service:5003
+  Jwt__Authority: http://identity-service:5003
+  Jwt__MetadataAddress: http://identity-service:5003/.well-known/openid-configuration
+  Jwt__RequireHttpsMetadata: "true"
+  Jwt__AllowHttp: "false"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: manufacturing-service-config
+  labels:
+    app.kubernetes.io/name: manufacturing-service
+  
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  Jwt__Authority: http://identity-service:5003
+  Jwt__MetadataAddress: http://identity-service:5003/.well-known/openid-configuration
+  Jwt__RequireHttpsMetadata: "true"
+  Jwt__AllowHttp: "false"
+  Outbox__Enabled: "true"
+  Manufacturing__Automation__Enabled: "true"
+  Manufacturing__Automation__IntervalSeconds: "300"
+  Manufacturing__Automation__BatchSize: "100"
+  Consumers__AnalyticsEnabled: "true"
+  Consumers__CommerceOrdersEnabled: "true"
+  EventBus__HostName: rabbitmq
+  EventBus__Port: "5672"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commerce-service
+  labels:
+    app.kubernetes.io/name: commerce-service
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: commerce-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: commerce-service
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: commerce-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: commerce-service
+          image: his-hope/commerce-service:production
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 5015
+          envFrom:
+            - configMapRef:
+                name: commerce-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: Persistence__MigrationOnly
+              value: "false"
+            - name: ConnectionStrings__CommerceDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_COMMERCEDB
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_REDIS_CONNECTION_STRING
+            - name: EventBus__UserName
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: username
+            - name: EventBus__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+            - name: DataProtection__CertificatePath
+              value: /etc/his-hope/data-protection/tls.pfx
+            - name: DataProtection__CertificatePassword
+              valueFrom:
+                secretKeyRef:
+                  name: commerce-service-data-protection
+                  key: password
+          volumeMounts:
+            - name: data-protection
+              mountPath: /etc/his-hope/data-protection
+              readOnly: true
+            - name: vault-secrets
+              mountPath: /mnt/vault-secrets
+              readOnly: true
+            - name: runtime-tmp
+              mountPath: /tmp
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: 1000m, memory: 1Gi }
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 5
+            failureThreshold: 40
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SPIFFE_ID
+              value: spiffe://his-hope.local/ns/his-hope/sa/commerce-service
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: data-protection
+          secret:
+            secretName: commerce-service-data-protection
+            defaultMode: 0440
+        - name: vault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: { secretProviderClass: commerce-service-secrets }
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: commerce-service
+  labels:
+    app.kubernetes.io/name: commerce-service
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    app.kubernetes.io/name: commerce-service
+  ports:
+    - name: http
+      port: 5015
+      targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: commerce-service
+  labels:
+    app.kubernetes.io/name: commerce-service
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: commerce-service }
+  minReplicas: 2
+  maxReplicas: 12
+  behavior:
+    scaleUp: { stabilizationWindowSeconds: 0, policies: [{ type: Percent, value: 100, periodSeconds: 60 }] }
+    scaleDown: { stabilizationWindowSeconds: 300, policies: [{ type: Percent, value: 25, periodSeconds: 60 }] }
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+    - type: Resource
+      resource: { name: memory, target: { type: Utilization, averageUtilization: 70 } }
+    - type: Object
+      object:
+        describedObject: { kind: Service, name: commerce-service }
+        metric: { name: requests_per_second, selector: { matchLabels: { service: commerce-service } } }
+        target: { type: AverageValue, averageValue: "300" }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: commerce-service
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: commerce-service }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-service
+  labels:
+    app.kubernetes.io/name: content-service
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/name: content-service }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: content-service
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: content-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: content-service
+          image: his-hope/content-service:production
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          ports: [{ name: http, containerPort: 5016 }]
+          envFrom:
+            - configMapRef: { name: content-service-config }
+            - configMapRef: { name: runtime-contract-config }
+          env:
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: Persistence__MigrationOnly
+              value: "false"
+            - name: ConnectionStrings__ContentDb
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_CONNECTIONSTRINGS_CONTENTDB } }
+            - name: ConnectionStrings__Redis
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_REDIS_CONNECTION_STRING } }
+            - name: DataProtection__CertificatePath
+              value: /etc/his-hope/data-protection/tls.pfx
+            - name: DataProtection__CertificatePassword
+              valueFrom: { secretKeyRef: { name: content-service-data-protection, key: password } }
+          volumeMounts:
+            - { name: data-protection, mountPath: /etc/his-hope/data-protection, readOnly: true }
+            - { name: vault-secrets, mountPath: /mnt/vault-secrets, readOnly: true }
+            - { name: runtime-tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: 200m, memory: 384Mi }
+            limits: { cpu: 750m, memory: 768Mi }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, initialDelaySeconds: 30, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, initialDelaySeconds: 10, periodSeconds: 10 }
+          startupProbe: { httpGet: { path: /health/live, port: http }, periodSeconds: 5, failureThreshold: 40 }
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/content-service }]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: data-protection
+          secret: { secretName: content-service-data-protection, defaultMode: 0440 }
+        - name: vault-secrets
+          csi: { driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: content-service-secrets } }
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: content-service
+  labels:
+    app.kubernetes.io/name: content-service
+    app.kubernetes.io/component: backend
+spec:
+  selector: { app.kubernetes.io/name: content-service }
+  ports: [{ name: http, port: 5016, targetPort: http }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: content-service
+  labels: { app.kubernetes.io/name: content-service }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: content-service }
+  minReplicas: 2
+  maxReplicas: 8
+  behavior:
+    scaleDown: { stabilizationWindowSeconds: 300, policies: [{ type: Percent, value: 25, periodSeconds: 60 }] }
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+    - type: Resource
+      resource: { name: memory, target: { type: Utilization, averageUtilization: 70 } }
+    - type: Object
+      object:
+        describedObject: { kind: Service, name: content-service }
+        metric: { name: requests_per_second, selector: { matchLabels: { service: content-service } } }
+        target: { type: AverageValue, averageValue: "300" }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: content-service
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app.kubernetes.io/name: content-service } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manufacturing-service
+  labels:
+    app.kubernetes.io/name: manufacturing-service
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app.kubernetes.io/name: manufacturing-service }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: manufacturing-service
+        app.kubernetes.io/component: backend
+    spec:
+      serviceAccountName: manufacturing-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: manufacturing-service
+          image: his-hope/manufacturing-service:production
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          ports: [{ name: http, containerPort: 5050 }]
+          envFrom:
+            - configMapRef: { name: manufacturing-service-config }
+            - configMapRef: { name: runtime-contract-config }
+          env:
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: Persistence__MigrationOnly
+              value: "false"
+            - name: ConnectionStrings__ManufacturingDb
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_CONNECTIONSTRINGS_MANUFACTURINGDB } }
+            - name: ConnectionStrings__Redis
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_REDIS_CONNECTION_STRING } }
+            - name: EventBus__UserName
+              valueFrom: { secretKeyRef: { name: rabbitmq-secret, key: username } }
+            - name: EventBus__Password
+              valueFrom: { secretKeyRef: { name: rabbitmq-secret, key: password } }
+            - name: DataProtection__CertificatePath
+              value: /etc/his-hope/data-protection/tls.pfx
+            - name: DataProtection__CertificatePassword
+              valueFrom: { secretKeyRef: { name: manufacturing-service-data-protection, key: password } }
+          volumeMounts:
+            - { name: data-protection, mountPath: /etc/his-hope/data-protection, readOnly: true }
+            - { name: vault-secrets, mountPath: /mnt/vault-secrets, readOnly: true }
+            - { name: runtime-tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: 500m, memory: 768Mi }
+            limits: { cpu: 1500m, memory: 2Gi }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, initialDelaySeconds: 45, periodSeconds: 15 }
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, initialDelaySeconds: 15, periodSeconds: 10 }
+          startupProbe: { httpGet: { path: /health/live, port: http }, periodSeconds: 5, failureThreshold: 60 }
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/manufacturing-service }]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+            seccompProfile: { type: RuntimeDefault }
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: data-protection
+          secret: { secretName: manufacturing-service-data-protection, defaultMode: 0440 }
+        - name: vault-secrets
+          csi: { driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: manufacturing-service-secrets } }
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: manufacturing-service
+  labels:
+    app.kubernetes.io/name: manufacturing-service
+    app.kubernetes.io/component: backend
+spec:
+  selector: { app.kubernetes.io/name: manufacturing-service }
+  ports: [{ name: http, port: 5050, targetPort: http }]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: manufacturing-service
+  labels: { app.kubernetes.io/name: manufacturing-service }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: manufacturing-service }
+  minReplicas: 3
+  maxReplicas: 20
+  behavior:
+    scaleUp: { stabilizationWindowSeconds: 0, policies: [{ type: Percent, value: 100, periodSeconds: 60 }] }
+    scaleDown: { stabilizationWindowSeconds: 600, policies: [{ type: Percent, value: 20, periodSeconds: 60 }] }
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+    - type: Resource
+      resource: { name: memory, target: { type: Utilization, averageUtilization: 70 } }
+    - type: Object
+      object:
+        describedObject: { kind: Service, name: manufacturing-service }
+        metric: { name: requests_per_second, selector: { matchLabels: { service: manufacturing-service } } }
+        target: { type: AverageValue, averageValue: "500" }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: manufacturing-service
+spec:
+  minAvailable: 2
+  selector: { matchLabels: { app.kubernetes.io/name: manufacturing-service } }
+---
+# Production migration hooks.  API replicas never run migrations; Argo runs
+# one bounded MigrationOnly Job per owned database before wave 30 workloads.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-commerce
+  labels:
+    app.kubernetes.io/name: production-migrate-commerce
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: production-migrate-commerce
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations: { linkerd.io/inject: disabled }
+    spec:
+      serviceAccountName: commerce-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      imagePullSecrets: [{ name: harbor-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 1654, runAsGroup: 1654, fsGroup: 1654, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: commerce-service
+          image: his-hope/commerce-service:production
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: commerce-service-config }
+            - configMapRef: { name: runtime-contract-config }
+          env:
+            - name: ConnectionStrings__CommerceDb
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_CONNECTIONSTRINGS_COMMERCEDB } }
+            - name: ConnectionStrings__Redis
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_REDIS_CONNECTION_STRING } }
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: DataProtection__CertificatePath
+              value: /etc/his-hope/data-protection/tls.pfx
+            - name: DataProtection__CertificatePassword
+              valueFrom: { secretKeyRef: { name: commerce-service-data-protection, key: password } }
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: commerce-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+            - name: EventBus__UserName
+              valueFrom: { secretKeyRef: { name: rabbitmq-secret, key: username } }
+            - name: EventBus__Password
+              valueFrom: { secretKeyRef: { name: rabbitmq-secret, key: password } }
+          securityContext: { runAsNonRoot: true, runAsUser: 1654, runAsGroup: 1654, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] }, seccompProfile: { type: RuntimeDefault } }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+          volumeMounts:
+            - { name: runtime-tmp, mountPath: /tmp }
+            - { name: data-protection, mountPath: /etc/his-hope/data-protection, readOnly: true }
+            - { name: vault-secrets, mountPath: /mnt/vault-secrets, readOnly: true }
+            - { name: vault-tls-ca, mountPath: /etc/tls/vault, readOnly: true }
+            - { name: redis-tls-ca, mountPath: /etc/tls/redis, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt, readOnly: true }
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/commerce-service }]
+          securityContext: { runAsUser: 0, runAsGroup: 0, runAsNonRoot: false, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] }, seccompProfile: { type: RuntimeDefault } }
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - { name: runtime-tmp, emptyDir: {} }
+        - { name: data-protection, secret: { secretName: commerce-service-data-protection, defaultMode: 0440 } }
+        - { name: vault-secrets, csi: { driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: commerce-service-secrets } } }
+        - { name: vault-tls-ca, secret: { secretName: vault-tls-ca, defaultMode: 0440 } }
+        - { name: redis-tls-ca, secret: { secretName: redis-tls, defaultMode: 0440 } }
+        - { name: spire-jwt, emptyDir: { medium: Memory } }
+        - { name: agent-socket, hostPath: { path: /run/spire/sockets, type: Socket } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-content
+  labels:
+    app.kubernetes.io/name: production-migrate-content
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: production-migrate-content, app.kubernetes.io/part-of: his-hope, his-hope.io/operation: database-migration }
+      annotations: { linkerd.io/inject: disabled }
+    spec:
+      serviceAccountName: content-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      imagePullSecrets: [{ name: harbor-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 1654, runAsGroup: 1654, fsGroup: 1654, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: content-service
+          image: his-hope/content-service:production
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: content-service-config }
+            - configMapRef: { name: runtime-contract-config }
+          env:
+            - name: ConnectionStrings__ContentDb
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_CONNECTIONSTRINGS_CONTENTDB } }
+            - name: ConnectionStrings__Redis
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_REDIS_CONNECTION_STRING } }
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: DataProtection__CertificatePath
+              value: /etc/his-hope/data-protection/tls.pfx
+            - name: DataProtection__CertificatePassword
+              valueFrom: { secretKeyRef: { name: content-service-data-protection, key: password } }
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: content-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          securityContext: { runAsNonRoot: true, runAsUser: 1654, runAsGroup: 1654, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] }, seccompProfile: { type: RuntimeDefault } }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+          volumeMounts:
+            - { name: runtime-tmp, mountPath: /tmp }
+            - { name: data-protection, mountPath: /etc/his-hope/data-protection, readOnly: true }
+            - { name: vault-tls-ca, mountPath: /etc/tls/vault, readOnly: true }
+            - { name: redis-tls-ca, mountPath: /etc/tls/redis, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt, readOnly: true }
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/content-service }]
+          securityContext: { runAsUser: 0, runAsGroup: 0, runAsNonRoot: false, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] }, seccompProfile: { type: RuntimeDefault } }
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - { name: runtime-tmp, emptyDir: {} }
+        - { name: data-protection, secret: { secretName: content-service-data-protection, defaultMode: 0440 } }
+        - { name: vault-secrets, csi: { driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: content-service-secrets } } }
+        - { name: vault-tls-ca, secret: { secretName: vault-tls-ca, defaultMode: 0440 } }
+        - { name: redis-tls-ca, secret: { secretName: redis-tls, defaultMode: 0440 } }
+        - { name: spire-jwt, emptyDir: { medium: Memory } }
+        - { name: agent-socket, hostPath: { path: /run/spire/sockets, type: Socket } }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-manufacturing
+  labels:
+    app.kubernetes.io/name: production-migrate-manufacturing
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: production-migrate-manufacturing, app.kubernetes.io/part-of: his-hope, his-hope.io/operation: database-migration }
+      annotations: { linkerd.io/inject: disabled }
+    spec:
+      serviceAccountName: manufacturing-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      imagePullSecrets: [{ name: harbor-pull }]
+      securityContext: { runAsNonRoot: true, runAsUser: 1654, runAsGroup: 1654, fsGroup: 1654, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: manufacturing-service
+          image: his-hope/manufacturing-service:production
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef: { name: manufacturing-service-config }
+            - configMapRef: { name: runtime-contract-config }
+          env:
+            - name: ConnectionStrings__ManufacturingDb
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_CONNECTIONSTRINGS_MANUFACTURINGDB } }
+            - name: ConnectionStrings__Redis
+              valueFrom: { configMapKeyRef: { name: runtime-contract-config, key: ADAPTER_REDIS_CONNECTION_STRING } }
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Manufacturing__SeedDemoData
+              value: "false"
+            - name: DataProtection__CertificatePath
+              value: /etc/his-hope/data-protection/tls.pfx
+            - name: DataProtection__CertificatePassword
+              valueFrom: { secretKeyRef: { name: manufacturing-service-data-protection, key: password } }
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: manufacturing-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+            - name: EventBus__UserName
+              valueFrom: { secretKeyRef: { name: rabbitmq-secret, key: username } }
+            - name: EventBus__Password
+              valueFrom: { secretKeyRef: { name: rabbitmq-secret, key: password } }
+          securityContext: { runAsNonRoot: true, runAsUser: 1654, runAsGroup: 1654, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] }, seccompProfile: { type: RuntimeDefault } }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 1000m, memory: 1Gi } }
+          volumeMounts:
+            - { name: runtime-tmp, mountPath: /tmp }
+            - { name: data-protection, mountPath: /etc/his-hope/data-protection, readOnly: true }
+            - { name: vault-tls-ca, mountPath: /etc/tls/vault, readOnly: true }
+            - { name: redis-tls-ca, mountPath: /etc/tls/redis, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt, readOnly: true }
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/manufacturing-service }]
+          securityContext: { runAsUser: 0, runAsGroup: 0, runAsNonRoot: false, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] }, seccompProfile: { type: RuntimeDefault } }
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 100m, memory: 64Mi } }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - { name: runtime-tmp, emptyDir: {} }
+        - { name: data-protection, secret: { secretName: manufacturing-service-data-protection, defaultMode: 0440 } }
+        - { name: vault-secrets, csi: { driver: secrets-store.csi.k8s.io, readOnly: true, volumeAttributes: { secretProviderClass: manufacturing-service-secrets } } }
+        - { name: vault-tls-ca, secret: { secretName: vault-tls-ca, defaultMode: 0440 } }
+        - { name: redis-tls-ca, secret: { secretName: redis-tls, defaultMode: 0440 } }
+        - { name: spire-jwt, emptyDir: { medium: Memory } }
+        - { name: agent-socket, hostPath: { path: /run/spire/sockets, type: Socket } }

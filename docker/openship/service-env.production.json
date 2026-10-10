@@ -1,0 +1,80 @@
+{
+  "_comment": "Per-service production environment pushed to Openship (project 'micro'). Values may use ${NAME} (required) or ${NAME:-default}, resolved from the CI environment (GitHub secrets). 'common' only overrides keys that already exist in a service's compose environment; 'addAll' adds keys to every service that has an environment; 'services' adds or overrides keys for one service. PEM values are written to /tmp/openship-pki by PlatformPki.Materialize() (see src/Shared/Configuration/His.Hope.Configuration/PlatformPki.cs).",
+  "common": {
+    "ASPNETCORE_ENVIRONMENT": "Production",
+    "Jwt__Issuer": "${MICRO_JWT_ISSUER}",
+    "Jwt__ValidIssuers__0": "${MICRO_JWT_ISSUER}",
+    "Jwt__Authority": "${MICRO_JWT_AUTHORITY}",
+    "Jwt__MetadataAddress": "${MICRO_JWT_AUTHORITY}/.well-known/openid-configuration",
+    "Jwt__AllowHttp": "false",
+    "Jwt__RequireHttpsMetadata": "true",
+    "ConnectionStrings__Redis": "${MICRO_REDIS_URL}",
+    "REDIS_URL": "${MICRO_REDIS_URL}",
+    "Redis__ConnectionString": "${MICRO_REDIS_URL}",
+    "Vault__Address": "https://vault.openship-vault.svc.cluster.local:8200",
+    "Vault__RequireVault": "true",
+    "Vault__AllowStaticToken": "false",
+    "AUTHZ_PDP_MODE": "${MICRO_AUTHZ_PDP_MODE:-canary}",
+    "Conglomerate__SeedPilotMemberships": "false",
+    "Conglomerate__SeedPilotUsers": "false",
+    "Manufacturing__SeedDemoData": "false"
+  },
+  "addAll": {
+    "Redis__TlsCaFile": "/tmp/openship-pki/redis-ca.pem",
+    "Redis__TlsClientCertificatePem": "${MICRO_REDIS_CLIENT_CRT}",
+    "Redis__TlsClientPrivateKeyPem": "${MICRO_REDIS_CLIENT_KEY}",
+    "PLATFORM_PKI_FILE_REDIS_CA": "${MICRO_REDIS_CA}"
+  },
+  "services": {
+    "identityservice": {
+      "ConnectionStrings__IdentityDb": "${MICRO_IDENTITY_DB_CONNECTION}",
+      "PLATFORM_PKI_FILE_PG_CA": "${MICRO_PG_CA}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_CRT": "${MICRO_PG_CLIENT_CRT}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_KEY": "${MICRO_PG_CLIENT_KEY}",
+      "OpenIddict__Issuer": "${MICRO_OIDC_ISSUER}",
+      "Identity__BootstrapAdmin__Password": "${MICRO_IDENTITY_BOOTSTRAP_PASSWORD}"
+    },
+    "commerceservice": {
+      "ConnectionStrings__CommerceDb": "${MICRO_COMMERCE_DB_CONNECTION}",
+      "PLATFORM_PKI_FILE_PG_CA": "${MICRO_PG_CA}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_CRT": "${MICRO_PG_CLIENT_CRT}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_KEY": "${MICRO_PG_CLIENT_KEY}",
+      "EventBus__HostName": "openship-rabbitmq.openship-messaging.svc.cluster.local",
+      "EventBus__Port": "5671",
+      "EventBus__UseSsl": "true",
+      "EventBus__VirtualHost": "micro-production",
+      "EventBus__UserName": "${MICRO_COMMERCE_RABBITMQ_USER}",
+      "EventBus__Password": "${MICRO_COMMERCE_RABBITMQ_PASSWORD}",
+      "EventBus__ClientCertificatePath": "/tmp/openship-pki/rabbitmq-client-crt.pem",
+      "EventBus__ClientPrivateKeyPath": "/tmp/openship-pki/rabbitmq-client-key.pem",
+      "EventBus__CaCertificatePath": "/tmp/openship-pki/rabbitmq-ca.pem",
+      "PLATFORM_PKI_FILE_RABBITMQ_CA": "${MICRO_RABBITMQ_CA}",
+      "PLATFORM_PKI_FILE_RABBITMQ_CLIENT_CRT": "${MICRO_RABBITMQ_CLIENT_CRT}",
+      "PLATFORM_PKI_FILE_RABBITMQ_CLIENT_KEY": "${MICRO_RABBITMQ_CLIENT_KEY}"
+    },
+    "contentservice": {
+      "ConnectionStrings__ContentDb": "${MICRO_CONTENT_DB_CONNECTION}",
+      "PLATFORM_PKI_FILE_PG_CA": "${MICRO_PG_CA}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_CRT": "${MICRO_PG_CLIENT_CRT}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_KEY": "${MICRO_PG_CLIENT_KEY}"
+    },
+    "manufacturingservice": {
+      "ConnectionStrings__ManufacturingDb": "${MICRO_MANUFACTURING_DB_CONNECTION}",
+      "PLATFORM_PKI_FILE_PG_CA": "${MICRO_PG_CA}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_CRT": "${MICRO_PG_CLIENT_CRT}",
+      "PLATFORM_PKI_FILE_PG_CLIENT_KEY": "${MICRO_PG_CLIENT_KEY}",
+      "EventBus__HostName": "openship-rabbitmq.openship-messaging.svc.cluster.local",
+      "EventBus__Port": "5671",
+      "EventBus__UseSsl": "true",
+      "EventBus__VirtualHost": "micro-production",
+      "EventBus__UserName": "${MICRO_MANUFACTURING_RABBITMQ_USER}",
+      "EventBus__Password": "${MICRO_MANUFACTURING_RABBITMQ_PASSWORD}",
+      "EventBus__ClientCertificatePath": "/tmp/openship-pki/rabbitmq-client-crt.pem",
+      "EventBus__ClientPrivateKeyPath": "/tmp/openship-pki/rabbitmq-client-key.pem",
+      "EventBus__CaCertificatePath": "/tmp/openship-pki/rabbitmq-ca.pem",
+      "PLATFORM_PKI_FILE_RABBITMQ_CA": "${MICRO_RABBITMQ_CA}",
+      "PLATFORM_PKI_FILE_RABBITMQ_CLIENT_CRT": "${MICRO_RABBITMQ_CLIENT_CRT}",
+      "PLATFORM_PKI_FILE_RABBITMQ_CLIENT_KEY": "${MICRO_RABBITMQ_CLIENT_KEY}"
+    }
+  }
+}

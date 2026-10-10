@@ -1,5 +1,3 @@
-extern alias IdentityApi;
-
 using System.Security.Claims;
 using System.Reflection;
 using Grpc.Core;
@@ -9,6 +7,7 @@ using His.Hope.IdentityService.Api.Controllers;
 using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Testing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -28,18 +27,18 @@ public sealed class ApiLowCoverageTests(IdentityServiceTestFixture fixture)
     [Fact]
     public async Task Grpc_permission_handler_grants_authenticated_user_when_grpc_allows()
     {
-        var client = new Mock<IdentityApi::His.Hope.Identity.Grpc.IdentityService.IdentityServiceClient>();
+        var client = new Mock<His.Hope.Identity.Grpc.IdentityService.IdentityServiceClient>();
         client.Setup(x => x.CheckPermissionAsync(
-                It.Is<IdentityApi::His.Hope.Identity.Grpc.CheckPermissionRequest>(r => r.UserId == "user-1" && r.PermissionCode == "users.read"),
+                It.Is<His.Hope.Identity.Grpc.CheckPermissionRequest>(r => r.UserId == "user-1" && r.PermissionCode == "users.read"),
                 It.IsAny<Metadata>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
-            .Returns(new AsyncUnaryCall<IdentityApi::His.Hope.Identity.Grpc.CheckPermissionResponse>(
-                Task.FromResult(new IdentityApi::His.Hope.Identity.Grpc.CheckPermissionResponse { HasPermission = true }),
+            .Returns(new AsyncUnaryCall<His.Hope.Identity.Grpc.CheckPermissionResponse>(
+                Task.FromResult(new His.Hope.Identity.Grpc.CheckPermissionResponse { HasPermission = true }),
                 Task.FromResult(new Metadata()),
                 () => new Status(StatusCode.OK, ""),
                 () => new Metadata(),
                 () => { }));
 
-        var handler = new IdentityApi::His.Hope.IdentityService.Api.Authorization.GrpcPermissionHandler(client.Object, NullLogger<IdentityApi::His.Hope.IdentityService.Api.Authorization.GrpcPermissionHandler>.Instance);
+        var handler = new GrpcPermissionHandler(client.Object, NullLogger<GrpcPermissionHandler>.Instance);
         var requirement = new PermissionRequirement("users.read");
         var context = new AuthorizationHandlerContext(
             [requirement],
@@ -55,12 +54,12 @@ public sealed class ApiLowCoverageTests(IdentityServiceTestFixture fixture)
     [Fact]
     public async Task Grpc_permission_handler_falls_back_to_csv_claim_when_grpc_fails()
     {
-        var client = new Mock<IdentityApi::His.Hope.Identity.Grpc.IdentityService.IdentityServiceClient>();
+        var client = new Mock<His.Hope.Identity.Grpc.IdentityService.IdentityServiceClient>();
         client.Setup(x => x.CheckPermissionAsync(
-                It.IsAny<IdentityApi::His.Hope.Identity.Grpc.CheckPermissionRequest>(), It.IsAny<Metadata>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<His.Hope.Identity.Grpc.CheckPermissionRequest>(), It.IsAny<Metadata>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .Throws(new RpcException(new Status(StatusCode.Unavailable, "offline")));
 
-        var handler = new IdentityApi::His.Hope.IdentityService.Api.Authorization.GrpcPermissionHandler(client.Object, NullLogger<IdentityApi::His.Hope.IdentityService.Api.Authorization.GrpcPermissionHandler>.Instance);
+        var handler = new GrpcPermissionHandler(client.Object, NullLogger<GrpcPermissionHandler>.Instance);
         var requirement = new PermissionRequirement("users.read");
         var context = new AuthorizationHandlerContext(
             [requirement],
@@ -78,8 +77,8 @@ public sealed class ApiLowCoverageTests(IdentityServiceTestFixture fixture)
     [Fact]
     public async Task Grpc_permission_handler_denies_anonymous_or_missing_subject()
     {
-        var client = new Mock<IdentityApi::His.Hope.Identity.Grpc.IdentityService.IdentityServiceClient>(MockBehavior.Strict);
-        var handler = new IdentityApi::His.Hope.IdentityService.Api.Authorization.GrpcPermissionHandler(client.Object, NullLogger<IdentityApi::His.Hope.IdentityService.Api.Authorization.GrpcPermissionHandler>.Instance);
+        var client = new Mock<His.Hope.Identity.Grpc.IdentityService.IdentityServiceClient>(MockBehavior.Strict);
+        var handler = new GrpcPermissionHandler(client.Object, NullLogger<GrpcPermissionHandler>.Instance);
         var requirement = new PermissionRequirement("users.read");
 
         var anonymous = new AuthorizationHandlerContext([requirement], new ClaimsPrincipal(new ClaimsIdentity()), null);
@@ -225,7 +224,8 @@ public sealed class ApiLowCoverageTests(IdentityServiceTestFixture fixture)
             ["Vault:JwtTokenFile"] = "C:/var/run/secrets/vault/jwt",
             ["OpenIddict:Issuer"] = "https://identity.example.test",
             ["ConnectionStrings:Redis"] = "redis:6379",
-            ["OpenIddict:AllowInsecureHttp"] = "false"
+            ["OpenIddict:AllowInsecureHttp"] = "false",
+            ["Identity:SuperAdmin:UserIds:0"] = IdentityTestData.AdminId.ToString("D")
         });
         await using var app = builder.Build();
         var type = typeof(SamlFederationController).Assembly.GetType(

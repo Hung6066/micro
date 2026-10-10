@@ -1,0 +1,118 @@
+name: GitOps Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_name:
+        description: Application image under the Harbor project (for example api-gateway)
+        required: true
+        type: string
+      image_digest:
+        description: Immutable image digest (sha256 plus 64 lowercase hexadecimal characters)
+        required: true
+        type: string
+      release_sha:
+        description: Source release commit SHA
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  promotion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    env:
+      HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
+      HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
+      IMAGE_NAME: ${{ inputs.image_name }}
+      IMAGE_DIGEST: ${{ inputs.image_digest }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate promotion input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HARBOR_REGISTRY:-}" || { echo 'HARBOR_REGISTRY repository variable is required' >&2; exit 1; }
+          [[ "$HARBOR_REGISTRY" =~ ^[a-z0-9.-]+(:[0-9]+)?$ ]] || { echo 'Invalid HARBOR_REGISTRY' >&2; exit 1; }
+          test -n "${HARBOR_PROJECT:-}" || { echo 'HARBOR_PROJECT repository variable is required' >&2; exit 1; }
+          [[ "$HARBOR_PROJECT" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || { echo 'Invalid HARBOR_PROJECT' >&2; exit 1; }
+          [[ "$IMAGE_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo 'Invalid image_name' >&2; exit 1; }
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'IMAGE_DIGEST must be lowercase immutable sha256' >&2; exit 1; }
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a 40-character commit SHA' >&2; exit 1; }
+          printf 'IMAGE_REF=%s/%s/%s@%s\n' "$HARBOR_REGISTRY" "$HARBOR_PROJECT" "$IMAGE_NAME" "$IMAGE_DIGEST" >> "$GITHUB_ENV"
+
+      - name: Install Harbor trust chain
+        shell: bash
+        env:
+          HARBOR_CA_CHAIN_B64: ${{ secrets.HARBOR_CA_CHAIN_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${HARBOR_CA_CHAIN_B64:-}" || { echo 'HARBOR_CA_CHAIN_B64 is required' >&2; exit 1; }
+          printf '%s' "$HARBOR_CA_CHAIN_B64" | base64 --decode | sudo tee /usr/local/share/ca-certificates/his-hope-harbor.crt >/dev/null
+          sudo update-ca-certificates
+
+      - name: Install pinned Cosign verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --location --retry 4 --retry-all-errors --retry-delay 2 \
+            https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 \
+            -o "$RUNNER_TOOL_CACHE/cosign-linux-amd64"
+          echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign-linux-amd64" | sha256sum --check
+          chmod 0755 "$RUNNER_TOOL_CACHE/cosign-linux-amd64"
+          echo "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
+          ln -sf "$RUNNER_TOOL_CACHE/cosign-linux-amd64" "$RUNNER_TOOL_CACHE/cosign"
+
+      - name: Verify signed image and provenance
+        shell: pwsh
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          ./scripts/verify-image-attestations.ps1 `
+            -ImageRef "$env:IMAGE_REF" `
+            -CertificateIdentityRegex "^https://github.com/${env:GITHUB_REPOSITORY}/.github/workflows/container-release.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+)$"
+
+      - name: Update production digest only
+        shell: pwsh
+        run: ./scripts/update-gitops-digest.ps1 -ImageName "his-hope/$env:IMAGE_NAME" -Digest $env:IMAGE_DIGEST -ReleaseSha $env:RELEASE_SHA
+
+      - name: Validate rendered production release
+        shell: pwsh
+        run: |
+          ./scripts/validate-kustomize-release.ps1 -Environment prod
+          ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          python scripts/validate-production-ha-contract.py
+          python scripts/validate-production-data-plane-ha-contract.py
+          ./scripts/validate-signature-controller-contract.ps1
+          git diff --check
+          $allowed = @(
+            'k8s/overlays/prod/image-digests/kustomization.yaml',
+            'k8s/overlays/prod/release-metadata.yaml'
+          )
+          $changed = @(git diff --name-only)
+          $unexpected = @($changed | Where-Object { $_ -notin $allowed })
+          if ($unexpected.Count -gt 0) { throw "Promotion changed unexpected files: $($unexpected -join ', ')" }
+
+      - name: Create review-required promotion PR
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          branch: codex/gitops-promote-${{ github.run_id }}
+          base: main
+          title: 'chore(gitops): promote ${{ inputs.image_name }} at ${{ inputs.release_sha }}'
+          commit-message: 'chore(gitops): promote verified image digest'
+          body: |
+            This PR was generated by the protected GitOps promotion workflow.
+
+            - Harbor image digest and SLSA provenance were verified before the update.
+            - Only the production digest and release metadata files are changed.
+            - Merge requires normal repository review; Argo CD reconciles only after the reviewed commit reaches the Git mirror.

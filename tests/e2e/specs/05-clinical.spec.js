@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE_URL } = require('../config/urls');
 const { signInThroughIdentity } = require('../helpers/sso-login');
+const { ensureSidebarVisible } = require('../helpers/ensure-sidebar-visible');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
@@ -11,12 +12,13 @@ async function login(page) {
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
-  const link = page.locator('mat-nav-list a').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label });
+  await ensureSidebarVisible(page);
+  const link = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
   if (expectedPath) {
     let reached = false;
     for (let attempt = 0; attempt < 3 && !reached; attempt += 1) {
-      const currentLink = page.locator('mat-nav-list a').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label }).first();
+      const currentLink = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label }).first();
       await currentLink.click();
       try {
         await page.waitForURL(new RegExp(expectedPath), { timeout: 5000 });
@@ -41,7 +43,7 @@ async function navigateToSidebar(page, label, expectedPath) {
       if (AUTH_LOGIN_RE.test(page.url())) {
         console.log(`PermissionGuard redirected to login for ${label}, re-logging in...`);
         await login(page);
-        const retryLink = page.locator('mat-nav-list a').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label }).first();
+        const retryLink = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label }).first();
         await retryLink.click();
         await page.waitForURL(new RegExp(expectedPath), { timeout: 15000 });
       } else if (ACCESS_DENIED_RE.test(page.url())) {
@@ -65,7 +67,7 @@ test.describe('Clinical (Lâm sàng) Module', () => {
       test.skip(true, 'Protected clinical routes are unavailable in this environment.');
     }
 
-    await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 10000 });
+    await ensureSidebarVisible(page);
   });
 
   test('TC-CLN-01: Clinical encounters list loads', async ({ page }) => {

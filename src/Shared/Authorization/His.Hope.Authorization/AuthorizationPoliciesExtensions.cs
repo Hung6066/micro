@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.Authorization.Handlers;
 using His.Hope.Authorization.Requirements;
 
@@ -13,7 +14,7 @@ public static class AuthorizationPoliciesExtensions
         services.AddHttpContextAccessor();
         services.AddHttpClient<OpenFgaClient>((serviceProvider, client) =>
         {
-            var url = serviceProvider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()["AUTHZ_OPENFGA_URL"];
+            var url = serviceProvider.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["AUTHZ_OPENFGA_URL"];
             if (Uri.TryCreate(url, UriKind.Absolute, out var baseAddress)) client.BaseAddress = new Uri(baseAddress.ToString().TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromMilliseconds(500);
         });
@@ -21,10 +22,13 @@ public static class AuthorizationPoliciesExtensions
         services.AddSingleton<OpenFgaCanaryAuthorizer>();
         services.AddSingleton<IAuthorizationDecisionSink, LoggingAuthorizationDecisionSink>();
         services.AddSingleton<IAuthorizationShadowProbe, LoggingAuthorizationShadowProbe>();
+        services.AddSingleton<ICrossTenantAccessPolicy, DefaultDenyCrossTenantAccessPolicy>();
         services.AddScoped<IResourceAuthorizationEvaluator, AuthorizationEvaluator>();
 
         services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
         services.AddSingleton<IAuthorizationHandler, ScopeHandler>();
+        services.AddSingleton<IAuthorizationHandler, PortalClassHandler>();
+        services.AddSingleton<IAuthorizationHandler, CommerceScopeOrPermissionHandler>();
         services.AddSingleton<IAuthorizationHandler, PrincipalTypeHandler>();
         var builder = services.AddAuthorizationBuilder();
         builder.AddFallbackPolicy("default", new AuthorizationPolicyBuilder()
@@ -36,6 +40,15 @@ public static class AuthorizationPoliciesExtensions
         // Continuity) rather than inheriting interactive admin permissions.
         builder.AddPolicy(AuthorizationConstants.Policies.HumanAdmin, policy => policy
             .RequireAuthenticatedUser()
+            .AddRequirements(new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human)));
+
+        // The bootstrap/platform administrator is a separate trust tier. Keep
+        // this policy role-based so ordinary tenant operators cannot reach
+        // Identity control-plane surfaces even when they are human principals.
+        builder.AddPolicy(AuthorizationConstants.Policies.HumanSuperAdmin, policy => policy
+            .RequireAuthenticatedUser()
+            .RequireRole("Admin")
+            .RequireClaim(HisHopeProtocolConstants.Claims.SuperAdmin, "true")
             .AddRequirements(new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human)));
 
         foreach (var permissionCode in HisHopePermissions.All)

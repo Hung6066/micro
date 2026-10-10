@@ -13,7 +13,7 @@
 - Keep changes surgical; do not refactor unrelated features.
 - Preserve current route structure and design system patterns.
 - All changed flows must have tests.
-- Use the existing admin login: `admin` / `Admin@123` for validation.
+- Use admin credentials injected from protected local/CI secret storage for validation; never commit credentials.
 
 ---
 

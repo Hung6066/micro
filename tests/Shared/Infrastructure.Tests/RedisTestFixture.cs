@@ -7,6 +7,9 @@ public sealed class RedisTestFixture : IAsyncLifetime
 {
     private readonly RedisContainer _redis = new RedisBuilder().Build();
     public IConnectionMultiplexer Connection { get; private set; } = null!;
+    public string ConnectionString => _redis.GetConnectionString();
+
+    public Task StopRedisAsync() => _redis.StopAsync();
 
     public async Task InitializeAsync()
     {
