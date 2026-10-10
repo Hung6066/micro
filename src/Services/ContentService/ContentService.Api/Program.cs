@@ -8,6 +8,7 @@ using His.Hope.ContentService.Application;
 using His.Hope.ContentService.Infrastructure;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Middleware;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.Configuration;
 using His.Hope.ServiceDefaults;
 using His.Hope.SharedKernel.Authorization;
@@ -16,6 +17,7 @@ using Microsoft.AspNetCore.Mvc;
 
 His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.ApplyOpenshipBindings("ContentDb");
 builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
 builder.Services.AddContentInfrastructure(builder.Configuration);
 builder.Services.AddHisHopeServicePlatform(builder.Configuration, "content-service");

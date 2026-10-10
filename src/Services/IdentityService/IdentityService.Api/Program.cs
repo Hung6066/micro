@@ -1,9 +1,11 @@
 using His.Hope.IdentityService.Api.Composition;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.ServiceDefaults;
 
 His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.ApplyOpenshipBindings("IdentityDb");
 builder.AddIdentityService();
 
 var app = builder.Build();

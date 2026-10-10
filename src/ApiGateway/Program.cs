@@ -7,6 +7,7 @@ using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Qos;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.AspNetCore;
 using His.Hope.Observability;
 using Serilog;
@@ -19,6 +20,7 @@ using His.Hope.ServiceDefaults;
 
 His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.ApplyOpenshipBindings(databaseConnectionName: null);
 var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "ApiGateway");
 var pluginRegistry = new ServicePluginRegistry(builder.Configuration);
 

@@ -6,11 +6,13 @@ using His.Hope.ManufacturingService.Infrastructure.Persistence;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Middleware;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.Configuration;
 using Microsoft.AspNetCore.DataProtection;
 
 His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.ApplyOpenshipBindings("ManufacturingDb");
 
 builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
 builder.Services.AddManufacturingInfrastructure(builder.Configuration);

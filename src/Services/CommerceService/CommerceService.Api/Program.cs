@@ -4,6 +4,7 @@ using His.Hope.CommerceService.Application.Orders;
 using His.Hope.CommerceService.Api;
 using His.Hope.CommerceService.Infrastructure.Persistence;
 using His.Hope.Configuration;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.ServiceDefaults;
 using His.Hope.Secrets;
 using System.Text.Json;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.DataProtection;
 
 His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.ApplyOpenshipBindings("CommerceDb");
 builder.Services.AddCommerceServiceHost(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
