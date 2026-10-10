@@ -7,10 +7,19 @@ namespace His.Hope.Infrastructure.Configuration;
 /// Maps the environment keys injected by Openship service bindings onto the keys the platform reads.
 /// Values the application already configures win, except the managed database URL, which replaces
 /// appsettings defaults because the platform binding is the authoritative database for the service.
+/// Inline key material (*Pem) replaces the configured key file path, so keys can be supplied without a volume.
 /// </summary>
 public static class OpenshipBindingConfiguration
 {
     private const string BindingDirectoryName = "openship-binding";
+
+    private static readonly (string PathKey, string FileName, string PemKey)[] KeyMaterial =
+    [
+        ("Jwt:RsaPublicKeyPath", "jwt-public-key.pem", "Jwt:RsaPublicKeyPem"),
+        ("Jwt:RsaEncryptionPrivateKeyPath", "jwt-encryption-private-key.pem", "Jwt:RsaEncryptionPrivateKeyPem"),
+        ("OpenIddict:Signing:PrivateKeyPath", "openiddict-signing-private-key.pem", "OpenIddict:Signing:PrivateKeyPem"),
+        ("OpenIddict:Encryption:PrivateKeyPath", "openiddict-encryption-private-key.pem", "OpenIddict:Encryption:PrivateKeyPem"),
+    ];
 
     public static IConfigurationManager ApplyOpenshipBindings(this IConfigurationManager configuration, string? databaseConnectionName)
     {
@@ -25,6 +34,8 @@ public static class OpenshipBindingConfiguration
         MapPemFile(configuration, mapped, "EventBus:CaCertificatePath", "eventbus-ca.pem", "EventBus:CaPem");
         MapPemFile(configuration, mapped, "EventBus:ClientCertificatePath", "eventbus-client.pem", "EventBus:ClientCertificatePem");
         MapPemFile(configuration, mapped, "EventBus:ClientPrivateKeyPath", "eventbus-client-key.pem", "EventBus:ClientPrivateKeyPem");
+        foreach (var (pathKey, fileName, pemKey) in KeyMaterial)
+            ReplacePemFile(configuration, mapped, pathKey, fileName, pemKey);
 
         foreach (var (key, value) in mapped)
             configuration[key] = value;
@@ -89,6 +100,20 @@ public static class OpenshipBindingConfiguration
             return;
 
         // Binding values may carry escaped newlines when they come from a single-line env var.
+        mapped[pathKey] = WritePemFile(fileName, pem.Replace("\\n", "\n"));
+    }
+
+    private static void ReplacePemFile(
+        IConfiguration configuration,
+        Dictionary<string, string> mapped,
+        string pathKey,
+        string fileName,
+        string pemKey)
+    {
+        var pem = configuration[pemKey];
+        if (string.IsNullOrWhiteSpace(pem))
+            return;
+
         mapped[pathKey] = WritePemFile(fileName, pem.Replace("\\n", "\n"));
     }
 

@@ -6,9 +6,9 @@ name: manufacturing
 # Identity/OIDC, Commerce and Content are included because they are shared
 # dependencies of the Manufacturing business flow. Unrelated clinical and
 # hospital services are intentionally absent.
-# Openship variant: Postgres, Redis, RabbitMQ and identity-keys-init are provided by
-# Openship service bindings and Vault-backed identity_keys, so only the 8 application
-# services are declared here.
+# Openship variant: Postgres, Redis and RabbitMQ are provided by Openship service
+# bindings. Identity signing/encryption PEMs are injected as env (*_PEM) per service,
+# so only the 8 application services are declared here with no volumes.
 
 services:
   identityservice:
@@ -34,12 +34,8 @@ services:
       Jwt__ValidIssuers__1: his-hope-identity
       Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
       Jwt__AllowHttp: "true"
-      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
-      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       OpenIddict__Issuer: ${MANUFACTURING_OIDC_ISSUER:-http://localhost:5001}
       OpenIddict__InternalJwksUri: http://identityservice:5003/.well-known/jwks
-      OpenIddict__Signing__PrivateKeyPath: /etc/hishop/certs/jwt-private-key.pem
-      OpenIddict__Encryption__PrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       OpenIddict__Encryption__KeyId: manufacturing-oidc-encryption-v1
       Identity__BootstrapAdmin__Password: ${MANUFACTURING_IDENTITY_BOOTSTRAP_PASSWORD:-}
       Identity__BootstrapAdmin__ResetPassword: ${MANUFACTURING_IDENTITY_RESET_PASSWORD:-false}
@@ -64,8 +60,6 @@ services:
       Vault__RequireVault: "false"
       Vault__EnableTransit: "false"
       Vault__AllowStaticToken: "true"
-    volumes:
-      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     healthcheck:
       test: ["CMD", "dotnet", "--list-runtimes"]
@@ -98,7 +92,6 @@ services:
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
-      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "false"
       Jwt__AllowHttp: "true"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
@@ -106,8 +99,6 @@ services:
       Jwt__ValidIssuers__1: his-hope-identity
       Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
       Outbox__Enabled: "true"
-    volumes:
-      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
@@ -138,15 +129,12 @@ services:
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
-      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "false"
       Jwt__AllowHttp: "true"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
       Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
       Jwt__ValidIssuers__1: his-hope-identity
       Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
-    volumes:
-      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
@@ -185,7 +173,6 @@ services:
       # Configure these when an external Identity/OIDC authority is available.
       Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-http://identityservice:5003}
       Jwt__MetadataAddress: ${MANUFACTURING_JWT_METADATA_ADDRESS:-http://identityservice:5003/.well-known/openid-configuration}
-      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "false"
       Jwt__AllowHttp: "true"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
@@ -200,8 +187,6 @@ services:
       Manufacturing__SeedDemoData: ${MANUFACTURING_SEED_DEMO_DATA:-true}
       Consumers__AnalyticsEnabled: "true"
       Consumers__CommerceOrdersEnabled: "true"
-    volumes:
-      - identity_keys:/etc/hishop/certs
     networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
@@ -328,7 +313,4 @@ networks:
     external: true
     name: openship_observability
 
-volumes:
-  identity_keys:
-    name: manufacturing-identity-keys
 

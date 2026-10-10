@@ -114,6 +114,37 @@ public class OpenshipBindingConfigurationTests
         Assert.Equal("rediss://configured:pw@other:6379", configuration["REDIS_URL"]);
     }
 
+    [Fact]
+    public void KeyPem_OverridesConfiguredKeyPath_AndUnescapesNewlines()
+    {
+        const string configuredPath = "/etc/hishop/certs/jwt-public-key.pem";
+        var configuration = Build(new Dictionary<string, string?>
+        {
+            ["Jwt:RsaPublicKeyPath"] = configuredPath,
+            ["Jwt:RsaPublicKeyPem"] = "-----BEGIN PUBLIC KEY-----\\nMIIBkey\\n-----END PUBLIC KEY-----",
+        });
+
+        configuration.ApplyOpenshipBindings(databaseConnectionName: null);
+
+        var path = configuration["Jwt:RsaPublicKeyPath"];
+        Assert.NotEqual(configuredPath, path);
+        Assert.Equal("-----BEGIN PUBLIC KEY-----\nMIIBkey\n-----END PUBLIC KEY-----", File.ReadAllText(path!));
+    }
+
+    [Fact]
+    public void KeyPem_IsAbsent_KeepsConfiguredKeyPath()
+    {
+        const string configuredPath = "/etc/hishop/certs/jwt-public-key.pem";
+        var configuration = Build(new Dictionary<string, string?>
+        {
+            ["Jwt:RsaPublicKeyPath"] = configuredPath,
+        });
+
+        configuration.ApplyOpenshipBindings(databaseConnectionName: null);
+
+        Assert.Equal(configuredPath, configuration["Jwt:RsaPublicKeyPath"]);
+    }
+
     private static ConfigurationManager Build(Dictionary<string, string?> values)
     {
         var configuration = new ConfigurationManager();
