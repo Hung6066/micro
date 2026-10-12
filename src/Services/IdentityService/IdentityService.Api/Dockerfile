@@ -33,7 +33,7 @@ COPY ["src/Shared/Observability/His.Hope.Observability.OpenTelemetry/*.csproj", 
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN \
+RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked \
     dotnet restore "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj"
 
 # --- Copy source and publish ---
@@ -68,9 +68,10 @@ COPY ["src/Shared/Protos/", "Shared/Protos/"]
 COPY ["config/assurance-policy.v1.json", "Services/IdentityService/IdentityService.Api/config/assurance-policy.v1.json"]
 COPY ["config/conglomerate/", "Services/IdentityService/IdentityService.Api/config/conglomerate/"]
 
-RUN \
+RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked \
     dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
     -c Release \
+    --no-restore \
     -o /app/publish
 
 # ============================================================
