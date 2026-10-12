@@ -100,7 +100,8 @@ ENV OpenIddict__Issuer=https://identity.his-hope.local \
 # Install curl for Docker HEALTHCHECK
 COPY --from=build /app/publish .
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# Build nodes allow only HTTPS egress, so apt sources are switched from http to https.
+RUN find /etc/apt/sources.list /etc/apt/sources.list.d -type f -exec sed -i 's|http://|https://|g' {} + && apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 USER app
 
 # Docker HEALTHCHECK uses curl (available in jammy base image)
