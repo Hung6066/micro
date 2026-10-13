@@ -33,8 +33,8 @@ COPY ["src/Shared/Observability/His.Hope.Observability.OpenTelemetry/*.csproj", 
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked \
-    dotnet restore "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj"
+# Packages stay in this layer (no cache mount) so the registry build cache can reuse them.
+RUN dotnet restore "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj"
 
 # --- Copy source and publish ---
 COPY ["src/Services/IdentityService/IdentityService.Api/", "Services/IdentityService/IdentityService.Api/"]
@@ -68,8 +68,7 @@ COPY ["src/Shared/Protos/", "Shared/Protos/"]
 COPY ["config/assurance-policy.v1.json", "Services/IdentityService/IdentityService.Api/config/assurance-policy.v1.json"]
 COPY ["config/conglomerate/", "Services/IdentityService/IdentityService.Api/config/conglomerate/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages,sharing=locked \
-    dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
+RUN dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
     -c Release \
     --no-restore \
     -o /app/publish
