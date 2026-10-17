@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ============================================================
 # BUILD STAGE
 # ============================================================
@@ -16,6 +14,7 @@ COPY ["src/Bff/His.Hope.Bff.Core/*.csproj", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/*.csproj", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/*.csproj", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/*.csproj", "Shared/Persistence/His.Hope.Persistence/"]
 COPY ["src/Shared/Core/His.Hope.Core/*.csproj", "Shared/Core/His.Hope.Core/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/*.csproj", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/*.csproj", "Shared/Contracts/His.Hope.Contracts/"]
@@ -34,8 +33,8 @@ COPY ["src/Shared/Observability/His.Hope.Observability.OpenTelemetry/*.csproj", 
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,id=his-hope-identity-api-nuget,target=/root/.nuget/packages \
-    dotnet restore "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj"
+# Packages stay in this layer (no cache mount) so the registry build cache can reuse them.
+RUN dotnet restore "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj"
 
 # --- Copy source and publish ---
 COPY ["src/Services/IdentityService/IdentityService.Api/", "Services/IdentityService/IdentityService.Api/"]
@@ -46,6 +45,7 @@ COPY ["src/Bff/His.Hope.Bff.Core/", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/", "Shared/Persistence/His.Hope.Persistence/"]
 COPY ["src/Shared/Core/His.Hope.Core/", "Shared/Core/His.Hope.Core/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/", "Shared/Contracts/His.Hope.Contracts/"]
@@ -66,16 +66,17 @@ COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
 COPY ["config/assurance-policy.v1.json", "Services/IdentityService/IdentityService.Api/config/assurance-policy.v1.json"]
+COPY ["config/conglomerate/", "Services/IdentityService/IdentityService.Api/config/conglomerate/"]
 
-RUN --mount=type=cache,id=his-hope-identity-api-nuget,target=/root/.nuget/packages \
-    dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
+RUN dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
     -c Release \
+    --no-restore \
     -o /app/publish
 
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:5cf54628c4787d69758be84a0644e74f404b93ee343e2e82c4c33e558b7a10e4 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:d7e89d958502b18b0f607f260f57ace7e4aa18d9b86d23477721e7eb0c5762bf AS final
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 5012
@@ -99,7 +100,8 @@ ENV OpenIddict__Issuer=https://identity.his-hope.local \
 # Install curl for Docker HEALTHCHECK
 COPY --from=build /app/publish .
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# Build nodes allow only HTTPS egress, so apt sources are switched from http to https.
+RUN find /etc/apt/sources.list /etc/apt/sources.list.d -type f -exec sed -i 's|http://|https://|g' {} + && apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 USER app
 
 # Docker HEALTHCHECK uses curl (available in jammy base image)

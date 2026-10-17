@@ -126,7 +126,12 @@ export class LoginComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((isAuth) => {
         this.checkingAuth = false;
-        if (isAuth) this.router.navigate(["/clients"]);
+        if (isAuth) {
+          const returnUrl = this.requestedReturnUrl;
+          void this.router.navigateByUrl(
+            returnUrl && returnUrl.startsWith("/") ? returnUrl : "/clients",
+          );
+        }
       });
 
     timer(0, 3000)

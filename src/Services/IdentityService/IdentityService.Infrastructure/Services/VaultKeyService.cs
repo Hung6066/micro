@@ -11,7 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
-public class VaultKeyService : IVaultKeyProvider, IDisposable
+public partial class VaultKeyService : IVaultKeyProvider, IDisposable
 {
     private readonly IConfiguration _config;
     private readonly ILogger<VaultKeyService> _logger;
@@ -29,13 +29,20 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
     private const string KeyIdFormat = "{0}:{1}:v{2}";
 
     private readonly IVaultTokenProvider _tokenProvider;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public VaultKeyService(IConfiguration config, ILogger<VaultKeyService> logger, IHostEnvironment environment, IVaultTokenProvider tokenProvider)
+    public VaultKeyService(
+        IConfiguration config,
+        ILogger<VaultKeyService> logger,
+        IHostEnvironment environment,
+        IVaultTokenProvider tokenProvider,
+        IHttpClientFactory httpClientFactory)
     {
         _config = config;
         _logger = logger;
         _production = environment.IsProduction();
         _tokenProvider = tokenProvider;
+        _httpClientFactory = httpClientFactory;
         _keyName = config["Vault:Transit:KeyName"] ?? "jwt-signing";
 
         var vaultAddr = config["Vault:Address"];
@@ -67,12 +74,11 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
 
         if (_useVault)
         {
-            _logger.LogInformation("VaultKeyService: Vault-backed persistent signing key configured for '{KeyName}' at {Address}",
-                _keyName, vaultAddr);
+            LogVaultConfigured(_logger, _keyName, vaultAddr);
         }
         else
         {
-            _logger.LogInformation("VaultKeyService: Development mode — ephemeral RSA-2048 key (KeyId: {KeyId})", keyId);
+            LogDevelopmentKey(_logger, keyId);
         }
     }
 
@@ -117,28 +123,7 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
         {
             try
             {
-                using var handler = new HttpClientHandler();
-                var caPath = _config["Vault:TlsCaFile"];
-                if (!string.IsNullOrWhiteSpace(caPath))
-                {
-                    if (!File.Exists(caPath))
-                        throw new InvalidOperationException($"Vault TLS CA file '{caPath}' is missing.");
-
-                    var ca = new X509Certificate2(caPath);
-                    handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
-                    {
-                        if (certificate is null)
-                            return false;
-
-                        using var chain = new X509Chain();
-                        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                        chain.ChainPolicy.CustomTrustStore.Add(ca);
-                        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                        return chain.Build(new X509Certificate2(certificate));
-                    };
-                }
-
-                using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+                var httpClient = _httpClientFactory.CreateClient("vault-health");
                 var vaultAddr = _config["Vault:Address"]!;
                 // Vault returns 429 for a healthy standby node. The service endpoint
                 // load-balances across the HA set, so standbyok keeps readiness from
@@ -148,7 +133,7 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Vault health check failed");
+                LogVaultHealthFailed(_logger, ex);
                 return false;
             }
         }
@@ -170,7 +155,7 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
             var rotatedKey = RSA.Create();
             rotatedKey.ImportFromPem(File.ReadAllText(_signingPath));
             ActivateRotatedKey(rotatedKey, newKeyId);
-            _logger.LogInformation("Signing key reloaded from the persistent Vault Agent/KMS path {Path}", _signingPath);
+            LogSigningKeyReloaded(_logger, _signingPath);
             return;
         }
 
@@ -180,20 +165,19 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
         if (!string.IsNullOrEmpty(_currentKeyId) && _activeKeys.TryGetValue(_currentKeyId, out var oldEntry))
         {
             _activeKeys[_currentKeyId] = (oldEntry.Rsa, oldEntry.Key, DateTimeOffset.UtcNow.AddMinutes(OverlapMinutes));
-            _logger.LogInformation("Key {OldId} retired, will be removed after {Minutes}min overlap",
-                _currentKeyId, OverlapMinutes);
+            LogKeyRetired(_logger, _currentKeyId, OverlapMinutes);
         }
 
         _activeKeys[newKeyId] = (rsa, key, DateTimeOffset.MaxValue);
         _currentKeyId = newKeyId;
 
-        _logger.LogInformation("New signing key activated: {KeyId}", newKeyId);
+        LogSigningKeyActivated(_logger, newKeyId);
 
         if (_useVault)
         {
             try
             {
-                using var httpClient = new HttpClient();
+                var httpClient = _httpClientFactory.CreateClient("vault-health");
                 httpClient.DefaultRequestHeaders.Add("X-Vault-Token", await _tokenProvider.GetTokenAsync(ct));
                 var vaultAddr = _config["Vault:Address"]!;
                 var content = new StringContent(
@@ -202,11 +186,11 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
 
                 await httpClient.PostAsync(
                     $"{vaultAddr}/v1/transit/keys/{_keyName}/rotate", content, ct);
-                _logger.LogInformation("Vault key rotation triggered for {KeyName}", _keyName);
+                LogVaultRotationTriggered(_logger, _keyName);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Vault key rotation failed for {KeyName}", _keyName);
+                LogVaultRotationFailed(_logger, ex, _keyName);
                 throw;
             }
         }
@@ -232,7 +216,7 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
             if (kvp.Value.RetireAt <= now && _activeKeys.TryRemove(kvp.Key, out var entry))
             {
                 entry.Rsa.Dispose();
-                _logger.LogInformation("Cleaned up expired key: {KeyId}", kvp.Key);
+                LogExpiredKeyCleaned(_logger, kvp.Key);
             }
         }
     }
@@ -253,6 +237,41 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
 
     private static string? FirstConfigured(params string?[] values) => values.FirstOrDefault(value =>
         !string.IsNullOrWhiteSpace(value) && !(value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}')));
+
+    [LoggerMessage(EventId = 4101, Level = LogLevel.Information,
+        Message = "VaultKeyService: Vault-backed persistent signing key configured for '{KeyName}' at {Address}")]
+    private static partial void LogVaultConfigured(ILogger logger, string keyName, string? address);
+
+    [LoggerMessage(EventId = 4102, Level = LogLevel.Information,
+        Message = "VaultKeyService: Development mode — ephemeral RSA-2048 key (KeyId: {KeyId})")]
+    private static partial void LogDevelopmentKey(ILogger logger, string keyId);
+
+    [LoggerMessage(EventId = 4103, Level = LogLevel.Error, Message = "Vault health check failed")]
+    private static partial void LogVaultHealthFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 4104, Level = LogLevel.Information,
+        Message = "Signing key reloaded from the persistent Vault Agent/KMS path {Path}")]
+    private static partial void LogSigningKeyReloaded(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 4105, Level = LogLevel.Information,
+        Message = "Key {OldId} retired, will be removed after {Minutes}min overlap")]
+    private static partial void LogKeyRetired(ILogger logger, string oldId, int minutes);
+
+    [LoggerMessage(EventId = 4106, Level = LogLevel.Information,
+        Message = "New signing key activated: {KeyId}")]
+    private static partial void LogSigningKeyActivated(ILogger logger, string keyId);
+
+    [LoggerMessage(EventId = 4107, Level = LogLevel.Information,
+        Message = "Vault key rotation triggered for {KeyName}")]
+    private static partial void LogVaultRotationTriggered(ILogger logger, string keyName);
+
+    [LoggerMessage(EventId = 4108, Level = LogLevel.Error,
+        Message = "Vault key rotation failed for {KeyName}")]
+    private static partial void LogVaultRotationFailed(ILogger logger, Exception exception, string keyName);
+
+    [LoggerMessage(EventId = 4109, Level = LogLevel.Information,
+        Message = "Cleaned up expired key: {KeyId}")]
+    private static partial void LogExpiredKeyCleaned(ILogger logger, string keyId);
 }
 
 public class VaultHealthCheck : IHealthCheck
@@ -276,4 +295,5 @@ public class VaultHealthCheck : IHealthCheck
         else
             return HealthCheckResult.Unhealthy("Signing key unavailable. Token issuance will fail.");
     }
+
 }

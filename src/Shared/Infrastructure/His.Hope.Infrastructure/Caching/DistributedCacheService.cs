@@ -64,34 +64,43 @@ public class DistributedCacheService : ICacheService
             _redisCircuitBreakDuration.TotalSeconds);
     }
 
-    private static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout)
+    private static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout, CancellationToken ct)
     {
-        using var cts = new CancellationTokenSource(timeout);
-        var completed = await Task.WhenAny(task, Task.Delay(Timeout.Infinite, cts.Token));
+        ct.ThrowIfCancellationRequested();
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        var completed = await Task.WhenAny(task, Task.Delay(Timeout.Infinite, linkedCts.Token));
         if (completed == task)
             return await task;
+        ct.ThrowIfCancellationRequested();
         throw new TimeoutException("Redis operation timed out");
     }
 
-    private static async Task WithTimeout(Task task, TimeSpan timeout)
+    private static async Task WithTimeout(Task task, TimeSpan timeout, CancellationToken ct)
     {
-        using var cts = new CancellationTokenSource(timeout);
-        var completed = await Task.WhenAny(task, Task.Delay(Timeout.Infinite, cts.Token));
+        ct.ThrowIfCancellationRequested();
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        var completed = await Task.WhenAny(task, Task.Delay(Timeout.Infinite, linkedCts.Token));
         if (completed == task)
             await task;
-        else
+        else {
+            ct.ThrowIfCancellationRequested();
             throw new TimeoutException("Redis operation timed out");
+        }
     }
 
     public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
         where T : class
     {
+        ct.ThrowIfCancellationRequested();
         if (!IsRedisAvailable()) return null;
 
         try
         {
             var redisKey = (RedisKey)(_instancePrefix + _keyPartitioner.Partition(key));
-            var cached = await WithTimeout(GetDatabase().StringGetAsync(redisKey), _redisOperationTimeout);
+            var cached = await WithTimeout(GetDatabase().StringGetAsync(redisKey), _redisOperationTimeout, ct);
+            ct.ThrowIfCancellationRequested();
             if (cached.IsNullOrEmpty) return null;
             return JsonConvert.DeserializeObject<T>(cached.ToString());
         }
@@ -107,10 +116,12 @@ public class DistributedCacheService : ICacheService
         TimeSpan? expiry = null, CancellationToken ct = default)
         where T : class
     {
+        ct.ThrowIfCancellationRequested();
         var cached = await GetAsync<T>(key, ct);
         if (cached is not null) return cached;
 
         var value = await factory();
+        ct.ThrowIfCancellationRequested();
         await SetAsync(key, value, expiry, ct);
         return value;
     }
@@ -118,6 +129,7 @@ public class DistributedCacheService : ICacheService
     public async Task SetAsync<T>(string key, T value, TimeSpan? expiry = null,
         CancellationToken ct = default) where T : class
     {
+        ct.ThrowIfCancellationRequested();
         if (!IsRedisAvailable()) return;
 
         try
@@ -125,9 +137,10 @@ public class DistributedCacheService : ICacheService
             var redisKey = (RedisKey)(_instancePrefix + _keyPartitioner.Partition(key));
             var serialized = JsonConvert.SerializeObject(value);
             if (expiry.HasValue)
-                await WithTimeout(GetDatabase().StringSetAsync(redisKey, serialized, expiry), _redisOperationTimeout);
+                await WithTimeout(GetDatabase().StringSetAsync(redisKey, serialized, expiry), _redisOperationTimeout, ct);
             else
-                await WithTimeout(GetDatabase().StringSetAsync(redisKey, serialized), _redisOperationTimeout);
+                await WithTimeout(GetDatabase().StringSetAsync(redisKey, serialized), _redisOperationTimeout, ct);
+            ct.ThrowIfCancellationRequested();
         }
         catch (Exception ex)
         {
@@ -138,12 +151,13 @@ public class DistributedCacheService : ICacheService
 
     public async Task RemoveAsync(string key, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         if (!IsRedisAvailable()) return;
 
         try
         {
             var redisKey = (RedisKey)(_instancePrefix + _keyPartitioner.Partition(key));
-            await WithTimeout(GetDatabase().KeyDeleteAsync(redisKey), _redisOperationTimeout);
+            await WithTimeout(GetDatabase().KeyDeleteAsync(redisKey), _redisOperationTimeout, ct);
         }
         catch (Exception ex)
         {
@@ -154,6 +168,7 @@ public class DistributedCacheService : ICacheService
 
     public async Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         if (!IsRedisAvailable()) return;
 
         try
@@ -161,19 +176,23 @@ public class DistributedCacheService : ICacheService
             var keysToDelete = new HashSet<RedisKey>();
             foreach (var pattern in CacheKeyPattern.ForPrefix(_instancePrefix, prefix))
             {
+                ct.ThrowIfCancellationRequested();
                 foreach (var endpoint in _connectionMultiplexer.GetEndPoints())
                 {
                     var server = _connectionMultiplexer.GetServer(endpoint);
                     if (!server.IsConnected) continue;
 
                     await foreach (var key in server.KeysAsync(pattern: pattern))
+                    {
+                        ct.ThrowIfCancellationRequested();
                         keysToDelete.Add(key);
+                    }
                 }
             }
 
             if (keysToDelete.Count > 0)
             {
-                await WithTimeout(GetDatabase().KeyDeleteAsync(keysToDelete.ToArray()), _redisOperationTimeout);
+                await WithTimeout(GetDatabase().KeyDeleteAsync(keysToDelete.ToArray()), _redisOperationTimeout, ct);
             }
         }
         catch (Exception ex)

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using His.Hope.Resilience;
 
 namespace His.Hope.Secrets;
 
@@ -93,6 +94,7 @@ public static class VaultServiceCollectionExtensions
                    (!string.IsNullOrWhiteSpace(options.JwtTokenFile) || !string.IsNullOrWhiteSpace(options.SpiffeJwtTokenFile))))),
                 "Vault is required but Address and workload identity are missing.");
         services.AddHttpClient("vault")
+            .UseHisHopeResilience("vault")
             .ConfigurePrimaryHttpMessageHandler(sp =>
             {
                 var options = sp.GetRequiredService<IOptionsMonitor<VaultOptions>>().CurrentValue;
@@ -117,6 +119,7 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<IVaultTokenProvider, VaultTokenProvider>();
         services.Configure<VaultDatabaseOptions>(configuration.GetSection(VaultDatabaseOptions.SectionName));
         services.AddSingleton<IVaultDatabaseConnectionStringResolver, VaultDatabaseConnectionStringResolver>();
+        services.AddSingleton<IVaultSecretProvider, VaultSecretProvider>();
         services.AddSingleton<IVaultTransitClient, VaultTransitClient>();
         return services;
     }

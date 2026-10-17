@@ -148,13 +148,85 @@ public sealed class AuthorizationEvaluatorTests
     }
 
     [Fact]
+    public async Task Ignores_resource_policy_when_string_equals_condition_does_not_match()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("tenant_id", "tenant-a"),
+            new Claim("permissions", "patients.view"),
+            new Claim("resource_policies", "[{\"ServiceKey\":\"patients\",\"ResourcePattern\":\"patient/*\",\"Effect\":\"allow\",\"Actions\":[\"patients.view\"],\"Condition\":{\"StringEquals\":{\"tenant_id\":\"tenant-b\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Allows_resource_policy_when_string_equals_condition_matches()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("tenant_id", "tenant-a"),
+            new Claim("permissions", "patients.view"),
+            new Claim("resource_policies", "[{\"ServiceKey\":\"patients\",\"ResourcePattern\":\"patient/*\",\"Effect\":\"allow\",\"Actions\":[\"patients.view\"],\"Condition\":{\"StringEquals\":{\"tenant_id\":\"tenant-a\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Supports_case_insensitive_string_like_condition()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("tenant_id", "tenant-a"),
+            new Claim("permissions", "patients.view"),
+            new Claim("resource_policies", "[{\"serviceKey\":\"patients\",\"resourcePattern\":\"patient/*\",\"effect\":\"allow\",\"actions\":[\"patients.view\"],\"condition\":{\"StringLike\":{\"tenant_id\":\"tenant-*\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Supports_numeric_condition_operator()
+    {
+        var identity = new ClaimsIdentity(
+        [
+            new Claim("sub", "workload-1"),
+            new Claim("permissions", "patients.view"),
+            new Claim("risk_score", "7"),
+            new Claim("resource_policies", "[{\"ServiceKey\":\"patients\",\"ResourcePattern\":\"patient/*\",\"Effect\":\"allow\",\"Actions\":[\"patients.view\"],\"Condition\":{\"NumericGreaterThanEquals\":{\"risk_score\":\"5\"}}}]")
+        ], "test");
+
+        var decision = await new AuthorizationEvaluator().EvaluateAsync(new AuthorizationContext(
+            new ClaimsPrincipal(identity), "patients.view",
+            new AuthorizationResource("patient", "patient-1"), RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Emits_redacted_decision_metadata_to_sink()
     {
         var sink = new RecordingSink();
         var evaluator = new AuthorizationEvaluator(sink);
 
         await evaluator.EvaluateAsync(new AuthorizationContext(
-            Principal("patients.view", "facility-a"),
+            Principal("patients.view", "facility-a", "tenant-a"),
             "patients.view",
             new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a", FacilityId: "facility-a"),
             RequireResource: true));
@@ -213,12 +285,68 @@ public sealed class AuthorizationEvaluatorTests
         decision.ReasonCode.Should().Be("facility_scope_denied");
     }
 
-    private static ClaimsPrincipal Principal(string permission, string facility) => new(new ClaimsIdentity(
+    [Fact]
+    public async Task Denies_cross_tenant_resource_access_by_default()
+    {
+        var evaluator = new AuthorizationEvaluator();
+        var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
+            Principal("patients.view", "facility-a", "tech-vendor"),
+            "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "manufacturing", FacilityId: "facility-a"),
+            RequireResource: true));
+
+        decision.Allowed.Should().BeFalse();
+        decision.ReasonCode.Should().Be("tenant_scope_denied");
+    }
+
+    [Fact]
+    public async Task Allows_group_hq_cross_tenant_audit_read_when_policy_permits()
+    {
+        var policy = new ConfigurableCrossTenantAccessPolicy(
         [
-            new Claim("sub", "user-1"),
-            new Claim("permissions", permission),
-            new Claim("facility_id", facility)
-        ], "test"));
+            new CrossTenantAllowedPair("group-hq", "manufacturing", "group-audit-read", ["admin.audit.read"])
+        ]);
+        var evaluator = new AuthorizationEvaluator(crossTenantPolicy: policy);
+        var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
+            Principal("admin.audit.read", "facility-a", "group-hq"),
+            "admin.audit.read",
+            new AuthorizationResource("audit-log", "entry-1", TenantId: "manufacturing", FacilityId: "facility-a"),
+            RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Denies_cross_tenant_when_policy_does_not_cover_action()
+    {
+        var policy = new ConfigurableCrossTenantAccessPolicy(
+        [
+            new CrossTenantAllowedPair("group-hq", "manufacturing", "group-audit-read", ["admin.audit.read"])
+        ]);
+        var evaluator = new AuthorizationEvaluator(crossTenantPolicy: policy);
+        var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
+            Principal("patients.view", "facility-a", "group-hq"),
+            "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "manufacturing", FacilityId: "facility-a"),
+            RequireResource: true));
+
+        decision.Allowed.Should().BeFalse();
+        decision.ReasonCode.Should().Be("tenant_scope_denied");
+    }
+
+    private static ClaimsPrincipal Principal(string permission, string facility, string? tenantId = null)
+    {
+        var claims = new List<Claim>
+        {
+            new("sub", "user-1"),
+            new("permissions", permission),
+            new("facility_id", facility)
+        };
+        if (!string.IsNullOrWhiteSpace(tenantId))
+            claims.Add(new Claim("tenant_id", tenantId));
+
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
+    }
 
     private sealed class RecordingSink : IAuthorizationDecisionSink
     {

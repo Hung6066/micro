@@ -489,6 +489,7 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
             CreateSignInManager().Object,
             CreateUserManager().Object,
             db,
+            Mock.Of<IIdentityService>(),
             Mock.Of<IMfaSecretEncryptor>(),
             new TotpService(),
             DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(Path.GetTempPath(), $"adaptive-mfa-tests-{Guid.NewGuid():N}"))),
@@ -509,7 +510,7 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
     {
         var context = CreateContext(userAgent);
         var cookieHeader = string.Join("; ", source.Response.Headers["Set-Cookie"]
-            .Select(header => header.Split(';', 2)[0]));
+            .Select(header => header!.Split(';', 2)[0]));
         context.Request.Headers.Cookie = cookieHeader;
         return context;
     }

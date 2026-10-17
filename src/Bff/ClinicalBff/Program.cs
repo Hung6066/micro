@@ -21,14 +21,12 @@ builder.WebHost.UseUrls("http://0.0.0.0:5200");
 builder.Services.AddBffCore(builder.Configuration, "ClinicalBff");
 builder.Services.AddBffProxy(builder.Configuration);
 
-builder.Services.AddGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("clinical-grpc"));
+builder.Services.AddHisHopeGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(runtimeEndpoints, "clinical-grpc");
 
-builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("patient-grpc"));
+builder.Services.AddHisHopeGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(runtimeEndpoints, "patient-grpc");
 
-builder.Services.AddScoped<IAggregationHandler, EncounterFullHandler>();
-builder.Services.AddScoped<IAggregationHandler, EncounterVitalsHandler>();
+builder.Services.AddSingleton<IAggregationHandler, EncounterFullHandler>();
+builder.Services.AddSingleton<IAggregationHandler, EncounterVitalsHandler>();
 
 var app = builder.Build();
 

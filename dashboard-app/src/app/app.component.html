@@ -26,7 +26,7 @@
       <mat-icon>logout</mat-icon>
       <span>{{ 'app.dashboard.logout' | hhTranslate:'Logout' }}</span>
     </button>
-    <button mat-menu-item *ngIf="!(isAuthenticated$ | async)" (click)="onLogin()">
+    <button mat-menu-item *ngIf="(isAuthenticated$ | async) === false" (click)="onLogin()">
       <mat-icon>login</mat-icon>
       <span>{{ 'app.dashboard.login' | hhTranslate:'Login' }}</span>
     </button>
@@ -63,6 +63,12 @@
         <mat-icon matListItemIcon>monitoring</mat-icon>
         <span matListItemTitle>{{ 'app.dashboard.metrics' | hhTranslate:'Metrics' }}</span>
       </a>
+      <ng-container *ngIf="plugins$ | async as plugins">
+        <a mat-list-item *ngFor="let plugin of plugins" [href]="plugin.dashboardRoute ?? '#'">
+          <mat-icon matListItemIcon>{{ plugin.icon ?? 'extension' }}</mat-icon>
+          <span matListItemTitle>{{ plugin.displayName }}</span>
+        </a>
+      </ng-container>
     </mat-nav-list>
   </mat-sidenav>
 

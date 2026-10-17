@@ -29,6 +29,15 @@
     <PackageReference Include="Moq" Version="4.20.70" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- TestServer runs from an isolated artifacts directory; package the
+         browser script explicitly instead of relying on the source checkout
+         being discoverable at runtime. -->
+    <Content Include="..\..\..\src\Services\IdentityService\IdentityService.Api\wwwroot\**\*"
+             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Services\IdentityService\IdentityService.Api\IdentityService.Api.csproj" Aliases="global,IdentityApi" />
     <ProjectReference Include="..\IdentityService.Testing\IdentityService.Testing.csproj" />
   </ItemGroup>

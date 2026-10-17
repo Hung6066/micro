@@ -21,6 +21,7 @@ internal sealed class DpopResourceProofValidator
         var proof = request.Headers["DPoP"].FirstOrDefault();
         if (string.IsNullOrWhiteSpace(proof)) return false;
 
+
         try
         {
             var parts = proof.Split('.');

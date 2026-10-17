@@ -1,14 +1,15 @@
 const { expect } = require('@playwright/test');
 const { getE2eCredentials } = require('../config/credentials');
 
-const { email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD } = getE2eCredentials();
-
 /**
  * Logs into the current application through the Identity Service SSO flow.
  * The application owns only the SSO button; credentials are entered only on
  * the Identity Service page when the local test environment exposes it.
  */
 async function signInThroughIdentity(page, baseUrl, options = {}) {
+  const credentials = options.email && options.password
+    ? { email: options.email, password: options.password }
+    : getE2eCredentials();
   const dashboardPath = options.dashboardPath || '/en/dashboard';
   const loginPath = dashboardPath.replace(/\/[^/]+$/, '/auth/login');
   const routePattern = path => {
@@ -29,9 +30,36 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
       || routePattern(dashboardPath).test(url.pathname + url.search),
     { timeout: 30000 },
   );
+  // A proxy response can commit the Identity document before its HTML parser
+  // has populated the login form. Synchronize on the document lifecycle once
+  // the URL is known instead of racing the first DOM query.
+  await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
 
   const isAppLogin = () => /(?:^|\/)auth\/login$/.test(new URL(page.url()).pathname);
+  const isTargetRoute = () => routePattern(dashboardPath).test(new URL(page.url()).pathname + new URL(page.url()).search)
+    || (dashboardPath === '/clients' && routePattern('/dashboard').test(new URL(page.url()).pathname + new URL(page.url()).search));
   const appLoginButton = page.getByRole('button', { name: /sign in with his\.hope|đăng nhập bằng his\.hope/i });
+  const authenticatedShell = page.locator('mat-nav-list a, nav[hhShellNavigation] a').first();
+  if (isAppLogin()) {
+    await Promise.any([
+      authenticatedShell.waitFor({ state: 'visible', timeout: 10000 }),
+      appLoginButton.waitFor({ state: 'visible', timeout: 10000 }),
+      page.waitForURL(() => isTargetRoute(), { timeout: 10000 }),
+    ]).catch(() => {});
+    // A protected shell can briefly render its public Dashboard link while the
+    // login component is still bootstrapping. Only treat it as authenticated
+    // when the SSO action is no longer present and the shell has more than its
+    // public fallback link.
+    if (!await appLoginButton.isVisible().catch(() => false)
+      && isTargetRoute()) {
+      return page.url();
+    }
+    if (!await appLoginButton.isVisible().catch(() => false)
+      && await authenticatedShell.isVisible().catch(() => false)
+      && await page.locator('mat-nav-list a, nav[hhShellNavigation] a').count() > 1) {
+      return page.url();
+    }
+  }
   if (isAppLogin() || await appLoginButton.isVisible().catch(() => false)) {
     const button = appLoginButton;
     await expect(button).toBeVisible({ timeout: 30000 });
@@ -89,20 +117,38 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
     .getByRole('button', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i })
     .or(page.getByRole('link', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i }))
     .first();
-  await Promise.race([
-    email.waitFor({ state: 'visible', timeout: 30000 }),
-    continueWorkspace.waitFor({ state: 'visible', timeout: 30000 }),
-    page.waitForURL(
-      url => url.origin === new URL(baseUrl).origin
-        && new RegExp(`${dashboardPath.replace('/', '\\/')}(?:\\?|$)`).test(url.pathname + url.search),
-      { timeout: 30000 },
-    ),
-  ]);
+  try {
+    await Promise.any([
+      email.waitFor({ state: 'visible', timeout: 30000 }),
+      continueWorkspace.waitFor({ state: 'visible', timeout: 30000 }),
+      page.waitForURL(
+        url => url.origin === new URL(baseUrl).origin
+          && new RegExp(`${dashboardPath.replace('/', '\\/')}(?:\\?|$)`).test(url.pathname + url.search),
+        { timeout: 30000 },
+      ),
+    ]);
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      url: window.location.href,
+      title: document.title,
+      inputs: Array.from(document.querySelectorAll('input')).map((input) => ({
+        id: input.id,
+        type: input.type,
+        name: input.getAttribute('name'),
+        visible: Boolean(input.offsetWidth || input.offsetHeight || input.getClientRects().length),
+      })),
+      buttons: Array.from(document.querySelectorAll('button')).map((button) => ({
+        text: (button.textContent || '').trim().slice(0, 120),
+        visible: Boolean(button.offsetWidth || button.offsetHeight || button.getClientRects().length),
+      })).slice(0, 12),
+    })).catch(() => ({ url: page.url(), title: 'unavailable' }));
+    throw new Error(`SSO state was not reached: ${JSON.stringify(diagnostics)}`, { cause: error });
+  }
 
   if (await email.isVisible().catch(() => false)) {
     await expect(email).toBeVisible({ timeout: 15000 });
-    await email.fill(options.email || DEFAULT_EMAIL);
-    await page.locator('input[type="password"]').first().fill(options.password || DEFAULT_PASSWORD);
+    await email.fill(credentials.email);
+    await page.locator('input[type="password"]').first().fill(credentials.password);
     // Identity's credential submit performs a full-document redirect. Avoid
     // waiting on the old document's load lifecycle; the URL gate below is
     // authoritative and is more stable in Docker Chromium.
@@ -129,15 +175,15 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
         .getByRole('button', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i })
         .or(page.getByRole('link', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i }))
         .first();
-      await Promise.race([
+      await Promise.any([
         retryEmail.waitFor({ state: 'visible', timeout: 15000 }),
         retryContinue.waitFor({ state: 'visible', timeout: 15000 }),
       ]);
       if (await retryContinue.isVisible().catch(() => false)) {
         await retryContinue.click({ noWaitAfter: true });
       } else {
-        await retryEmail.fill(options.email || DEFAULT_EMAIL);
-        await page.locator('input[type="password"]').first().fill(options.password || DEFAULT_PASSWORD);
+        await retryEmail.fill(credentials.email);
+        await page.locator('input[type="password"]').first().fill(credentials.password);
         await page.locator('button[type="submit"]').first().click({ noWaitAfter: true });
       }
     }
@@ -145,8 +191,15 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
 
   const authenticatedRoute = url => url.origin === new URL(baseUrl).origin
     && routePattern(dashboardPath).test(url.pathname + url.search);
+  const authenticatedDefaultRoute = url => dashboardPath === '/clients'
+    && url.origin === new URL(baseUrl).origin
+    && routePattern('/dashboard').test(url.pathname + url.search);
   try {
-    await page.waitForURL(authenticatedRoute, { timeout: 30000 });
+    await page.waitForURL(url => authenticatedRoute(url) || authenticatedDefaultRoute(url), { timeout: 30000 });
+    if (authenticatedDefaultRoute(new URL(page.url()))) {
+      await gotoCommittedDocument(page, `${baseUrl}${dashboardPath}`);
+      await page.waitForURL(authenticatedRoute, { timeout: 15000 });
+    }
   } catch (error) {
     // A callback can land on the localized SPA login route when the BFF
     // exchange completes just after the first guard evaluation. Re-enter the
@@ -162,15 +215,15 @@ async function signInThroughIdentity(page, baseUrl, options = {}) {
         .getByRole('button', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i })
         .or(page.getByRole('link', { name: /continue to workspace|tiếp tục.*workspace|tiếp tục/i }))
         .first();
-      await Promise.race([
+      await Promise.any([
         recoveryEmail.waitFor({ state: 'visible', timeout: 15000 }),
         recoveryContinue.waitFor({ state: 'visible', timeout: 15000 }),
       ]);
       if (await recoveryContinue.isVisible().catch(() => false)) {
         await recoveryContinue.click({ noWaitAfter: true });
       } else {
-        await recoveryEmail.fill(options.email || DEFAULT_EMAIL);
-        await page.locator('input[type="password"]').first().fill(options.password || DEFAULT_PASSWORD);
+        await recoveryEmail.fill(credentials.email);
+        await page.locator('input[type="password"]').first().fill(credentials.password);
         await page.locator('button[type="submit"]').first().click({ noWaitAfter: true });
       }
     } else {

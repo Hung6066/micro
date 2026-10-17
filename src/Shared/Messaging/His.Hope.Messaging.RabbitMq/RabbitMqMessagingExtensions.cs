@@ -54,6 +54,9 @@ internal sealed class RabbitMqMessagePublisher(
             };
             if (!string.IsNullOrWhiteSpace(@event.CausationId))
                 properties.Headers[EventEnvelopeHeaders.CausationId] = @event.CausationId;
+            if (@event.Headers is not null &&
+                @event.Headers.TryGetValue(EventEnvelopeHeaders.Priority, out var priority))
+                properties.Headers[EventEnvelopeHeaders.Priority] = priority;
             if (@event.Headers is not null)
                 foreach (var header in @event.Headers)
                     if (!properties.Headers.ContainsKey(header.Key))

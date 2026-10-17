@@ -7,20 +7,34 @@ on:
 
 permissions:
   contents: read
+  id-token: write
   security-events: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
+  group: platform-quality-gates-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   backend-contracts:
+    if: ${{ always() }}
+    needs: full-service-integration-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.14
+        env:
+          POSTGRES_PASSWORD: migration-test-only
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.319'
@@ -32,13 +46,22 @@ jobs:
         run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
       - name: Build Core and services
         run: dotnet build His.Hope.sln --no-restore --configuration Release --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+      - name: Analyzer warning baseline gate
+        shell: pwsh
+        run: ./scripts/validate-analyzer-warning-baseline.ps1
       - name: Run non-integration .NET tests
         env:
           # The solution still contains integration-host assemblies. Keep the
           # contract test deterministic on constrained runners instead of
           # allowing parallel vstest handshakes to time out before assertions.
           VSTEST_CONNECTION_TIMEOUT: '300'
-        run: dotnet test His.Hope.sln --no-build --configuration Release --filter "FullyQualifiedName!~Integration" -- RunConfiguration.MaxCpuCount=1
+        run: ./scripts/run-non-integration-tests.ps1
+      - name: Non-integration runner contract gate
+        shell: pwsh
+        run: ./scripts/tests/non-integration-test-runner.Tests.ps1
+      - name: PowerShell compatibility contract gate
+        shell: pwsh
+        run: ./scripts/tests/powershell-compatibility.Tests.ps1
       - name: Generate and validate one-shot migration artifacts
         shell: pwsh
         run: |
@@ -47,14 +70,19 @@ jobs:
           dotnet tool install --global dotnet-ef --version 8.0.10
           $env:PATH = "$env:USERPROFILE/.dotnet/tools;$env:PATH"
           ./scripts/generate-database-migration-scripts.ps1 -OutputDirectory artifacts/database-migrations-current
+          ./scripts/validate-identity-migration-safety.ps1
           ./scripts/validate-database-migration-contract.ps1 -MigrationDirectory artifacts/database-migrations-current -RenderedProductionManifest artifacts/k8s/prod.yaml -OutputPath artifacts/evidence/database-migration-contract.json
+          $env:IDENTITY_MIGRATION_TEST_PASSWORD = 'migration-test-only'
+          ./scripts/validate-identity-migration-dry-run.ps1 -HostName localhost -Port 5432 -RequireLive
+          Remove-Item Env:IDENTITY_MIGRATION_TEST_PASSWORD -ErrorAction SilentlyContinue
       - name: Upload migration evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: database-migration-contract
           path: |
             artifacts/database-migrations-current/migration-manifest.json
             artifacts/evidence/database-migration-contract.json
+            artifacts/evidence/identity-migration-dry-run.json
           if-no-files-found: error
       - name: Contract tests
         shell: pwsh
@@ -62,9 +90,18 @@ jobs:
       - name: API platform convention gate
         shell: pwsh
         run: ./scripts/validate-api-platform-conventions.ps1
+      - name: Service hardcode and constants audit
+        shell: pwsh
+        run: ./scripts/audit-service-standardization.ps1 -MinimumOccurrences 6 -MinimumFiles 3
+      - name: All API/BFF/Gateway health contract gate
+        shell: pwsh
+        run: ./scripts/validate-health-contract.ps1
       - name: Persistence boundary gate
         shell: pwsh
         run: ./scripts/validate-persistence-boundaries.ps1
+      - name: Service architecture dependency gate
+        shell: pwsh
+        run: ./scripts/validate-service-architecture.ps1
       - name: Operational boundary gate
         shell: pwsh
         run: ./scripts/validate-operational-boundaries.ps1
@@ -74,8 +111,64 @@ jobs:
       - name: Authorization endpoint coverage gate
         shell: pwsh
         run: ./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json
+      - name: Authorization policy-as-code gate
+        shell: pwsh
+        run: ./scripts/validate-authorization-policy-as-code.ps1 -OutputPath artifacts/evidence/authorization-policy-as-code.json
+      - name: Security assurance mapping gate
+        shell: pwsh
+        run: |
+          ./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json
+          python scripts/validate-security-assurance-mapping.py
+      - name: Threat model and abuse-case gate
+        run: python scripts/validate-threat-model.py
+      - name: Install pinned Cosign for policy artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 -o "$RUNNER_TOOL_CACHE/cosign"
+          echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check
+          chmod 0755 "$RUNNER_TOOL_CACHE/cosign"
+          echo "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
+      - name: Sign and verify policy catalog artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: bash
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          set -euo pipefail
+          test -s config/authorization-policies/catalog.v1.json
+          cosign sign-blob --yes \
+            --output-signature artifacts/evidence/authorization-policy-catalog.sig \
+            --output-certificate artifacts/evidence/authorization-policy-catalog.cert \
+            config/authorization-policies/catalog.v1.json
+          cosign verify-blob \
+            --signature artifacts/evidence/authorization-policy-catalog.sig \
+            --certificate artifacts/evidence/authorization-policy-catalog.cert \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/platform-quality-gates.yml@refs/heads/main$" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            config/authorization-policies/catalog.v1.json
+      - name: Upload authorization policy evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: authorization-policy-as-code
+          path: |
+            config/authorization-policies/catalog.v1.json
+            artifacts/evidence/authorization-policy-as-code.json
+          if-no-files-found: error
+      - name: Upload signed authorization policy artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: authorization-policy-as-code-signed
+          path: |
+            config/authorization-policies/catalog.v1.json
+            artifacts/evidence/authorization-policy-as-code.json
+            artifacts/evidence/authorization-policy-catalog.sig
+            artifacts/evidence/authorization-policy-catalog.cert
+          if-no-files-found: error
       - name: Upload authorization coverage evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: authorization-endpoint-inventory
           path: artifacts/evidence/authorization-endpoint-inventory.json
@@ -83,9 +176,17 @@ jobs:
       - name: DPoP resource coverage gate
         shell: pwsh
         run: ./scripts/validate-dpop-coverage.ps1
+      - name: Tenant context contract gate
+        shell: pwsh
+        run: ./scripts/verify-tenant-context-contract.ps1 -Root $PWD
+      - name: Download fresh full service integration matrix evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: full-service-integration-matrix
+          path: artifacts/evidence
       - name: Enterprise production phase gates
         shell: pwsh
-        run: ./scripts/validate-enterprise-production-phases.ps1 -SkipIntegrationTests
+        run: ./scripts/validate-enterprise-production-phases.ps1 -SkipIntegrationTests -IntegrationMatrixPath artifacts/evidence/full-test-matrix.json
       - name: Install Buf
         uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:
@@ -93,68 +194,36 @@ jobs:
       - name: Lint and check protobuf compatibility
         working-directory: src/Shared/Protos
         run: |
-          set -euo pipefail
-          # actions/checkout fetches origin/main but does not create a local
-          # main branch. Buf's git module resolver expects the branch ref to
-          # exist locally, otherwise it exits 100 before comparing schemas.
-          git fetch --no-tags origin main:refs/heads/main
-          # Keep the gate strict for changed contracts without turning legacy
-          # lint debt in untouched schemas into a false regression.
-          mapfile -t changed_protos < <(git diff --name-only main...HEAD -- '*.proto' | sed 's#^.*/##')
-          if [ "${#changed_protos[@]}" -eq 0 ]; then
-            echo 'No protobuf contract changes; lint gate is not applicable.'
-          else
-            for proto in "${changed_protos[@]}"; do
-              buf lint --path "$proto"
-            done
-            buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
-          fi
+          buf lint
+          buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
 
   frontend-contracts:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    environment: production
     env:
       # Secrets are intentionally reduced to an availability flag for step
       # conditions; the values themselves are passed only to the E2E step.
       E2E_PROTECTED_INPUTS_AVAILABLE: ${{ vars.E2E_CLINICAL_URL != '' && vars.E2E_DASHBOARD_URL != '' && vars.E2E_ADMIN_URL != '' && secrets.E2E_AUTH_PROBE_URL != '' && secrets.E2E_AUTH_TOKEN != '' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '22.22.3'
+          node-version: '22.14.0'
           cache: npm
-      - name: Install frontend dependencies (with registry retry)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm config set fetch-retries 5
-          npm config set fetch-retry-mintimeout 20000
-          npm config set fetch-retry-maxtimeout 120000
-          for attempt in 1 2 3; do
-            if npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund; then
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "npm ci attempt $attempt failed; retrying"
-              rm -rf node_modules
-              sleep $((attempt * 10))
-            fi
-          done
-          exit 1
+      - run: npm ci
       - run: npm run validate:foundation
       - run: npm run lint:design-tokens
       - run: npm run lint:hardcoded-px
       - run: npm run lint
       - run: npm run build:shared
       - run: npm run test:mobile-foundation
-      - run: npm --workspace @his-hope/mobile-app run test -- --watch=false --browsers=ChromeHeadless
-      - run: npm --workspace @his-hope/mobile-app run build
+      - run: npm run test:mobile
+      - run: npm --workspace @his-hope/operator-mobile run lint
+      # Angular's default Karma browser is interactive; use the deterministic
+      # headless browser required by CI and the local release gate.
+      - run: npm --workspace @his-hope/operator-mobile run test -- --browsers=ChromeHeadless --watch=false
       - run: npm pack --workspace @his-hope/frontend-foundation --dry-run
-      - run: npm --workspace admin-app run build
-      - run: npm --workspace dashboard-app run build
-      - run: npm --workspace his-hope-app run build
+      - run: npm run build:frontend:production
       - name: Authenticated accessibility, keyboard and visual checks
         if: github.event_name != 'pull_request' || env.E2E_PROTECTED_INPUTS_AVAILABLE == 'true'
         working-directory: tests/e2e
@@ -173,20 +242,111 @@ jobs:
           E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_ROLE_MATRIX_JSON: ${{ secrets.E2E_ROLE_MATRIX_JSON }}
 
-  supply-chain:
+  full-service-integration-matrix:
+    name: Full service integration matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VSTEST_CONNECTION_TIMEOUT: '300'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.319'
+      - name: Verify Docker availability for Testcontainers
+        run: docker info
+      - name: Restore solution
+        run: dotnet restore His.Hope.sln --disable-parallel -p:UseArtifactsOutput=true -p:ArtifactsPath=${{ github.workspace }}/artifacts/evidence/full-test-matrix-artifacts/
+      - name: Build solution once before integration matrix
+        run: dotnet build His.Hope.sln --no-restore --configuration Release --disable-parallel -p:UseArtifactsOutput=true -p:ArtifactsPath=${{ github.workspace }}/artifacts/evidence/full-test-matrix-artifacts/
+      - name: Run every solution test project serially
+        shell: pwsh
+        run: ./scripts/run-full-test-matrix.ps1 -Configuration Release -ArtifactsPath artifacts/evidence/full-test-matrix-artifacts -NoBuild -RequireComplete
+      - name: Upload full matrix evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: full-service-integration-matrix
+          path: artifacts/evidence/full-test-matrix*
+          if-no-files-found: error
+
+  commerce-manufacturing-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
+      - name: Validate Compose source before startup
+        run: docker compose -f docker/docker-compose.yml config --quiet
+      - name: Start Commerce and Manufacturing runtime
+        run: >-
+          docker compose -f docker/docker-compose.yml up -d --build
+          postgres redis rabbitmq identityservice commerceservice manufacturingservice
+      - name: Smoke Commerce.OrderPlaced.v1 allocation and replay
+        shell: pwsh
+        run: ./scripts/config/smoke-commerce-manufacturing.ps1
+      - name: Collect runtime diagnostics
+        if: always()
+        run: |
+          docker compose -f docker/docker-compose.yml ps
+          docker compose -f docker/docker-compose.yml logs --no-color --tail=200 commerceservice manufacturingservice rabbitmq
+      - name: Stop Commerce and Manufacturing runtime
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down --volumes
+
+  manufacturing-frontend-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build buyer and operator production images
+        run: |
+          docker build -f manufacturing-buyer-app/Dockerfile -t his-hope-manufacturing-buyer:ci .
+          docker build -f internal-operator-app/Dockerfile -t his-hope-manufacturing-operator:ci .
+      - name: Run frontend containers
+        run: |
+          docker run -d --name his-hope-manufacturing-buyer-ci -p 4205:8080 --add-host api-gateway:127.0.0.1 --add-host identityservice:127.0.0.1 his-hope-manufacturing-buyer:ci
+          docker run -d --name his-hope-manufacturing-operator-ci -p 4300:8080 --add-host api-gateway:127.0.0.1 his-hope-manufacturing-operator:ci
+      - name: Smoke frontend health and SPA roots
+        run: |
+          for url in http://127.0.0.1:4205/health http://127.0.0.1:4205/home http://127.0.0.1:4300/health http://127.0.0.1:4300/dashboard; do
+            for attempt in $(seq 1 20); do
+              if curl --fail --silent --show-error "$url" >/dev/null; then break; fi
+              if [ "$attempt" -eq 20 ]; then exit 1; fi
+              sleep 2
+            done
+          done
+      - name: Run public buyer UI contracts
+        working-directory: tests/e2e
+        env:
+          BUYER_APP_URL: http://127.0.0.1:4205
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test --config=manufacturing-buyer.playwright.config.mjs --workers=1
+          OPERATOR_APP_URL=http://127.0.0.1:4300 npx playwright test --config=manufacturing-operator-public.playwright.config.mjs --workers=1
+      - name: Collect frontend diagnostics
+        if: always()
+        run: |
+          docker ps -a --filter name=his-hope-manufacturing-buyer-ci --filter name=his-hope-manufacturing-operator-ci
+          docker logs his-hope-manufacturing-buyer-ci || true
+          docker logs his-hope-manufacturing-operator-ci || true
+      - name: Stop frontend containers
+        if: always()
+        run: docker rm -f his-hope-manufacturing-buyer-ci his-hope-manufacturing-operator-ci || true
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20.19.4'
+          node-version: '22.14.0'
           cache: npm
-      - name: Install dependencies without lifecycle builds
-        run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm ci
       - name: SCA audit for production dependency graph
         run: npm audit --omit=dev --audit-level=high
       - name: Capture full dependency audit
@@ -194,7 +354,7 @@ jobs:
         run: |
           set -o pipefail
           npm audit --json > npm-audit-full.json || true
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: npm-audit-full
           path: npm-audit-full.json
@@ -212,7 +372,7 @@ jobs:
           set -euo pipefail
           test -s his-hope-platform-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-platform-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: his-hope-platform-sbom
           path: his-hope-platform-sbom.cdx.json
@@ -221,10 +381,7 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
-          # Kubernetes misconfiguration is scanned against rendered manifests
-          # in the dedicated K3s DevSecOps gate; keep this scan repository-wide
-          # for vulnerabilities and secrets without duplicate fragment noise.
-          scanners: vuln,secret
+          scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
@@ -234,22 +391,18 @@ jobs:
 
   openapi:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
       - name: Start Identity dependencies and service
-        run: timeout --signal=TERM --kill-after=20s 5m docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
+        run: docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
       - name: Generate current OpenAPI document
         shell: pwsh
-        run: ./scripts/generate-openapi.ps1 -TimeoutSeconds 300 -Output artifacts/openapi/identity-v1.json
+        run: ./scripts/generate-openapi.ps1 -Output artifacts/openapi/identity-v1.json
       - name: Check OpenAPI compatibility
         shell: pwsh
         run: ./scripts/check-openapi-breaking.ps1 -Baseline docs/openapi/identity-v1.json -Current artifacts/openapi/identity-v1.json
       - name: Stop Identity dependencies
         if: always()
-        run: |
-          docker compose -f docker/docker-compose.yml ps
-          docker compose -f docker/docker-compose.yml logs --no-color --tail=200 identityservice || true
-          timeout --signal=TERM --kill-after=20s 3m docker compose -f docker/docker-compose.yml down --volumes || true
+        run: docker compose -f docker/docker-compose.yml down --volumes

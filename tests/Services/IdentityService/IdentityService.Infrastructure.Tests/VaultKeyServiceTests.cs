@@ -41,7 +41,8 @@ public sealed class VaultKeyServiceTests
             new ConfigurationBuilder().AddInMemoryCollection().Build(),
             NullLogger<VaultKeyService>.Instance,
             new TestHostEnvironment(Environments.Production),
-            Mock.Of<IVaultTokenProvider>());
+            Mock.Of<IVaultTokenProvider>(),
+            TestHttpClientFactory.Instance);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*persistent RSA key*");
@@ -72,7 +73,8 @@ public sealed class VaultKeyServiceTests
             }).Build(),
             NullLogger<VaultKeyService>.Instance,
             new TestHostEnvironment(Environments.Development),
-            Mock.Of<IVaultTokenProvider>());
+            Mock.Of<IVaultTokenProvider>(),
+            TestHttpClientFactory.Instance);
 
         (await service.IsHealthyAsync()).Should().BeFalse();
     }
@@ -90,7 +92,8 @@ public sealed class VaultKeyServiceTests
             NullLogger<VaultKeyService>.Instance,
             new TestHostEnvironment(Environments.Development),
             Mock.Of<IVaultTokenProvider>(provider => provider.GetTokenAsync(It.IsAny<CancellationToken>())
-                == Task.FromResult("test-token")));
+                == Task.FromResult("test-token")),
+            TestHttpClientFactory.Instance);
 
         await Assert.ThrowsAnyAsync<Exception>(() => service.RotateKeyAsync());
         (await service.GetJwksAsync()).Should().HaveCount(2);
@@ -113,7 +116,15 @@ public sealed class VaultKeyServiceTests
         }).Build(),
         NullLogger<VaultKeyService>.Instance,
         new TestHostEnvironment(Environments.Development),
-        Mock.Of<IVaultTokenProvider>());
+        Mock.Of<IVaultTokenProvider>(),
+        TestHttpClientFactory.Instance);
+
+    private sealed class TestHttpClientFactory : IHttpClientFactory
+    {
+        public static TestHttpClientFactory Instance { get; } = new();
+
+        public HttpClient CreateClient(string name) => new();
+    }
 
     private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
     {

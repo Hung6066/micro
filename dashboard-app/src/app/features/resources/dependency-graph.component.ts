@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
-import { Resource } from '../../core/models/resource.model';
+import { Resource, ServiceResource } from '../../core/models/resource.model';
 
 interface GraphNode {
   id: string;
@@ -565,7 +565,6 @@ export class DependencyGraphComponent {
 
     // Compute positions
     const gw = SVG_VIEWBOX.width;
-    const gh = SVG_VIEWBOX.height;
 
     // Layer 0: API Gateway at top center
     const gatewayLayer = services.filter((s) =>
@@ -638,15 +637,14 @@ export class DependencyGraphComponent {
     const l = this.layout();
     const edges: GraphEdge[] = [];
     const allSvc = l.services;
-    const allDb = l.databases;
     const allInfra = l.infrastructure;
     const nodeMap = new Map<string, GraphNode>();
     for (const n of this.allNodes()) nodeMap.set(n.id.toLowerCase(), n);
 
     // 1. Service → database (from databases[] field on ServiceResource)
     for (const svc of allSvc) {
-      const svcResource = svc.resource as any;
-      const dbNames: string[] = svcResource.databases ?? [];
+      const svcResource = svc.resource as Partial<ServiceResource>;
+      const dbNames = svcResource.databases ?? [];
       for (const dbName of dbNames) {
         if (nodeMap.has(dbName.toLowerCase())) {
           edges.push({ source: svc.id, target: dbName, type: 'dependency' });

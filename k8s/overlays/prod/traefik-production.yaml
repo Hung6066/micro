@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: ingress
     app.kubernetes.io/part-of: his-hope
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/version: latest
+    app.kubernetes.io/version: 7b77f09d8a38393df3a8cf0ab2e99bd6e6f1d9be
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -70,7 +70,7 @@ spec:
         app.kubernetes.io/component: ingress
         app.kubernetes.io/part-of: his-hope
         app.kubernetes.io/managed-by: kustomize
-        app.kubernetes.io/version: latest
+        app.kubernetes.io/version: 7b77f09d8a38393df3a8cf0ab2e99bd6e6f1d9be
       annotations:
         linkerd.io/inject: disabled
         # Traefik terminates ingress and forwards directly to HTTP services;

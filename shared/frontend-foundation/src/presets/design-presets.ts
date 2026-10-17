@@ -37,6 +37,18 @@ export interface HisHopePresetTokens {
   readonly primarySoft: string;
   readonly focus: string;
   readonly header: string;
+  readonly darkCanvas: string;
+  readonly darkSurface: string;
+  readonly darkSurfaceMuted: string;
+  readonly darkInk: string;
+  readonly darkInkMuted: string;
+  readonly darkBorder: string;
+  readonly darkPrimary: string;
+  readonly darkPrimaryHover: string;
+  readonly darkPrimarySoft: string;
+  readonly darkFocus: string;
+  readonly darkHeader: string;
+  readonly darkOnPrimary: string;
 }
 
 export interface HisHopeDesignPreset {
@@ -116,6 +128,18 @@ const base = (
     primarySoft: "#E4F1E9",
     focus: "#4C9B70",
     header: "#123B29",
+    darkCanvas: "#111815",
+    darkSurface: "#18211C",
+    darkSurfaceMuted: "#223029",
+    darkInk: "#F1F7F2",
+    darkInkMuted: "#B8C8BE",
+    darkBorder: "#405249",
+    darkPrimary: "#66B58A",
+    darkPrimaryHover: "#8BC9A5",
+    darkPrimarySoft: "#1E4D37",
+    darkFocus: "#8BC9A5",
+    darkHeader: "#0D2C1F",
+    darkOnPrimary: "#FFFFFF",
     ...overrides.tokens,
   },
   typography: (() => {

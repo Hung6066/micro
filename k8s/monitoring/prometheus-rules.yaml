@@ -221,6 +221,102 @@ spec:
           (1 - slo:availability:clinical_service:ratio_7d)
           / (1 - 0.9999)
 
+      # ---------- lab-service SLO (99.9% availability, p99 < 2s) ----------
+      - record: slo:availability:lab_service:ratio_30d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="labservice",http_response_status_code!~"5.."}[30d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="labservice"}[30d]))
+      - record: slo:availability:lab_service:ratio_7d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="labservice",http_response_status_code!~"5.."}[7d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="labservice"}[7d]))
+      - record: slo:availability:lab_service:ratio_1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="labservice",http_response_status_code!~"5.."}[1h]))
+          / sum(rate(http_server_request_duration_seconds_count{job="labservice"}[1h]))
+      - record: slo:latency_p99:lab_service:ratio_30d
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_request_duration_seconds_bucket{job="labservice"}[30d])) by (le))
+          / 2.0
+      - record: slo:error_budget_remaining:lab_service
+        expr: (1 - (1 - slo:availability:lab_service:ratio_30d) / (1 - 0.999)) * 100
+      - record: slo:burn_rate_1h:lab_service
+        expr: |
+          (1 - slo:availability:lab_service:ratio_1h)
+          / (1 - 0.999)
+      - record: slo:burn_rate_6h:lab_service
+        expr: |
+          (1 - slo:availability:lab_service:ratio_7d)
+          / (1 - 0.999)
+
+      # ---------- billing-service SLO (99.99% availability, p99 < 1s) ----------
+      - record: slo:availability:billing_service:ratio_30d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="billingservice",http_response_status_code!~"5.."}[30d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="billingservice"}[30d]))
+      - record: slo:availability:billing_service:ratio_7d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="billingservice",http_response_status_code!~"5.."}[7d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="billingservice"}[7d]))
+      - record: slo:availability:billing_service:ratio_1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="billingservice",http_response_status_code!~"5.."}[1h]))
+          / sum(rate(http_server_request_duration_seconds_count{job="billingservice"}[1h]))
+      - record: slo:latency_p99:billing_service:ratio_30d
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_request_duration_seconds_bucket{job="billingservice"}[30d])) by (le))
+          / 1.0
+      - record: slo:error_budget_remaining:billing_service
+        expr: (1 - (1 - slo:availability:billing_service:ratio_30d) / (1 - 0.9999)) * 100
+      - record: slo:burn_rate_1h:billing_service
+        expr: |
+          (1 - slo:availability:billing_service:ratio_1h)
+          / (1 - 0.9999)
+      - record: slo:burn_rate_6h:billing_service
+        expr: |
+          (1 - slo:availability:billing_service:ratio_7d)
+          / (1 - 0.9999)
+
+      # ---------- pharmacy-service SLO (99.9% availability, p99 < 1s) ----------
+      - record: slo:availability:pharmacy_service:ratio_30d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="pharmacyservice",http_response_status_code!~"5.."}[30d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="pharmacyservice"}[30d]))
+      - record: slo:availability:pharmacy_service:ratio_7d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="pharmacyservice",http_response_status_code!~"5.."}[7d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="pharmacyservice"}[7d]))
+      - record: slo:availability:pharmacy_service:ratio_1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="pharmacyservice",http_response_status_code!~"5.."}[1h]))
+          / sum(rate(http_server_request_duration_seconds_count{job="pharmacyservice"}[1h]))
+      - record: slo:latency_p99:pharmacy_service:ratio_30d
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_request_duration_seconds_bucket{job="pharmacyservice"}[30d])) by (le))
+          / 1.0
+      - record: slo:error_budget_remaining:pharmacy_service
+        expr: (1 - (1 - slo:availability:pharmacy_service:ratio_30d) / (1 - 0.999)) * 100
+      - record: slo:burn_rate_1h:pharmacy_service
+        expr: |
+          (1 - slo:availability:pharmacy_service:ratio_1h)
+          / (1 - 0.999)
+      - record: slo:burn_rate_6h:pharmacy_service
+        expr: |
+          (1 - slo:availability:pharmacy_service:ratio_7d)
+          / (1 - 0.999)
+
   - name: his-hope.slo.alerts
     interval: 30s
     rules:

@@ -624,7 +624,7 @@ kubectl run smoketest --rm -it --image=curlimages/curl:latest --restart=Never -n
 # Test login flow
 $body = @{
     username = "admin@hishop.com"
-    password = "Admin@123!"
+    password = $env:E2E_ADMIN_PASSWORD
 } | ConvertTo-Json
 
 $response = Invoke-RestMethod -Uri "http://localhost:5000/api/v1/auth/login" `

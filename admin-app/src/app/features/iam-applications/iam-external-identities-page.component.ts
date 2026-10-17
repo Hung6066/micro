@@ -14,6 +14,7 @@ import {
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 
 @Component({
   selector: "app-iam-external-identities-page",
@@ -37,6 +38,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
 })
 export class IamExternalIdentitiesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -85,6 +87,7 @@ export class IamExternalIdentitiesPageComponent implements OnInit {
   }
   ngOnInit() {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load() {
     this.state.load(this.api.getExternalIdentityProviders());

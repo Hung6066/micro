@@ -12,6 +12,26 @@ pitr_enabled="${PITR_ENABLED:-false}"
 wal_archive_path="${PITR_WAL_ARCHIVE_PATH:-/var/lib/his-hope/wal-archive}"
 pitr_base_backup_path="${PITR_BASE_BACKUP_PATH:-$storage_path/pitr-base}"
 pitr_base_backup_interval_hours="${PITR_BASE_BACKUP_INTERVAL_HOURS:-24}"
+
+# Resolve PostgreSQL client/server utilities from the image instead of
+# pinning an implementation path. The continuity image may intentionally use
+# a different major version than the primary database; the backup manifest
+# records the server version and pg_verifybackup validates compatibility.
+resolve_pg_tool() {
+  local tool="$1"
+  local resolved="$(command -v "$tool" || true)"
+  if [[ -n "$resolved" ]]; then
+    printf '%s' "$resolved"
+    return 0
+  fi
+  # Debian/Ubuntu packages keep versioned PostgreSQL binaries outside PATH.
+  find /usr/lib/postgresql -type f -path "*/bin/$tool" -perm -u+x 2>/dev/null | sort -V | tail -n1
+}
+
+pg_verifybackup_bin="$(resolve_pg_tool pg_verifybackup)"
+pg_basebackup_bin="$(resolve_pg_tool pg_basebackup)"
+pg_restore_bin="$(resolve_pg_tool pg_restore)"
+pg_ctl_bin="$(resolve_pg_tool pg_ctl)"
 retention_days="${RETENTION_DAYS:-30}"
 restore_drill_pg_host="${RESTORE_DRILL_PGHOST:-$PGHOST}"
 restore_drill_pg_port="${RESTORE_DRILL_PGPORT:-$PGPORT}"
@@ -87,7 +107,8 @@ restore_database() {
   PGHOST="$restore_drill_pg_host" PGPORT="$restore_drill_pg_port" PGUSER="$restore_drill_pg_user" PGPASSWORD="$restore_drill_pg_password" \
     createdb --maintenance-db=postgres "$restore_db"
   PGHOST="$restore_drill_pg_host" PGPORT="$restore_drill_pg_port" PGUSER="$restore_drill_pg_user" PGPASSWORD="$restore_drill_pg_password" \
-    pg_restore --clean --if-exists --no-owner --no-acl --dbname="$restore_db" "$temp"
+    [[ -n "$pg_restore_bin" ]] || { echo "pg_restore is unavailable in continuity image." >&2; return 1; }
+    "$pg_restore_bin" --clean --if-exists --no-owner --no-acl --dbname="$restore_db" "$temp"
   PGHOST="$restore_drill_pg_host" PGPORT="$restore_drill_pg_port" PGUSER="$restore_drill_pg_user" PGPASSWORD="$restore_drill_pg_password" \
     psql --dbname="$restore_db" --command='SELECT 1 AS restore_validation;' >/dev/null
   PGHOST="$restore_drill_pg_host" PGPORT="$restore_drill_pg_port" PGUSER="$restore_drill_pg_user" PGPASSWORD="$restore_drill_pg_password" \
@@ -101,7 +122,8 @@ pitr_replay_drill() {
   local latest drill_dir port postmaster_opts marker marker_lsn
   latest="$(find "$pitr_base_backup_path" -mindepth 1 -maxdepth 1 -type d -name 'base-*' | sort | tail -n1 || true)"
   [[ -n "$latest" && -s "$latest/backup_manifest" ]] || { echo "No verified PITR base backup available." >&2; return 1; }
-  /usr/lib/postgresql/16/bin/pg_verifybackup "$latest"
+  [[ -n "$pg_verifybackup_bin" ]] || { echo "pg_verifybackup is unavailable in continuity image." >&2; return 1; }
+  "$pg_verifybackup_bin" "$latest"
   marker="his_hope_pitr_drill_$(date -u +%Y%m%d%H%M%S)"
   marker_lsn="$(psql -Atc "select pg_create_restore_point('$marker');")"
   [[ -n "$marker_lsn" ]] || { echo "Unable to create PITR restore marker." >&2; return 1; }
@@ -115,14 +137,15 @@ pitr_replay_drill() {
   touch "$drill_dir/recovery.signal"
   chown -R postgres:postgres "$drill_dir"
   postmaster_opts="-p $port -c listen_addresses='' -c unix_socket_directories=/tmp"
-  runuser -u postgres -- /usr/lib/postgresql/16/bin/pg_ctl -D "$drill_dir" -o "$postmaster_opts" -w start
+  [[ -n "$pg_ctl_bin" ]] || { echo "pg_ctl is unavailable; run PITR replay in the isolated PostgreSQL restore image." >&2; return 1; }
+  runuser -u postgres -- "$pg_ctl_bin" -D "$drill_dir" -o "$postmaster_opts" -w start
   if ! runuser -u postgres -- psql -h /tmp -p "$port" -d postgres -Atc 'select 1;' >/dev/null; then
-    runuser -u postgres -- /usr/lib/postgresql/16/bin/pg_ctl -D "$drill_dir" -m immediate stop || true
+    runuser -u postgres -- "$pg_ctl_bin" -D "$drill_dir" -m immediate stop || true
     rm -rf "$drill_dir"
     echo "PITR replay drill did not become ready." >&2
     return 1
   fi
-  runuser -u postgres -- /usr/lib/postgresql/16/bin/pg_ctl -D "$drill_dir" -m fast stop
+  runuser -u postgres -- "$pg_ctl_bin" -D "$drill_dir" -m fast stop
   rm -rf "$drill_dir"
   echo "PITR replay drill completed at marker $marker (LSN $marker_lsn)"
 }
@@ -134,7 +157,8 @@ pitr_base_backup() {
   latest="$(find "$pitr_base_backup_path" -mindepth 1 -maxdepth 1 -type d -name 'base-*' | sort | tail -n1 || true)"
   age_hours=999999
   if [[ -n "$latest" && -s "$latest/backup_manifest" ]]; then
-    /usr/lib/postgresql/16/bin/pg_verifybackup "$latest"
+    [[ -n "$pg_verifybackup_bin" ]] || { echo "pg_verifybackup is unavailable in continuity image." >&2; return 1; }
+    "$pg_verifybackup_bin" "$latest"
     age_hours=$(( ( $(date +%s) - $(stat -c %Y "$latest") ) / 3600 ))
   elif [[ -n "$latest" ]]; then
     rm -rf "$latest"
@@ -146,9 +170,11 @@ pitr_base_backup() {
   fi
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   destination="$pitr_base_backup_path/base-$stamp"
-  pg_basebackup --format=plain --checkpoint=fast --wal-method=stream --progress --pgdata="$destination"
+  [[ -n "$pg_basebackup_bin" ]] || { echo "pg_basebackup is unavailable in continuity image." >&2; return 1; }
+  "$pg_basebackup_bin" --format=plain --checkpoint=fast --wal-method=stream --progress --pgdata="$destination"
   [[ -s "$destination/backup_manifest" ]] || { echo "PITR base backup manifest is missing." >&2; exit 1; }
-  /usr/lib/postgresql/16/bin/pg_verifybackup "$destination"
+  [[ -n "$pg_verifybackup_bin" ]] || { echo "pg_verifybackup is unavailable in continuity image." >&2; return 1; }
+  "$pg_verifybackup_bin" "$destination"
   echo "PITR base backup created: $destination"
 }
 

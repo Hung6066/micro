@@ -1,0 +1,105 @@
+{
+  "version": "1",
+  "organization": {
+    "key": "abc-group",
+    "displayName": "ABC Group"
+  },
+  "tenants": [
+    {
+      "key": "manufacturing",
+      "displayName": "Manufacturing Co",
+      "accountKey": "manufacturing-account",
+      "accountDisplayName": "Manufacturing operations",
+      "environmentKey": "manufacturing-staging",
+      "environmentDisplayName": "Azure staging"
+    },
+    {
+      "key": "tech-vendor",
+      "displayName": "Technology Co",
+      "accountKey": "tech-vendor-account",
+      "accountDisplayName": "Software vendor console",
+      "environmentKey": "tech-vendor-staging",
+      "environmentDisplayName": "Azure staging"
+    },
+    {
+      "key": "group-hq",
+      "displayName": "Group HQ",
+      "accountKey": "group-hq-account",
+      "accountDisplayName": "Group administration",
+      "environmentKey": "group-hq-staging",
+      "environmentDisplayName": "Azure staging"
+    }
+  ],
+  "crossTenantPolicy": {
+    "defaultDeny": true,
+    "allowedPairs": [
+      {
+        "source": "group-hq",
+        "target": "manufacturing",
+        "reason": "group-iam-read",
+        "permissions": [
+          "admin.audit.read",
+          "admin.users.read",
+          "admin.roles.read",
+          "admin.clients.read"
+        ]
+      },
+      {
+        "source": "group-hq",
+        "target": "tech-vendor",
+        "reason": "group-iam-read",
+        "permissions": [
+          "admin.audit.read",
+          "admin.users.read",
+          "admin.roles.read",
+          "admin.clients.read"
+        ]
+      },
+      {
+        "source": "group-hq",
+        "targetClass": "customer",
+        "reason": "group-customer-iam-read",
+        "permissions": [
+          "admin.audit.read",
+          "admin.users.read",
+          "admin.roles.read",
+          "admin.clients.read"
+        ]
+      },
+      {
+        "source": "tech-vendor",
+        "targetClass": "customer",
+        "operatorHomeMatch": true,
+        "reason": "vendor-support-read",
+        "permissions": ["admin.audit.read", "admin.users.read", "identity.view"],
+        "requiresJit": false
+      },
+      {
+        "source": "tech-vendor",
+        "targetClass": "customer",
+        "operatorHomeMatch": true,
+        "reason": "vendor-support-write",
+        "permissions": ["admin.users.write", "identity.update"],
+        "requiresJit": true,
+        "maxDurationMinutes": 60
+      },
+      {
+        "source": "manufacturing",
+        "targetClass": "customer",
+        "operatorHomeMatch": true,
+        "reason": "mfg-support-read",
+        "permissions": ["admin.audit.read", "admin.users.read", "identity.view"],
+        "requiresJit": false
+      },
+      {
+        "source": "manufacturing",
+        "targetClass": "customer",
+        "operatorHomeMatch": true,
+        "reason": "mfg-support-write",
+        "permissions": ["admin.users.write", "identity.update"],
+        "requiresJit": true,
+        "maxDurationMinutes": 60
+      }
+    ]
+}
+}

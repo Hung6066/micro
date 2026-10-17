@@ -1087,7 +1087,7 @@ public class AuthControllerBffTests : IClassFixture<IdentityServiceWebApplicatio
         var content = new StringContent(JsonSerializer.Serialize(new
         {
             username = "admin",
-            password = "Admin@123"
+            password = Environment.GetEnvironmentVariable("E2E_ADMIN_PASSWORD")
         }), Encoding.UTF8, "application/json");
 
         var response = await client.PostAsync("/api/v1/auth/login", content);

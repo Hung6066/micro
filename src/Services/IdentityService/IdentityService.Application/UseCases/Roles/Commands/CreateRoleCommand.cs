@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Application.Authorization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Roles.Commands;
 
@@ -29,7 +30,7 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
         var exists = await _context.Roles.AnyAsync(
             r => r.NormalizedName == request.Name.ToUpper(), cancellationToken);
         if (exists)
-            throw new InvalidOperationException($"Role '{request.Name}' already exists.");
+            Guard.Against.Conflict(true, $"Role '{request.Name}' already exists.");
 
         var role = new Role
         {
@@ -39,7 +40,8 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
             Description = request.Description,
             Owner = string.IsNullOrWhiteSpace(request.Owner) ? "identity-service" : request.Owner.Trim(),
             IsSystem = false,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            ConcurrencyStamp = Guid.NewGuid().ToString("N")
         };
 
         _context.Roles.Add(role);
@@ -90,7 +92,7 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
                 rp.Permission.Description,
                 rp.Permission.IsSystem
             )).ToList(),
-            null,
+            savedRole.ConcurrencyStamp,
             savedRole.Owner,
             savedRole.AuthorizationVersion,
             savedRole.RiskTier,

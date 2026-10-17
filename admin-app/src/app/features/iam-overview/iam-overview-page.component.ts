@@ -1,6 +1,5 @@
 import {
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
   DestroyRef,
   OnInit,
@@ -20,6 +19,7 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { IamOverview } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
@@ -114,6 +114,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamOverviewPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly destroyRef = inject(DestroyRef);
   readonly state = new AdminResourceStateController<IamOverview>({
@@ -147,6 +148,7 @@ export class IamOverviewPageComponent implements OnInit {
   }
   ngOnInit() {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load() {
     this.state.load(this.api.getIamOverview());

@@ -75,7 +75,7 @@ public sealed class PersistentSagaOrchestrator<TData>
     public Task<Guid> ExecuteAsync(
         TData data,
         CancellationToken ct = default) =>
-        ExecuteAsync(Guid.NewGuid(), data, ct);
+        ExecuteAsync(Guid.NewGuid(), data, null, ct);
 
     /// <summary>
     /// Executes the saga with the specified <paramref name="sagaId"/>.
@@ -88,13 +88,25 @@ public sealed class PersistentSagaOrchestrator<TData>
     public async Task<Guid> ExecuteAsync(
         Guid sagaId,
         TData data,
+        CancellationToken ct = default) =>
+        await ExecuteAsync(sagaId, data, null, ct);
+
+    /// <summary>
+    /// Executes a saga with stable tracing, tenancy and idempotency metadata.
+    /// The idempotency key is persisted with the instance and should be derived
+    /// from the triggering command/event, not from a retry attempt.
+    /// </summary>
+    public async Task<Guid> ExecuteAsync(
+        Guid sagaId,
+        TData data,
+        SagaExecutionMetadata? metadata,
         CancellationToken ct = default)
     {
         // ── Idempotency check ────────────────────────────────────────────────
         var existing = await _stateStore.LoadAsync(sagaId, ct);
         if (existing is not null)
         {
-            if (existing.Status is "Completed" or "Compensated")
+            if (SagaStatus.IsTerminal(existing.Status))
             {
                 _logger.LogInformation(
                     "Saga {SagaId} already in terminal state '{Status}'. Skipping.",
@@ -127,13 +139,21 @@ public sealed class PersistentSagaOrchestrator<TData>
         {
             SagaId = sagaId,
             SagaType = typeof(TData).FullName ?? typeof(TData).Name,
-            Status = "Pending",
+            Status = SagaStatus.Pending,
             StepIndex = -1,
             StartedAt = DateTime.UtcNow,
-            LastHeartbeat = DateTime.UtcNow
+            LastHeartbeat = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
+        if (metadata is not null)
+        {
+            instance.TenantKey = metadata.TenantKey;
+            instance.CorrelationId = metadata.CorrelationId;
+            instance.CausationId = metadata.CausationId;
+            instance.IdempotencyKey = metadata.IdempotencyKey;
+        }
         instance.SetData(data);
-        instance.Status = "Running";
+        instance.Status = SagaStatus.Running;
         instance.ErrorMessage = null;
 
         if (existing is null)
@@ -143,7 +163,7 @@ public sealed class PersistentSagaOrchestrator<TData>
         else
         {
             await _stateStore.UpdateStatusAsync(
-                sagaId, "Running", instance.StepIndex, DateTime.UtcNow, ct);
+                sagaId, SagaStatus.Running, instance.StepIndex, DateTime.UtcNow, ct);
         }
 
         // ── Execute steps ────────────────────────────────────────────────────
@@ -162,14 +182,15 @@ public sealed class PersistentSagaOrchestrator<TData>
                 await ExecuteStepWithTimeoutAsync(sagaId, i, data, ct);
 
                 executedStepIndices.Push(i);
+                instance.StepIndex = i;
 
                 // Persist progress after each successful step
                 await _stateStore.UpdateStatusAsync(
-                    sagaId, "Running", i, DateTime.UtcNow, ct);
+                    sagaId, SagaStatus.Running, i, DateTime.UtcNow, ct);
             }
 
             // ── Mark completed ───────────────────────────────────────────────
-            instance.Status = "Completed";
+            instance.Status = SagaStatus.Completed;
             instance.CompletedAt = DateTime.UtcNow;
             await SaveFinalStateAsync(instance, ct);
 
@@ -203,11 +224,14 @@ public sealed class PersistentSagaOrchestrator<TData>
             "Resuming saga {SagaId} from status '{Status}' step {StepIndex}",
             instance.SagaId, instance.Status, instance.StepIndex);
 
-        if (instance.Status == "Running")
+        if (instance.Status == SagaStatus.Running)
         {
             // Resume execution from the next step
             var data = instance.GetData<TData>();
             var executedStepIndices = new Stack<int>(capacity: _steps.Count);
+            for (var completedStep = 0; completedStep <= instance.StepIndex; completedStep++)
+                executedStepIndices.Push(completedStep);
+            instance.RetryCount++;
 
             try
             {
@@ -219,10 +243,10 @@ public sealed class PersistentSagaOrchestrator<TData>
                     executedStepIndices.Push(i);
 
                     await _stateStore.UpdateStatusAsync(
-                        instance.SagaId, "Running", i, DateTime.UtcNow, ct);
+                        instance.SagaId, SagaStatus.Running, i, DateTime.UtcNow, ct);
                 }
 
-                instance.Status = "Completed";
+            instance.Status = SagaStatus.Completed;
                 instance.CompletedAt = DateTime.UtcNow;
                 instance.ErrorMessage = null;
                 await SaveFinalStateAsync(instance, ct);
@@ -235,7 +259,7 @@ public sealed class PersistentSagaOrchestrator<TData>
                 await FailAndCompensateAsync(instance, executedStepIndices, data, ex, ct);
             }
         }
-        else if (instance.Status == "Compensating")
+        else if (instance.Status == SagaStatus.Compensating)
         {
             // Resume compensation from where it left off
             var data = instance.GetData<TData>();
@@ -279,7 +303,7 @@ public sealed class PersistentSagaOrchestrator<TData>
             {
                 await Task.Delay(HeartbeatInterval, ct);
                 await _stateStore.UpdateStatusAsync(
-                    sagaId, "Running", -1, DateTime.UtcNow, ct);
+                    sagaId, SagaStatus.Running, -1, DateTime.UtcNow, ct);
             }
         }
         catch (OperationCanceledException)
@@ -304,14 +328,16 @@ public sealed class PersistentSagaOrchestrator<TData>
             "Saga {SagaId} failed at step {StepIndex}. Starting compensation.",
             instance.SagaId, instance.StepIndex + 2); // +2 because we haven't persisted the failed step yet
 
-        instance.Status = "Failed";
-        instance.ErrorMessage = exception.ToString();
+        instance.Status = SagaStatus.Failed;
+        instance.ErrorMessage = SanitizeError(exception);
         await SaveFinalStateAsync(instance, ct);
 
-        instance.Status = "Compensating";
-        instance.StepIndex = instance.StepIndex; // keep current
+        instance.Status = SagaStatus.Compensating;
+        instance.StepIndex = executedStepIndices.Count == 0
+            ? instance.StepIndex
+            : Math.Max(instance.StepIndex, executedStepIndices.Max());
         await _stateStore.UpdateStatusAsync(
-            instance.SagaId, "Compensating", instance.StepIndex, DateTime.UtcNow, ct);
+            instance.SagaId, SagaStatus.Compensating, instance.StepIndex, DateTime.UtcNow, ct);
 
         await ExecuteCompensationAsync(instance, data, ct);
     }
@@ -321,8 +347,6 @@ public sealed class PersistentSagaOrchestrator<TData>
         TData data,
         CancellationToken ct)
     {
-        var succeeded = true;
-
         for (int i = instance.StepIndex; i >= 0; i--)
         {
             ct.ThrowIfCancellationRequested();
@@ -340,41 +364,37 @@ public sealed class PersistentSagaOrchestrator<TData>
 
                 instance.StepIndex = i - 1;
                 await _stateStore.UpdateStatusAsync(
-                    instance.SagaId, "Compensating", instance.StepIndex, DateTime.UtcNow, ct);
+                    instance.SagaId, SagaStatus.Compensating, instance.StepIndex, DateTime.UtcNow, ct);
             }
             catch (Exception ex)
             {
-                succeeded = false;
                 _logger.LogCritical(ex,
                     "Compensation failed for step {Step} of saga {SagaId}. " +
                     "Manual intervention required.",
                     i + 1, instance.SagaId);
+                instance.Status = SagaStatus.Compensating;
+                instance.ErrorMessage = SanitizeError(ex);
+                await SaveFinalStateAsync(instance, ct);
+                return;
             }
         }
 
-        instance.Status = succeeded ? "Compensated" : "Failed";
+        instance.Status = SagaStatus.Compensated;
         instance.CompletedAt = DateTime.UtcNow;
-        if (!succeeded)
-        {
-            instance.ErrorMessage = "Compensation completed with errors. Manual intervention required.";
-        }
         await SaveFinalStateAsync(instance, ct);
     }
 
     private async Task SaveFinalStateAsync(SagaInstance instance, CancellationToken ct)
     {
-        // Use SaveAsync to upsert the final state including Data updates
-        // We need a load-then-save pattern since we're using a factory-based context
-        var existing = await _stateStore.LoadAsync(instance.SagaId, ct);
-        if (existing is not null)
-        {
-            existing.Status = instance.Status;
-            existing.CompletedAt = instance.CompletedAt;
-            existing.ErrorMessage = instance.ErrorMessage;
-            existing.StepIndex = instance.StepIndex;
-            existing.LastHeartbeat = DateTime.UtcNow;
-            await _stateStore.SaveAsync(existing, ct);
-        }
+        instance.LastHeartbeat = DateTime.UtcNow;
+        instance.UpdatedAt = instance.LastHeartbeat;
+        await _stateStore.SaveAsync(instance, ct);
+    }
+
+    private static string SanitizeError(Exception exception)
+    {
+        var message = exception.GetBaseException().Message;
+        return message.Length <= 2000 ? message : message[..2000];
     }
 }
 

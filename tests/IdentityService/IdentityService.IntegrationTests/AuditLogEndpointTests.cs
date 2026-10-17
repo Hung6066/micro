@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -86,6 +87,44 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AuditEvents_EmptyOrNullBatch_is_accepted_without_persisting_events()
+    {
+        await using var scope = _app!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+
+        var empty = await _client!.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new { events = Array.Empty<object>() });
+        var nullBatch = await _client!.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new { events = (object?)null });
+
+        Assert.Equal(HttpStatusCode.Accepted, empty.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, nullBatch.StatusCode);
+        Assert.Equal(0, await db.AuditLogs.CountAsync());
+    }
+
+    [Fact]
+    public async Task AuditEvents_Rejects_unknown_actions_before_authorization_or_persistence()
+    {
+        await using var scope = _app!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+
+        var response = await _client!.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new
+        {
+            events = new[]
+            {
+                new
+                {
+                    action = "not-a-supported-action",
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    userId = "spoofed",
+                    details = new { resourceId = "should-not-persist" }
+                }
+            }
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, await db.AuditLogs.CountAsync());
+    }
+
+    [Fact]
     public async Task AuditLog_CannotBeModifiedOrDeleted()
     {
         await using var scope = _app!.Services.CreateAsyncScope();
@@ -93,6 +132,20 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
         var log = new His.Hope.IdentityService.Domain.Entities.AuditLog { UserId = "u", Action = "READ", ResourceType = "Patient" };
         db.AuditLogs.Add(log);
         await db.SaveChangesAsync();
+
+        Assert.False(string.IsNullOrWhiteSpace(log.IntegrityHash));
+        Assert.Null(log.PreviousIntegrityHash);
+
+        var second = new His.Hope.IdentityService.Domain.Entities.AuditLog
+        {
+            UserId = "u2", Action = "READ", ResourceType = "Patient",
+            Timestamp = log.Timestamp.AddSeconds(1)
+        };
+        db.AuditLogs.Add(second);
+        await db.SaveChangesAsync();
+        Assert.Equal(log.IntegrityHash, second.PreviousIntegrityHash);
+        Assert.True(His.Hope.IdentityService.Domain.Entities.AuditLogIntegrity
+            .VerifyChain([log, second]));
 
         log.Action = "DELETE";
         await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
@@ -109,11 +162,9 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
             options.UseInMemoryDatabase(_databaseName, DatabaseRoot));
         builder.Services.AddAuthentication(TestAuthHandler.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { });
-        builder.Services.AddAuthorization(options =>
-        {
-            options.AddPolicy("Permission:patients.view", policy => policy.RequireAuthenticatedUser());
-            options.AddPolicy("Permission:admin.audit.read", policy => policy.RequireAuthenticatedUser());
-        });
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(AuthorizationPolicyNames.Permissions.PatientsView, policy => policy.RequireAuthenticatedUser())
+            .AddPolicy(AuthorizationPolicyNames.Permissions.AdminAuditRead, policy => policy.RequireAuthenticatedUser());
 
         _app = builder.Build();
         _app.UseAuthentication();
@@ -141,7 +192,7 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
 
     private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
-        public const string Scheme = "Test";
+        public new const string Scheme = "Test";
         public const string UserId = "server-user";
         public const string UserName = "Server User";
 
@@ -159,7 +210,8 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
             {
                 new Claim(ClaimTypes.NameIdentifier, UserId),
                 new Claim(ClaimTypes.Name, UserName),
-                new Claim("sub", UserId)
+                new Claim("sub", UserId),
+                new Claim("permissions", "patients.view,admin.audit.read")
             };
             var identity = new ClaimsIdentity(claims, Scheme);
             var principal = new ClaimsPrincipal(identity);

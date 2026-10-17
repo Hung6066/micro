@@ -16,6 +16,7 @@ export class AuthService {
       defaultReturnUrl: '/resources',
       sessionStatusUrl: `${environment.authApiUrl}/session-status`,
       sessionExchangeUrl: `${environment.authApiUrl}/session/exchange`,
+      bffClientId: environment.oidc.clientId,
       logoutUrl: `${environment.authApiUrl}/logout`,
       bffOnly: true,
     },

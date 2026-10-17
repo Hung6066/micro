@@ -14,6 +14,7 @@ import {
   OidcClient,
 } from "../../core/contracts/admin.contracts";
 import { ClientsApiService } from "../../core/services/clients-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopePageQuery } from "@his-hope/frontend-foundation";
 import {
   HisHopeAuditFeedbackService,
@@ -171,6 +172,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class ClientsPageComponent implements OnInit {
   private readonly api = inject(ClientsApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly toast = inject(HisHopeToastService);
   private readonly auditFeedback = inject(HisHopeAuditFeedbackService);
@@ -347,6 +349,7 @@ export class ClientsPageComponent implements OnInit {
   ngOnInit(): void {
     this.table.loadServerView(() => this.api.getTableViews("clients"));
     this.loadClients();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadClients());
   }
 
   loadServerView(): void {

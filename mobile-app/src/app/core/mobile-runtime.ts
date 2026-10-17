@@ -22,10 +22,10 @@ export function createMobileRuntimeConfig(
   production: boolean,
 ): Readonly<HisHopeResolvedMobileRuntimeConfig> {
   const source = defaultMobileRuntimeSource();
-  // Angular production bundles are also used for local Capacitor/emulator
-  // installs. Honor the injected runtime flag so HTTP emulator origins do
-  // not throw during module evaluation and leave a white screen.
-  const enforceProduction = production && source.production !== false;
+  // A production Angular bundle must never downgrade to the HTTP emulator
+  // origin when runtime configuration is missing or marked as development.
+  // Local emulator installs must use the development configuration instead.
+  const enforceProduction = production;
   return new RuntimeConfigService(source).require({
     platform: {
       isNative: Capacitor.isNativePlatform(),

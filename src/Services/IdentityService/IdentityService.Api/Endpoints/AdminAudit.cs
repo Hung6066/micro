@@ -11,14 +11,14 @@ internal static class AdminAudit
     public static Task LogAsync(IAuditService audit, HttpContext http, string action, string resource, string? resourceId, CancellationToken ct) =>
         audit.LogPhiAccessAsync(new PhiAuditEntry
         {
-            UserId = http.User.FindFirst("sub")?.Value ?? "system",
+            UserId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system",
             UserRole = http.User.FindFirst("role")?.Value,
             ResourceType = resource,
-            ResourceId = resourceId,
+            ResourceId = resourceId ?? string.Empty,
             Action = action,
             ClientIp = http.Connection.RemoteIpAddress?.ToString(),
             UserAgent = http.Request.Headers.UserAgent.ToString(),
-            CorrelationId = http.Response.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier,
+            CorrelationId = http.Response.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier,
             HttpMethod = http.Request.Method,
             Path = http.Request.Path
         }, ct);
@@ -36,7 +36,7 @@ internal static class AdminAudit
     {
         db.AuditLogs.Add(new AuditLog
         {
-            UserId = http.User.FindFirst("sub")?.Value ?? "system",
+            UserId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system",
             UserName = http.User.Identity?.Name,
             Action = $"AUTHZ_{action.ToUpperInvariant()}",
             ResourceType = resourceType,

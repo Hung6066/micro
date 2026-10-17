@@ -1,0 +1,13 @@
+<section class="handover-page" aria-labelledby="handover-title">
+  <p class="eyebrow">{{ "mobile.operatorHandoverEyebrow" | hhTranslate: "SHIFT HANDOVER" }}</p>
+  <h2 id="handover-title">{{ "mobile.operatorHandoverTitle" | hhTranslate: "Shift handover" }}</h2>
+  <p class="lede">{{ "mobile.operatorHandoverDescription" | hhTranslate: "Review unresolved work before handing the shift to the next operator." }}</p>
+  <button type="button" [disabled]="loading" (click)="load()">{{ "mobile.operatorRefresh" | hhTranslate: "Refresh" }}</button>
+  @if (error) { <p role="alert">{{ error }}</p> }
+  <div class="handover-grid">
+    <article><h3>{{ "mobile.operatorHandoverBatches" | hhTranslate: "Started batches" }}</h3><strong>{{ startedBatches.length }}</strong>@if (!startedBatches.length) { <p>{{ "mobile.operatorHandoverNone" | hhTranslate: "None pending." }}</p> } @for (batch of startedBatches; track batch.id) { <span>{{ batch.batchNumber }} · {{ batch.status }}</span> }</article>
+    <article><h3>{{ "mobile.operatorHandoverLots" | hhTranslate: "Lots on hold" }}</h3><strong>{{ holdLots.length }}</strong>@if (!holdLots.length) { <p>{{ "mobile.operatorHandoverNone" | hhTranslate: "None pending." }}</p> } @for (lot of holdLots; track lot.id) { <span>{{ lot.lotCode || lot.id }} · {{ lot.sku }}</span> }</article>
+    <article><h3>{{ "mobile.operatorHandoverDowntime" | hhTranslate: "Open downtime" }}</h3><strong>{{ openDowntimes.length }}</strong>@if (!openDowntimes.length) { <p>{{ "mobile.operatorHandoverNone" | hhTranslate: "None pending." }}</p> } @for (downtime of openDowntimes; track downtime.id) { <span>{{ downtime.machineId }} · {{ downtime.reason }}</span> }</article>
+    <article><h3>{{ "mobile.operatorHandoverWorkOrders" | hhTranslate: "Overdue work orders" }}</h3><strong>{{ overdueWorkOrders.length }}</strong>@if (!overdueWorkOrders.length) { <p>{{ "mobile.operatorHandoverNone" | hhTranslate: "None pending." }}</p> } @for (order of overdueWorkOrders; track order.id) { <span>{{ order.machineId }} · {{ order.id }}</span> }</article>
+  </div>
+</section>

@@ -1,13 +1,24 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+labels:
+  - pairs:
+      app.kubernetes.io/version: 7b77f09d8a38393df3a8cf0ab2e99bd6e6f1d9be
+    includeSelectors: false
+
 resources:
   - ../../spire
   - ../../production-ha
+  - data-plane-ha-pdbs.yaml
 
 components:
   - ../prod/image-digests
 
 patches:
+  - path: backup-namespace-security-patch.yaml
+  - path: spire-namespace-security-patch.yaml
   - path: spire-server-ha-patch.yaml
   - path: spire-server-production-datastore-patch.yaml
+  - path: spire-oidc-ha-patch.yaml
+  - path: minio-ha-patch.yaml
+  - path: spire-server-topology-patch.yaml

@@ -26,6 +26,7 @@ export const IDENTITY_WORKBENCH_RESOURCES = {
   accessReviews: 'access-reviews',
   breakGlass: 'break-glass/requests',
   authorizationChanges: 'authorization-changes',
+  authorizationChangeRequests: 'authorization-change-requests',
   sessions: 'sessions',
   workloadSessions: 'workload-sessions',
   revocations: 'revocations',

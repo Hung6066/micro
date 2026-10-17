@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using His.Hope.ServiceDefaults;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -162,6 +163,7 @@ public sealed class PushDeliveryServiceTests
             ApnsEnabled = false,
             FirebaseCredentialsJson = firebaseCredentials ?? "{\"project_id\":\"demo\",\"client_email\":\"push@example.test\",\"private_key\":\"\"}"
         }),
+        new RecordingFirebaseSender(handler ?? new RecordingHandler()),
         NullLogger<PushDeliveryService>.Instance);
 
     private static IdentityDbContext CreateDb() => new(new DbContextOptionsBuilder<IdentityDbContext>()
@@ -173,6 +175,19 @@ public sealed class PushDeliveryServiceTests
     private sealed class TestHttpClientFactory(RecordingHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
+
+    private sealed class RecordingFirebaseSender(RecordingHandler handler) : IFirebasePushSender
+    {
+        public async Task SendAsync(string deviceToken, string title, string body, CancellationToken cancellationToken = default)
+        {
+            using var oauth = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
+            using var oauthResponse = await handler.SendAsyncForTest(oauth, cancellationToken);
+            if (!oauthResponse.IsSuccessStatusCode) throw new HttpRequestException("Firebase OAuth token request failed.");
+            using var message = new HttpRequestMessage(HttpMethod.Post, "https://fcm.googleapis.com/messages:send");
+            using var response = await handler.SendAsyncForTest(message, cancellationToken);
+            if (!response.IsSuccessStatusCode) throw new HttpRequestException("Firebase message request failed.");
+        }
     }
 
     private sealed class RecordingHandler(params HttpResponseMessage[] responses) : HttpMessageHandler
@@ -187,5 +202,7 @@ public sealed class PushDeliveryServiceTests
                 ? _responses.Dequeue()
                 : new HttpResponseMessage(HttpStatusCode.OK));
         }
+
+        public Task<HttpResponseMessage> SendAsyncForTest(HttpRequestMessage request, CancellationToken cancellationToken) => SendAsync(request, cancellationToken);
     }
 }

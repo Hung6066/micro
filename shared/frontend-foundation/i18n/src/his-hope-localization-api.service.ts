@@ -27,7 +27,10 @@ export class HisHopeLocalizationApiService {
   load(locale = this.i18n.apiLocale()): Observable<Record<string, string>> {
     const canonicalLocale = locale === "en" ? "en-US" : locale;
     return this.http.get<LocalizationResponse>(`${this.apiUrl}/localization`, { params: { locale: canonicalLocale } }).pipe(
-      tap(response => this.i18n.registerTranslations(canonicalLocale, response.values ?? {})),
+      tap(response => {
+        this.i18n.registerTranslations(canonicalLocale, response.values ?? {});
+        this.i18n.refreshViews();
+      }),
       map(response => response.values ?? {}),
       catchError(() => of({})),
     );

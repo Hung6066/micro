@@ -8,14 +8,12 @@ describe("HisHopeGlobalErrorHandler", () => {
   let handler: HisHopeGlobalErrorHandler;
   let errorReporting: HisHopeErrorReportingService;
   let toast: HisHopeToastService;
-  let i18n: HisHopeI18nService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
     handler = TestBed.inject(HisHopeGlobalErrorHandler);
     errorReporting = TestBed.inject(HisHopeErrorReportingService);
     toast = TestBed.inject(HisHopeToastService);
-    i18n = TestBed.inject(HisHopeI18nService);
     spyOn(console, "error");
   });
 
@@ -43,6 +41,8 @@ describe("HisHopeGlobalErrorHandler", () => {
     const circular: Record<string, unknown> = {};
     circular["self"] = circular;
     handler.handleError(circular);
-    expect(errorReporting.events()[0].message).toBe(i18n.t("errors.unknownError"));
+    expect(errorReporting.events()[0].message).toBe(
+      TestBed.inject(HisHopeI18nService).t("errors.unknownError"),
+    );
   });
 });

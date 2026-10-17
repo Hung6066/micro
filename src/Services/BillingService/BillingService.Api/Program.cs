@@ -1,4 +1,5 @@
 using His.Hope.AspNetCore;
+using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
 using His.Hope.Observability;
@@ -7,6 +8,7 @@ using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Messaging;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
@@ -36,7 +38,6 @@ using Serilog;
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "BillingService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -65,17 +66,7 @@ builder.Services.AddGrpc(options =>
     options.Interceptors.Add<GrpcServerInterceptor>();
 });
 
-builder.Services.AddRabbitMQEventBus(options =>
-{
-    options.HostName = builder.Configuration.GetValue("EventBus:HostName", "localhost")!;
-    options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
-    options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
-    options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
-    options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
-    options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
-    options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
-});
+builder.Services.AddHisHopeLegacyRabbitMqEventBus(builder.Configuration);
 
 // Comprehensive Health Checks
 builder.Services.AddHealthChecks()
@@ -84,7 +75,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
         builder.Configuration.GetValue("EventBus:UserName", "admin")!,
-        builder.Configuration.GetValue("EventBus:Password", "admin")!,
+        His.Hope.Infrastructure.Messaging.EventBusSecurity.GetPassword(builder.Configuration),
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
@@ -117,18 +108,16 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    // Local development convenience only. Production schema is migration-owned.
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<BillingDbContext>();
-    db.Database.EnsureCreated();
-}
-else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
          builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+      await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+else if (!app.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "BillingService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
@@ -158,6 +147,7 @@ app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
+app.UseHisHopeTenantScope();
 
 
 app.UsePhiAudit();
@@ -276,7 +266,14 @@ invoices.MapPost("/", async (
     var command = new CreateInvoiceCommand(
         request.PatientId, request.EncounterId, request.InvoiceDate,
         request.DueDate, request.InvoiceNumber, request.Notes,
-        request.LineItems);
+        request.LineItems
+            .Select(item => new LineItemInput(
+                item.Description,
+                item.Quantity,
+                item.UnitPrice,
+                item.ItemCode,
+                item.ItemTypeCode))
+            .ToArray());
 
     var invoice = await mediator.Send(command, ct);
 
@@ -365,7 +362,6 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
                 status = e.Value.Status.ToString(),
                 description = e.Value.Description,
                 tags = e.Value.Tags,
-                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
         };
@@ -405,36 +401,4 @@ static X509Certificate2 LoadServerCertificate(IConfiguration config)
     return cert;
 }
 
-// Request Records
-public record CreateInvoiceRequest(
-    Guid PatientId,
-    Guid? EncounterId,
-    string InvoiceNumber,
-    DateTime InvoiceDate,
-    DateTime? DueDate,
-    string? Notes,
-    ICollection<LineItemInput> LineItems);
-
-public record AddInvoiceLineItemRequest(
-    string Description,
-    int Quantity,
-    decimal UnitPrice,
-    string? ItemCode,
-    string? ItemTypeCode);
-
-public record RecordPaymentRequest(
-    Guid PatientId,
-    decimal Amount,
-    DateTime PaymentDate,
-    string MethodCode,
-    string? ReferenceNumber,
-    string? Notes);
-
-public record CancelInvoiceRequest(string Reason);
-
-public record VoidInvoiceRequest(string Reason);
-
-public record ApplyDiscountRequest(decimal Amount);
-
-public record ApplyTaxRequest(decimal Amount);
 
