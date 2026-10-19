@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography.X509Certificates;
+using System.Net.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -99,6 +100,15 @@ public static class VaultServiceCollectionExtensions
             {
                 var options = sp.GetRequiredService<IOptionsMonitor<VaultOptions>>().CurrentValue;
                 var handler = new HttpClientHandler();
+                if (!string.IsNullOrWhiteSpace(options.TlsClientCertificateFile) ||
+                    !string.IsNullOrWhiteSpace(options.TlsClientKeyFile))
+                {
+                    if (string.IsNullOrWhiteSpace(options.TlsClientCertificateFile) ||
+                        string.IsNullOrWhiteSpace(options.TlsClientKeyFile))
+                        throw new InvalidOperationException("Vault mTLS requires both client certificate and key files.");
+                    handler.ClientCertificates.Add(X509Certificate2.CreateFromPemFile(
+                        options.TlsClientCertificateFile, options.TlsClientKeyFile));
+                }
                 if (!string.IsNullOrWhiteSpace(options.TlsCaFile))
                 {
                     if (!File.Exists(options.TlsCaFile))
@@ -106,7 +116,7 @@ public static class VaultServiceCollectionExtensions
                     var ca = new X509Certificate2(options.TlsCaFile);
                     handler.ServerCertificateCustomValidationCallback = (_, certificate, chain, errors) =>
                     {
-                        if (certificate is null) return false;
+                        if (certificate is null || (errors & SslPolicyErrors.RemoteCertificateNameMismatch) != 0) return false;
                         using var customChain = new X509Chain();
                         customChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
                         customChain.ChainPolicy.CustomTrustStore.Add(ca);
