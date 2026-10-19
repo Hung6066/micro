@@ -80,6 +80,26 @@ public sealed class VaultKeyServiceTests
     }
 
     [Fact]
+    public async Task Vault_health_uses_the_shared_vault_client_configured_for_mtls()
+    {
+        var factory = new TestHttpClientFactory(new HttpClient(new SuccessfulHandler()));
+        using var service = new VaultKeyService(
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:EnableTransit"] = "true",
+                ["Vault:Address"] = "https://vault.test"
+            }).Build(),
+            NullLogger<VaultKeyService>.Instance,
+            new TestHostEnvironment(Environments.Development),
+            Mock.Of<IVaultTokenProvider>(),
+            factory);
+
+        (await service.IsHealthyAsync()).Should().BeTrue();
+
+        factory.CreatedClientNames.Should().ContainSingle().Which.Should().Be("vault");
+    }
+
+    [Fact]
     public async Task Vault_rotation_surfaces_provider_failure_without_silently_succeeding()
     {
         using var service = new VaultKeyService(
@@ -119,11 +139,23 @@ public sealed class VaultKeyServiceTests
         Mock.Of<IVaultTokenProvider>(),
         TestHttpClientFactory.Instance);
 
-    private sealed class TestHttpClientFactory : IHttpClientFactory
+    private sealed class TestHttpClientFactory(HttpClient? client = null) : IHttpClientFactory
     {
         public static TestHttpClientFactory Instance { get; } = new();
+        public List<string> CreatedClientNames { get; } = [];
 
-        public HttpClient CreateClient(string name) => new();
+        public HttpClient CreateClient(string name)
+        {
+            CreatedClientNames.Add(name);
+            return client ?? new HttpClient();
+        }
+    }
+
+    private sealed class SuccessfulHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
     }
 
     private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment

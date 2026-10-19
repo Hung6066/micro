@@ -123,7 +123,7 @@ public partial class VaultKeyService : IVaultKeyProvider, IDisposable
         {
             try
             {
-                var httpClient = _httpClientFactory.CreateClient("vault-health");
+                var httpClient = _httpClientFactory.CreateClient("vault");
                 var vaultAddr = _config["Vault:Address"]!;
                 // Vault returns 429 for a healthy standby node. The service endpoint
                 // load-balances across the HA set, so standbyok keeps readiness from
@@ -177,7 +177,7 @@ public partial class VaultKeyService : IVaultKeyProvider, IDisposable
         {
             try
             {
-                var httpClient = _httpClientFactory.CreateClient("vault-health");
+                var httpClient = _httpClientFactory.CreateClient("vault");
                 httpClient.DefaultRequestHeaders.Add("X-Vault-Token", await _tokenProvider.GetTokenAsync(ct));
                 var vaultAddr = _config["Vault:Address"]!;
                 var content = new StringContent(

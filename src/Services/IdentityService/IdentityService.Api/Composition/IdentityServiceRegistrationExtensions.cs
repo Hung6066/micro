@@ -7,7 +7,6 @@ using His.Hope.Observability;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -585,38 +584,9 @@ public static class IdentityServiceRegistrationExtensions
         });
         builder.Services.AddGrpcReflection();
 
-        // ─── Vault transit signing (production only; development uses ephemeral RSA) ───
-        builder.Services.AddHttpClient("vault-health", client => client.Timeout = TimeSpan.FromSeconds(5))
-            .ConfigurePrimaryHttpMessageHandler(() =>
-            {
-                var handler = new HttpClientHandler();
-                var caPath = builder.Configuration["Vault:TlsCaFile"];
-                if (!string.IsNullOrWhiteSpace(caPath))
-                {
-                    if (!File.Exists(caPath))
-                        throw new InvalidOperationException($"Vault TLS CA file '{caPath}' is missing.");
-
-                    var ca = new X509Certificate2(caPath);
-                    handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
-                    {
-                        if (certificate is null) return false;
-                        using var chain = new X509Chain();
-                        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                        chain.ChainPolicy.CustomTrustStore.Add(ca);
-                        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                        return chain.Build(new X509Certificate2(certificate));
-                    };
-                }
-                return handler;
-            })
-            .UseHisHopeOutboundHttp("identity.vault-health");
-        builder.Services.AddHttpClient("vault-transit", (sp, client) =>
-        {
-            var address = sp.GetRequiredService<IConfiguration>()["Vault:Address"];
-            if (!string.IsNullOrWhiteSpace(address))
-                client.BaseAddress = new Uri(address.TrimEnd('/') + "/");
-            client.Timeout = TimeSpan.FromSeconds(5);
-        }).UseHisHopeOutboundHttp("identity.vault-transit");
+        // Vault HTTP traffic uses the shared "vault" client registered by
+        // AddHisHopeVault, which enforces the configured CA and client identity.
+        // Separate clients here would bypass that mTLS configuration.
         builder.Services.AddSingleton<IVaultKeyProvider, VaultKeyService>();
         builder.Services.AddSingleton<VaultClientSecretStore>();
 

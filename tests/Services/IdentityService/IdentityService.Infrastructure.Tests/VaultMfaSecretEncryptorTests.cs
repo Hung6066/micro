@@ -62,6 +62,21 @@ public sealed class VaultMfaSecretEncryptorTests
     }
 
     [Fact]
+    public void Encrypt_uses_the_shared_vault_client_configured_for_mtls()
+    {
+        var handler = new RecordingHandler(_ => JsonResponse("{\"data\":{\"ciphertext\":\"vault:v1:encrypted\"}}"));
+        var factory = new TestHttpClientFactory(new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://vault.test/")
+        });
+        using var encryptor = CreateEncryptor(handler, Mock.Of<IVaultTokenProvider>(), factory);
+
+        encryptor.Encrypt("secret-value");
+
+        factory.CreatedClientNames.Should().ContainSingle().Which.Should().Be("vault");
+    }
+
+    [Fact]
     public void Encrypt_rejects_response_with_empty_ciphertext()
     {
         var handler = new RecordingHandler(_ => JsonResponse("{\"data\":{\"ciphertext\":\"\"}}"));
@@ -87,7 +102,8 @@ public sealed class VaultMfaSecretEncryptorTests
 
     private static VaultMfaSecretEncryptor CreateEncryptor(
         HttpMessageHandler handler,
-        IVaultTokenProvider tokenProvider)
+        IVaultTokenProvider tokenProvider,
+        TestHttpClientFactory? factory = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -96,14 +112,15 @@ public sealed class VaultMfaSecretEncryptorTests
                 ["Vault:Transit:MfaKeyName"] = "custom-mfa"
             })
             .Build();
+        factory ??= new TestHttpClientFactory(new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://vault.test/")
+        });
         var encryptor = new VaultMfaSecretEncryptor(
             configuration,
             NullLogger<VaultMfaSecretEncryptor>.Instance,
             tokenProvider,
-            new TestHttpClientFactory(new HttpClient(handler)
-            {
-                BaseAddress = new Uri("https://vault.test/")
-            }));
+            factory);
         return encryptor;
     }
 
@@ -131,8 +148,13 @@ public sealed class VaultMfaSecretEncryptorTests
 
     private sealed class TestHttpClientFactory(HttpClient client) : IHttpClientFactory
     {
+        public List<string> CreatedClientNames { get; } = [];
         public static TestHttpClientFactory Empty { get; } = new(new HttpClient());
 
-        public HttpClient CreateClient(string name) => client;
+        public HttpClient CreateClient(string name)
+        {
+            CreatedClientNames.Add(name);
+            return client;
+        }
     }
 }

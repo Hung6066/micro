@@ -32,8 +32,9 @@ public class VaultMfaSecretEncryptor : IMfaSecretEncryptor, IDisposable
 
         if (_configured)
         {
-            _httpClient = httpClientFactory.CreateClient("vault-transit");
+            _httpClient = httpClientFactory.CreateClient("vault");
             _httpClient.BaseAddress ??= new Uri(vaultAddr!.TrimEnd('/') + "/");
+            _httpClient.Timeout = TimeSpan.FromSeconds(5);
             _logger.LogInformation("VaultMfaSecretEncryptor: Vault transit mode for key '{KeyName}'", _keyName);
         }
         else
