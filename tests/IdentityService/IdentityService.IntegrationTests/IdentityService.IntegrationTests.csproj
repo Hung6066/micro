@@ -42,6 +42,9 @@
     <ProjectReference Include="..\IdentityService.Testing\IdentityService.Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\..\..\src\Services\IdentityService\IdentityService.Api\appsettings.json"
+             Link="IdentityService.appsettings.json"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\src\Services\IdentityService\IdentityService.Api\Program.cs"
              Link="IdentityService.Program.cs"
              CopyToOutputDirectory="PreserveNewest" />
