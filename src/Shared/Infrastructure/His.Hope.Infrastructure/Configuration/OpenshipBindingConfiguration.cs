@@ -38,11 +38,12 @@ public static class OpenshipBindingConfiguration
         if (string.IsNullOrWhiteSpace(databaseUrl))
             return;
 
-        mapped[targetKey] = ToNpgsqlConnectionString(databaseUrl, configuration["OPENSHIP_DATABASE_CA_PEM"]);
+        mapped[targetKey] = ToNpgsqlConnectionString(databaseUrl, configuration["OPENSHIP_DATABASE_CA_PEM"],
+            configuration["PLATFORM_PKI_FILE_PG_CLIENT_CRT"], configuration["PLATFORM_PKI_FILE_PG_CLIENT_KEY"]);
     }
 
     /// <summary>Npgsql does not parse postgresql:// URLs, so the managed database URL is converted to key-value form.</summary>
-    private static string ToNpgsqlConnectionString(string databaseUrl, string? caPem)
+    private static string ToNpgsqlConnectionString(string databaseUrl, string? caPem, string? clientCertificatePem, string? clientKeyPem)
     {
         var uri = new Uri(databaseUrl);
         var userInfo = uri.UserInfo.Split(':', 2);
@@ -63,6 +64,13 @@ public static class OpenshipBindingConfiguration
             SslMode = SslMode.VerifyFull,
             RootCertificate = WritePemFile("openship-postgres-ca.pem", caPem.Replace("\\n", "\n")),
         };
+        if (!string.IsNullOrWhiteSpace(clientCertificatePem) || !string.IsNullOrWhiteSpace(clientKeyPem))
+        {
+            if (string.IsNullOrWhiteSpace(clientCertificatePem) || string.IsNullOrWhiteSpace(clientKeyPem))
+                throw new InvalidOperationException("PostgreSQL mTLS requires both client certificate and key.");
+            builder.SslCertificate = WritePemFile("openship-postgres-client.pem", clientCertificatePem.Replace("\\n", "\n"));
+            builder.SslKey = WritePemFile("openship-postgres-client-key.pem", clientKeyPem.Replace("\\n", "\n"));
+        }
         return builder.ConnectionString;
     }
 
