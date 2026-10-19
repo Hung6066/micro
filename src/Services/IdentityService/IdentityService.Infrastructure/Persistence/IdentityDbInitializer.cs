@@ -1793,14 +1793,29 @@ public static class IdentityDbInitializer
                 "Identity OIDC client registrations require Authentication:OidcClients configuration.");
         }
 
+        var isProduction = string.Equals(
+            environmentName,
+            Environments.Production,
+            StringComparison.OrdinalIgnoreCase);
+        var productionAdditionalClientIds = new HashSet<string>(
+            configuration?.GetSection("Authentication:ProductionAdditionalOidcClientIds").Get<string[]>() ?? [],
+            StringComparer.Ordinal);
+
         var clients = new Dictionary<string, OidcClientUris>(StringComparer.Ordinal);
         foreach (var clientSection in clientSections)
         {
             var clientId = clientSection.Key;
+            if (isProduction &&
+                !KnownOidcClientIds.Contains(clientId) &&
+                !productionAdditionalClientIds.Contains(clientId))
+            {
+                continue;
+            }
+
             var redirectUris = ReadUris(clientSection, "RedirectUris", clientId);
             var postLogoutRedirectUris = ReadUris(clientSection, "PostLogoutRedirectUris", clientId);
 
-            if (string.Equals(environmentName, Environments.Production, StringComparison.OrdinalIgnoreCase))
+            if (isProduction)
             {
                 ValidateProductionUris(clientId, redirectUris, postLogoutRedirectUris);
             }
