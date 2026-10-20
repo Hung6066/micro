@@ -704,7 +704,8 @@ public static class IdentityDbInitializer
             "hishop:permissions", "hishop:patients", "hishop:appointments",
             "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy",
             "hishop:admin", "fhir.patient.read", "fhir.encounter.read",
-            "platform.continuity.write", "scim.read", "scim.write", "manufacturing.api"
+            "platform.continuity.write", "scim.read", "scim.write", "manufacturing.api",
+            "identity.clients.reconcile"
         };
         foreach (var scopeName in scopeNames)
         {

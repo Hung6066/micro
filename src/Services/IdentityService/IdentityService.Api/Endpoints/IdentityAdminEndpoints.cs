@@ -22,6 +22,7 @@ public static class IdentityAdminEndpoints
 {
     public static void MapIdentityAdminEndpoints(this WebApplication app)
     {
+        app.MapOpenShipClientProvisioningEndpoints();
         var auth = app.MapGroup(IdentityApiRoutes.Auth).RequireCors();
 
         // Admin API endpoints (for frontend admin module)

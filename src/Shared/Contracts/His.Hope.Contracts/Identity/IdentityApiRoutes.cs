@@ -45,6 +45,8 @@ public static class IdentityApiRoutes
     public const string ResetPasswordSegment = "/reset-password";
     public const string Settings = ApiV1 + "/settings";
     public const string ScimV2 = "/scim/v2";
+    public const string OpenShipProvisioningClients = ApiV1 + "/provisioning/clients";
+    public const string OpenShipClientReconcileScope = "identity.clients.reconcile";
     // OpenID Connect protocol endpoints are shared by API clients and tests.
     // Keep them here alongside service routes so protocol URL drift is visible.
     public const string OidcAuthorize = "/connect/authorize";

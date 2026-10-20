@@ -367,6 +367,23 @@ public static class IdentityServiceRegistrationExtensions
             options.FallbackPolicy = null;
         });
         builder.Services.AddAuthorizationBuilder()
+            .AddPolicy("OpenShipManagedClients", policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst("client_id")?.Value ?? principal.FindFirst("azp")?.Value;
+                    var hasScope = principal.FindAll("scope")
+                        .Concat(principal.FindAll("scp"))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipClientReconcileScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
+        builder.Services.AddAuthorizationBuilder()
             .AddPolicy("ScimM2M", policy => policy
                 .RequireAuthenticatedUser()
                 .RequireAssertion(context =>
@@ -540,6 +557,8 @@ public static class IdentityServiceRegistrationExtensions
             builder.Services.AddHostedService<AdminJobWorker>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<SupportElevationExpiryWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<OpenShipManagedClientTransitionExpiryWorker>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<AccessReviewExpiryWorker>();
 
