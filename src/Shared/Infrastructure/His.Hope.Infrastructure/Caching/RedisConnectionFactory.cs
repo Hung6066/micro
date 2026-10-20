@@ -26,8 +26,12 @@ public static class RedisConnectionFactory
             if (!options.Ssl)
                 throw new InvalidOperationException("Redis TLS CA is configured but the Redis connection is not using TLS.");
 
-            var caCertificate = new X509Certificate2(caPath);
-            options.CertificateValidation += (_, certificate, _, errors) =>
+            var caCertificates = new X509Certificate2Collection();
+            caCertificates.ImportFromPem(File.ReadAllText(caPath));
+            if (caCertificates.Count == 0)
+                throw new InvalidOperationException($"Redis TLS CA file '{caPath}' contains no certificates.");
+
+            options.CertificateValidation += (_, certificate, presentedChain, errors) =>
             {
                 if (errors == System.Net.Security.SslPolicyErrors.None)
                     return true;
@@ -36,9 +40,33 @@ public static class RedisConnectionFactory
 
                 using var chain = new X509Chain();
                 chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                chain.ChainPolicy.CustomTrustStore.Add(caCertificate);
                 chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                return chain.Build(new X509Certificate2(certificate));
+
+                var roots = caCertificates
+                    .Cast<X509Certificate2>()
+                    .Where(IsSelfIssued)
+                    .ToArray();
+                if (roots.Length > 0)
+                {
+                    chain.ChainPolicy.CustomTrustStore.AddRange(roots);
+                    foreach (var caCertificate in caCertificates.Cast<X509Certificate2>().Except(roots))
+                        chain.ChainPolicy.ExtraStore.Add(caCertificate);
+                }
+                else
+                {
+                    // Preserve support for an explicitly configured CA bundle that
+                    // contains only an intermediate trust anchor.
+                    chain.ChainPolicy.CustomTrustStore.AddRange(caCertificates);
+                }
+
+                if (presentedChain is not null)
+                {
+                    for (var index = 1; index < presentedChain.ChainElements.Count; index++)
+                        chain.ChainPolicy.ExtraStore.Add(presentedChain.ChainElements[index].Certificate);
+                }
+
+                using var serverCertificate = new X509Certificate2(certificate);
+                return chain.Build(serverCertificate);
             };
         }
 
@@ -110,4 +138,7 @@ public static class RedisConnectionFactory
 
     public static ConnectionMultiplexer Connect(string connectionString, IConfiguration configuration) =>
         ConnectionMultiplexer.Connect(CreateOptions(connectionString, configuration));
+
+    private static bool IsSelfIssued(X509Certificate2 certificate) =>
+        certificate.SubjectName.RawData.AsSpan().SequenceEqual(certificate.IssuerName.RawData);
 }
