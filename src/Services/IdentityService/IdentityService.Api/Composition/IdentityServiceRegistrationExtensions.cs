@@ -376,9 +376,10 @@ public static class IdentityServiceRegistrationExtensions
                         principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
                         AuthorizationConstants.PrincipalTypes.Workload,
                         StringComparison.Ordinal);
-                    var clientId = principal.FindFirst("client_id")?.Value ?? principal.FindFirst("azp")?.Value;
-                    var hasScope = principal.FindAll("scope")
-                        .Concat(principal.FindAll("scp"))
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
                         .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                         .Contains(IdentityApiRoutes.OpenShipClientReconcileScope, StringComparer.Ordinal);
                     return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
@@ -390,7 +391,8 @@ public static class IdentityServiceRegistrationExtensions
                 {
                     var hasScimScope = ScimAuthorization.HasProvisioningScope(context.User);
                     var hasClientIdentity = context.User.HasClaim(claim =>
-                        claim.Type is "client_id" or "azp" && !string.IsNullOrWhiteSpace(claim.Value));
+                        claim.Type is HisHopeProtocolConstants.Claims.ClientId or HisHopeProtocolConstants.Claims.AuthorizedParty
+                        && !string.IsNullOrWhiteSpace(claim.Value));
                     var isWorkload = string.Equals(
                         context.User.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
                         AuthorizationConstants.PrincipalTypes.Workload,

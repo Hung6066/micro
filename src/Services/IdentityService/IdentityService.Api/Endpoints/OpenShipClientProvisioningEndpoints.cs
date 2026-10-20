@@ -9,6 +9,7 @@ using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.IdentityService.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
@@ -1338,7 +1339,8 @@ public static class OpenShipClientProvisioningEndpoints
         externalKey.StartsWith($"os-{Hash(ownerClientId)[..12]}-", StringComparison.Ordinal);
 
     private static string? CallerClientId(HttpContext http) =>
-        http.User.FindFirst("client_id")?.Value ?? http.User.FindFirst("azp")?.Value;
+        http.User.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+        ?? http.User.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
 
     private static bool Owns(ImmutableDictionary<string, JsonElement> properties, string ownerClientId, string externalKey) =>
         string.Equals(GetString(properties, OwnerClientIdKey), ownerClientId, StringComparison.Ordinal) &&

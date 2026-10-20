@@ -11,6 +11,8 @@ public static class HisHopeProtocolConstants
         public const string Subject = "sub";
         public const string ClientId = "client_id";
         public const string AuthorizedParty = "azp";
+        public const string Scope = "scope";
+        public const string Scp = "scp";
         public const string Email = "email";
         public const string Name = "name";
         public const string GivenName = "given_name";
