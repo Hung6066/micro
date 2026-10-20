@@ -25,7 +25,7 @@ public sealed class PerUserRateLimitingMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<PerUserRateLimitingMiddleware> _logger;
-    private readonly ConnectionMultiplexer? _redis;
+    private readonly IConnectionMultiplexer? _redis;
     private readonly int _maxRequestsPerIp;
     private readonly int _maxRequestsPerUser;
     private readonly TimeSpan _window;
@@ -55,7 +55,7 @@ public sealed class PerUserRateLimitingMiddleware
             var options = RedisConnectionFactory.CreateOptions(redisConnectionString, configuration);
             options.ConnectTimeout = 2000;
             options.SyncTimeout = 1000;
-            _redis = ConnectionMultiplexer.Connect(options);
+            _redis = RedisConnectionFactory.ApplyKeyPrefix(ConnectionMultiplexer.Connect(options), configuration);
             _redisAvailable = _redis.IsConnected;
         }
         catch (Exception ex)

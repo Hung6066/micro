@@ -11,6 +11,21 @@ namespace His.Hope.Infrastructure.Tests;
 public sealed class RedisConnectionFactoryTests
 {
     [Fact]
+    public void CreateOptions_UsesConfiguredServiceKeyPrefixForChannels()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Redis:KeyPrefix"] = "project:service:production:"
+            })
+            .Build();
+
+        var options = RedisConnectionFactory.CreateOptions("redis://redis:6379", configuration);
+
+        Assert.Equal("project:service:production:", options.ChannelPrefix.ToString());
+    }
+
+    [Fact]
     public void CreateOptions_RejectsMissingConfiguredCa()
     {
         var configuration = new ConfigurationBuilder()

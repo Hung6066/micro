@@ -15,6 +15,10 @@ public static class RedisConnectionFactory
         options.ConnectTimeout = Math.Min(options.ConnectTimeout, 5000);
         options.SyncTimeout = Math.Min(options.SyncTimeout, 5000);
 
+        var keyPrefix = RedisKeyNamespace.GetPrefix(configuration);
+        if (keyPrefix.Length > 0)
+            options.ChannelPrefix = RedisChannel.Literal(keyPrefix);
+
         var caPath = configuration["Redis:TlsCaFile"];
         if (!string.IsNullOrWhiteSpace(caPath))
         {
@@ -136,8 +140,11 @@ public static class RedisConnectionFactory
         return string.Join(',', parts);
     }
 
-    public static ConnectionMultiplexer Connect(string connectionString, IConfiguration configuration) =>
-        ConnectionMultiplexer.Connect(CreateOptions(connectionString, configuration));
+    public static IConnectionMultiplexer Connect(string connectionString, IConfiguration configuration) =>
+        ApplyKeyPrefix(ConnectionMultiplexer.Connect(CreateOptions(connectionString, configuration)), configuration);
+
+    public static IConnectionMultiplexer ApplyKeyPrefix(IConnectionMultiplexer connection, IConfiguration configuration) =>
+        RedisKeyNamespaceDispatchProxy.Wrap(connection, RedisKeyNamespace.GetPrefix(configuration));
 
     private static bool IsSelfIssued(X509Certificate2 certificate) =>
         certificate.SubjectName.RawData.AsSpan().SequenceEqual(certificate.IssuerName.RawData);

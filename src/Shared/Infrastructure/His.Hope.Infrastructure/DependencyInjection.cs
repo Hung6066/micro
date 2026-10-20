@@ -53,7 +53,7 @@ public static class DependencyInjection
         services.AddStackExchangeRedisCache(options =>
         {
             options.ConfigurationOptions = RedisConnectionFactory.CreateOptions(redisConnectionString, configuration);
-            options.InstanceName = $"HisHope:{serviceName}:";
+            options.InstanceName = $"{RedisKeyNamespace.GetPrefix(configuration)}HisHope:{serviceName}:";
         });
         services.AddHisHopeRedisMessaging();
         services.AddHisHopeRabbitMqMessaging(configuration);

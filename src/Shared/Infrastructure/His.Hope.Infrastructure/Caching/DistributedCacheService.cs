@@ -22,6 +22,7 @@ public class DistributedCacheService : ICacheService
     private readonly IConnectionMultiplexer _connectionMultiplexer;
     private readonly AuthorizationCacheKeyPartitioner _keyPartitioner;
     private readonly string _instancePrefix;
+    private readonly string _redisKeyPrefix;
     private readonly TimeSpan _redisOperationTimeout;
     private readonly TimeSpan _redisCircuitBreakDuration;
     private long _redisUnavailableUntilTicks;
@@ -36,6 +37,7 @@ public class DistributedCacheService : ICacheService
         _connectionMultiplexer = connectionMultiplexer;
         _keyPartitioner = keyPartitioner;
         _instancePrefix = "HisHope:";
+        _redisKeyPrefix = RedisKeyNamespace.GetPrefix(configuration);
         _redisOperationTimeout = TimeSpan.FromMilliseconds(Math.Clamp(
             configuration.GetValue("Caching:RedisOperationTimeoutMilliseconds", 500), 100, 5000));
         _redisCircuitBreakDuration = TimeSpan.FromSeconds(Math.Clamp(
@@ -177,12 +179,13 @@ public class DistributedCacheService : ICacheService
             foreach (var pattern in CacheKeyPattern.ForPrefix(_instancePrefix, prefix))
             {
                 ct.ThrowIfCancellationRequested();
+                var scopedPattern = RedisKeyNamespace.ApplyPrefix(pattern, _redisKeyPrefix);
                 foreach (var endpoint in _connectionMultiplexer.GetEndPoints())
                 {
                     var server = _connectionMultiplexer.GetServer(endpoint);
                     if (!server.IsConnected) continue;
 
-                    await foreach (var key in server.KeysAsync(pattern: pattern))
+                    await foreach (var key in server.KeysAsync(pattern: scopedPattern))
                     {
                         ct.ThrowIfCancellationRequested();
                         keysToDelete.Add(key);
