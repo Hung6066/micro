@@ -20,20 +20,29 @@ public static class RedisConnectionFactory
             options.ChannelPrefix = RedisChannel.Literal(keyPrefix);
 
         var caPath = configuration["Redis:TlsCaFile"];
-        if (!string.IsNullOrWhiteSpace(caPath))
+        var caPem = configuration["Redis:TlsCaPem"]?.Replace("\\n", "\n", StringComparison.Ordinal);
+        if (!string.IsNullOrWhiteSpace(caPath) || !string.IsNullOrWhiteSpace(caPem))
         {
             // A configured production CA is a security contract, not an optional
             // hint. Do not silently downgrade to the platform trust store or to
             // plaintext when the CA mount/connection scheme is wrong.
-            if (!File.Exists(caPath))
+            if (!string.IsNullOrWhiteSpace(caPath) && !File.Exists(caPath))
                 throw new InvalidOperationException($"Redis TLS CA file '{caPath}' is missing.");
             if (!options.Ssl)
                 throw new InvalidOperationException("Redis TLS CA is configured but the Redis connection is not using TLS.");
 
             var caCertificates = new X509Certificate2Collection();
-            caCertificates.ImportFromPem(File.ReadAllText(caPath));
+            if (!string.IsNullOrWhiteSpace(caPath))
+                caCertificates.ImportFromPem(File.ReadAllText(caPath));
+            if (!string.IsNullOrWhiteSpace(caPem))
+                caCertificates.ImportFromPem(caPem);
             if (caCertificates.Count == 0)
-                throw new InvalidOperationException($"Redis TLS CA file '{caPath}' contains no certificates.");
+            {
+                var source = !string.IsNullOrWhiteSpace(caPath)
+                    ? $"Redis TLS CA file '{caPath}'"
+                    : "Redis TLS CA PEM";
+                throw new InvalidOperationException($"{source} contains no certificates.");
+            }
 
             options.CertificateValidation += (_, certificate, presentedChain, errors) =>
             {

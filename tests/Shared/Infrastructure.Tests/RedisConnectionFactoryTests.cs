@@ -120,6 +120,49 @@ public sealed class RedisConnectionFactoryTests
     }
 
     [Fact]
+    public void CreateOptions_ValidatesServerCertificateUsingConfiguredCaPem()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var rootKey = RSA.Create(2048);
+        var rootRequest = new CertificateRequest(
+            "CN=OpenShip Redis PEM Test Root",
+            rootKey,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        rootRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, true, 1, true));
+        rootRequest.CertificateExtensions.Add(new X509KeyUsageExtension(
+            X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign,
+            true));
+        using var root = rootRequest.CreateSelfSigned(now.AddDays(-1), now.AddDays(1));
+
+        using var serverKey = RSA.Create(2048);
+        var serverRequest = new CertificateRequest(
+            "CN=redis.test",
+            serverKey,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+        serverRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        serverRequest.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
+        using var serverCertificate = serverRequest
+            .Create(root, now.AddMinutes(-5), now.AddHours(1), RandomNumberGenerator.GetBytes(16))
+            .CopyWithPrivateKey(serverKey);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Redis:TlsCaPem"] = root.ExportCertificatePem().Replace("\n", "\\n", StringComparison.Ordinal)
+            })
+            .Build();
+
+        var options = RedisConnectionFactory.CreateOptions("rediss://redis.test:6379", configuration);
+        var callbackField = typeof(ConfigurationOptions)
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Single(field => field.FieldType == typeof(RemoteCertificateValidationCallback));
+        var callback = Assert.IsType<RemoteCertificateValidationCallback>(callbackField.GetValue(options));
+
+        Assert.True(callback(null, serverCertificate, null, SslPolicyErrors.RemoteCertificateChainErrors));
+    }
+
+    [Fact]
     public void CreateOptions_RejectsPlaintextWhenCaIsConfigured()
     {
         var caPath = Path.GetTempFileName();
