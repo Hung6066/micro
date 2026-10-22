@@ -1,7 +1,7 @@
 # ============================================================
 # BUILD STAGE
 # ============================================================
-FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:e2f26f26169fd10d6f1b426e01c97397717b32e9d5ab4ee4a7d5497ed9403007 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:738f72aff955d5c5690e06b6fc8ecd1b90ead564099a257ac528ff720b8da85f AS build
 WORKDIR /src
 
 # --- Restore dependencies (layer cached) ---
@@ -63,7 +63,7 @@ RUN \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled-extra)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:4b3c234b8d8bd1dd2691482fe0c103644f0334ef9727e5ecddd87d9175116dbd AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:ad469e7458fcd86bdd578d617417fd3af314bbb30e2dfd5097761482299d152f AS runtime
 WORKDIR /app
 EXPOSE 8080
 

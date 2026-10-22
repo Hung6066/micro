@@ -1,7 +1,7 @@
 # ============================================================
 # BUILD STAGE
 # ============================================================
-FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:e2f26f26169fd10d6f1b426e01c97397717b32e9d5ab4ee4a7d5497ed9403007 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:738f72aff955d5c5690e06b6fc8ecd1b90ead564099a257ac528ff720b8da85f AS build
 WORKDIR /src
 
 # --- Restore dependencies (layer cached) ---
@@ -76,7 +76,7 @@ RUN dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:d7e89d958502b18b0f607f260f57ace7e4aa18d9b86d23477721e7eb0c5762bf AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:3aa3a0b03b4f8f3806b5f3ff5e7c51a1e7939452fe2cf8ff07c1c413d8dc3ae2 AS final
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 5012
