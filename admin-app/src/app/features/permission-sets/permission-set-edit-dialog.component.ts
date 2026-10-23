@@ -17,6 +17,7 @@ import {
   HisHopeMaterialFormRendererComponent,
 } from "@his-hope/frontend-foundation/forms";
 import { iamScopeOptions } from "../../core/utils/iam-display.util";
+import { PermissionExplorerComponent } from "./permission-explorer.component";
 export interface PermissionSetEditDialogData {
   set: IamPermissionSet | null;
   scopes: IamScope[];
@@ -25,7 +26,11 @@ export interface PermissionSetEditDialogData {
 @Component({
   selector: "app-permission-set-edit-dialog",
   standalone: true,
-  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  imports: [
+    HisHopeEntityDialogComponent,
+    HisHopeMaterialFormRendererComponent,
+    PermissionExplorerComponent,
+  ],
   template: `<hh-entity-dialog
     [title]="
       data.set ? 'admin.editPermissionSet' : 'admin.createPermissionSet'
@@ -44,6 +49,11 @@ export interface PermissionSetEditDialogData {
     (cancel)="dialogRef.close()"
   >
     <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+    <app-permission-explorer
+      [permissions]="activePermissions"
+      [value]="formGroup.controls.permissions.value"
+      (valueChange)="formGroup.controls.permissions.setValue($event)"
+    />
   </hh-entity-dialog>`,
 })
 export class PermissionSetEditDialogComponent {
@@ -130,15 +140,6 @@ export class PermissionSetEditDialogComponent {
         required: true,
         type: "select",
         options: this.scopeOptions,
-      },
-      {
-        key: "permissions",
-        label: this.i18n.t("admin.permissions", "Permissions"),
-        initialValue: [],
-        required: true,
-        type: "select",
-        multiple: true,
-        options: this.permissionOptions,
       },
     ];
   }

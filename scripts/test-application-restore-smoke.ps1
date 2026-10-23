@@ -104,7 +104,13 @@ try {
 
     $deployments = & kubectl --kubeconfig $env:KUBECONFIG -n $Namespace get deployments -o json --request-timeout=30s 2>$null | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect application deployments after restore.' }
-    $notReady = @($deployments.items | Where-Object { [int]($_.status.availableReplicas ?? 0) -lt [int]($_.spec.replicas ?? 0) })
+    $notReady = @($deployments.items | Where-Object {
+        $availableReplicas = 0
+        $desiredReplicas = 0
+        if ($null -ne $_.status.availableReplicas) { $availableReplicas = [int]$_.status.availableReplicas }
+        if ($null -ne $_.spec.replicas) { $desiredReplicas = [int]$_.spec.replicas }
+        $availableReplicas -lt $desiredReplicas
+    })
     if ($notReady.Count -gt 0) { throw "Application deployments are not fully available after restore: $($notReady.metadata.name -join ', ')." }
     $checks.Add([pscustomobject]@{ name = 'deployment-readiness'; status = 'pass'; detail = 'All application Deployments report available replicas.' })
 

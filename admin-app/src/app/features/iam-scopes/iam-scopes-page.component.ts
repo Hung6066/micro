@@ -21,10 +21,12 @@ import {
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { IamScopeEditDialogComponent } from "./iam-scope-edit-dialog.component";
+import { map } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
+import { IamScopeEditDialogComponent } from "./iam-scope-edit-dialog.component";
 @Component({
   selector: "app-iam-scopes-page",
   standalone: true,
@@ -86,6 +88,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamScopesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -144,6 +147,7 @@ export class IamScopesPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   constructor() {
     effect(() => {
@@ -156,7 +160,9 @@ export class IamScopesPageComponent implements OnInit {
     });
   }
   load(): void {
-    this.state.load(this.api.getIamScopes());
+    this.state.load(
+      this.api.getIamScopes().pipe(map((scopes) => this.tenantContext.filterScopes(scopes))),
+    );
   }
   openCreate(): void {
     if (!this.canWrite) return;

@@ -10,14 +10,18 @@ import { test, expect } from '@playwright/test';
  * Environment variables:
  *   BASE_URL      - Frontend URL (default: http://frontend/)
  *   USERNAME      - Login username (default: admin)
- *   PASSWORD      - Login password (default: Admin@123)
+ *   PASSWORD      - Login password (required from protected secret storage)
  *   SEARCH_TERM   - Patient search term (default: Nguyễn)
  */
 
 const BASE_URL   = process.env.BASE_URL   || 'http://frontend/';
 const USERNAME   = process.env.USERNAME   || 'admin';
-const PASSWORD   = process.env.PASSWORD   || 'Admin@123';
+const PASSWORD   = process.env.PASSWORD;
 const SEARCH_TERM = process.env.SEARCH_TERM || 'Nguyễn';
+
+if (!PASSWORD) {
+  throw new Error('PASSWORD is required from protected secret storage; refusing default credentials.');
+}
 
 test.describe('Synthetic Monitoring — Login → Search Patient → Logout', () => {
   test('should complete the full user journey', async ({ page }) => {

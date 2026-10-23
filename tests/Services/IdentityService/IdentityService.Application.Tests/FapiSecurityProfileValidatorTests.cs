@@ -37,4 +37,44 @@ public sealed class FapiSecurityProfileValidatorTests
         Assert.Contains(result.Violations, violation => violation.Contains("confidential", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Violations, violation => violation.Contains("password", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Validate_RejectsEveryUnsupportedFapiRegistrationProperty()
+    {
+        var registration = new FapiSecurityProfileValidator.FapiClientRegistration(
+            "legacy",
+            "none",
+            true,
+            false,
+            ["https://partner.example/*", "http://partner.example/callback", "not-a-uri"],
+            ["implicit"]);
+
+        var result = FapiSecurityProfileValidator.Validate(registration);
+
+        Assert.False(result.IsCompliant);
+        Assert.Equal(6, result.Violations.Count);
+        Assert.Contains(result.Violations, violation => violation.Contains("private_key_jwt", StringComparison.Ordinal));
+        Assert.Contains(result.Violations, violation => violation.Contains("sender-constrained", StringComparison.Ordinal));
+        Assert.Contains(result.Violations, violation => violation.Contains("implicit", StringComparison.Ordinal));
+        Assert.Contains(result.Violations, violation => violation.Contains("exact redirect", StringComparison.Ordinal));
+        Assert.Contains(result.Violations, violation => violation.Contains("HTTPS", StringComparison.Ordinal));
+        Assert.Contains(result.Violations, violation => violation.Contains("Invalid redirect", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_AcceptsTlsClientAuthentication()
+    {
+        var registration = new FapiSecurityProfileValidator.FapiClientRegistration(
+            "partner-mtls",
+            "tls_client_auth",
+            true,
+            true,
+            ["https://partner.example/callback"],
+            ["authorization_code"]);
+
+        var result = FapiSecurityProfileValidator.Validate(registration);
+
+        Assert.True(result.IsCompliant);
+        Assert.Empty(result.Violations);
+    }
 }

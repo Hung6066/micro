@@ -11,18 +11,12 @@ permissions:
   contents: read
   security-events: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
-
 jobs:
   dotnet-security:
     name: .NET restore and vulnerability gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.319'
@@ -34,6 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python scripts/validate-dependency-risk-policy.py
           dotnet list His.Hope.sln package --vulnerable --include-transitive
 
   frontend-security:
@@ -43,9 +38,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '22.22.3'
+          node-version: '22.14.0'
           cache: npm
-      - run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+      - run: npm ci
       - name: Audit production dependencies
         shell: bash
         run: |
@@ -55,22 +50,15 @@ jobs:
           (cd dashboard-app && npm audit --omit=dev --audit-level=high)
           (cd src/Frontend/his-hope-app && npm audit --omit=dev --audit-level=high)
       - name: Build all Angular applications
-        run: |
-          npm run build:shared
-          npm --workspace admin-app run build -- --configuration production
-          npm --workspace dashboard-app run build -- --configuration production
-          npm --workspace his-hope-app run build
+        run: npm run build:frontend:production
 
   filesystem-security:
     name: Repository and container security scan
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
       - name: Secret scanner
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: 'false'
@@ -79,29 +67,12 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
-          # Kubernetes misconfiguration is scanned against rendered manifests
-          # in the dedicated K3s DevSecOps gate.
-          scanners: vuln,secret
+          scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          # The action's SARIF build step currently exits non-zero when the
-          # scanner emits informational findings, even when the configured
-          # HIGH/CRITICAL gate is clean. Keep the gate strict by parsing the
-          # severity-filtered SARIF below instead of trusting that wrapper exit.
-          exit-code: '0'
-          limit-severities-for-sarif: true
+          exit-code: '1'
           format: sarif
           output: trivy-results.sarif
-      - name: Enforce Trivy SARIF severity gate
-        shell: node {0}
-        run: |
-          const fs = require('fs');
-          const report = JSON.parse(fs.readFileSync('trivy-results.sarif', 'utf8'));
-          const findings = (report.runs ?? []).flatMap(run => run.results ?? []);
-          if (findings.length) {
-            console.error(`Trivy HIGH/CRITICAL findings: ${findings.length}`);
-            process.exit(1);
-          }
       - name: Upload Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@0fa1882f994fbd81a47ab0804f93354f5ea40147 # v3.28.17
@@ -115,7 +86,7 @@ jobs:
           artifact-name: his-hope-sbom.cdx.json
           output-file: his-hope-sbom.cdx.json
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: his-hope-sbom
           path: his-hope-sbom.cdx.json
@@ -123,79 +94,46 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/validate-kustomize-release.ps1 -Environment prod
+          ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          python scripts/validate-production-ha-contract.py
+          python scripts/validate-production-data-plane-ha-contract.py
           ./scripts/verify-admission-policy.ps1
+          ./scripts/validate-signature-controller-contract.ps1
           python scripts/validate-manifest-secret-contract.py
+          python scripts/validate-secret-hygiene.py
       - name: Validate container build contract
         run: python scripts/validate-container-build-contract.py
+      - name: Validate dependency risk policy
+        run: python scripts/validate-dependency-risk-policy.py
+      - name: Validate security assurance mapping
+        shell: pwsh
+        run: |
+          ./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json
+          python scripts/validate-security-assurance-mapping.py
+      - name: Validate threat model and abuse-case catalog
+        run: python scripts/validate-threat-model.py
       - name: Verify SBOM artifact
         shell: bash
         run: |
           set -euo pipefail
           test -s his-hope-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
+      - name: Prime Trivy vulnerability databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=30s 5m trivy image --download-db-only
       - name: Build and scan every repository container
         shell: bash
         run: |
           set -euo pipefail
           mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' | sort)
           test "${#dockerfiles[@]}" -gt 0
-          mkdir -p security-container-logs
-          # Keep the repository-wide scan bounded. A single unavailable base
-          # image or registry must not hold the protected gate indefinitely.
-          deadline=$((SECONDS + 2700))
-          max_parallel=8
-          pids=()
-          names=()
-          failures=()
-          scan_one() {
-            local dockerfile="$1"
-            local safe_name="${dockerfile#./}"
-            safe_name="${safe_name//\//-}"
-            safe_name="${safe_name//./-}"
-            local image="his-hope-scan:${safe_name//[^a-zA-Z0-9_-]/-}"
-            local build_log="security-container-logs/${safe_name}.build.log"
-            local scan_log="security-container-logs/${safe_name}.trivy.log"
+          for dockerfile in "${dockerfiles[@]}"; do
+            image="his-hope-scan:$(echo "$dockerfile" | tr '/._' '---')"
             # Repository Dockerfiles restore shared projects from the repository
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.
-            echo "Building and scanning $dockerfile as $image"
-            if ! timeout --signal=TERM --kill-after=30s 5m docker build --file "$dockerfile" --tag "$image" . 2>&1 | tee "$build_log"; then
-              echo "Docker build failed or timed out: $dockerfile" >&2
-              echo "::error title=Docker build failed::$dockerfile"
-              return 1
-            fi
-            if ! timeout --signal=TERM --kill-after=30s 3m trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image" 2>&1 | tee "$scan_log"; then
-              echo "Trivy image gate failed or timed out: $dockerfile" >&2
-              echo "::error title=Trivy image gate failed::$dockerfile"
-              return 1
-            fi
-          }
-          reap_one() {
-            local pid="${pids[0]}" name="${names[0]}"
-            if ! wait "$pid"; then failures+=("$name"); fi
-            pids=("${pids[@]:1}")
-            names=("${names[@]:1}")
-          }
-          for dockerfile in "${dockerfiles[@]}"; do
-            if (( SECONDS >= deadline )); then
-              echo "Container security scan exceeded its 45 minute budget" >&2
-              failures+=("budget")
-              break
-            fi
-            scan_one "$dockerfile" &
-            pids+=("$!")
-            names+=("$dockerfile")
-            if ((${#pids[@]} >= max_parallel)); then reap_one; fi
+            docker build --file "$dockerfile" --tag "$image" .
+            trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --skip-db-update --skip-java-db-update "$image"
           done
-          while ((${#pids[@]})); do reap_one; done
-          if ((${#failures[@]})); then
-            printf 'Container security scan failures: %s\n' "${failures[*]}" >&2
-            exit 1
-          fi
-      - name: Upload container security logs
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: security-container-logs
-          path: security-container-logs
-          if-no-files-found: warn

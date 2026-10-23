@@ -28,6 +28,12 @@ def main() -> int:
         fail(f"invalid YAML: {exc}")
 
     jobs = document.get("jobs") or {}
+    concurrency = document.get("concurrency") or {}
+    if concurrency != {
+        "group": "container-release-${{ github.ref }}",
+        "cancel-in-progress": False,
+    }:
+        fail("release workflow requires non-cancelling per-ref concurrency")
     trigger = document.get(True) or document.get("on") or {}
     dispatch = trigger.get("workflow_dispatch") if isinstance(trigger, dict) else None
     publish = (dispatch.get("inputs") or {}).get("publish") if isinstance(dispatch, dict) else None
@@ -41,6 +47,11 @@ def main() -> int:
         fail("release job must depend on quality-security")
     if release.get("environment") != "production":
         fail("release job must use the protected production environment for Harbor credentials")
+    matrix = ((release.get("strategy") or {}).get("matrix") or {}).get("include") or []
+    matrix_names = {item.get("name") for item in matrix if isinstance(item, dict)}
+    for required_name in {"commerce-service", "content-service", "manufacturing-service"}:
+        if required_name not in matrix_names:
+            fail(f"release matrix must include {required_name} so production images share the signed supply chain")
     timeout = preflight.get("timeout-minutes")
     if not isinstance(timeout, int) or timeout <= 0 or timeout > 60:
         fail("quality-security requires timeout-minutes between 1 and 60")
@@ -49,12 +60,16 @@ def main() -> int:
         "dotnet restore His.Hope.sln",
         "dotnet build His.Hope.sln",
         "npm audit --omit=dev --audit-level=high",
+        "npm run build:frontend:production",
         "aquasecurity/trivy-action@",
         "validate-kustomize-release.ps1 -Environment prod",
         "validate-kustomize-runtime.ps1 -Overlay prod",
+        "validate-production-ha-contract.py",
+        "validate-production-data-plane-ha-contract.py",
         "verify-admission-policy.ps1",
         "validate-manifest-secret-contract.py",
         "validate-container-build-contract.py",
+        "validate-dependency-risk-policy.py",
         "skip-dirs: k8s,docker/spire",
         "skip-files: docker/postgres-production.Dockerfile,.tools/dev-render.yaml,backstage/deployment.yaml",
         "docker/build-push-action@",
@@ -69,7 +84,7 @@ def main() -> int:
 
     if "push: true" not in raw or "if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish == true }}" not in raw:
         fail("Harbor push must remain explicitly gated")
-    print("Container release contract PASS: quality/security preflight precedes digest push, signing and attestation")
+    print("Container release contract PASS: preflight, per-ref serialization, digest push, signing and attestation")
     return 0
 
 

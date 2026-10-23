@@ -25,6 +25,7 @@ export const ADMIN_ROUTE_READ_PERMISSIONS: Readonly<Record<string, string>> = {
   "iam/analyzer/unused-permissions": "admin.policy.simulate",
   "iam/audit-integrations": "admin.settings.read",
   "iam/access-requests": "admin.roles.read",
+  "iam/authorization-change-requests": "admin.roles.read",
   "iam/access-reviews": "admin.roles.read",
   "iam/jit-access": "admin.roles.read",
   "iam/break-glass": "admin.roles.read",

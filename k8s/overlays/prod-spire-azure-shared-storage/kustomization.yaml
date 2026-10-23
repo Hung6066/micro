@@ -26,3 +26,12 @@ patches:
       - op: replace
         path: /spec/storageClassName
         value: viettel-shared
+  - target:
+      group: postgresql.cnpg.io
+      version: v1
+      kind: Cluster
+      name: spire-postgres
+    patch: |-
+      - op: replace
+        path: /spec/storage/storageClass
+        value: viettel-shared

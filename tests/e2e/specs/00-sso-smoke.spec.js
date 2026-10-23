@@ -2,9 +2,10 @@ const { test, expect } = require('@playwright/test');
 const path = require('path');
 const { clinicalUrl, dashboardUrl, adminUrl } = require('../config/urls');
 const { signInThroughIdentity: sharedSignInThroughIdentity } = require('../helpers/sso-login');
+const { getE2eCredentials } = require('../config/credentials');
 
 if (process.env.E2E_AUTH_REQUIRED === 'true') {
-  test.use({ storageState: path.join(__dirname, '..', 'fixtures', 'shared-foundation-auth.json') });
+  test.use({ storageState: path.join(__dirname, '..', 'fixtures', 'shared-foundation-auth.generated.json') });
 }
 
 const APPS = {
@@ -14,14 +15,25 @@ const APPS = {
 };
 
 async function signInThroughIdentity(page) {
-  await sharedSignInThroughIdentity(page, APPS.clinical);
+  await sharedSignInThroughIdentity(page, APPS.clinical, getE2eCredentials());
+}
+
+function credentialsForPortal(portal) {
+  const prefix = portal.toUpperCase();
+  const email = process.env[`E2E_${prefix}_EMAIL`];
+  const password = process.env[`E2E_${prefix}_PASSWORD`];
+  return email && password ? { email, password } : getE2eCredentials();
 }
 
 async function openAuthenticatedApp(context, url, marker) {
   const page = await context.newPage();
   const parsed = new URL(url);
   const dashboardPath = parsed.pathname.startsWith('/clients') ? '/clients' : '/resources';
-  await sharedSignInThroughIdentity(page, parsed.origin, { dashboardPath });
+  const portal = parsed.pathname.startsWith('/clients') ? 'admin' : 'dashboard';
+  await sharedSignInThroughIdentity(page, parsed.origin, {
+    dashboardPath,
+    ...credentialsForPortal(portal),
+  });
   await expect(page).not.toHaveURL(/Account\/Login/, { timeout: 15000 });
   await expect(page.locator('body')).toContainText(marker, { timeout: 15000 });
   await page.waitForLoadState('load');

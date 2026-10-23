@@ -4,10 +4,12 @@ const host = process.env.HISHOPE_API_HOST?.trim();
 const spki = process.env.HISHOPE_API_SPKI?.trim();
 const origin = process.env.HISHOPE_API_ORIGIN?.trim();
 
-if (!host || !spki || !origin || !/^sha256\/[A-Za-z0-9+/=]+$/.test(spki)) {
+if (!host || !spki || !origin || !isValidSpki(spki)) {
   console.error("Mobile release preparation requires HISHOPE_API_HOST, HISHOPE_API_ORIGIN and HISHOPE_API_SPKI=sha256/<base64>.");
   process.exit(1);
 }
+
+const appRoots = ["mobile-app", "operator-mobile"];
 
 let pins;
 try {
@@ -20,16 +22,27 @@ try {
 }
 
 if (!Array.isArray(pins) || pins.length === 0 || !pins.every(isValidPin) ||
+    new Set(pins.map(pin => pin.host.toLowerCase())).size !== pins.length ||
     !pins.some(pin => pin.host.toLowerCase() === host.toLowerCase())) {
   console.error("HISHOPE_CERTIFICATE_PINS_JSON must contain valid host/SPKI entries and include HISHOPE_API_HOST.");
   process.exit(1);
 }
 
+const apiPin = pins.find(pin => pin.host.toLowerCase() === host.toLowerCase());
+if (!apiPin || apiPin.sha256Spki !== spki) {
+  console.error("HISHOPE_API_SPKI must exactly match the certificate pin for HISHOPE_API_HOST.");
+  process.exit(1);
+}
+
+function isValidSpki(value) {
+  if (!/^sha256\/[A-Za-z0-9+/=]+$/.test(value)) return false;
+  return Buffer.from(value.slice("sha256/".length), "base64").length === 32;
+}
+
 function isValidPin(pin) {
   if (!pin || typeof pin.host !== "string" || typeof pin.sha256Spki !== "string") return false;
   if (!/^(?=.{1,253}$)([A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(pin.host)) return false;
-  if (!/^sha256\/[A-Za-z0-9+/=]+$/.test(pin.sha256Spki)) return false;
-  return Buffer.from(pin.sha256Spki.slice("sha256/".length), "base64").length === 32;
+  return isValidSpki(pin.sha256Spki);
 }
 
 const originUrl = new URL(origin);
@@ -37,16 +50,6 @@ if (originUrl.protocol !== "https:" || originUrl.hostname.toLowerCase() !== host
   console.error("HISHOPE_API_ORIGIN must be HTTPS and use HISHOPE_API_HOST.");
   process.exit(1);
 }
-
-fs.writeFileSync("mobile-app/android/app/src/main/res/raw/certificate_pins.json", `${JSON.stringify(pins, null, 2)}\n`);
-
-const environmentPath = "mobile-app/src/environments/environment.prod.ts";
-let environment = fs.readFileSync(environmentPath, "utf8");
-environment = environment
-  .replace(/api\.his-hope\.example/g, host)
-  .replace(/sha256\/REPLACE_IN_RELEASE/g, spki)
-  .replace(/certificatePins:\s*\[[\s\S]*?\],/, `certificatePins: ${JSON.stringify(pins)},`);
-fs.writeFileSync(environmentPath, environment);
 
 const domainConfigs = pins.map(pin => `    <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">${pin.host}</domain>
@@ -61,8 +64,6 @@ const networkSecurityConfig = `<?xml version="1.0" encoding="utf-8"?>
 ${domainConfigs}
 </network-security-config>
 `;
-fs.writeFileSync("mobile-app/android/app/src/main/res/xml/network_security_config.xml", networkSecurityConfig);
-
 const iosPins = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -76,6 +77,17 @@ ${pins.map(pin => `    <dict>
 </array>
 </plist>
 `;
-fs.writeFileSync("mobile-app/ios/App/App/HisHopeCertificatePins.plist", iosPins);
+for (const appRoot of appRoots) {
+  const environmentPath = `${appRoot}/src/environments/environment.prod.ts`;
+  let environment = fs.readFileSync(environmentPath, "utf8");
+  environment = environment
+    .replace(/api\.his-hope\.example/g, host)
+    .replace(/sha256\/REPLACE_IN_RELEASE/g, spki)
+    .replace(/certificatePins:\s*\[[\s\S]*?\],/, `certificatePins: ${JSON.stringify(pins)},`);
+  fs.writeFileSync(environmentPath, environment);
+  fs.writeFileSync(`${appRoot}/android/app/src/main/res/raw/certificate_pins.json`, `${JSON.stringify(pins, null, 2)}\n`);
+  fs.writeFileSync(`${appRoot}/android/app/src/main/res/xml/network_security_config.xml`, networkSecurityConfig);
+  fs.writeFileSync(`${appRoot}/ios/App/App/HisHopeCertificatePins.plist`, iosPins);
+}
 
-console.log(`Prepared mobile release pinning for ${origin} (${pins.length} pinned host(s)).`);
+console.log(`Prepared mobile release pinning for ${appRoots.join(", ")} via ${origin} (${pins.length} pinned host(s)).`);

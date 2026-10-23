@@ -4,6 +4,7 @@ import { forkJoin, map, Observable, of } from "rxjs";
 import { HisHopeRequestCacheService } from "@his-hope/frontend-foundation/query";
 import { environment } from "../../../environments/environment";
 import { adminPageCacheKey, buildAdminPageParams } from "./admin-query.util";
+import { optionalScopeIdParams } from "../utils/admin-scope-params.util";
 import {
   IamAccessAnalyzerResult,
   IamApiAudiencesResponse,
@@ -15,6 +16,7 @@ import {
   IamResourcePolicy,
   IamScope,
   IamServiceDefinition,
+  IamServicePrincipal,
   IamTrustedIssuersResponse,
   IamUnusedPermissionsResult,
   IamWorkloadRole,
@@ -68,11 +70,12 @@ export class IamApiService {
     );
   }
 
-  getIamPermissionSets(scopeId?: string): Observable<IamPermissionSet[]> {
-    const path = `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.permissionSets)}`;
-    return scopeId
-      ? this.http.get<IamPermissionSet[]>(path, { params: { scopeId } })
-      : this.http.get<IamPermissionSet[]>(path);
+  /** Pass scopeOverride for environment-scoped reads (e.g. permission sets in assignments). */
+  getIamPermissionSets(scopeOverride?: string): Observable<IamPermissionSet[]> {
+    return this.http.get<IamPermissionSet[]>(
+      `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.permissionSets)}`,
+      optionalScopeIdParams(scopeOverride) ?? {},
+    );
   }
 
   getIamOverview(): Observable<IamOverview> {
@@ -81,35 +84,12 @@ export class IamApiService {
     );
   }
 
-  getIamGroups(scopeId?: string): Observable<IamGroup[]> {
-    return this.http.get<IamGroup[]>(
-      `${this.baseUrl}/iam/groups`,
-      scopeId ? { params: { scopeId } } : {},
-    );
+  getIamGroups(): Observable<IamGroup[]> {
+    return this.http.get<IamGroup[]>(`${this.baseUrl}/iam/groups`);
   }
 
-  getIamServicePrincipals(): Observable<
-    Array<{
-      id: string;
-      key: string;
-      displayName: string;
-      principalType: string;
-      audience: string;
-      scopeId: string;
-      isActive: boolean;
-    }>
-  > {
-    return this.http.get<
-      Array<{
-        id: string;
-        key: string;
-        displayName: string;
-        principalType: string;
-        audience: string;
-        scopeId: string;
-        isActive: boolean;
-      }>
-    >(
+  getIamServicePrincipals(): Observable<IamServicePrincipal[]> {
+    return this.http.get<IamServicePrincipal[]>(
       `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.servicePrincipals)}`,
     );
   }
@@ -177,9 +157,12 @@ export class IamApiService {
   getIamAssignments(
     filters: { scopeId?: string; principalId?: string } = {},
   ): Observable<IamAssignment[]> {
+    const params: Record<string, string> = {};
+    if (filters.principalId) params["principalId"] = filters.principalId;
+    if (filters.scopeId) params["scopeId"] = filters.scopeId;
     return this.http.get<IamAssignment[]>(
       `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.assignments)}`,
-      { params: filters as Record<string, string> },
+      Object.keys(params).length ? { params } : {},
     );
   }
 
@@ -189,17 +172,21 @@ export class IamApiService {
     );
   }
 
-  getIamBoundaries(principalId?: string): Observable<IamPermissionBoundary[]> {
+  getIamBoundaries(
+    filters: { principalId?: string; scopeId?: string } = {},
+  ): Observable<IamPermissionBoundary[]> {
+    const params: Record<string, string> = {};
+    if (filters.principalId) params["principalId"] = filters.principalId;
+    if (filters.scopeId) params["scopeId"] = filters.scopeId;
     return this.http.get<IamPermissionBoundary[]>(
       `${this.baseUrl}${identityWorkbenchPath(IDENTITY_WORKBENCH_RESOURCES.boundaries)}`,
-      principalId ? { params: { principalId } } : {},
+      Object.keys(params).length ? { params } : {},
     );
   }
 
-  getIamResourcePolicies(scopeId?: string): Observable<IamResourcePolicy[]> {
+  getIamResourcePolicies(): Observable<IamResourcePolicy[]> {
     return this.http.get<IamResourcePolicy[]>(
       `${this.baseUrl}/iam/resource-policies`,
-      scopeId ? { params: { scopeId } } : {},
     );
   }
 

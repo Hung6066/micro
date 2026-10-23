@@ -45,4 +45,35 @@ foreach ($package in $catalog.packages) {
     if ($isPackable -ne 'true') { throw "NuGet package '$($package.id)' must set IsPackable=true." }
 }
 
+# Frontend consumers must resolve the foundation through its semver release
+# contract. Local `file:` references bypass the package artifact and make
+# staging/production dependency graphs non-reproducible.
+$foundationVersion = [string]((Get-Content -LiteralPath (Join-Path $repoRoot 'shared/frontend-foundation/package.json') -Raw | ConvertFrom-Json).version)
+$frontendConsumers = @(
+    'admin-app/package.json',
+    'customer-portal-app/package.json',
+    'dashboard-app/package.json',
+    'internal-operator-app/package.json',
+    'manufacturing-buyer-app/package.json',
+    'mobile-app/package.json',
+    'operator-mobile/package.json',
+    'shared/mobile-foundation/package.json',
+    'src/Frontend/his-hope-app/package.json'
+)
+foreach ($consumer in $frontendConsumers) {
+    $consumerPath = Join-Path $repoRoot $consumer
+    if (-not (Test-Path -LiteralPath $consumerPath -PathType Leaf)) { throw "Frontend consumer manifest missing: $consumer" }
+    $manifest = Get-Content -LiteralPath $consumerPath -Raw | ConvertFrom-Json
+    $declared = @(
+        $manifest.dependencies.'@his-hope/frontend-foundation',
+        $manifest.devDependencies.'@his-hope/frontend-foundation',
+        $manifest.peerDependencies.'@his-hope/frontend-foundation'
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace([string]$declared)) { throw "$consumer must declare @his-hope/frontend-foundation." }
+    if ([string]$declared -like 'file:*') { throw "$consumer must not use a file: frontend-foundation dependency." }
+    if ([string]$declared -notmatch '^[~^]?\d+\.\d+\.\d+([-.+][0-9A-Za-z.-]+)?$') {
+        throw "$consumer must pin frontend-foundation to a SemVer range; found '$declared'."
+    }
+}
+
 Write-Host "Shared package governance passed: $($catalog.packages.Count) catalog entries."

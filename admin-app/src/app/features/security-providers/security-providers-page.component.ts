@@ -162,9 +162,9 @@ interface ProviderSettings {
                   "
                 />
               </div>
-              <label>{{ "admin.secretKey" | hhTranslate: "Secret key" }}</label
+              <span class="field-label">{{ "admin.secretKey" | hhTranslate: "Secret key" }}</span
               ><code [hhPhiMask]="mfa.secretKey"></code>
-              <label>{{ "admin.otpUri" | hhTranslate: "OTP URI" }}</label
+              <span class="field-label">{{ "admin.otpUri" | hhTranslate: "OTP URI" }}</span
               ><textarea readonly rows="3" [value]="mfa.qrCodeUri"></textarea>
               <strong>{{
                 "admin.mfaSetupStep2"
@@ -426,7 +426,7 @@ interface ProviderSettings {
         gap: var(--space-sm);
         margin-top: var(--space-md);
       }
-      .mfa-setup label {
+      .mfa-setup .field-label {
         font-size: var(--font-size-caption);
         color: var(--text-muted);
       }

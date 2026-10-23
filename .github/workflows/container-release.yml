@@ -18,6 +18,10 @@ permissions:
   packages: write
   security-events: write
 
+concurrency:
+  group: container-release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
   HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
@@ -43,6 +47,8 @@ jobs:
       - name: Validate container release workflow contract
         shell: bash
         run: python scripts/validate-container-release-contract.py
+      - name: Validate dependency risk policy
+        run: python scripts/validate-dependency-risk-policy.py
 
       - name: Restore and build backend
         shell: bash
@@ -57,10 +63,7 @@ jobs:
           set -euo pipefail
           npm ci --ignore-scripts
           npm audit --omit=dev --audit-level=high
-          npm run build:shared
-          npm --workspace admin-app run build -- --configuration production
-          npm --workspace dashboard-app run build -- --configuration production
-          npm --workspace his-hope-app run build
+          npm run build:frontend:production
 
       - name: Run repository security scanners
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -89,9 +92,13 @@ jobs:
         run: |
           ./scripts/validate-kustomize-release.ps1 -Environment prod
           ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          python scripts/validate-production-ha-contract.py
+          python scripts/validate-production-data-plane-ha-contract.py
           ./scripts/verify-admission-policy.ps1
+          ./scripts/validate-signature-controller-contract.ps1
           python scripts/validate-manifest-secret-contract.py
           python scripts/validate-container-build-contract.py
+          python scripts/validate-dependency-risk-policy.py
 
   release:
     name: Build, scan, SBOM and sign ${{ matrix.name }}
@@ -114,6 +121,9 @@ jobs:
           - { name: lab-service, context: ., dockerfile: src/Services/LabService/LabService.Api/Dockerfile }
           - { name: patient-service, context: ., dockerfile: src/Services/PatientService/PatientService.Api/Dockerfile }
           - { name: pharmacy-service, context: ., dockerfile: src/Services/PharmacyService/PharmacyService.Api/Dockerfile }
+          - { name: commerce-service, context: ., dockerfile: src/Services/CommerceService/CommerceService.Api/Dockerfile }
+          - { name: content-service, context: ., dockerfile: src/Services/ContentService/ContentService.Api/Dockerfile }
+          - { name: manufacturing-service, context: ., dockerfile: src/Services/ManufacturingService/ManufacturingService.Api/Dockerfile }
           - { name: dashboard-bff, context: ., dockerfile: src/Bff/DashboardBff/Dockerfile }
           - { name: systemdashboard-bff, context: ., dockerfile: src/Bff/SystemDashboard.Bff/Dockerfile }
           - { name: patient-bff, context: ., dockerfile: src/Bff/PatientBff/Dockerfile }

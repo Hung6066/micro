@@ -411,15 +411,20 @@ export class RoleEditDialogComponent implements OnInit {
     group: { options: PermissionDefinition[] },
     checked: boolean,
   ): void {
-    for (const permission of group.options)
-      checked
-        ? this.selectedPermissionCodes.add(permission.code)
-        : this.selectedPermissionCodes.delete(permission.code);
+    for (const permission of group.options) {
+      if (checked) {
+        this.selectedPermissionCodes.add(permission.code);
+      } else {
+        this.selectedPermissionCodes.delete(permission.code);
+      }
+    }
   }
   togglePermission(code: string, checked: boolean): void {
-    checked
-      ? this.selectedPermissionCodes.add(code)
-      : this.selectedPermissionCodes.delete(code);
+    if (checked) {
+      this.selectedPermissionCodes.add(code);
+    } else {
+      this.selectedPermissionCodes.delete(code);
+    }
   }
   isGroupExpanded(name: string): boolean {
     return !this.collapsedPermissionGroups.has(name);

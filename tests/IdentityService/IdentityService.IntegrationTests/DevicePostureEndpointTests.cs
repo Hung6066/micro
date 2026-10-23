@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using His.Hope.IdentityService.Testing;
 using Xunit;
 
@@ -64,6 +65,22 @@ public sealed class DevicePostureEndpointTests
                 evidenceTtlSeconds = 30,
                 requiredSignals = Array.Empty<string>()
             })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await session.PutWithCookiesAsync(IdentityApiRoutes.AdminDevicePosturePolicy, new
+            {
+                mode = "observe",
+                providers = new[] { "unsupported-provider" },
+                evidenceTtlSeconds = 900,
+                requiredSignals = Array.Empty<string>()
+            })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await session.PutWithCookiesAsync(IdentityApiRoutes.AdminDevicePosturePolicy, new
+            {
+                mode = "observe",
+                providers = new[] { "advanced-compliance" },
+                evidenceTtlSeconds = 900,
+                requiredSignals = new[] { new string('x', 65) }
+            })).StatusCode);
 
         var update = await session.PutWithCookiesAsync(IdentityApiRoutes.AdminDevicePosturePolicy, new
         {
@@ -111,6 +128,74 @@ public sealed class DevicePostureEndpointTests
             (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminDevicePostureAssessments)).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
             (await session.GetWithCookiesAsync(IdentityApiRoutes.DevicePostureDecisionFor(userId, deviceId))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Assessment_rejects_unknown_provider_and_secret_bearing_evidence()
+    {
+        using var session = await LoginAsync();
+        var observedAt = DateTime.UtcNow;
+        var userId = IdentityTestData.AdminId;
+        var signals = new Dictionary<string, bool> { ["managed"] = true };
+
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await session.PostWithCookiesAsync(IdentityApiRoutes.AdminDevicePostureAssessments, new
+            {
+                userId,
+                deviceId = $"invalid-device-{Guid.NewGuid():N}",
+                provider = "untrusted-provider",
+                signals,
+                observedAt
+            })).StatusCode);
+
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await session.PostWithCookiesAsync(IdentityApiRoutes.AdminDevicePostureAssessments, new
+            {
+                userId,
+                deviceId = $"secret-device-{Guid.NewGuid():N}",
+                provider = "advanced-compliance",
+                signals = new Dictionary<string, bool> { ["attestation_token"] = true },
+                observedAt
+            })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Assessment_disabled_provider_and_expired_evidence_follow_fail_closed_decision()
+    {
+        using var session = await LoginAsync();
+        var policy = await session.PutWithCookiesAsync(IdentityApiRoutes.AdminDevicePosturePolicy, new
+        {
+            mode = "deny",
+            providers = new[] { "advanced-compliance" },
+            evidenceTtlSeconds = 60,
+            requiredSignals = new[] { "managed" }
+        });
+        Assert.Equal(HttpStatusCode.OK, policy.StatusCode);
+
+        var disabled = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminDevicePostureAssessments, new
+        {
+            userId = IdentityTestData.AdminId,
+            deviceId = $"disabled-provider-{Guid.NewGuid():N}",
+            provider = "chrome-enterprise",
+            signals = new Dictionary<string, bool> { ["managed"] = true },
+            observedAt = DateTime.UtcNow
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, disabled.StatusCode);
+
+        var expired = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminDevicePostureAssessments, new
+        {
+            userId = IdentityTestData.AdminId,
+            deviceId = $"expired-device-{Guid.NewGuid():N}",
+            provider = "advanced-compliance",
+            signals = new Dictionary<string, bool> { ["managed"] = true },
+            observedAt = DateTime.UtcNow.AddMinutes(-10),
+            replayNonce = Guid.NewGuid().ToString("N")
+        });
+        Assert.Equal(HttpStatusCode.Accepted, expired.StatusCode);
+        var body = await expired.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("deny", body.GetProperty("decision").GetString());
+        Assert.False(body.GetProperty("fresh").GetBoolean());
+        Assert.False(body.GetProperty("meetsRequirements").GetBoolean());
     }
 
     private async Task<SessionClient> LoginAsync()

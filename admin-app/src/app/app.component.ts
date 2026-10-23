@@ -1,17 +1,15 @@
 import { Component, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { Router, RouterModule } from "@angular/router";
-import { MatSidenavModule } from "@angular/material/sidenav";
-import { MatToolbarModule } from "@angular/material/toolbar";
-import { MatListModule } from "@angular/material/list";
-import { MatIconModule } from "@angular/material/icon";
-import { MatButtonModule } from "@angular/material/button";
 import { BehaviorSubject, Observable, of } from "rxjs";
-import { catchError, switchMap } from "rxjs/operators";
+import { catchError, switchMap, tap } from "rxjs/operators";
 import { AuthService } from "./core/services/auth.service";
+import { TenantContextService } from "./core/services/tenant-context.service";
+import { TenantSwitcherComponent } from "./core/components/tenant-switcher.component";
 import { AdminPermissionsApiService } from "./core/services/admin-permissions-api.service";
 import {
   HisHopeBrandComponent,
+  HisHopeAppShellComponent,
   HisHopeCommandPaletteComponent,
   HisHopeToastComponent,
 } from "@his-hope/frontend-foundation/ui";
@@ -31,6 +29,8 @@ interface AdminNavItem {
   labelKey: string;
   fallback: string;
   permission?: string;
+  /** Platform-level surface that only group-HQ operators may open. */
+  hqOnly?: boolean;
 }
 
 interface AdminNavSection {
@@ -46,16 +46,13 @@ interface AdminNavSection {
   imports: [
     CommonModule,
     RouterModule,
-    MatSidenavModule,
-    MatToolbarModule,
-    MatListModule,
-    MatIconModule,
-    MatButtonModule,
+    HisHopeAppShellComponent,
     HisHopeBrandComponent,
     HisHopeCommandPaletteComponent,
     HisHopeOfflineBannerComponent,
     HisHopeTranslatePipe,
     HisHopeLanguageSwitcherComponent,
+    TenantSwitcherComponent,
     HisHopeToastComponent,
   ],
   templateUrl: "./app.component.html",
@@ -68,6 +65,9 @@ export class AppComponent {
   readonly sidenavOpened$ = new BehaviorSubject<boolean>(true);
   paletteOpen = false;
   userMenuOpen = false;
+  readonly tenantContext = inject(TenantContextService);
+  readonly tenantOptions$ = this.tenantContext.tenantOptions$;
+  activeTenantKey: string | null = this.tenantContext.getActiveTenantKey();
   readonly navSections: readonly AdminNavSection[] = [
     {
       id: "overview",
@@ -278,6 +278,14 @@ export class AppComponent {
           permission: "admin.roles.read",
         },
         {
+          id: "authorization-change-requests",
+          route: "/iam/authorization-change-requests",
+          icon: "fact_check",
+          labelKey: "admin.authorizationChangeRequests",
+          fallback: "Authorization change approvals",
+          permission: "admin.roles.read",
+        },
+        {
           id: "jit-access",
           route: "/iam/jit-access",
           icon: "timer",
@@ -323,6 +331,7 @@ export class AppComponent {
           labelKey: "admin.mobileOperations",
           fallback: "Mobile devices",
           permission: "admin.users.read",
+          hqOnly: true,
         },
       ],
     },
@@ -377,6 +386,7 @@ export class AppComponent {
           labelKey: "admin.identityCapabilities",
           fallback: "Integration, posture & audit controls",
           permission: "admin.settings.read",
+          hqOnly: true,
         },
         {
           id: "database-platform",
@@ -385,6 +395,7 @@ export class AppComponent {
           labelKey: "admin.databasePlatform",
           fallback: "Database platform",
           permission: "admin.settings.read",
+          hqOnly: true,
         },
       ],
     },
@@ -448,14 +459,20 @@ export class AppComponent {
             this.permissionService.clear();
             return of(null);
           }
-          return this.permissionsApi
-            .getCurrent()
-            .pipe(catchError(() => of(null)));
+          return this.permissionsApi.getCurrent().pipe(
+            tap((result) => {
+              this.permissionService.setSnapshot(result);
+              this.tenantContext.initialize().subscribe();
+            }),
+            catchError(() => of(null)),
+          );
         }),
       )
-      .subscribe((result) => {
-        if (result) this.permissionService.setSnapshot(result);
-      });
+      .subscribe();
+
+    this.tenantContext.activeTenantKey$.subscribe((tenantKey) => {
+      this.activeTenantKey = tenantKey;
+    });
 
     const mediaQuery = window.matchMedia("(max-width: 768px)");
     const handleChange = (e: MediaQueryListEvent | MediaQueryList): void => {
@@ -471,6 +488,7 @@ export class AppComponent {
   }
 
   isNavItemVisible(item: AdminNavItem): boolean {
+    if (item.hqOnly && !this.tenantContext.isGroupHqOperator()) return false;
     if (!item.permission) return true;
     if (!this.permissionService.hasSnapshot()) return false;
     return this.permissionService.has(item.permission);
@@ -488,6 +506,10 @@ export class AppComponent {
     const query = route.split("?")[1];
     if (!query) return null;
     return Object.fromEntries(new URLSearchParams(query).entries());
+  }
+
+  onTenantChange(tenantKey: string | null): void {
+    this.tenantContext.setActiveTenant(tenantKey);
   }
 
   toggleSidenav(): void {

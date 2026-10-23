@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using Polly;
 using Polly.Retry;
 using RabbitMQ.Client;
+using His.Hope.SharedKernel.Protocol;
 using RabbitMQ.Client.Events;
 using RabbitMQ.Client.Exceptions;
 
@@ -21,25 +22,36 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
     private readonly EventBusOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<RabbitMQEventBus> _logger;
+    private readonly EventSchemaRegistry _schemaRegistry;
     private readonly AsyncRetryPolicy _retryPolicy;
     private readonly EventDeliveryPolicy _deliveryPolicy = EventDeliveryPolicy.Default;
     private readonly ConcurrentBag<IModel> _publisherChannels = new();
     private readonly SemaphoreSlim _publisherSlots;
     private IModel? _consumerChannel;
     private readonly Dictionary<string, List<Type>> _eventHandlers = new();
-    private const string DlxExchangeName = "his-hope.dlx";
+    private readonly Dictionary<string, Type> _eventTypes = new(StringComparer.Ordinal);
+    private const string DlxExchangeName = HisHopeProtocolConstants.Messaging.DeadLetterExchange;
+    private const string RetryExchangeName = "his_hope_retry";
     private const int MaxRetryCount = 3;
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(2)
+    ];
 
     public RabbitMQEventBus(
         RabbitMQConnection connection,
         EventBusOptions options,
         IServiceScopeFactory scopeFactory,
-        ILogger<RabbitMQEventBus> logger)
+        ILogger<RabbitMQEventBus> logger,
+        EventSchemaRegistry schemaRegistry)
     {
         _connection = connection;
         _options = options;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _schemaRegistry = schemaRegistry;
         _publisherSlots = new SemaphoreSlim(
             Math.Clamp(options.PublisherChannelPoolSize, 1, 64));
         _retryPolicy = Policy.Handle<BrokerUnreachableException>()
@@ -89,6 +101,10 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
             throw new ArgumentException("Integration event id is required.", nameof(@event));
         if (@event.SchemaVersion < 1)
             throw new ArgumentOutOfRangeException(nameof(@event), "Integration event schema version must be positive.");
+        if (@event.Headers is not null &&
+            @event.Headers.TryGetValue(EventEnvelopeHeaders.Priority, out var priority) &&
+            !EventDeliveryPolicy.IsAllowedPriority(priority))
+            throw new ArgumentException("Integration event priority is not allowed.", nameof(@event));
         var serializedEvent = JsonConvert.SerializeObject(@event);
         if (Encoding.UTF8.GetByteCount(serializedEvent) > _deliveryPolicy.MaximumPayloadBytes)
             throw new ArgumentException("Integration event payload exceeds the configured limit.", nameof(@event));
@@ -130,6 +146,9 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
                 properties.Headers[EventEnvelopeHeaders.CorrelationId] = @event.CorrelationId;
             if (!string.IsNullOrWhiteSpace(@event.CausationId))
                 properties.Headers[EventEnvelopeHeaders.CausationId] = @event.CausationId;
+            if (@event.Headers is not null &&
+                @event.Headers.TryGetValue(EventEnvelopeHeaders.Priority, out var priority))
+                properties.Headers[EventEnvelopeHeaders.Priority] = priority;
             if (@event.Headers is not null)
             {
                 foreach (var header in @event.Headers)
@@ -169,6 +188,16 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
     {
         var eventName = GetEventName<TIntegrationEvent>();
         var handlerType = typeof(TIntegrationEventHandler);
+
+        if (_eventTypes.TryGetValue(eventName, out var registeredType) &&
+            registeredType != typeof(TIntegrationEvent))
+        {
+            throw new InvalidOperationException(
+                $"Event name '{eventName}' is already mapped to '{registeredType.FullName}'.");
+        }
+
+        _eventTypes[eventName] = typeof(TIntegrationEvent);
+        _schemaRegistry.Register(eventName, EventEnvelope.CurrentSchemaVersion);
 
         if (!_eventHandlers.ContainsKey(eventName))
             _eventHandlers[eventName] = [];
@@ -211,6 +240,29 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
 
         // Declare DLX exchange (if not already declared by DeadLetterConsumer in another service)
         _consumerChannel.ExchangeDeclare(DlxExchangeName, "topic", durable: true);
+        _consumerChannel.ExchangeDeclare(RetryExchangeName, "direct", durable: true);
+
+        foreach (var eventName in _eventHandlers.Keys)
+        {
+            for (var retry = 1; retry <= MaxRetryCount; retry++)
+            {
+                var retryQueueName = RetryQueueName(eventName, retry);
+                var retryRoutingKey = RetryRoutingKey(eventName, retry);
+                var retryQueueArgs = new Dictionary<string, object>
+                {
+                    ["x-message-ttl"] = (long)RetryDelays[retry - 1].TotalMilliseconds,
+                    ["x-dead-letter-exchange"] = _options.ExchangeName,
+                    ["x-dead-letter-routing-key"] = eventName
+                };
+                _consumerChannel.QueueDeclare(
+                    retryQueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: retryQueueArgs);
+                _consumerChannel.QueueBind(retryQueueName, RetryExchangeName, retryRoutingKey);
+            }
+        }
 
         var consumer = new AsyncEventingBasicConsumer(_consumerChannel);
         consumer.Received += OnMessageReceived;
@@ -240,9 +292,13 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
             foreach (var handlerType in handlerTypes)
             {
                 var handler = scope.ServiceProvider.GetRequiredService(handlerType);
-                var integrationEvent = JsonConvert.DeserializeObject(message, GetEventType(eventName)) as IntegrationEvent;
+                if (!_eventTypes.TryGetValue(eventName, out var eventType))
+                    throw new InvalidOperationException($"Event type '{eventName}' is not registered.");
+
+                var integrationEvent = JsonConvert.DeserializeObject(message, eventType) as IntegrationEvent;
 
                 if (integrationEvent is null) continue;
+                ValidateTransportEnvelope(args, eventName, integrationEvent);
 
                 var inbox = scope.ServiceProvider.GetService<IInboxStore>();
                 var consumer = handlerType.FullName ?? handlerType.Name;
@@ -306,10 +362,13 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
 
             if (retryCount < MaxRetryCount)
             {
-                // Republish message with incremented retry count, then ack original
+                // Route retry through a TTL queue so transient failures do not
+                // hot-loop the consumer or monopolize broker capacity.
                 try
                 {
                     using var channel = (await _connection.GetConnectionAsync()).CreateModel();
+                    channel.ExchangeDeclare(RetryExchangeName, "direct", durable: true);
+                    channel.ConfirmSelect();
 
                     var newProps = channel.CreateBasicProperties();
                     newProps.Persistent = true;
@@ -323,18 +382,22 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
                         ["x-retry-count"] = retryCount + 1
                     };
 
+                    var nextRetry = retryCount + 1;
                     channel.BasicPublish(
-                        exchange: args.Exchange,
-                        routingKey: args.RoutingKey,
+                        exchange: RetryExchangeName,
+                        routingKey: RetryRoutingKey(eventName, nextRetry),
                         mandatory: true,
                         basicProperties: newProps,
                         body: args.Body);
+                    channel.WaitForConfirmsOrDie(
+                        TimeSpan.FromMilliseconds(Math.Clamp(
+                            _options.PublisherConfirmTimeoutMilliseconds, 100, 60_000)));
 
                     _consumerChannel?.BasicAck(args.DeliveryTag, false);
 
                     _logger.LogWarning(
                         "Retry {RetryCount}/{MaxRetryCount} for {EventName} {MessageId}",
-                        retryCount + 1, MaxRetryCount, eventName, args.BasicProperties.MessageId);
+                        nextRetry, MaxRetryCount, eventName, args.BasicProperties.MessageId);
                 }
                 catch (Exception pubEx)
                 {
@@ -356,12 +419,56 @@ public partial class RabbitMQEventBus : IEventBus, IExternalEventPublisher, IAsy
     private static string GetEventName<T>() =>
         typeof(T).Name;
 
-    private static Type GetEventType(string eventName) =>
-        AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(a => a.GetTypes())
-            .FirstOrDefault(t => t.Name == eventName &&
-                                 typeof(IntegrationEvent).IsAssignableFrom(t))
-        ?? throw new InvalidOperationException($"Event type '{eventName}' not found");
+    private void ValidateTransportEnvelope(
+        BasicDeliverEventArgs args,
+        string eventName,
+        IntegrationEvent integrationEvent)
+    {
+        if (!string.Equals(args.BasicProperties.Type, eventName, StringComparison.Ordinal))
+            throw new InvalidOperationException("integration_event_transport_type_mismatch");
+        if (integrationEvent.Id == Guid.Empty)
+            throw new InvalidOperationException("integration_event_id_missing");
+        if (integrationEvent.SchemaVersion != EventEnvelope.CurrentSchemaVersion)
+            throw new InvalidOperationException("integration_event_schema_version_unsupported");
+        _schemaRegistry.Validate(eventName, integrationEvent.SchemaVersion);
+
+        var headers = args.BasicProperties.Headers;
+        if (headers is null || !headers.TryGetValue(EventEnvelopeHeaders.SchemaVersion, out var schemaValue))
+            throw new InvalidOperationException("integration_event_schema_header_missing");
+
+        var schemaText = schemaValue switch
+        {
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            _ => schemaValue.ToString()
+        };
+        if (!int.TryParse(schemaText, out var transportSchemaVersion) ||
+            transportSchemaVersion != integrationEvent.SchemaVersion)
+            throw new InvalidOperationException("integration_event_schema_version_mismatch");
+
+        ValidateOptionalHeader(headers, EventEnvelopeHeaders.CorrelationId, integrationEvent.CorrelationId);
+        ValidateOptionalHeader(headers, EventEnvelopeHeaders.CausationId, integrationEvent.CausationId);
+    }
+
+    private static void ValidateOptionalHeader(
+        IDictionary<string, object> headers,
+        string headerName,
+        string? eventValue)
+    {
+        if (!headers.TryGetValue(headerName, out var headerValue)) return;
+        var headerText = headerValue switch
+        {
+            byte[] bytes => Encoding.UTF8.GetString(bytes),
+            _ => headerValue.ToString()
+        };
+        if (!string.Equals(headerText, eventValue, StringComparison.Ordinal))
+            throw new InvalidOperationException($"integration_event_{headerName}_mismatch");
+    }
+
+    private static string RetryRoutingKey(string eventName, int retryCount) =>
+        $"retry.{eventName}.{retryCount}";
+
+    private static string RetryQueueName(string eventName, int retryCount) =>
+        $"{RetryExchangeName}.{eventName}.{retryCount}";
 
     public async ValueTask DisposeAsync()
     {

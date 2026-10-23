@@ -41,6 +41,42 @@ public sealed class SiemWormAuditForwarderTests
     }
 
     [Fact]
+    public async Task ForwardAsync_preserves_audit_envelope_in_each_sink_failure_dead_letter()
+    {
+        var factory = new Mock<IHttpClientFactory>();
+        factory.Setup(x => x.CreateClient(nameof(SiemWormAuditForwarder)))
+            .Returns(new HttpClient(new BrokenHttpHandler()));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AUDIT_SIEM_URL"] = "http://127.0.0.1:1/unreachable"
+            })
+            .Build();
+        var forwarder = new SiemWormAuditForwarder(
+            factory.Object,
+            configuration,
+            NullLogger<SiemWormAuditForwarder>.Instance);
+
+        await forwarder.ForwardAsync(new AuditRecord
+        {
+            Action = "READ",
+            Resource = "Patient",
+            SubjectId = "subject-1",
+            Properties = new Dictionary<string, object?>
+            {
+                ["correlationId"] = "corr-1",
+                ["patientName"] = "must-not-leave-the-service"
+            }
+        });
+
+        var deadLetter = Assert.Single(forwarder.DeadLetter);
+        Assert.Equal("SIEM", deadLetter.Sink);
+        Assert.Contains("subject-1", deadLetter.EnvelopeJson, StringComparison.Ordinal);
+        Assert.Contains("corr-1", deadLetter.EnvelopeJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("must-not-leave-the-service", deadLetter.EnvelopeJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task IdentityDurableAuditSink_persists_and_forwards()
     {
         var audit = new Mock<IAuditService>();

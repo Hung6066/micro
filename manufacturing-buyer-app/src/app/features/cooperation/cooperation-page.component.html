@@ -1,0 +1,52 @@
+<section class="page-shell page-shell--narrow" data-testid="buyer-cooperation">
+  <div class="fx-container">
+    <div class="page-head">
+      <div>
+        <p class="page-head__eyebrow">{{ "buyer.cooperation.eyebrow" | hhTranslate }}</p>
+        <h1>{{ "buyer.cooperation.title" | hhTranslate }}</h1>
+        <p>{{ "buyer.cooperation.subtitle" | hhTranslate }}</p>
+      </div>
+    </div>
+
+    <form class="cooperation-form fx-card form-grid" data-testid="cooperation-form" (ngSubmit)="submit()">
+      <label>
+        {{ "buyer.cooperation.company" | hhTranslate }}
+        <input [(ngModel)]="companyName" name="companyName" required />
+      </label>
+      <label>
+        {{ "buyer.cooperation.contact" | hhTranslate }}
+        <input [(ngModel)]="contactName" name="contactName" required />
+      </label>
+      <label>
+        {{ "buyer.cooperation.email" | hhTranslate }}
+        <input [(ngModel)]="email" name="email" type="email" required />
+      </label>
+      <label>
+        {{ "buyer.cooperation.phone" | hhTranslate }}
+        <input [(ngModel)]="phone" name="phone" />
+      </label>
+      <label>
+        {{ "buyer.cooperation.type" | hhTranslate }}
+        <select [(ngModel)]="partnershipType" name="partnershipType">
+          <option value="distributor">{{ "buyer.cooperation.type.distributor" | hhTranslate }}</option>
+          <option value="oem">{{ "buyer.cooperation.type.oem" | hhTranslate }}</option>
+          <option value="export">{{ "buyer.cooperation.type.export" | hhTranslate }}</option>
+        </select>
+      </label>
+      <label>
+        {{ "buyer.cooperation.message" | hhTranslate }}
+        <textarea [(ngModel)]="message" name="message" rows="5" required></textarea>
+      </label>
+
+      @if (statusKey()) {
+        <p class="form-status" [class.form-status--success]="submitted()">
+          {{ statusKey() | hhTranslate }}
+        </p>
+      }
+
+      <button mat-flat-button color="primary" type="submit" [disabled]="submitting()">
+        {{ (submitting() ? "buyer.processing" : "buyer.cooperation.submit") | hhTranslate }}
+      </button>
+    </form>
+  </div>
+</section>

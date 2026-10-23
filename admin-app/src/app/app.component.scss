@@ -23,54 +23,10 @@
   font-family: var(--font-sans) !important;
 }
 
-.user-menu {
-  position: absolute;
-  top: calc(100% - var(--space-2xs));
-  right: var(--space-md);
-  z-index: 20;
-  min-width: 150px;
-  padding: var(--space-2xs);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-card);
-  background: var(--surface-white);
-  box-shadow: var(--shadow-dropdown);
-}
-
-.user-menu button {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: var(--space-sm);
-  min-height: var(--control-height);
-  padding: 0 var(--space-md);
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.user-menu button:hover,
-.user-menu button:focus-visible {
-  background: var(--surface-subtle);
-}
-
 hh-brand {
   display: block;
   padding: var(--space-xl) var(--space-xl) var(--space-lg);
   font-family: var(--font-sans) !important;
-}
-
-.nav-section-label {
-  padding: var(--space-lg) var(--space-lg) var(--space-sm);
-  color: var(--text-muted);
-  font-size: var(--font-size-overline, 0.68rem);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  text-transform: uppercase;
 }
 
 .sidenav-container {
@@ -89,14 +45,24 @@ hh-brand {
 }
 
 @media (max-width: 600px) {
-  .app-toolbar {
+  .hh-shell__toolbar {
     gap: 0;
     overflow: hidden;
     padding-inline: var(--space-2xs);
   }
-  .app-toolbar .app-title,
-  .app-toolbar hh-language-switcher,
-  .app-toolbar .toolbar-spacer {
+  :host ::ng-deep .hh-shell__toolbar .hh-shell__toolbar-actions {
+    gap: 0;
+  }
+  :host ::ng-deep .hh-shell__toolbar .tenant-selector,
+  :host ::ng-deep .hh-shell__toolbar hh-language-switcher {
     display: none;
   }
 }
+
+.tenant-selector {
+  margin-right: var(--space-sm);
+}
+
+.shell-icon-button { display:grid; place-items:center; width:var(--touch-target); height:var(--touch-target); border:0; border-radius:var(--radius-button); background:transparent; color:var(--color-on-primary); cursor:pointer; }
+.shell-icon-button:hover { background:color-mix(in srgb, currentColor 14%, transparent); }
+.shell-icon-button:focus-visible { outline:var(--focus-ring-width) solid var(--color-on-primary); outline-offset:var(--focus-ring-offset); }

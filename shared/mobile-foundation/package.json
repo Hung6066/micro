@@ -14,7 +14,8 @@
     "./angular": {
       "types": "./dist/angular/types/his-hope-mobile-foundation-angular.d.ts",
       "default": "./dist/angular/fesm2022/his-hope-mobile-foundation-angular.mjs"
-    }
+    },
+    "./angular/styles/mobile-layout.scss": "./angular/src/styles/mobile-layout.scss"
   },
   "peerDependencies": {
     "@angular/common": "^21.0.0",
@@ -46,7 +47,7 @@
     "@angular/core": "^21.2.19",
     "@angular/forms": "^21.2.19",
     "@angular/router": "^21.2.19",
-    "@his-hope/frontend-foundation": "file:../frontend-foundation",
+    "@his-hope/frontend-foundation": "^1.1.0",
     "eslint": "^9.17.0",
     "ng-packagr": "^21.2.0",
     "rxjs": "^7.8.1",

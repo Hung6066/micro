@@ -30,6 +30,9 @@ data:
   SERVICE_PHARMACY_URL: http://pharmacy-service.his-hope.svc.cluster.local:5030
   SERVICE_FHIR_GATEWAY_URL: http://fhir-gateway.his-hope.svc.cluster.local:5040
   SERVICE_PHARMACY_API_URL: http://pharmacy-service.his-hope.svc.cluster.local:5030
+  SERVICE_COMMERCE_URL: http://commerce-service.his-hope.svc.cluster.local:5015
+  SERVICE_CONTENT_URL: http://content-service.his-hope.svc.cluster.local:5016
+  SERVICE_MANUFACTURING_URL: http://manufacturing-service.his-hope.svc.cluster.local:5050
   SERVICE_PATIENT_BFF_URL: http://patient-bff.his-hope.svc.cluster.local:5100
   SERVICE_CLINICAL_BFF_URL: http://clinical-bff.his-hope.svc.cluster.local:5200
   SERVICE_LAB_BFF_URL: http://lab-bff.his-hope.svc.cluster.local:5300
@@ -108,6 +111,9 @@ data:
   ADAPTER_CONNECTIONSTRINGS_LABDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/labdb
   ADAPTER_CONNECTIONSTRINGS_PATIENTDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/patientdb
   ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/pharmacydb
+  ADAPTER_CONNECTIONSTRINGS_COMMERCEDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/commercedb
+  ADAPTER_CONNECTIONSTRINGS_CONTENTDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/contentdb
+  ADAPTER_CONNECTIONSTRINGS_MANUFACTURINGDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/manufacturingdb
   ADAPTER_SERVICE_IDENTITY_HTTP: http://identity-service.his-hope.svc.cluster.local:5003
   ADAPTER_SERVICE_PATIENT_HTTP: http://patient-service.his-hope.svc.cluster.local:5002
   ADAPTER_SERVICE_APPOINTMENT_HTTP: http://appointment-service.his-hope.svc.cluster.local:5004
