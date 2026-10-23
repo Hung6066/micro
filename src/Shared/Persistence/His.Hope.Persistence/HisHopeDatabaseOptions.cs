@@ -182,8 +182,11 @@ public static class HisHopeDatabaseOptions
     {
         var resolver = serviceProvider.GetService<His.Hope.Secrets.IVaultDatabaseConnectionStringResolver>();
         var resolved = resolver?.Resolve(connectionString, connectionName) ?? connectionString;
-        return UseHisHopeNpgsql(options, resolved, connectionName, configuration, configure)
+        var configuredOptions = UseHisHopeNpgsql(options, resolved, connectionName, configuration, configure)
             .UseHisHopeDatabasePerformance(serviceProvider);
+        if (resolver is not null)
+            configuredOptions.AddInterceptors(new VaultDatabaseCredentialRefreshInterceptor(resolver, connectionString, connectionName));
+        return configuredOptions;
     }
 
     public static DbContextOptionsBuilder UseHisHopeNpgsql(
@@ -197,7 +200,10 @@ public static class HisHopeDatabaseOptions
             ?? throw new InvalidOperationException($"Connection string '{connectionName}' is required.");
         var resolver = serviceProvider.GetService<His.Hope.Secrets.IVaultDatabaseConnectionStringResolver>();
         var resolved = resolver?.Resolve(configured, connectionName) ?? configured;
-        return UseHisHopeNpgsql(options, resolved, connectionName, configuration, configure);
+        var configuredOptions = UseHisHopeNpgsql(options, resolved, connectionName, configuration, configure);
+        if (resolver is not null)
+            configuredOptions.AddInterceptors(new VaultDatabaseCredentialRefreshInterceptor(resolver, configured, connectionName));
+        return configuredOptions;
     }
 }
 

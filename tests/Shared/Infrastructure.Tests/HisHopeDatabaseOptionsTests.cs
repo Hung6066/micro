@@ -1,10 +1,14 @@
 using His.Hope.Persistence;
 using His.Hope.Persistence.Querying;
+using His.Hope.Secrets;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Moq;
+using Npgsql;
 
 namespace His.Hope.Infrastructure.Tests;
 
@@ -74,5 +78,51 @@ public sealed class HisHopeDatabaseOptionsTests
         var core = options.Extensions.OfType<CoreOptionsExtension>().Single();
         core.QueryTrackingBehavior.Should().Be(QueryTrackingBehavior.NoTracking);
         core.IsSensitiveDataLoggingEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UseHisHopeNpgsql_registers_vault_credential_refresh_for_each_connection_open()
+    {
+        var configuredConnectionString = "Host=localhost;Database=identity;Username=bootstrap;Password=bootstrap";
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:IdentityDb"] = configuredConnectionString
+            })
+            .Build();
+        var resolver = new Mock<IVaultDatabaseConnectionStringResolver>();
+        resolver.Setup(item => item.Resolve(configuredConnectionString, "IdentityDb"))
+            .Returns("Host=localhost;Database=identity;Username=leased;Password=leased");
+        using var provider = new ServiceCollection()
+            .AddSingleton(resolver.Object)
+            .BuildServiceProvider();
+
+        var options = new DbContextOptionsBuilder()
+            .UseHisHopeNpgsql(provider, configuration, "IdentityDb")
+            .Options;
+        var interceptors = options.Extensions
+            .OfType<CoreOptionsExtension>()
+            .Single()
+            .Interceptors ?? Array.Empty<IInterceptor>();
+
+        var refreshInterceptor = interceptors
+            .OfType<DbConnectionInterceptor>()
+            .SingleOrDefault(interceptor =>
+                interceptor.GetType().Name == "VaultDatabaseCredentialRefreshInterceptor");
+        refreshInterceptor.Should().NotBeNull();
+
+        using var connection = new NpgsqlConnection(configuredConnectionString);
+        refreshInterceptor!.ConnectionOpening(connection, null!, default);
+
+        var connectionSettings = new NpgsqlConnectionStringBuilder(connection.ConnectionString);
+        connectionSettings.Username.Should().Be("leased");
+        connectionSettings.Password.Should().Be("leased");
+
+        await using var asyncConnection = new NpgsqlConnection(configuredConnectionString);
+        await refreshInterceptor.ConnectionOpeningAsync(asyncConnection, null!, default);
+        var asyncConnectionSettings = new NpgsqlConnectionStringBuilder(asyncConnection.ConnectionString);
+        asyncConnectionSettings.Username.Should().Be("leased");
+        asyncConnectionSettings.Password.Should().Be("leased");
+        resolver.Verify(item => item.Resolve(configuredConnectionString, "IdentityDb"), Times.Exactly(3));
     }
 }
