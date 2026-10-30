@@ -18,7 +18,7 @@ RUN rm -rf /workspace/shared/frontend-foundation/dist && npm run build:shared
 WORKDIR /workspace/internal-operator-app
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
-FROM nginxinc/nginx-unprivileged:alpine AS final
+FROM ghcr.io/nginx/nginx-unprivileged:1.30.6-alpine3.24-slim@sha256:984a21e29bb10d4c0e122374b97b89a2101823a9331e0f3c6c04bc285ccf447f AS final
 USER 101
 COPY --from=build /workspace/internal-operator-app/dist/internal-operator-app/browser /usr/share/nginx/html
 COPY internal-operator-app/nginx.conf /etc/nginx/conf.d/default.conf
