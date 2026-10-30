@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using His.Hope.AspNetCore.Authentication;
 using His.Hope.AspNetCore.Tenancy;
 using His.Hope.Authorization;
@@ -10,7 +9,6 @@ using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Security;
 using His.Hope.ServiceDefaults;
 using His.Hope.Secrets;
-using Microsoft.AspNetCore.DataProtection;
 
 namespace His.Hope.CommerceService.Api;
 
@@ -31,27 +29,11 @@ internal static class CommerceServiceHostExtensions
             tags: ["live", "ready"]);
         services.AddSingleton<CommerceStore>();
 
-        var dataProtection = services.AddDataProtection()
-            .SetApplicationName("His.Hope.CommerceService")
-            .PersistKeysToFileSystem(new DirectoryInfo(
-                configuration["DataProtection:KeysPath"]
-                    ?? "/var/lib/his-hope/commerce-data-protection-keys"));
-        var certificatePath = configuration["DataProtection:CertificatePath"];
-        if (!string.IsNullOrWhiteSpace(certificatePath))
-        {
-            if (!File.Exists(certificatePath))
-                throw new InvalidOperationException(
-                    $"DataProtection certificate was configured but not found: {certificatePath}");
-
-            dataProtection.ProtectKeysWithCertificate(new X509Certificate2(
-                certificatePath,
-                configuration["DataProtection:CertificatePassword"]));
-        }
-        else if (!environment.IsDevelopment())
-        {
-            throw new InvalidOperationException(
-                "CommerceService requires DataProtection:CertificatePath outside Development.");
-        }
+        services.AddHisHopeRedisDataProtection(
+            configuration,
+            environment,
+            "His.Hope.CommerceService",
+            "HisHope:CommerceService:DataProtection:Keys");
 
         services.AddHisHopeDpopValidation();
         His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(services, configuration);

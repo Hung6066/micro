@@ -24,17 +24,13 @@ app.MapCommerceWebhookEndpoints();
 
 app.ValidateHisHopeTenantPlacement();
 
-var runCommerceMigrations = builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
-    builder.Configuration.GetValue("Persistence:MigrationOnly", false);
+var runCommerceMigrations = PersistenceMigrationStartupPolicy.ShouldRunMigrations(
+    builder.Configuration,
+    app.Environment,
+    "CommerceService");
 if (runCommerceMigrations)
 {
     await app.Services.MigrateCommerceDatabaseAsync();
-}
-else if (!app.Environment.IsDevelopment() &&
-         !string.Equals(app.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase))
-{
-    throw new InvalidOperationException(
-        "CommerceService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))

@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using His.Hope.ContentService.Domain;
 using System.Text;
 using His.Hope.Authorization;
@@ -12,7 +11,6 @@ using His.Hope.Infrastructure.Configuration;
 using His.Hope.Configuration;
 using His.Hope.ServiceDefaults;
 using His.Hope.SharedKernel.Authorization;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
 His.Hope.Configuration.PlatformPki.Materialize();
@@ -23,32 +21,11 @@ builder.Services.AddContentInfrastructure(builder.Configuration);
 builder.Services.AddHisHopeServicePlatform(builder.Configuration, "content-service");
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ContentDbContext>("content-db");
-// Keep the Content key ring stable across container replacement. The
-// directory is backed by a dedicated deployment volume (or an encrypted host
-// mount in production).
-var dataProtection = builder.Services.AddDataProtection()
-    .SetApplicationName("His.Hope.ContentService")
-    .PersistKeysToFileSystem(new DirectoryInfo(
-        builder.Configuration["DataProtection:KeysPath"]
-            ?? "/var/lib/his-hope/content-data-protection-keys"));
-var dataProtectionCertificatePath = builder.Configuration["DataProtection:CertificatePath"];
-if (!string.IsNullOrWhiteSpace(dataProtectionCertificatePath))
-{
-    if (!File.Exists(dataProtectionCertificatePath))
-    {
-        throw new InvalidOperationException(
-            $"DataProtection certificate was configured but not found: {dataProtectionCertificatePath}");
-    }
-
-    dataProtection.ProtectKeysWithCertificate(new X509Certificate2(
-        dataProtectionCertificatePath,
-        builder.Configuration["DataProtection:CertificatePassword"]));
-}
-else if (!builder.Environment.IsDevelopment())
-{
-    throw new InvalidOperationException(
-        "ContentService requires DataProtection:CertificatePath outside Development.");
-}
+builder.Services.AddHisHopeRedisDataProtection(
+    builder.Configuration,
+    builder.Environment,
+    "His.Hope.ContentService",
+    "HisHope:ContentService:DataProtection:Keys");
 builder.Services.AddHisHopeDpopValidation();
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 builder.Services.AddHisHopeAuthorization();
@@ -66,17 +43,13 @@ app.UseHisHopeTenantScope();
 
 app.ValidateHisHopeTenantPlacement();
 
-var runContentMigrations = builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
-    builder.Configuration.GetValue("Persistence:MigrationOnly", false);
+var runContentMigrations = PersistenceMigrationStartupPolicy.ShouldRunMigrations(
+    builder.Configuration,
+    app.Environment,
+    "ContentService");
 if (runContentMigrations)
 {
     app.Services.MigrateContentDatabase();
-}
-else if (!app.Environment.IsDevelopment() &&
-         !string.Equals(app.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase))
-{
-    throw new InvalidOperationException(
-        "ContentService requires Persistence:RunMigrationsOnStartup or Persistence:MigrationOnly outside Development.");
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
