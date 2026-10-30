@@ -21,9 +21,16 @@ COPY admin-app .
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
 FROM ghcr.io/nginx/nginx-unprivileged:1.30.6-alpine3.24-slim@sha256:984a21e29bb10d4c0e122374b97b89a2101823a9331e0f3c6c04bc285ccf447f AS final
-USER 101
+USER root
+RUN mkdir -p /etc/nginx/templates
 COPY --from=build /workspace/admin-app/dist/admin-app/browser /usr/share/nginx/html
-COPY admin-app/nginx.conf /etc/nginx/conf.d/default.conf
+COPY admin-app/nginx.conf /etc/nginx/templates/admin.conf.template
+COPY --chmod=755 admin-app/docker-entrypoint.sh /usr/local/bin/admin-entrypoint
+RUN rm -f /etc/nginx/conf.d/default.conf \
+    && ln -s /tmp/default.conf /etc/nginx/conf.d/default.conf
+USER 101
+ENTRYPOINT ["/usr/local/bin/admin-entrypoint"]
+CMD ["nginx", "-g", "daemon off;"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
