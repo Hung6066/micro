@@ -1,4 +1,4 @@
-name: Deploy to Openship
+name: Sync environment to Openship
 
 on:
   push:
@@ -76,12 +76,3 @@ jobs:
           MICRO_MANUFACTURING_RABBITMQ_USER: ${{ secrets.MICRO_MANUFACTURING_RABBITMQ_USER }}
           MICRO_MANUFACTURING_RABBITMQ_PASSWORD: ${{ secrets.MICRO_MANUFACTURING_RABBITMQ_PASSWORD }}
         run: node scripts/openship/sync-service-env.mjs --project "$OPENSHIP_PROJECT" --env production
-
-      - name: Deploy
-        run: |
-          openship deploy \
-            --project "$OPENSHIP_PROJECT" \
-            --branch "$GITHUB_REF_NAME" \
-            --commit "$GITHUB_SHA" \
-            --env production \
-            --watch
