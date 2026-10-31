@@ -27,7 +27,6 @@
   },
   "services": {
     "identityservice": {
-      "ConnectionStrings__IdentityDb": "${MICRO_IDENTITY_DB_CONNECTION}",
       "PLATFORM_PKI_FILE_PG_CA": "${MICRO_PG_CA}",
       "PLATFORM_PKI_FILE_PG_CLIENT_CRT": "${MICRO_PG_CLIENT_CRT}",
       "PLATFORM_PKI_FILE_PG_CLIENT_KEY": "${MICRO_PG_CLIENT_KEY}",

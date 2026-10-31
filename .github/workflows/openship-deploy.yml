@@ -64,7 +64,6 @@ jobs:
           MICRO_PG_CA: ${{ secrets.MICRO_PG_CA }}
           MICRO_PG_CLIENT_CRT: ${{ secrets.MICRO_PG_CLIENT_CRT }}
           MICRO_PG_CLIENT_KEY: ${{ secrets.MICRO_PG_CLIENT_KEY }}
-          MICRO_IDENTITY_DB_CONNECTION: ${{ secrets.MICRO_IDENTITY_DB_CONNECTION }}
           MICRO_COMMERCE_DB_CONNECTION: ${{ secrets.MICRO_COMMERCE_DB_CONNECTION }}
           MICRO_CONTENT_DB_CONNECTION: ${{ secrets.MICRO_CONTENT_DB_CONNECTION }}
           MICRO_MANUFACTURING_DB_CONNECTION: ${{ secrets.MICRO_MANUFACTURING_DB_CONNECTION }}
@@ -75,4 +74,4 @@ jobs:
           MICRO_COMMERCE_RABBITMQ_PASSWORD: ${{ secrets.MICRO_COMMERCE_RABBITMQ_PASSWORD }}
           MICRO_MANUFACTURING_RABBITMQ_USER: ${{ secrets.MICRO_MANUFACTURING_RABBITMQ_USER }}
           MICRO_MANUFACTURING_RABBITMQ_PASSWORD: ${{ secrets.MICRO_MANUFACTURING_RABBITMQ_PASSWORD }}
-        run: node scripts/openship/sync-service-env.mjs --project "$OPENSHIP_PROJECT" --env production
+        run: node scripts/openship/sync-service-env.mjs --project "$OPENSHIP_PROJECT" --env production --compose docker/docker-compose.openship.yml

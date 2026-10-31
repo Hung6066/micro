@@ -8,6 +8,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const UNSET = "__OPENSHIP_UNSET__";
+const REDACTED_VALUES = new Set(["••••••••", "........", "********", "<redacted>"]);
+const REQUIRED_IDENTITY_ENV = [
+  "Identity__BootstrapAdmin__Password",
+  "OpenIddict__Issuer",
+];
 const REQUIRED_COMPOSE_VARS = [
   "MANUFACTURING_POSTGRES_USER",
   "MANUFACTURING_POSTGRES_PASSWORD",
@@ -19,7 +24,7 @@ function parseArgs(argv) {
   const opts = {
     project: "micro",
     environment: "production",
-    compose: "docker/docker-compose.yml",
+    compose: "docker/docker-compose.openship.yml",
     overrides: "docker/openship/service-env.production.json",
     composeJson: undefined,
     dryRun: false,
@@ -74,13 +79,28 @@ function buildServiceEnvironments(composeServices, overrides) {
       environment[key] = resolvePlaceholders(template, `${name}.${key}`);
     }
     const unresolved = Object.entries(environment)
-      .filter(([, value]) => String(value).includes(UNSET))
+      .filter(([, value]) => {
+        const text = String(value);
+        return text.includes(UNSET) || REDACTED_VALUES.has(text.trim());
+      })
       .map(([key]) => key);
     if (unresolved.length > 0) {
       throw new Error(`${name}: compose placeholder values must be overridden for: ${unresolved.join(", ")}`);
     }
     if (Object.keys(environment).length > 0) result[name] = environment;
   }
+
+  const identityEnvironment = result.identityservice ?? {};
+  const missingIdentity = REQUIRED_IDENTITY_ENV.filter((key) => {
+    const value = identityEnvironment[key];
+    return typeof value !== "string" || value.trim() === "" || REDACTED_VALUES.has(value.trim());
+  });
+  if (missingIdentity.length > 0) {
+    throw new Error(
+      `identityservice: required production environment values are missing or redacted: ${missingIdentity.join(", ")}`,
+    );
+  }
+
   return result;
 }
 
