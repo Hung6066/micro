@@ -30,7 +30,8 @@ public enum PendingMfaCompletionStatus
 {
     Success,
     Unauthorized,
-    InvalidCode
+    InvalidCode,
+    InvalidRecoveryCode
 }
 public sealed record PendingMfaCompletionResult(PendingMfaCompletionStatus Status, string? RedirectUrl);
 public sealed record PendingMfaContext(
@@ -95,6 +96,7 @@ public sealed class OidcLoginCompletionService(
     IIdentityService identityService,
     IMfaSecretEncryptor encryptor,
     TotpService totpService,
+    RecoveryCodeService recoveryCodeService,
     IDataProtectionProvider dataProtectionProvider,
     IConnectionMultiplexer redis,
     IConfiguration configuration)
@@ -205,6 +207,54 @@ public sealed class OidcLoginCompletionService(
             return new(PendingMfaCompletionStatus.InvalidCode, null);
 
         var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "otp");
+        return new(PendingMfaCompletionStatus.Success, redirectUrl);
+    }
+
+    public async Task<PendingMfaCompletionResult> CompletePendingRecoveryCodeAsync(
+        HttpContext context,
+        string recoveryCode,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(recoveryCode))
+            return new(PendingMfaCompletionStatus.InvalidRecoveryCode, null);
+
+        var pending = TryGetPendingMfaContext(context);
+        if (pending is null)
+            return new(PendingMfaCompletionStatus.Unauthorized, null);
+
+        var user = await userManager.FindByIdAsync(pending.UserId.ToString());
+        if (user is null || !user.IsActive)
+            return new(PendingMfaCompletionStatus.Unauthorized, null);
+
+        var codeHash = recoveryCodeService.HashCode(recoveryCode);
+        var consumeStatus = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            var mfa = await db.UserMfas
+                .FromSqlInterpolated($"SELECT * FROM user_mfa WHERE user_id = {pending.UserId} FOR UPDATE")
+                .AsNoTracking()
+                .SingleOrDefaultAsync(cancellationToken);
+            if (mfa is null || !mfa.IsEnabled)
+                return PendingMfaCompletionStatus.Unauthorized;
+
+            var index = Array.IndexOf(mfa.RecoveryCodes, codeHash);
+            if (index < 0)
+                return PendingMfaCompletionStatus.InvalidRecoveryCode;
+
+            var codes = mfa.RecoveryCodes.ToList();
+            codes.RemoveAt(index);
+            var updatedAt = DateTime.UtcNow;
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE user_mfa SET recovery_codes = {codes.ToArray()}, backup_codes_used = backup_codes_used + 1, updated_at = {updatedAt} WHERE user_id = {pending.UserId} AND is_enabled = TRUE",
+                cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return PendingMfaCompletionStatus.Success;
+        });
+
+        if (consumeStatus != PendingMfaCompletionStatus.Success)
+            return new(consumeStatus, null);
+
+        var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "recovery_code");
         return new(PendingMfaCompletionStatus.Success, redirectUrl);
     }
 

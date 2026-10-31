@@ -206,5 +206,6 @@ public static class IdentityOidcAuthorizeEndpoints
             .SelectMany(claim => claim.Value.Trim('[', ']').Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Any(value =>
                 string.Equals(value.Trim('"'), "otp", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(value.Trim('"'), "passkey", StringComparison.OrdinalIgnoreCase));
+                string.Equals(value.Trim('"'), "passkey", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value.Trim('"'), "recovery_code", StringComparison.OrdinalIgnoreCase));
 }

@@ -492,6 +492,7 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
             Mock.Of<IIdentityService>(),
             Mock.Of<IMfaSecretEncryptor>(),
             new TotpService(),
+            new RecoveryCodeService(),
             DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(Path.GetTempPath(), $"adaptive-mfa-tests-{Guid.NewGuid():N}"))),
             redis.Connection.Object,
             new ConfigurationBuilder().Build());

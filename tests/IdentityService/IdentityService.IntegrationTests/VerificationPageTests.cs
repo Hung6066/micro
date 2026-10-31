@@ -47,6 +47,11 @@ public sealed class VerificationPageTests
         body.Should().Contain("id=\"alternate-methods\"");
         body.Should().Contain("id=\"alternate-method-panel\" class=\"alternate-panel\" hidden");
         body.Should().Contain("id=\"totp-form\" class=\"totp-form\" method=\"post\" action=\"/Account/Mfa\" hidden");
+        body.Should().Contain("id=\"recovery-code-form\"");
+        body.Should().Contain("id=\"recovery-code-form\" class=\"totp-form\" method=\"post\" action=\"/Account/Mfa\"");
+        body.Should().Contain("id=\"recovery-code\"");
+        body.Should().Contain("Use one of your one-time recovery codes.");
+        body.Should().Contain("identity-login.js?v=20261101-mfa-recovery");
         body.Should().Contain("The verification code is invalid or has expired.");
         body.Should().NotContain("verification-page-client");
 
@@ -97,6 +102,10 @@ public sealed class VerificationPageTests
         body.Should().Contain(IdentityApiRoutes.NativeMfaStart);
         body.Should().Contain(IdentityApiRoutes.NativeMfaPoll);
         body.Should().Contain(IdentityApiRoutes.MfaVerify);
+        body.Should().Contain("JSON.stringify({ recoveryCode })");
+        body.Should().Contain("recoveryInput.value = ''");
+        body.Should().Contain("That recovery code is invalid or has already been used.");
+        body.Should().Contain("Use authenticator or recovery code");
 
         Regex.IsMatch(
                 body,

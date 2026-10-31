@@ -138,9 +138,16 @@ public static class MfaEndpoints
             CancellationToken ct) =>
         {
             var pending = completion.TryGetPendingMfaContext(httpContext);
+            var hasTotpCode = !string.IsNullOrWhiteSpace(request.Code);
+            var hasRecoveryCode = !string.IsNullOrWhiteSpace(request.RecoveryCode);
+            if (hasTotpCode == hasRecoveryCode)
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
+
             if (pending is not null)
             {
-                var result = await completion.CompletePendingTotpAsync(httpContext, request.Code, ct);
+                var result = hasRecoveryCode
+                    ? await completion.CompletePendingRecoveryCodeAsync(httpContext, request.RecoveryCode!, ct)
+                    : await completion.CompletePendingTotpAsync(httpContext, request.Code!, ct);
                 return result.Status switch
                 {
                     PendingMfaCompletionStatus.Success => Results.Ok(new
@@ -151,12 +158,16 @@ public static class MfaEndpoints
                         redirectUrl = result.RedirectUrl
                     }),
                     PendingMfaCompletionStatus.InvalidCode => Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidTotpCode }),
+                    PendingMfaCompletionStatus.InvalidRecoveryCode => Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidRecoveryCode }),
                     _ => Results.Unauthorized()
                 };
             }
 
             if (httpContext.Request.Cookies.ContainsKey("hishop_oidc_mfa"))
                 return Results.Unauthorized();
+
+            if (hasRecoveryCode)
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidRecoveryCode });
 
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
@@ -323,7 +334,8 @@ public static class MfaEndpoints
             .SelectMany(claim => claim.Value.Trim('[', ']').Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Any(value =>
                 string.Equals(value.Trim('"'), "otp", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(value.Trim('"'), "passkey", StringComparison.OrdinalIgnoreCase));
+                string.Equals(value.Trim('"'), "passkey", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value.Trim('"'), "recovery_code", StringComparison.OrdinalIgnoreCase));
 
     private static async Task<List<string>> GetPermissionsForRoles(
         IList<string> roleNames, IdentityDbContext db, Guid? userId, IConfiguration configuration, CancellationToken ct)
