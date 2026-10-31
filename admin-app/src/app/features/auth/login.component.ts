@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Subject, timer } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { finalize, takeUntil } from "rxjs/operators";
 import { MatCardModule } from "@angular/material/card";
 import { MatButtonModule } from "@angular/material/button";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
@@ -133,6 +133,16 @@ export class LoginComponent implements OnInit, OnDestroy {
           );
         }
       });
+
+    this.authService
+      .checkAuth()
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.checkingAuth = false;
+        }),
+      )
+      .subscribe();
 
     timer(0, 3000)
       .pipe(takeUntil(this.destroy$))
