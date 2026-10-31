@@ -2,7 +2,7 @@ window.__HISHOPE_RUNTIME_CONFIG__ = window.__HISHOPE_RUNTIME_CONFIG__ || {
   environment: /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname) ? "development" : "production",
   contractVersion: "1",
   apiOrigin: window.location.origin,
-  oidcAuthority: window.location.origin,
+  oidcAuthority: "https://identity-api.nacoms.com.vn/",
 };
 window.__HISHOPE_CONFIG__ = window.__HISHOPE_CONFIG__ || {
   apiOrigin: window.__HISHOPE_RUNTIME_CONFIG__.apiOrigin,
