@@ -3,6 +3,7 @@ name: micro
 # OpenShip Compose source for the Micro project.
 # Keep only application services here; PostgreSQL, Redis, RabbitMQ and identity
 # key files are supplied by OpenShip service bindings and Vault-backed mounts.
+# Production telemetry is sent to the OpenShip-managed in-cluster collector.
 # OpenShip reads service build, ports, environment, volumes, dependencies,
 # restart policy and healthcheck from Compose. Replica counts and Kubernetes
 # resource requests/limits are configured on the OpenShip service, not with
@@ -18,8 +19,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5003
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
       Persistence__RunMigrationsOnStartup: "false"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
       Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
@@ -75,8 +76,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5015
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
       Persistence__RunMigrationsOnStartup: "false"
       TenantPlacement__Enabled: "true"
       TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
@@ -144,8 +145,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5050
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
 
       Persistence__RunMigrationsOnStartup: "false"
       TenantPlacement__Enabled: "false"
@@ -192,8 +193,8 @@ services:
       SERVICE_COMMERCE_URL: http://commerceservice:5015
       SERVICE_CONTENT_URL: http://contentservice:5016
       SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
       CORS__AllowedOrigins: "http://localhost:8083,http://localhost:4205,http://localhost:4300"
     depends_on:
       identityservice: { condition: service_healthy }
