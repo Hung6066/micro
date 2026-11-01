@@ -9,6 +9,7 @@ on:
       - "internal-operator-app/**"
       - "manufacturing-buyer-app/**"
       - "docker/docker-compose.yml"
+      - "docker/docker-compose.openship.yml"
       - "docker/openship/**"
       - "openship.yaml"
       - "scripts/openship/**"

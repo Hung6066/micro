@@ -25,11 +25,11 @@ services:
     ports:
       - "${MANUFACTURING_IDENTITY_PORT:-5001}:5003"
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5003
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
-      Persistence__RunMigrationsOnStartup: "true"
+      Persistence__RunMigrationsOnStartup: "false"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
       Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-http://localhost:5001/}
       Jwt__ValidIssuers__1: his-hope-identity
@@ -87,11 +87,11 @@ services:
     ports:
       - "${MANUFACTURING_COMMERCE_PORT:-5015}:5015"
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5015
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
-      Persistence__RunMigrationsOnStartup: "true"
+      Persistence__RunMigrationsOnStartup: "false"
       TenantPlacement__Enabled: "true"
       TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
       SERVICE_IDENTITY_URL: http://identityservice:5003
@@ -129,9 +129,9 @@ services:
     ports:
       - "${MANUFACTURING_CONTENT_PORT:-5016}:5016"
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5016
-      Persistence__RunMigrationsOnStartup: "true"
+      Persistence__RunMigrationsOnStartup: "false"
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
       Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
@@ -166,12 +166,12 @@ services:
     ports:
       - "${MANUFACTURING_API_PORT:-5050}:5050"
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5050
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
 
-      Persistence__RunMigrationsOnStartup: "true"
+      Persistence__RunMigrationsOnStartup: "false"
       TenantPlacement__Enabled: "false"
       TenantPlacement__Services__manufacturing__DefaultConnectionName: ManufacturingDb
       TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
@@ -213,7 +213,7 @@ services:
     ports:
       - "${MANUFACTURING_GATEWAY_PORT:-5000}:5000"
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5000
       DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "0"
       SERVICE_IDENTITY_URL: http://identityservice:5003
