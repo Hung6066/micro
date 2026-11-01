@@ -48,24 +48,26 @@ public sealed class VaultDatabaseConnectionStringResolver(
             return configuredConnectionString;
         }
 
+        // Vault revokes leases when their issuing service token expires, even if
+        // the database lease reports a later expiration.
+        var token = tokenProvider.GetTokenAsync().GetAwaiter().GetResult();
         CachedCredential? cached;
         lock (sync)
             cache.TryGetValue(role, out cached);
 
-        if (cached is not null && cached.ExpiresAt > DateTimeOffset.UtcNow.AddSeconds(settings.LeaseRenewalThresholdSeconds))
+        if (cached is not null && cached.IssuingToken == token && cached.ExpiresAt > DateTimeOffset.UtcNow.AddSeconds(settings.LeaseRenewalThresholdSeconds))
             return ApplyCredential(configuredConnectionString, cached.Username, cached.Password);
 
-        var credential = FetchCredentialAsync(role).GetAwaiter().GetResult();
+        var credential = FetchCredentialAsync(role, token).GetAwaiter().GetResult();
         lock (sync)
             cache[role] = credential;
         logger.LogDebug("Resolved leased database credential for connection {ConnectionName} using Vault role {Role}; lease expires at {ExpiresAt}", connectionName, role, credential.ExpiresAt);
         return ApplyCredential(configuredConnectionString, credential.Username, credential.Password);
     }
 
-    private async Task<CachedCredential> FetchCredentialAsync(string role)
+    private async Task<CachedCredential> FetchCredentialAsync(string role, string token)
     {
         var vault = vaultOptions.CurrentValue;
-        var token = await tokenProvider.GetTokenAsync();
         var client = factory.CreateClient("vault");
         client.BaseAddress = new Uri(vault.Address.TrimEnd('/'));
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/v1/database/creds/{Uri.EscapeDataString(role)}");
@@ -83,7 +85,7 @@ public sealed class VaultDatabaseConnectionStringResolver(
             throw new InvalidOperationException($"Vault database role '{role}' returned a lease of {ttl}s, below the configured production minimum of {databaseOptions.CurrentValue.MinimumLeaseSeconds}s.");
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             throw new InvalidOperationException($"Vault database role '{role}' returned incomplete credentials.");
-        return new CachedCredential(username, password, DateTimeOffset.UtcNow.AddSeconds(Math.Max(60, ttl)));
+        return new CachedCredential(username, password, token, DateTimeOffset.UtcNow.AddSeconds(Math.Max(60, ttl)));
     }
 
     private static string ApplyCredential(string configured, string username, string password)
@@ -106,5 +108,5 @@ public sealed class VaultDatabaseConnectionStringResolver(
         _ => connectionName.ToLowerInvariant()
     };
 
-    private sealed record CachedCredential(string Username, string Password, DateTimeOffset ExpiresAt);
+    private sealed record CachedCredential(string Username, string Password, string IssuingToken, DateTimeOffset ExpiresAt);
 }
