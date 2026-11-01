@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE_URL } = require('../config/urls');
 const { signInThroughIdentity } = require('../helpers/sso-login');
+const { ensureSidebarVisible } = require('../helpers/ensure-sidebar-visible');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
@@ -11,8 +12,9 @@ async function login(page) {
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
+  await ensureSidebarVisible(page);
   const labelPattern = label === 'Lịch hẹn' ? /Lịch hẹn|Appointments/i : label;
-  const link = page.locator('mat-nav-list a').filter({ hasText: labelPattern });
+  const link = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: labelPattern });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
   await link.first().click();
   if (expectedPath) {
@@ -47,7 +49,7 @@ test.describe('Appointments', () => {
       test.skip(true, 'Protected appointment routes are unavailable in this environment.');
     }
 
-    await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 10000 });
+    await ensureSidebarVisible(page);
   });
 
   test('TC-APT-01: Appointment list loads', async ({ page }) => {
@@ -108,7 +110,10 @@ test.describe('Appointments', () => {
   test('TC-APT-04: Submit empty form shows validation', async ({ page }) => {
     await navigateToSidebar(page, 'Lịch hẹn', '/appointments');
 
-    const createBtn = page.locator('button:has-text("Thêm lịch hẹn"), button:has-text("Thêm mới")').first();
+    const createBtn = page.locator(
+      'button:has-text("Thêm lịch hẹn"), button:has-text("Thêm mới"), ' +
+      'button:has-text("New appointment"), button:has-text("Add appointment")'
+    ).first();
     if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await createBtn.click();
       await page.waitForURL(/\/appointments\/new/, { timeout: 10000 });
@@ -183,7 +188,7 @@ test.describe('Appointments', () => {
 
     const cancelBtn = page.locator(
       'button:has-text("Hủy"), a:has-text("Hủy"), ' +
-      'button:has-text("Cancel"), a[routerLink="/appointments"]'
+      'button:has-text("Cancel")'
     ).first();
 
     if (await cancelBtn.isVisible().catch(() => false)) {

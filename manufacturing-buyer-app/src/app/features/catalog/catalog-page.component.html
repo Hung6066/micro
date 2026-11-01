@@ -1,0 +1,57 @@
+<section class="page-shell">
+  <div class="fx-container">
+    <div class="page-head">
+      <div>
+        <p class="page-head__eyebrow">{{ 'buyer.catalog.eyebrow' | hhTranslate }}</p>
+        <h1>{{ 'buyer.catalog.title' | hhTranslate }}</h1>
+        <p>{{ 'buyer.catalog.subtitle' | hhTranslate }}</p>
+      </div>
+      <div class="page-head__tools">
+        @if (searchQuery) {
+          <div class="search-chip">{{ 'buyer.catalog.results' | hhTranslate }} <strong>{{ searchQuery }}</strong></div>
+        }
+        <label class="sort-control">
+          <span>{{ 'buyer.catalog.sort' | hhTranslate }}</span>
+          <select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()">
+            @for (opt of sortOptions; track opt.value) {
+              <option [ngValue]="opt.value">{{ opt.label | hhTranslate }}</option>
+            }
+          </select>
+        </label>
+      </div>
+    </div>
+
+    @if (loading) {
+      <div class="state">{{ 'buyer.catalog.loading' | hhTranslate }}</div>
+    } @else if (error) {
+      <div class="state state--error">{{ error | hhTranslate }}</div>
+    } @else if (!filtered.length) {
+      <div class="state">{{ 'buyer.catalog.empty' | hhTranslate }}</div>
+    } @else {
+      <div class="product-grid">
+        @for (product of filtered; track product.id) {
+          <article class="product-card fx-card">
+            <div class="product-card__media">
+              <img [src]="imageUrl(product)" [alt]="product.name" loading="lazy" />
+            </div>
+            <a [routerLink]="['/catalog', product.id]" class="product-card__link">
+              <span class="product-card__category">{{ categoryLabel(product) | hhTranslate }}</span>
+              <h3>{{ product.name }}</h3>
+            </a>
+            <p class="product-card__desc">{{ product.description }}</p>
+            <p class="product-card__availability">
+              <span>{{ 'buyer.catalog.available' | hhTranslate }}</span>
+              <strong>{{ availableQuantity(product) }}</strong>
+            </p>
+            <div class="product-card__footer">
+              <strong>{{ i18n.formatCurrency(product.unitPrice, 'VND') }}</strong>
+              <button type="button" class="fx-btn-primary" (click)="addToCart(product)">
+                {{ 'buyer.catalog.addToCart' | hhTranslate }}
+              </button>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </div>
+</section>

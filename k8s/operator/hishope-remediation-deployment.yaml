@@ -45,7 +45,8 @@ spec:
           {
             "RemediationOperator": {
               "SlackWebhookUrl": "{{ .Data.data.slack_webhook_url }}",
-              "PagerDutyRoutingKey": "{{ .Data.data.pagerduty_routing_key }}"
+              "PagerDutyRoutingKey": "{{ .Data.data.pagerduty_routing_key }}",
+              "WebhookBearerToken": "{{ .Data.data.webhook_bearer_token }}"
             }
           }
           {{- end -}}

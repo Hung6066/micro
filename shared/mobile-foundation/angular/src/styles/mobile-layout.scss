@@ -1,0 +1,201 @@
+/**
+ * Shared mobile shell and field-form spacing constraints.
+ * Import once in each Capacitor app global stylesheet.
+ */
+:root {
+  --hh-mobile-bottom-nav-height: 4.75rem;
+  --hh-mobile-shell-content-pad-bottom: calc(
+    var(--hh-mobile-bottom-nav-height) + env(safe-area-inset-bottom) + var(--space-xl, 1.5rem)
+  );
+  --hh-mobile-field-gap: var(--space-md, 0.75rem);
+  --hh-mobile-field-stack-gap: var(--space-xs, 0.35rem);
+  --hh-mobile-field-control-min-height: var(--touch-target, 2.75rem);
+}
+
+.hh-mobile-shell-content {
+  box-sizing: border-box;
+  min-width: 0;
+  padding-bottom: var(--hh-mobile-shell-content-pad-bottom);
+}
+
+.hh-mobile-field-page {
+  display: grid;
+  gap: var(--space-lg, 1rem);
+  min-width: 0;
+}
+
+.hh-mobile-field-page > * {
+  min-width: 0;
+}
+
+.hh-mobile-field-card {
+  display: grid;
+  gap: var(--hh-mobile-field-gap);
+  min-width: 0;
+  padding: var(--space-lg, 1rem);
+  border: 1px solid var(--border-default, #c7d1cb);
+  border-radius: var(--radius-feature, 1rem);
+  background: var(--surface-white, #fff);
+}
+
+.hh-mobile-field-card label,
+.hh-mobile-field-row {
+  display: grid;
+  gap: var(--hh-mobile-field-stack-gap);
+  min-width: 0;
+  color: var(--text-primary, #1f2421);
+  font-weight: 700;
+  font-size: var(--font-size-label, 0.8125rem);
+}
+
+.hh-mobile-field-card input,
+.hh-mobile-field-card select,
+.hh-mobile-field-card textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--hh-mobile-field-control-min-height);
+  box-sizing: border-box;
+  padding: var(--space-sm, 0.5rem) var(--space-md, 0.75rem);
+  border: 1px solid var(--border-default, #c7d1cb);
+  border-radius: var(--radius-chip, 0.6rem);
+  background: var(--surface-white, #fff);
+  color: var(--text-primary, #1f2421);
+  font: inherit;
+}
+
+.hh-mobile-field-card fieldset {
+  display: grid;
+  gap: var(--hh-mobile-field-gap);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-md, 0.75rem);
+  border: 1px solid var(--border-default, #c7d1cb);
+  border-radius: var(--radius-feature, 0.75rem);
+}
+
+.hh-mobile-field-card fieldset legend {
+  padding: 0 var(--space-xs, 0.35rem);
+  font-weight: 700;
+}
+
+.hh-mobile-field-card > button,
+.hh-mobile-field-card fieldset button {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--hh-mobile-field-control-min-height);
+  margin-top: var(--space-2xs, 0.25rem);
+  border: 0;
+  border-radius: var(--radius-chip, 0.75rem);
+  background: var(--color-primary, #006b4f);
+  color: var(--color-on-primary, #fff);
+  font: inherit;
+  font-weight: 700;
+}
+
+.hh-mobile-field-card > * + fieldset,
+.hh-mobile-field-card fieldset + fieldset {
+  margin-top: var(--space-xs, 0.35rem);
+}
+
+.hh-mobile-account-menu {
+  display: grid;
+  gap: var(--space-2xs, 0.25rem);
+  width: min(100vw - var(--space-2xl, 1.5rem), var(--max-width-popover-compact, 18rem));
+  max-height: min(72dvh, 28rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-sm, 0.5rem);
+  border: 1px solid var(--border-default, #c7d1cb);
+  border-radius: var(--radius-panel, 0.7rem);
+  background: var(--surface-white, #fff);
+  box-shadow: var(--shadow-shell-menu, 0 0.5rem 1.5rem rgb(20 45 35 / 15%));
+}
+
+.hh-mobile-account-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 0.75rem);
+  width: 100%;
+  min-height: var(--hh-mobile-field-control-min-height);
+  padding: 0 var(--space-md, 0.75rem);
+  border: 0;
+  border-radius: var(--radius-chip, 0.45rem);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.hh-mobile-account-menu__item:hover,
+.hh-mobile-account-menu__item:focus-visible {
+  background: var(--surface-hover, #eef5f1);
+  outline: 0;
+}
+
+.hh-mobile-account-menu__item--danger {
+  color: var(--color-danger, #b3261e);
+}
+
+.hh-mobile-account-menu__item--disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.hh-mobile-account-menu__divider {
+  height: 1px;
+  margin: var(--space-2xs, 0.25rem) 0;
+  background: var(--border-light, #dedbd3);
+}
+
+.hh-mobile-account-menu__section-label {
+  margin: var(--space-xs, 0.35rem) var(--space-md, 0.75rem) 0;
+  color: var(--text-secondary, #68756d);
+  font-size: var(--font-size-overline, 0.68rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hh-mobile-account-menu__note {
+  margin: 0 var(--space-md, 0.75rem) var(--space-xs, 0.35rem);
+  color: var(--text-secondary, #68756d);
+  font-size: var(--font-size-label, 0.8125rem);
+  line-height: 1.45;
+}
+
+.hh-mobile-account-menu hh-mobile-pin {
+  display: block;
+  min-width: 0;
+  margin-top: var(--space-xs, 0.35rem);
+}
+
+.hh-mobile-bottom-nav {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 3;
+  display: grid;
+  padding: var(--space-sm, 0.55rem) var(--space-sm, 0.5rem)
+    calc(var(--space-sm, 0.55rem) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-light, #dedbd3);
+  background: var(--surface-white, #fff);
+}
+
+.hh-mobile-bottom-nav a {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2xs, 0.2rem);
+  min-width: 0;
+  padding: var(--space-xs, 0.45rem) var(--space-2xs, 0.2rem);
+  color: var(--text-secondary, #68756d);
+  text-align: center;
+  text-decoration: none;
+  font-size: var(--font-size-caption, 0.68rem);
+  font-weight: 700;
+}
+
+.hh-mobile-bottom-nav a.active {
+  color: var(--color-primary, #006b4f);
+}

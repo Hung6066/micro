@@ -15,16 +15,20 @@ export type HisHopeButtonSize = 'small' | 'medium' | 'large';
     </button>
   `,
   styles: [`
-    :host { display: inline-block; }
-    button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); min-height: var(--control-height); padding: 0 var(--space-lg); border: 1px solid transparent; border-radius: var(--radius-button); font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; transition: background-color .15s ease, border-color .15s ease, opacity .15s ease; }
+    :host { display: inline-flex; vertical-align: middle; }
+    button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); min-height: var(--control-height); padding: 0 var(--space-lg); border: 1px solid transparent; border-radius: var(--radius-button); font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard); }
     button:disabled { cursor: not-allowed; opacity: .62; }
     .hh-button--small { min-height: var(--space-3xl); padding: 0 var(--space-md); font-size: var(--font-size-caption); }
     .hh-button--large { min-height: var(--space-4xl); padding: 0 var(--space-xl); }
-    .hh-button--primary { background: var(--color-primary); color: var(--color-on-primary); }
-    .hh-button--secondary { border-color: var(--border-default); background: var(--surface-white); color: var(--text-primary); }
-    .hh-button--danger { background: var(--color-danger); color: var(--color-on-danger); }
+    .hh-button--primary { background: var(--button-primary-bg, var(--color-primary)); color: var(--color-on-primary); }
+    .hh-button--secondary { border-color: var(--button-secondary-border, var(--border-default)); background: var(--button-secondary-bg, var(--surface-white)); color: var(--button-secondary-text, var(--text-primary)); }
+    .hh-button--danger { background: var(--button-danger-bg, var(--color-danger)); color: var(--color-on-danger); }
     .hh-button--ghost { background: transparent; color: var(--text-primary); }
     .hh-button--icon-only { width: var(--button-height); padding: 0; }
+    button:hover:not(:disabled) { border-color: var(--border-strong); }
+    .hh-button--primary:hover:not(:disabled) { background: var(--button-primary-hover, var(--color-primary-hover)); }
+    .hh-button--secondary:hover:not(:disabled) { background: var(--button-secondary-hover, var(--surface-muted)); }
+    button:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus); outline-offset: var(--focus-ring-offset); }
     .hh-button__content--hidden { visibility: hidden; }
     .hh-button__spinner { width: var(--size-timeline-rail); height: var(--size-timeline-rail); border: var(--focus-ring-width) solid currentColor; border-right-color: transparent; border-radius: var(--radius-full); animation: hh-button-spin .7s linear infinite; position: absolute; }
     @keyframes hh-button-spin { to { transform: rotate(360deg); } }

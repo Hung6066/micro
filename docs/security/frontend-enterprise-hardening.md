@@ -10,7 +10,7 @@
 | Android SPKI pin algorithm (RFC 7469) | Done | `mobile-app/android/.../HisHopeSpkiPin.java` |
 | Android HTTPS via native pinned transport (prod) | Done | `mobile-native-http.interceptor.ts` |
 | Bundled pin allow-list (Android raw + iOS plist) | Done | `certificate_pins.json`, `HisHopeCertificatePins.plist` |
-| CI pin injection script | Done | `scripts/inject-mobile-cert-pins.mjs` |
+| CI pin injection script | Done | `scripts/prepare-mobile-release.mjs` (legacy wrapper: `scripts/inject-mobile-cert-pins.mjs`) |
 | Android OIDC WebView hardening | Done | `OidcAuthActivity.java` |
 | Encrypted PIN storage (Android) | Done | `HisHopeSecurePrefs.java` |
 | PIN Keychain storage (iOS) | Done | `HisHopeSecurityPlugin.swift` |
@@ -21,7 +21,7 @@
 
 ### Release checklist (mobile)
 
-1. Set `HISHOPE_CERT_PINS` and run `npm run inject:mobile-cert-pins`
+1. Set the production release inputs documented in `production-security-ops-checklist.md` and run `npm run prepare:mobile-release`. The legacy `npm run inject:mobile-cert-pins` command delegates to the same fail-closed flow.
 2. Replace signing cert fingerprint in `mobile-app/public/.well-known/assetlinks.json`
 3. Configure iOS Associated Domains for `mobile.his-hope.example`
 4. Verify release build rejects placeholder pins

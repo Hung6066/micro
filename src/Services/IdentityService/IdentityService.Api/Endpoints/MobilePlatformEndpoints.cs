@@ -438,5 +438,5 @@ public static class MobilePlatformEndpoints
 
     private static string? GetUserId(HttpContext context) =>
         context.User.FindFirstValue(ClaimTypes.NameIdentifier)
-        ?? context.User.FindFirstValue("sub");
+        ?? context.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
 }

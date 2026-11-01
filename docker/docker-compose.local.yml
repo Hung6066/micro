@@ -1,0 +1,1594 @@
+services:
+  postgres-wal-archive-init:
+    image: alpine:3.20
+    container_name: his-hope-postgres-wal-archive-init
+    command: ["/bin/sh", "-c", "mkdir -p /var/lib/postgresql/wal-archive && chown -R 999:999 /var/lib/postgresql/wal-archive"]
+    volumes:
+      - postgres_wal_archive:/var/lib/postgresql/wal-archive
+    restart: "no"
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: his-hope-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb,harnessdb,manufacturingdb,commercedb,contentdb
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - track_io_timing=on
+      - -c
+      - log_min_duration_statement=${POSTGRES_LOG_MIN_DURATION_MS:-500}
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=60s
+      - -c
+      - archive_command=/bin/sh /usr/local/bin/archive-wal.sh %p %f
+      - -c
+      - hba_file=/etc/postgresql/pg_hba-pitr.conf
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+      - ./archive-wal.sh:/usr/local/bin/archive-wal.sh:ro
+      - ./pg_hba-pitr.conf:/etc/postgresql/pg_hba-pitr.conf:ro
+      - postgres_wal_archive:/var/lib/postgresql/wal-archive
+    ports:
+      - "5433:5432"
+    healthcheck:
+      # Check the database used by Identity, not only the postmaster socket.
+      # This prevents dependent services from starting during PostgreSQL recovery.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d identitydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 1g }
+        reservations: { memory: 256m }
+
+  postgres-replica:
+    image: postgres:16-alpine
+    container_name: his-hope-postgres-replica
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    depends_on:
+      - postgres
+    profiles: ["replica"]
+
+  postgres-restore-drill:
+    image: postgres:16
+    container_name: his-hope-postgres-restore-drill
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb
+    volumes:
+      - postgres_restore_drill_data:/var/lib/postgresql/data
+      - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: his-hope-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: his-hope-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: his-hope-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: false
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: kibana:8.12.0
+    container_name: his-hope-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+
+  consul:
+    image: hashicorp/consul:1.18
+    container_name: his-hope-consul
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    command: agent -server -bootstrap-expect=1 -ui -client=0.0.0.0 -bind=0.0.0.0
+    volumes:
+      - consul_data:/consul/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: his-hope-jaeger
+    user: "0:0"
+    ports:
+      - "16686:16686"
+      - "24317:4317"
+      - "24318:4318"
+      - "6831:6831/udp"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: "badger"
+      BADGER_EPHEMERAL: "false"
+      BADGER_DIRECTORY_KEY: "/badger/key"
+      BADGER_DIRECTORY_VALUE: "/badger/data"
+    volumes:
+      - jaeger_data:/badger
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    container_name: his-hope-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      jaeger: { condition: service_healthy }
+    restart: unless-stopped
+
+  glitchtip-postgres:
+    image: postgres:16-alpine
+    container_name: his-hope-glitchtip-postgres
+    environment:
+      POSTGRES_DB: glitchtip
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: ${GLITCHTIP_DB_PASSWORD:-glitchtip-dev-change-me}
+    volumes:
+      - glitchtip_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip -d glitchtip"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  glitchtip-valkey:
+    image: valkey/valkey:8-alpine
+    container_name: his-hope-glitchtip-valkey
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - glitchtip_valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  glitchtip:
+    image: ${GLITCHTIP_IMAGE:-glitchtip/glitchtip:6}
+    container_name: his-hope-glitchtip
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://glitchtip:${GLITCHTIP_DB_PASSWORD:-glitchtip-dev-change-me}@glitchtip-postgres:5432/glitchtip
+      VALKEY_URL: redis://glitchtip-valkey:6379
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-glitchtip-secret-key}
+      EMAIL_URL: ${GLITCHTIP_EMAIL_URL:-consolemail://}
+      GLITCHTIP_DOMAIN: ${GLITCHTIP_DOMAIN:-http://localhost:8000}
+      DEFAULT_FROM_EMAIL: ${GLITCHTIP_FROM_EMAIL:-noreply@his-hope.local}
+      ENABLE_USER_REGISTRATION: ${GLITCHTIP_ENABLE_USER_REGISTRATION:-false}
+      ENABLE_ORGANIZATION_CREATION: ${GLITCHTIP_ENABLE_ORGANIZATION_CREATION:-false}
+      SERVER_ROLE: all_in_one
+      GLITCHTIP_RETENTION_DAYS: ${GLITCHTIP_RETENTION_DAYS:-30}
+      ALLOWED_HOSTS: ${GLITCHTIP_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    volumes:
+      - glitchtip_uploads:/code/uploads
+    depends_on:
+      glitchtip-postgres: { condition: service_healthy }
+      glitchtip-valkey: { condition: service_healthy }
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: his-hope-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      postgres-wal-archive-init: { condition: service_completed_successfully }
+
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: his-hope-loki
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Persistent local Vault Transit instance. Replace the bootstrap token and
+  # file storage with Raft/auto-unseal/workload identity outside Compose.
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: his-hope-vault
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      VAULT_ADDR: http://127.0.0.1:8200
+    command: vault server -config=/vault/config/vault.hcl
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/file
+      - ./vault/vault.hcl:/vault/config/vault.hcl:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json >/dev/null 2>&1; code=$$?; test $$code -le 2"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  vault-init:
+    image: hashicorp/vault:1.17
+    container_name: his-hope-vault-init
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      VAULT_TRANSIT_KEY_NAME: ${VAULT_TRANSIT_KEY_NAME:-his-hope-backup-encryption}
+    volumes:
+      - vault_data:/vault/file
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        set -eu;
+        until wget -qO- 'http://vault:8200/v1/sys/health?standbyok=true&uninitcode=200&sealedcode=200' >/dev/null 2>&1; do sleep 2; done;
+        if [ ! -f /vault/file/bootstrap.json ]; then
+          VAULT_ADDR=$$VAULT_ADDR vault operator init -key-shares=1 -key-threshold=1 -format=json > /vault/file/bootstrap.json;
+          chmod 600 /vault/file/bootstrap.json;
+        fi;
+        UNSEAL_KEY=$$(sed -n '/"unseal_keys_b64"/{n;s/.*"\([^\"]*\)".*/\1/p;}' /vault/file/bootstrap.json);
+        INIT_ROOT=$$(sed -n 's/.*"root_token"[[:space:]]*:[[:space:]]*"\([^\"]*\)".*/\1/p' /vault/file/bootstrap.json);
+        VAULT_ADDR=$$VAULT_ADDR vault operator unseal "$$UNSEAL_KEY" >/dev/null 2>&1 || true;
+        VAULT_ADDR=$$VAULT_ADDR VAULT_TOKEN="$$INIT_ROOT" vault token create -id="$${VAULT_DEV_ROOT_TOKEN_ID:-root}" -policy=root -orphan -ttl=0s >/dev/null 2>&1 || true;
+        VAULT_ADDR=$$VAULT_ADDR VAULT_TOKEN="$${VAULT_DEV_ROOT_TOKEN_ID:-root}" vault secrets enable -path=transit transit 2>/dev/null || true;
+        VAULT_ADDR=$$VAULT_ADDR VAULT_TOKEN="$${VAULT_DEV_ROOT_TOKEN_ID:-root}" vault write -f transit/keys/$${VAULT_TRANSIT_KEY_NAME:-his-hope-backup-encryption} 2>/dev/null || true;
+        VAULT_ADDR=$$VAULT_ADDR VAULT_TOKEN="$${VAULT_DEV_ROOT_TOKEN_ID:-root}" vault read transit/keys/$${VAULT_TRANSIT_KEY_NAME:-his-hope-backup-encryption}
+    depends_on:
+      vault: { condition: service_healthy }
+    restart: "no"
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: his-hope-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    container_name: his-hope-redis-exporter
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: his-hope-alertmanager
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: his-hope-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Application Services
+  identityservice:
+    build:
+      context: ..
+      dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
+    container_name: his-hope-identity
+    networks:
+      default:
+        aliases:
+          - identity
+    ports:
+      # Identity's Kestrel web endpoint is 5003; 5007 is the internal gRPC
+      # endpoint. Keep host port 5001 for the public local OIDC origin.
+      - "5001:5003"
+      - "5012:5012"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5003
+      # Self-contained development default; production must provide the full
+      # connection string through the runtime contract/secret provider.
+      ConnectionStrings__IdentityDb: ${DATABASE_IDENTITY_URL:-Host=postgres;Database=identitydb;Username=postgres;Password=postgres}
+      Persistence__RunMigrationsOnStartup: "true"
+      # Keep the local service name as a safe default when no host .env file is
+      # loaded; an empty connection string causes the Identity process to crash
+      # before health checks can run.
+      ConnectionStrings__Redis: ${REDIS_URL:-redis://redis:6379}
+      # Use the public OIDC issuer for both OIDC and service-issued JWTs.
+      # This keeps the fallback JwtBearer handler aligned with OpenIddict validation.
+      Jwt__Issuer: http://localhost:5000/
+      # Keep the internal hostname as an explicit legacy issuer during migration.
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: http://localhost:5000/
+      Jwt__Expiry: "08:00:00"
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__AllowHttp: "true"
+      Redis__ConnectionString: redis
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Consumers__TenantProvisioningEnabled: ${IDENTITY_TENANT_PROVISIONING_ENABLED:-true}
+      Outbox__TenantProvisioningEnabled: ${IDENTITY_TENANT_PROVISIONING_OUTBOX_ENABLED:-true}
+      Vault__Address: ${VAULT_ADDR:-}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-true}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-false}
+      # Development-only fallback for seeded M2M clients when Vault is not
+      # configured. Identity derives the secret from this seed and never uses
+      # it outside ASPNETCORE_ENVIRONMENT=Development.
+      Vault__DevelopmentSecretSeed: ${IDENTITY_DEV_CLIENT_SECRET_SEED:-his-hope-local-only-m2m-seed}
+      # Firebase is optional in local compose. Do not bind-mount a missing host
+      # file: Docker creates it as a directory and the Identity container then
+      # fails before startup. Production can provide the JSON through a secret
+      # or set PushProviders__FirebaseCredentialsFile explicitly.
+      PushProviders__FirebaseCredentialsFile: ${FIREBASE_CREDENTIALS_FILE:-}
+      PushProviders__FirebaseCredentialsJson: ${FIREBASE_ACCOUNT_JSON:-}
+      PushProviders__ApnsEndpoint: ${APNS_ENDPOINT:-https://api.push.apple.com}
+      OpenIddict__Signing__PrivateKeyPath: ${OPENIDDICT_SIGNING_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-private-key.pem}
+      # Nested legacy JWTs used by session exchange must remain JWE encrypted.
+      Jwt__RsaEncryptionPrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
+      # OIDC access-token encryption must use the same persistent key as every
+      # downstream JWT validator. Do not fall back to an ephemeral development key.
+      OpenIddict__Encryption__PrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
+      OpenIddict__Encryption__KeyId: oidc-encryption-v1
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # ─── OpenIddict OIDC Configuration ───
+      OpenIddict__Issuer: ${OIDC_ISSUER:-http://localhost:5000}
+      OpenIddict__InternalJwksUri: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/jwks
+      OpenIddict__AccessTokenLifetime: ${OIDC_ACCESS_TOKEN_LIFETIME:-01:00:00}
+      OpenIddict__RefreshTokenLifetime: ${OIDC_REFRESH_TOKEN_LIFETIME:-7.00:00:00}
+      OpenIddict__AuthorizationCodeLifetime: ${OIDC_CODE_LIFETIME:-00:01:00}
+      Dpop__RequiredClientIds__0: his-hope-mobile
+      Dpop__RequiredClientIds__1: his-hope-operator-mobile
+      # WebAuthn origins used by the local identity login page and admin app.
+      # Production deployments should override these with the public HTTPS origins.
+      Passkeys__RpId: ${PASSKEYS_RP_ID:-}
+      Passkeys__Origins__0: ${PASSKEYS_ORIGIN_0:-}
+      Passkeys__Origins__1: ${PASSKEYS_ORIGIN_1:-}
+      Passkeys__Origins__2: ${PASSKEYS_ORIGIN_2:-}
+      Passkeys__Origins__3: ${PASSKEYS_ORIGIN_3:-}
+      Passkeys__Origins__4: ${PASSKEYS_ORIGIN_4:-}
+      Mobile__AppPolicy__MinimumVersion: 1.0.0
+      Mobile__AppPolicy__LatestVersion: 1.0.0
+      Mobile__AppPolicy__ForceUpgrade: "false"
+      Mobile__AppPolicy__Maintenance: "false"
+      AUTHZ_PDP_MODE: ${AUTHZ_PDP_MODE:-disabled}
+      AUTHZ_OPENFGA_URL: ${AUTHZ_OPENFGA_URL:-}
+      AUTHZ_OPENFGA_STORE_ID: ${AUTHZ_OPENFGA_STORE_ID:-}
+      AUTHZ_OPENFGA_MODEL_ID: ${AUTHZ_OPENFGA_MODEL_ID:-}
+      AUTHZ_OPENFGA_TOKEN: ${AUTHZ_OPENFGA_TOKEN:-}
+      DEVICE_POSTURE_MODE: ${DEVICE_POSTURE_MODE:-observe}
+      DEVICE_POSTURE_PROVIDERS: ${DEVICE_POSTURE_PROVIDERS:-chrome-enterprise,advanced-compliance,windows-local-login,play-integrity,app-attest}
+      DEVICE_POSTURE_TTL_SECONDS: ${DEVICE_POSTURE_TTL_SECONDS:-900}
+      DEVICE_POSTURE_REQUIRED_SIGNALS: ${DEVICE_POSTURE_REQUIRED_SIGNALS:-device_secure,not_rooted}
+      DEVICE_POSTURE_ENFORCE_CLINICAL: ${DEVICE_POSTURE_ENFORCE_CLINICAL:-false}
+      PASSWORD_HISTORY_ENABLED: ${PASSWORD_HISTORY_ENABLED:-true}
+      PASSWORD_HISTORY_COUNT: ${PASSWORD_HISTORY_COUNT:-5}
+      IdentityRetention__CompletedOutboxDays: ${IDENTITY_RETENTION_COMPLETED_OUTBOX_DAYS:-7}
+      IdentityRetention__TelemetryDays: ${IDENTITY_RETENTION_TELEMETRY_DAYS:-30}
+      IdentityRetention__SecurityEventDays: ${IDENTITY_RETENTION_SECURITY_EVENT_DAYS:-90}
+      IdentityRetention__DevicePostureDays: ${IDENTITY_RETENTION_DEVICE_POSTURE_DAYS:-7}
+      IdentityRetention__ProcessedPushDays: ${IDENTITY_RETENTION_PROCESSED_PUSH_DAYS:-7}
+      IdentityRetention__BatchSize: ${IDENTITY_RETENTION_BATCH_SIZE:-500}
+      IdentityRetention__IntervalMinutes: ${IDENTITY_RETENTION_INTERVAL_MINUTES:-30}
+      IdentityRetention__LockTtlMinutes: ${IDENTITY_RETENTION_LOCK_TTL_MINUTES:-10}
+      AUDIT_APPEND_ONLY: ${AUDIT_APPEND_ONLY:-true}
+      AUDIT_REDACTION_ENABLED: ${AUDIT_REDACTION_ENABLED:-true}
+      EXTERNAL_FEDERATION_ENABLED: ${EXTERNAL_FEDERATION_ENABLED:-false}
+      SCIM_M2M_ENABLED: ${SCIM_M2M_ENABLED:-true}
+      PROVISIONING_MODE: ${PROVISIONING_MODE:-dry-run}
+      PROVISIONING_TARGETS: ${PROVISIONING_TARGETS:-scim,entra,google-workspace}
+      SSF_ENABLED: ${SSF_ENABLED:-false}
+      MTLS_ENABLED: ${MTLS_ENABLED:-false}
+      RADIUS_EAP_TLS_ENABLED: ${RADIUS_EAP_TLS_ENABLED:-false}
+      CSV_EXPORT_ENABLED: ${CSV_EXPORT_ENABLED:-true}
+      # Outbound adapters remain disabled/dry-run until their tenant endpoint
+      # and Vault-backed credential reference are explicitly configured.
+      Provisioning__Scim__BaseUrl: ${PROVISIONING_SCIM_BASE_URL:-}
+      Provisioning__Scim__TokenUrl: ${PROVISIONING_SCIM_TOKEN_URL:-}
+      Provisioning__Scim__ClientId: ${PROVISIONING_SCIM_CLIENT_ID:-}
+      Provisioning__Scim__Scope: ${PROVISIONING_SCIM_SCOPE:-scim.write}
+      Provisioning__Entra__Enabled: ${PROVISIONING_ENTRA_ENABLED:-false}
+      Provisioning__Entra__BaseUrl: ${PROVISIONING_ENTRA_BASE_URL:-https://graph.microsoft.com/v1.0}
+      Provisioning__Entra__TokenUrl: ${PROVISIONING_ENTRA_TOKEN_URL:-}
+      Provisioning__Entra__ClientId: ${PROVISIONING_ENTRA_CLIENT_ID:-}
+      Provisioning__Entra__Scope: ${PROVISIONING_ENTRA_SCOPE:-https://graph.microsoft.com/.default}
+      Provisioning__GoogleWorkspace__Enabled: ${PROVISIONING_GOOGLE_WORKSPACE_ENABLED:-false}
+      Provisioning__GoogleWorkspace__BaseUrl: ${PROVISIONING_GOOGLE_WORKSPACE_BASE_URL:-https://admin.googleapis.com/admin/directory/v1}
+      Provisioning__GoogleWorkspace__TokenUrl: ${PROVISIONING_GOOGLE_WORKSPACE_TOKEN_URL:-https://oauth2.googleapis.com/token}
+      Provisioning__GoogleWorkspace__ServiceAccountSecretId: ${PROVISIONING_GOOGLE_WORKSPACE_SECRET_ID:-google-workspace-service-account}
+      Provisioning__GoogleWorkspace__DelegatedAdmin: ${PROVISIONING_GOOGLE_WORKSPACE_DELEGATED_ADMIN:-}
+      SecuritySignals__Enabled: ${SSF_ENABLED:-false}
+      SecuritySignals__Subscriptions__0__Url: ${SSF_RECEIVER_URL:-}
+      SecuritySignals__Subscriptions__0__Audience: ${SSF_RECEIVER_AUDIENCE:-}
+      Mtls__TrustedCaFile: ${MTLS_TRUSTED_CA_FILE:-/etc/hishop/certs/client-ca.pem}
+      Radius__EapTls__Enabled: ${RADIUS_EAP_TLS_ENABLED:-false}
+      # ─── Federation (optional) ───
+      Identity__BootstrapAdmin__Password: ${IDENTITY_BOOTSTRAP_ADMIN_PASSWORD:-}
+      Identity__BootstrapAdmin__ResetPassword: ${IDENTITY_BOOTSTRAP_ADMIN_RESET_PASSWORD:-false}
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      Authentication__Microsoft__ClientId: ${MS_CLIENT_ID:-}
+      Authentication__Microsoft__ClientSecret: ${MS_CLIENT_SECRET:-}
+      Authentication__Entra__Authority: ${ENTRA_AUTHORITY:-}
+      Authentication__Entra__ClientId: ${ENTRA_CLIENT_ID:-}
+      Authentication__Entra__ClientSecret: ${ENTRA_CLIENT_SECRET:-}
+      Authentication__ExternalSources__0__Name: ${EXTERNAL_SOURCE_0_NAME:-}
+      Authentication__ExternalSources__0__DisplayName: ${EXTERNAL_SOURCE_0_DISPLAY_NAME:-}
+      Authentication__ExternalSources__0__Authority: ${EXTERNAL_SOURCE_0_AUTHORITY:-}
+      Authentication__ExternalSources__0__ClientId: ${EXTERNAL_SOURCE_0_CLIENT_ID:-}
+      Authentication__ExternalSources__0__ClientSecret: ${EXTERNAL_SOURCE_0_CLIENT_SECRET:-}
+      Conglomerate__Enabled: ${CONGLOMERATE_ENABLED:-true}
+      Conglomerate__SkipDemoHospitalScope: ${CONGLOMERATE_SKIP_DEMO_HOSPITAL:-true}
+      Conglomerate__SeedPilotMemberships: ${CONGLOMERATE_SEED_PILOT_MEMBERSHIPS:-true}
+      Conglomerate__SeedPilotUsers: ${CONGLOMERATE_SEED_PILOT_USERS:-true}
+      Conglomerate__ResetPilotPasswords: ${CONGLOMERATE_RESET_PILOT_PASSWORDS:-true}
+      Conglomerate__PilotUserPassword: "${CONGLOMERATE_PILOT_PASSWORD:-}"
+      Conglomerate__SeedDataPath: config/conglomerate/seed-data.v1.json
+      Conglomerate__Organization__Key: abc-group
+      Conglomerate__Organization__DisplayName: ABC Group
+      Conglomerate__Tenants__0__Key: manufacturing
+      Conglomerate__Tenants__0__DisplayName: Manufacturing Co
+      Conglomerate__Tenants__1__Key: tech-vendor
+      Conglomerate__Tenants__1__DisplayName: Technology Co
+      Conglomerate__Tenants__2__Key: group-hq
+      Conglomerate__Tenants__2__DisplayName: Group HQ
+      Conglomerate__OidcClientTenants__group-hq-admin: group-hq
+      Conglomerate__OidcClientTenants__his-hope-dashboard: group-hq
+      Conglomerate__OidcClientTenants__his-hope-spa: group-hq
+      Conglomerate__OidcClientTenants__his-hope-mobile: group-hq
+      Conglomerate__OidcClientTenants__his-hope-operator-mobile: manufacturing
+      Conglomerate__OidcClientTenants__manufacturing-app: manufacturing
+      Conglomerate__OidcClientTenants__tech-console: tech-vendor
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  database-continuity-service:
+    build:
+      context: ..
+      dockerfile: src/Services/DatabaseContinuityService/DatabaseContinuityService.Api/Dockerfile
+    container_name: his-hope-database-continuity
+    ports:
+      - "5800:5800"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5800
+      ConnectionStrings__Redis: ${REDIS_URL:-redis://redis:6379}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      # Local Compose uses the bootstrap token only for the dev Vault. The
+      # production overlay must replace this with workload identity and set
+      # Vault__AllowStaticToken=false.
+      Vault__Token: ${VAULT_TOKEN:-root}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-true}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__AllowHttp: "true"
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__ValidIssuers__2: His.Hope.IdentityService
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      DatabaseContinuity__Enabled: ${DATABASE_CONTINUITY_ENABLED:-true}
+      DatabaseContinuity__SchedulerEnabled: ${DATABASE_CONTINUITY_SCHEDULER_ENABLED:-true}
+      DatabaseContinuity__BackupIntervalHours: ${DATABASE_CONTINUITY_BACKUP_INTERVAL_HOURS:-24}
+      DatabaseContinuity__Provider: ${DATABASE_CONTINUITY_PROVIDER:-postgresql}
+      DatabaseContinuity__StorageUri: ${DATABASE_CONTINUITY_STORAGE_URI:-file:///var/lib/his-hope/backups}
+      DatabaseContinuity__StorageProvider: ${DATABASE_CONTINUITY_STORAGE_PROVIDER:-auto}
+      DatabaseContinuity__StorageFallbackEnabled: ${DATABASE_CONTINUITY_STORAGE_FALLBACK_ENABLED:-true}
+      DatabaseContinuity__LocalStoragePath: /var/lib/his-hope/backups
+      DatabaseContinuity__EncryptionProvider: ${DATABASE_CONTINUITY_ENCRYPTION_PROVIDER:-vault-kms}
+      DatabaseContinuity__RetentionDays: ${DATABASE_CONTINUITY_RETENTION_DAYS:-30}
+      DatabaseContinuity__KeepLastBackupsPerDatabase: ${DATABASE_CONTINUITY_KEEP_LAST_BACKUPS_PER_DATABASE:-1}
+      DatabaseContinuity__PitrEnabled: ${DATABASE_CONTINUITY_PITR_ENABLED:-true}
+      PITR_ENABLED: ${DATABASE_CONTINUITY_PITR_ENABLED:-true}
+      PITR_WAL_ARCHIVE_PATH: /var/lib/his-hope/wal-archive
+      PITR_BASE_BACKUP_PATH: /var/lib/his-hope/backups/pitr-base
+      PITR_BASE_BACKUP_INTERVAL_HOURS: ${DATABASE_CONTINUITY_PITR_BASE_BACKUP_INTERVAL_HOURS:-24}
+      RETENTION_DAYS: ${DATABASE_CONTINUITY_RETENTION_DAYS:-30}
+      DatabaseContinuity__TargetRpoMinutes: ${DATABASE_CONTINUITY_TARGET_RPO_MINUTES:-5}
+      DatabaseContinuity__TargetRtoMinutes: ${DATABASE_CONTINUITY_TARGET_RTO_MINUTES:-30}
+      DatabaseContinuity__ExecutorPath: ${DATABASE_CONTINUITY_EXECUTOR_PATH:-/opt/his-hope/bin/database-continuity-executor.sh}
+      DatabaseContinuity__ExecutorWorkingDirectory: ${DATABASE_CONTINUITY_EXECUTOR_WORKING_DIRECTORY:-/opt/his-hope/bin}
+      DatabaseContinuity__RestoreDrillIntervalHours: ${DATABASE_CONTINUITY_RESTORE_DRILL_INTERVAL_HOURS:-168}
+      DatabaseContinuity__MaxAttempts: ${DATABASE_CONTINUITY_MAX_ATTEMPTS:-3}
+      DatabaseContinuity__RestoreDrillTargetEnvironment: ${DATABASE_CONTINUITY_RESTORE_DRILL_TARGET:-isolated}
+      # This component opens Npgsql directly (not through shared persistence),
+      # so keep its audit connection in native key/value syntax.
+      DatabaseContinuity__AuditConnectionString: Host=postgres;Port=5432;Database=auditdb;Username=his_hope_app;Password=${POSTGRES_PASSWORD:-postgres}
+      BACKUP_STORAGE_PATH: /var/lib/his-hope/backups
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      VAULT_TRANSIT_KEY: ${VAULT_TRANSIT_KEY_NAME:-his-hope-backup-encryption}
+      DATABASE_CONTINUITY_DATABASES: ${DATABASE_CONTINUITY_DATABASES:-identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      RESTORE_DRILL_PGHOST: postgres-restore-drill
+      RESTORE_DRILL_PGPORT: "5432"
+      RESTORE_DRILL_PGUSER: postgres
+      RESTORE_DRILL_PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PITR_DRILL_PORT: "55432"
+      DatabaseContinuity__VaultAddress: http://vault:8200
+      DatabaseContinuity__VaultToken: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      DatabaseContinuity__VaultTransitKeyName: ${VAULT_TRANSIT_KEY_NAME:-his-hope-backup-encryption}
+      Vault__TransitMount: transit
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - database_continuity_backups:/var/lib/his-hope/backups
+      - postgres_wal_archive:/var/lib/his-hope/wal-archive:ro
+    depends_on:
+      identityservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      vault: { condition: service_healthy }
+      # Ensure the local/test Transit key is initialized and Vault is
+      # unsealed before continuity starts. Production replaces this with
+      # an external KMS/auto-unseal readiness gate.
+      vault-init: { condition: service_completed_successfully }
+      postgres-restore-drill: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      # The chiseled runtime image intentionally has no curl. Use the runtime
+      # probe here; endpoint smoke tests are run from the host gate.
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  patientservice:
+    build:
+      context: ..
+      dockerfile: src/Services/PatientService/PatientService.Api/Dockerfile
+    container_name: his-hope-patient
+    ports:
+      - "5002:5002"
+      - "5006:5006"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5002
+      ConnectionStrings__PatientDb: ${DATABASE_PATIENT_URL:-Host=postgres;Database=patientdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Persistence__RunMigrationsOnStartup: "true"
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      vault: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  appointmentservice:
+    build:
+      context: ..
+      dockerfile: src/Services/AppointmentService/AppointmentService.Api/Dockerfile
+    container_name: his-hope-appointment
+    ports:
+      - "5003:5003"
+      # Host 5007 is reserved by the local Chrome network utility; service-to-service gRPC remains on 5007.
+      - "5008:5007"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5003
+      ConnectionStrings__AppointmentDb: ${DATABASE_APPOINTMENT_URL:-Host=postgres;Database=appointmentdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Persistence__RunMigrationsOnStartup: "true"
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    depends_on:
+      patientservice: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  clinicalservice:
+    build:
+      context: ..
+      dockerfile: src/Services/ClinicalService/ClinicalService.Api/Dockerfile
+    container_name: his-hope-clinical
+    ports:
+      - "5004:5004"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5004
+      ConnectionStrings__ClinicalDb: ${DATABASE_CLINICAL_URL:-Host=postgres;Database=clinicaldb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Persistence__RunMigrationsOnStartup: "true"
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      GrpcServices__AppointmentService: ${SERVICE_APPOINTMENT_GRPC_URL:-http://appointmentservice:5008}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    depends_on:
+      patientservice: { condition: service_healthy }
+      appointmentservice: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  labservice:
+    build:
+      context: ..
+      dockerfile: src/Services/LabService/LabService.Api/Dockerfile
+    container_name: his-hope-lab
+    ports:
+      - "5010:5010"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5010
+      ConnectionStrings__LabDb: ${DATABASE_LAB_URL:-Host=postgres;Database=labdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Persistence__RunMigrationsOnStartup: "true"
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      GrpcServices__ClinicalService: http://clinicalservice:5004
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  billingservice:
+    build:
+      context: ..
+      dockerfile: src/Services/BillingService/BillingService.Api/Dockerfile
+    container_name: his-hope-billing
+    ports:
+      - "5020:5020"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5020
+      ConnectionStrings__BillingDb: ${DATABASE_BILLING_URL:-Host=postgres;Database=billingdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Persistence__RunMigrationsOnStartup: "true"
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      GrpcServices__AppointmentService: ${SERVICE_APPOINTMENT_GRPC_URL:-http://appointmentservice:5008}
+      GrpcServices__LabService: http://labservice:5010
+      GrpcServices__PharmacyService: http://pharmacyservice:5030
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Consumers__CommercePaymentEnabled: ${COMMERCE_PAYMENT_CONSUMER_ENABLED:-true}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      vault: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  pharmacyservice:
+    build:
+      context: ..
+      dockerfile: src/Services/PharmacyService/PharmacyService.Api/Dockerfile
+    container_name: his-hope-pharmacy
+    ports:
+      - "5030:5030"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5030
+      ConnectionStrings__PharmacyDb: ${DATABASE_PHARMACY_URL:-Host=postgres;Database=pharmacydb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      Persistence__RunMigrationsOnStartup: "true"
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      GrpcServices__ClinicalService: http://clinicalservice:5004
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  fhir-gateway:
+    build:
+      context: ..
+      dockerfile: src/Services/FhirGateway/FhirGateway.Api/Dockerfile
+    container_name: his-hope-fhir
+    ports:
+      - "5040:5040"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Services__PatientGrpc: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      Services__ClinicalGrpc: ${SERVICE_CLINICAL_GRPC_URL:-http://clinicalservice:5009}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    depends_on:
+      identityservice: { condition: service_healthy }
+      patientservice: { condition: service_healthy }
+      clinicalservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  external-integration-service:
+    build:
+      context: ..
+      dockerfile: src/Services/ExternalIntegrationService/ExternalIntegrationService.Api/Dockerfile
+    container_name: his-hope-external-integration
+    ports:
+      - "5060:5060"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5060
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      EventBus__InternalExchangeName: his_hope_exchange
+      EventBus__PublisherChannelPoolSize: "8"
+      EventBus__PublisherConfirmTimeoutMilliseconds: "5000"
+      ExternalIntegration__Enabled: ${EXTERNAL_INTEGRATION_ENABLED:-false}
+      ExternalIntegration__Provider: ${EXTERNAL_INTEGRATION_PROVIDER:-default}
+      ExternalIntegration__ExchangeName: ${EXTERNAL_INTEGRATION_EXCHANGE:-his_hope_external_exchange}
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: src/ApiGateway/Dockerfile
+    container_name: his-hope-gateway
+    ports:
+      - "5000:5000"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5000
+      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "0"
+      REDIS_URL: redis://redis:6379
+      ConnectionStrings__Redis: redis:6379
+      Redis__ConnectionString: redis:6379
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      SERVICE_IDENTITY_API_URL: http://identityservice:5003
+      SERVICE_PATIENT_URL: http://patientservice:5002
+      SERVICE_PATIENT_API_URL: http://patientservice:5002
+      SERVICE_APPOINTMENT_URL: http://appointmentservice:5003
+      SERVICE_APPOINTMENT_API_URL: http://appointmentservice:5003
+      SERVICE_CLINICAL_URL: http://clinicalservice:5004
+      SERVICE_CLINICAL_API_URL: http://clinicalservice:5004
+      SERVICE_LAB_URL: http://labservice:5010
+      SERVICE_LAB_API_URL: http://labservice:5010
+      SERVICE_BILLING_URL: http://billingservice:5020
+      SERVICE_BILLING_API_URL: http://billingservice:5020
+      SERVICE_PHARMACY_URL: http://pharmacyservice:5030
+      SERVICE_PHARMACY_API_URL: http://pharmacyservice:5030
+      SERVICE_DASHBOARD_BFF_URL: http://dashboard-bff:5600
+      SERVICE_SYSTEMDASHBOARD_BFF_URL: http://systemdashboard-bff:5700
+      SERVICE_DATABASE_CONTINUITY_URL: http://database-continuity-service:5800
+      SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050
+      SERVICE_COMMERCE_URL: http://commerceservice:5015
+      SERVICE_CONTENT_URL: http://contentservice:5016
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-true}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      # Docker Compose uses the service DNS name; Kubernetes overrides this
+      # destination from the production manifest/service configuration.
+      "ReverseProxy__Clusters__dashboard-bff__Destinations__dashboard-bff/dest__Address": ${SERVICE_DASHBOARD_BFF_URL:-http://dashboard-bff:5600}/
+      CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4205,http://localhost:4300,http://localhost:4310,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
+    depends_on:
+      identityservice: { condition: service_healthy }
+      database-continuity-service: { condition: service_healthy }
+      patientservice: { condition: service_healthy }
+      appointmentservice: { condition: service_healthy }
+      clinicalservice: { condition: service_healthy }
+      dashboard-bff: { condition: service_healthy }
+      manufacturingservice: { condition: service_healthy }
+      commerceservice: { condition: service_healthy }
+      contentservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Nacoms manufacturing traceability vertical slice backed by PostgreSQL.
+  # The outbox publishes durable domain events; the analytics consumer records receipts idempotently.
+  manufacturingservice:
+    build:
+      context: ../src
+      dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
+    container_name: his-hope-manufacturing
+    ports:
+      - "5050:5050"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5050
+      ConnectionStrings__ManufacturingDb: ${DATABASE_MANUFACTURING_URL:-Host=postgres;Database=manufacturingdb;Username=postgres;Password=postgres}
+      ConnectionStrings__ManufacturingDb_customer_acme: ${DATABASE_MANUFACTURING_CUSTOMER_ACME_URL:-}
+      TenantPlacement__Enabled: ${TENANT_PLACEMENT_ENABLED:-false}
+      TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
+      TenantContext__LegacySelectorEnabled: ${TENANT_CONTEXT_LEGACY_SELECTOR_ENABLED:-true}
+      TenantContext__LegacySelectorSunset: ${TENANT_CONTEXT_LEGACY_SELECTOR_SUNSET:-planned}
+      Persistence__RunMigrationsOnStartup: "true"
+      ConnectionStrings__Redis: ${REDIS_URL:-redis:6379}
+      DataProtection__KeysPath: /var/lib/his-hope/manufacturing-data-protection-keys
+      DataProtection__CertificatePath: ${DATAPROTECTION_CERTIFICATE_PATH:-}
+      DataProtection__CertificatePassword: ${DATAPROTECTION_CERTIFICATE_PASSWORD:-}
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__AllowHttp: "true"
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Outbox__Enabled: "true"
+      Manufacturing__Automation__Enabled: "true"
+      Manufacturing__Automation__IntervalSeconds: "300"
+      Manufacturing__Automation__BatchSize: "100"
+      Consumers__AnalyticsEnabled: "true"
+      Consumers__CommerceOrdersEnabled: "true"
+      # Local/demo only. Production deployments must set this to false.
+      Manufacturing__SeedDemoData: ${MANUFACTURING_SEED_DEMO_DATA:-true}
+      EventBus__HostName: rabbitmq
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
+      - manufacturing_dataprotection:/var/lib/his-hope/manufacturing-data-protection-keys
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  commerceservice:
+    build:
+      context: ../src
+      dockerfile: Services/CommerceService/CommerceService.Api/Dockerfile
+    container_name: his-hope-commerce
+    ports:
+      - "5015:5015"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5015
+      REDIS_URL: redis://redis:6379
+      ConnectionStrings__CommerceDb: ${DATABASE_COMMERCE_URL:-Host=postgres;Database=commercedb;Username=postgres;Password=postgres}
+      TenantPlacement__Enabled: ${TENANT_PLACEMENT_ENABLED:-false}
+      TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
+      TenantContext__LegacySelectorEnabled: ${TENANT_CONTEXT_LEGACY_SELECTOR_ENABLED:-true}
+      TenantContext__LegacySelectorSunset: ${TENANT_CONTEXT_LEGACY_SELECTOR_SUNSET:-planned}
+      Persistence__RunMigrationsOnStartup: "true"
+      DataProtection__KeysPath: /var/lib/his-hope/commerce-data-protection-keys
+      DataProtection__CertificatePath: ${DATAPROTECTION_CERTIFICATE_PATH:-}
+      DataProtection__CertificatePassword: ${DATAPROTECTION_CERTIFICATE_PASSWORD:-}
+      Outbox__Enabled: "true"
+      EventBus__HostName: rabbitmq
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Consumers__PaymentAuthorizedCaptureEnabled: ${COMMERCE_PAYMENT_CAPTURE_CONSUMER_ENABLED:-true}
+      Consumers__PaymentCapturedShipmentEnabled: ${COMMERCE_SHIPMENT_CONSUMER_ENABLED:-true}
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: commerce-api
+      Jwt__AdditionalAudiences__0: His.Hope
+      Jwt__AdditionalAudiences__1: his-hope-services
+      Jwt__AdditionalAudiences__2: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
+      - commerce_dataprotection:/var/lib/his-hope/commerce-data-protection-keys
+    restart: unless-stopped
+    depends_on:
+      identityservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  contentservice:
+    build:
+      context: ../src
+      dockerfile: Services/ContentService/ContentService.Api/Dockerfile
+    container_name: his-hope-content
+    ports:
+      - "5016:5016"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5016
+      ConnectionStrings__ContentDb: ${DATABASE_CONTENT_URL:-Host=postgres;Database=contentdb;Username=postgres;Password=postgres}
+      TenantPlacement__Enabled: ${TENANT_PLACEMENT_ENABLED:-false}
+      TenantPlacement__ConfigPath: ${TENANT_PLACEMENT_CONFIG_PATH:-/app/config/conglomerate/tenant-placement.v1.json}
+      TenantContext__LegacySelectorEnabled: ${TENANT_CONTEXT_LEGACY_SELECTOR_ENABLED:-true}
+      TenantContext__LegacySelectorSunset: ${TENANT_CONTEXT_LEGACY_SELECTOR_SUNSET:-planned}
+      Persistence__RunMigrationsOnStartup: "true"
+      DataProtection__KeysPath: /var/lib/his-hope/content-data-protection-keys
+      DataProtection__CertificatePath: ${DATAPROTECTION_CERTIFICATE_PATH:-}
+      DataProtection__CertificatePassword: ${DATAPROTECTION_CERTIFICATE_PASSWORD:-}
+      REDIS_URL: redis://redis:6379
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: content-api
+      Jwt__AdditionalAudiences__0: His.Hope
+      Jwt__AdditionalAudiences__1: his-hope-services
+      Jwt__AdditionalAudiences__2: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Outbox__ContentPublishingEnabled: ${CONTENT_PUBLISHING_OUTBOX_ENABLED:-true}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
+      - content_dataprotection:/var/lib/his-hope/content-data-protection-keys
+    restart: unless-stopped
+    depends_on:
+      identityservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: src/Frontend/his-hope-app/Dockerfile
+    container_name: his-hope-frontend
+    networks:
+      default:
+        aliases:
+          - frontend
+    ports:
+      - "8081:8080"
+    depends_on:
+      api-gateway: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Nacoms buyer portal, served as a static Angular image.
+  manufacturing-buyer-app:
+    build:
+      context: ..
+      dockerfile: manufacturing-buyer-app/Dockerfile
+    container_name: his-hope-manufacturing-buyer
+    ports:
+      - "4205:8080"
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      manufacturingservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Nacoms manufacturing operator console, served as a static Angular image.
+  internal-operator-app:
+    build:
+      context: ..
+      dockerfile: internal-operator-app/Dockerfile
+    container_name: his-hope-manufacturing-operator
+    ports:
+      - "4300:8080"
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      manufacturingservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Clinical dashboard aggregation BFF (distinct from the Aspire observability BFF below).
+  dashboard-bff:
+    build:
+      context: ..
+      dockerfile: src/Bff/DashboardBff/Dockerfile
+    container_name: his-hope-dashboard-bff
+    ports:
+      - "5600:5600"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5600
+      # DashboardBff binds all downstream clients through the canonical
+      # SERVICE_*_URL runtime contract (not ad-hoc Services__/ConnectionStrings__).
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      SERVICE_PATIENT_GRPC_URL: http://patientservice:5006
+      SERVICE_CLINICAL_GRPC_URL: http://clinicalservice:5009
+      SERVICE_LAB_GRPC_URL: http://labservice:5018
+      SERVICE_BILLING_GRPC_URL: http://billingservice:5022
+      SERVICE_PHARMACY_GRPC_URL: http://pharmacyservice:5032
+      SERVICE_APPOINTMENT_API_URL: http://appointmentservice:5004
+      Services__Patient: http://patientservice:5002
+      Services__Clinical: http://clinicalservice:5004
+      Services__Lab: http://labservice:5010
+      Services__Billing: http://billingservice:5020
+      Services__Pharmacy: http://pharmacyservice:5030
+      Services__Appointment: http://appointmentservice:5003
+    depends_on:
+      patientservice: { condition: service_healthy }
+      clinicalservice: { condition: service_healthy }
+      labservice: { condition: service_healthy }
+      billingservice: { condition: service_healthy }
+      pharmacyservice: { condition: service_healthy }
+      appointmentservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # Aspire Dashboard BFF
+  systemdashboard-bff:
+    build:
+      context: ..
+      dockerfile: src/Bff/SystemDashboard.Bff/Dockerfile
+    ports:
+      - "5700:5700"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5700
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_IDENTITY_URL=http://identityservice:5003
+      - SERVICE_IDENTITY_API_URL=http://identityservice:5003
+      - SERVICE_IDENTITY_GRPC_URL=http://identityservice:5007
+      - SERVICE_PATIENT_API_URL=http://patientservice:5002
+      - SERVICE_PATIENT_GRPC_URL=http://patientservice:5006
+      - SERVICE_APPOINTMENT_API_URL=http://appointmentservice:5003
+      - SERVICE_APPOINTMENT_GRPC_URL=http://appointmentservice:5008
+      - SERVICE_CLINICAL_API_URL=http://clinicalservice:5004
+      - SERVICE_CLINICAL_GRPC_URL=http://clinicalservice:5009
+      - SERVICE_LAB_API_URL=http://labservice:5010
+      - SERVICE_LAB_GRPC_URL=http://labservice:5018
+      - SERVICE_BILLING_API_URL=http://billingservice:5020
+      - SERVICE_BILLING_GRPC_URL=http://billingservice:5022
+      - SERVICE_PHARMACY_API_URL=http://pharmacyservice:5030
+      - SERVICE_PHARMACY_GRPC_URL=http://pharmacyservice:5032
+      - Consul__Address=${SERVICE_CONSUL_URL:-http://consul:8500}
+      - Elasticsearch__Url=${OBSERVABILITY_ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      - Jaeger__QueryUrl=${OBSERVABILITY_JAEGER_URL:-http://jaeger:16686}
+      - Prometheus__Url=${OBSERVABILITY_PROMETHEUS_URL:-}
+      # RuntimeConfiguration binds the Prometheus client from SERVICE_*_URL;
+      # keep the Compose DNS target explicit instead of appsettings localhost.
+      - SERVICE_PROMETHEUS_URL=http://prometheus:9090
+      - Loki__Url=${OBSERVABILITY_LOKI_URL:-http://loki:3100}
+      - AlertManager__Url=${OBSERVABILITY_ALERTMANAGER_URL:-http://alertmanager:9093}
+      - Jwt__Authority=${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      - Jwt__AllowHttp=true
+      - Jwt__Issuer=http://localhost:5000/
+      - Jwt__ValidIssuers__0=http://localhost:5000/
+      - Jwt__ValidIssuers__1=his-hope-identity
+      - Jwt__Audience=http://localhost:5000/
+      - Jwt__RsaPublicKeyPath=/etc/hishop/certs/jwt-public-key.pem
+      - Jwt__RsaEncryptionPrivateKeyPath=/etc/hishop/certs/jwt-encryption-private-key.pem
+      - Jwt__SessionKey=${SYSTEMDASHBOARD_JWT_SESSION_KEY:-}
+      # Keep BFF traversal and dashboard bootstrap below the same shared
+      # sliding-window limits used by the gateway and identity service.
+      - RateLimiting__MaxRequestsPerIp=1000
+      - RateLimiting__MaxRequestsPerUser=2000
+      - RateLimiting__WindowMinutes=1
+      - Redis__ConnectionString=${REDIS_URL:-redis://redis:6379}
+      - Docker__Enabled=false
+      - Cors__AllowedOrigins__0=http://localhost:4201
+      - Cors__AllowedOrigins__1=http://localhost:8082
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    depends_on:
+      - consul
+      - elasticsearch
+      - jaeger
+      - prometheus
+      - loki
+      - alertmanager
+      - redis
+    restart: unless-stopped
+
+  # Admin App (Angular)
+  admin-app:
+    build:
+      context: ..
+      dockerfile: admin-app/Dockerfile
+    container_name: his-hope-admin
+    networks:
+      default:
+        aliases:
+          - admin
+    ports:
+      - "${ADMIN_APP_PORT:-8083}:8080"
+    depends_on:
+      identityservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Aspire Dashboard App (Angular)
+  dashboard-app:
+    build:
+      context: ..
+      dockerfile: dashboard-app/Dockerfile
+    container_name: his-hope-dashboard
+    networks:
+      default:
+        aliases:
+          - dashboard
+    ports:
+      - "8082:8080"
+    environment:
+      - API_URL=${SERVICE_SYSTEMDASHBOARD_BFF_URL:-http://systemdashboard-bff:5700}
+    depends_on:
+      - systemdashboard-bff
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Temporal distributed workflow engine
+  temporal:
+    image: temporalio/auto-setup:1.24
+    container_name: his-hope-temporal
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=postgresql
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_VALUE=frontend.visibilityMaxPageSize=1000
+      - SERVICES=seed,frontend,history,matching,worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["temporal"]
+    restart: unless-stopped
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.24
+    container_name: his-hope-temporal-admin
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    profiles: ["temporal", "admin"]
+
+  temporal-worker:
+    build:
+      context: ..
+      dockerfile: src/Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/Dockerfile
+    container_name: his-hope-temporal-worker
+    ports:
+      - "5270:5270"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Temporal__ServerUrl: temporal:7233
+      AgentHarness__DatabaseConnectionString: ${DATABASE_HARNESS_URL:-};Password=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      temporal:
+        condition: service_healthy
+    profiles: ["temporal"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Agent Harness MCP Server
+  agentharness:
+    build:
+      context: ..
+      dockerfile: src/Infrastructure/AgentHarness/Dockerfile
+    container_name: his-hope-agentharness
+    ports:
+      - "5200:5200"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AgentHarness__DatabaseConnectionString: ${DATABASE_HARNESS_URL:-};Password=${POSTGRES_PASSWORD:-postgres}
+      AgentHarness__RabbitMQConnectionString: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin}@${RABBITMQ_URL:-rabbitmq}:5672/
+      AgentHarness__ApiKey: ${AGENT_HARNESS_API_KEY:-}
+      AgentHarness__UseTemporal: ${AGENT_HARNESS_USE_TEMPORAL:-false}
+      AgentHarness__TemporalServerUrl: temporal:7233
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    profiles: ["default", "temporal"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Certificate Generator (one-time)
+  certgen:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: his-hope-certgen
+    profiles: ["setup"]
+    volumes:
+      - certs_data:/certs
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        : "$${CERT_PASSWORD:?CERT_PASSWORD must be supplied by the runtime secret provider}" &&
+        dotnet dev-certs https --export-path /certs/server.pfx --password "$${CERT_PASSWORD}" --format Pfx &&
+        dotnet dev-certs https --trust &&
+        echo "Certificates generated"
+    restart: "no"
+
+volumes:
+  postgres_data:
+  postgres_replica_data:
+  redis_data:
+  rabbitmq_data:
+  es_data:
+  consul_data:
+  jaeger_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  certs_data:
+  glitchtip_postgres_data:
+  glitchtip_valkey_data:
+  glitchtip_uploads:
+  vault_data:
+  database_continuity_backups:
+  postgres_wal_archive:
+  postgres_restore_drill_data:
+  commerce_dataprotection:
+  content_dataprotection:
+  manufacturing_dataprotection:

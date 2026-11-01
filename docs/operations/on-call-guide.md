@@ -102,7 +102,7 @@ kubectl describe pod -n his-hope -l app=<service-name> | Select-String "State|Re
 |------------|-----------|-----|
 | **OOMKilled (Out of Memory)** | `kubectl describe pod` → `Reason: OOMKilled` | Tăng memory limits hoặc scale HPA: `kubectl patch hpa <service> -n his-hope -p '{"spec":{"maxReplicas":20}}'` |
 | **CrashLoopBackOff** | `kubectl get pods` → `STATUS: CrashLoopBackOff` | Xem logs → fix code bug hoặc rollback: `kubectl rollout undo deploy/<service> -n his-hope` |
-| **ImagePullBackOff** | `kubectl describe pod` → `Failed to pull image` | Kiểm tra image digest trong `k8s/overlays/prod/image-digests.yaml`; verify container registry accessible |
+| **ImagePullBackOff** | `kubectl describe pod` → `Failed to pull image` | Kiểm tra image digest trong `k8s/overlays/prod/image-digests/kustomization.yaml`; verify container registry accessible |
 | **Readiness probe failing** | Pod Running nhưng không Ready | `kubectl exec -it deploy/<service> -n his-hope -- wget -qO- http://localhost:5002/health/ready` |
 | **NetworkPolicy blocking** | Pod running nhưng không reachable | `hubble observe --from-pod <pod-name> --verdict DROPPED -n his-hope` |
 | **Vault agent injector not ready** | Sidecar vault-agent crash | `kubectl logs deploy/<service> -n his-hope -c vault-agent` |
@@ -332,7 +332,7 @@ kubectl rollout restart deploy -n his-hope
 # 5. Verify login hoạt động
 curl -X POST http://localhost:5000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin@hishop.com","password":"Admin@123!"}'
+  -d (ConvertTo-Json @{ username = $env:E2E_ADMIN_USERNAME; password = $env:E2E_ADMIN_PASSWORD })
 ```
 
 **Scenario: Redis token blacklist not working**

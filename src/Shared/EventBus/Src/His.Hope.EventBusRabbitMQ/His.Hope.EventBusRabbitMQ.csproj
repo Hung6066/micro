@@ -16,5 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="..\His.Hope.EventBus\His.Hope.EventBus.csproj" />
     <ProjectReference Include="..\..\..\Messaging\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
   </ItemGroup>
 </Project>

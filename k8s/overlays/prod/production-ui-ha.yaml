@@ -1,0 +1,89 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: admin-app-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: admin-app
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-app-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dashboard-app
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: systemdashboard-bff-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: systemdashboard-bff
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: billing-bff-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-bff
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: clinical-bff-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clinical-bff
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dashboard-bff-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dashboard-bff
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lab-bff-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lab-bff
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: patient-bff-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: patient-bff
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pharmacy-bff-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pharmacy-bff

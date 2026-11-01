@@ -26,9 +26,9 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
   AdminSessionCenterResponse,
   IamRevocation,
-  User,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { IamRevocationEditDialogComponent } from "./iam-revocation-edit-dialog.component";
 
@@ -86,6 +86,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamSessionsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -145,6 +146,7 @@ export class IamSessionsPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load(): void {
     this.error = "";

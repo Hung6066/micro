@@ -12,6 +12,9 @@
     <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Infrastructure.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../His.Hope.Messaging.Abstractions/His.Hope.Messaging.Abstractions.csproj" />
     <PackageReference Include="StackExchange.Redis" Version="2.7.27" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />

@@ -20,7 +20,7 @@ public static class ConsentEndpoints
     private static async Task<Ok<List<ConsentResponse>>> GetUserConsents(
         HttpContext httpContext, IdentityDbContext db, CancellationToken ct)
     {
-        var userId = httpContext.User.FindFirst("sub")?.Value;
+        var userId = httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
             return TypedResults.Ok(new List<ConsentResponse>());
 
@@ -44,7 +44,7 @@ public static class ConsentEndpoints
         GrantConsentRequest request,
         HttpContext httpContext, IdentityDbContext db, CancellationToken ct)
     {
-        var userId = httpContext.User.FindFirst("sub")?.Value;
+        var userId = httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
             return TypedResults.Problem(statusCode: 401, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.NotAuthenticated });
 
@@ -83,7 +83,7 @@ public static class ConsentEndpoints
     private static async Task<Results<NoContent, NotFound>> RevokeConsent(
         string clientId, HttpContext httpContext, IdentityDbContext db, CancellationToken ct)
     {
-        var userId = httpContext.User.FindFirst("sub")?.Value;
+        var userId = httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
             return TypedResults.NotFound();
 

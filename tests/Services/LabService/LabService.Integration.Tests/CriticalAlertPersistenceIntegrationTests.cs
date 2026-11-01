@@ -55,7 +55,7 @@ public class CriticalAlertPersistenceIntegrationTests : IAsyncLifetime
         var connection = (NpgsqlConnection)_context.Database.GetDbConnection();
         await connection.OpenAsync();
 
-        foreach (var tableName in new[] { "CriticalAlertRules", "CriticalAlerts", "CriticalAlertAuditEntries" })
+        foreach (var tableName in new[] { "critical_alert_rules", "critical_alerts", "critical_alert_audit_entries" })
         {
             await using var command = new NpgsqlCommand(
                 "select count(*) from information_schema.tables where table_schema = 'public' and table_name = @name",

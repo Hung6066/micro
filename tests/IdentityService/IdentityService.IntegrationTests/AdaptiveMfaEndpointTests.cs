@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using His.Hope.Contracts;
 using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Services;
@@ -131,6 +132,103 @@ public sealed class AdaptiveMfaEndpointTests
     }
 
     [Fact]
+    public async Task Pending_recovery_code_completes_session_once_and_preserves_totp()
+    {
+        const string recoveryCode = "test-recovery-code-once";
+        var first = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            HasTotp: true,
+            ReturnUrl: PendingReturnUrl));
+        first.Session.RateLimitKey = $"mfa-recovery-first-{Guid.NewGuid():N}";
+        await SeedRecoveryCodeAsync(first.UserId, recoveryCode);
+
+        var completed = await first.Session.PostWithCookiesAsync(
+            IdentityApiRoutes.MfaVerify,
+            new { recoveryCode });
+
+        completed.StatusCode.Should().Be(HttpStatusCode.OK, await completed.Content.ReadAsStringAsync());
+        first.Session.ApplySetCookieHeaders(completed);
+        var completionBody = await completed.Content.ReadFromJsonAsync<JsonElement>();
+        completionBody.GetProperty("redirectUrl").GetString().Should().Be(PendingReturnUrl);
+
+        var status = await first.Session.GetWithCookiesAsync(IdentityApiRoutes.Mfa + "/status");
+        status.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await status.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("requiresMfa").GetBoolean().Should().BeFalse();
+        var authorization = await first.Session.GetWithCookiesAsync(PendingReturnUrl);
+        authorization.Headers.Location?.ToString().Should().NotContain("/Account/Mfa");
+
+        var second = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            UserId: first.UserId,
+            Email: first.Email,
+            HasTotp: true,
+            ReturnUrl: PendingReturnUrl));
+        second.Session.RateLimitKey = $"mfa-recovery-replay-{Guid.NewGuid():N}";
+
+        var replay = await second.Session.PostWithCookiesAsync(
+            IdentityApiRoutes.MfaVerify,
+            new { recoveryCode });
+
+        replay.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await replay.Content.ReadAsStringAsync()).Should().Contain(ApiErrorCodes.InvalidRecoveryCode);
+        (await second.Session.GetWithCookiesAsync(IdentityApiRoutes.Mfa + "/status"))
+            .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        var totp = await second.Session.PostWithCookiesAsync(
+            IdentityApiRoutes.MfaVerify,
+            new { code = GenerateCurrentTotp(second.TotpSecret!) });
+
+        totp.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Pending_recovery_code_rejects_mismatched_session_and_multiple_factors_without_consuming_code()
+    {
+        const string recoveryCode = "test-recovery-code-context";
+        var setup = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(HasTotp: true));
+        setup.Session.RateLimitKey = $"mfa-recovery-context-{Guid.NewGuid():N}";
+        await SeedRecoveryCodeAsync(setup.UserId, recoveryCode);
+        var sessionId = setup.Session.GetCookieValue("hishop_sid");
+
+        setup.Session.SetCookieValue("hishop_sid", "mismatched-session");
+        var mismatched = await setup.Session.PostWithCookiesAsync(
+            IdentityApiRoutes.MfaVerify,
+            new { recoveryCode });
+        mismatched.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        setup.Session.SetCookieValue("hishop_sid", sessionId!);
+        var bothFactors = await setup.Session.PostWithCookiesAsync(
+            IdentityApiRoutes.MfaVerify,
+            new { code = "123456", recoveryCode });
+        bothFactors.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var valid = await setup.Session.PostWithCookiesAsync(
+            IdentityApiRoutes.MfaVerify,
+            new { recoveryCode });
+        valid.StatusCode.Should().Be(HttpStatusCode.OK, await valid.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Concurrent_pending_sessions_can_consume_recovery_code_only_once()
+    {
+        const string recoveryCode = "test-recovery-code-concurrent";
+        var first = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(HasTotp: true));
+        var second = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            UserId: first.UserId,
+            Email: first.Email,
+            HasTotp: true));
+        first.Session.RateLimitKey = $"mfa-recovery-concurrent-first-{Guid.NewGuid():N}";
+        second.Session.RateLimitKey = $"mfa-recovery-concurrent-second-{Guid.NewGuid():N}";
+        await SeedRecoveryCodeAsync(first.UserId, recoveryCode);
+
+        var results = await Task.WhenAll(
+            first.Session.PostWithCookiesAsync(IdentityApiRoutes.MfaVerify, new { recoveryCode }),
+            second.Session.PostWithCookiesAsync(IdentityApiRoutes.MfaVerify, new { recoveryCode }));
+
+        results.Count(response => response.StatusCode == HttpStatusCode.OK).Should().Be(1);
+        results.Count(response => response.StatusCode == HttpStatusCode.BadRequest).Should().Be(1);
+    }
+
+    [Fact]
     public async Task Native_mfa_options_returns_401_when_pending_session_expires_before_mobile_completion()
     {
         var setup = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
@@ -165,7 +263,7 @@ public sealed class AdaptiveMfaEndpointTests
         var response = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.PasskeyMfaOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await response.Content.ReadAsStringAsync()).ToLowerInvariant().Should().Contain("not enrolled");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("mfa_passkey_not_enrolled");
     }
 
     [Fact]
@@ -183,7 +281,7 @@ public sealed class AdaptiveMfaEndpointTests
         var response = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaOptions, new { ticket });
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await response.Content.ReadAsStringAsync()).ToLowerInvariant().Should().Contain("not enrolled");
+        (await response.Content.ReadAsStringAsync()).Should().Contain("mfa_passkey_not_enrolled");
     }
 
     [Fact]
@@ -387,6 +485,16 @@ public sealed class AdaptiveMfaEndpointTests
         await using var scope = _fixture.Services.CreateAsyncScope();
         var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
         await redis.GetDatabase().KeyDeleteAsync(key);
+    }
+
+    private async Task SeedRecoveryCodeAsync(Guid userId, string recoveryCode)
+    {
+        await using var scope = _fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var recoveryCodes = scope.ServiceProvider.GetRequiredService<RecoveryCodeService>();
+        var mfa = await db.UserMfas.SingleAsync(item => item.UserId == userId);
+        mfa.RecoveryCodes = [recoveryCodes.HashCode(recoveryCode)];
+        await db.SaveChangesAsync();
     }
 
     private async Task<bool> RedisKeyExistsAsync(string key)

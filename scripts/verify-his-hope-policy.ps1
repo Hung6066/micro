@@ -23,7 +23,7 @@ if ($Staged) {
 
 # CI runs the full baseline. Local hooks run only gates relevant to staged files.
 $frontendChanged = $Ci -or ($changed | Where-Object { $_ -match '^(shared/frontend-foundation|admin-app|dashboard-app|mobile-app|src/Frontend/his-hope-app|scripts/validate-design-tokens\.mjs|scripts/validate-no-hardcoded-px\.mjs|package\.json)' }).Count -gt 0
-$backendChanged = $Ci -or ($changed | Where-Object { $_ -match '^(src/Services|src/Shared|src/ApiGateway|src/Bff|tests/|His\.Hope\.sln|scripts/validate-api-platform-conventions\.ps1)' }).Count -gt 0
+$backendChanged = $Ci -or ($changed | Where-Object { $_ -match '^(src/Services|src/Shared|src/ApiGateway|src/Bff|tests/|His\.Hope\.sln|scripts/(audit-service-standardization|validate-(api-platform-conventions|health-contract))\.ps1)' }).Count -gt 0
 
 if ($frontendChanged) {
     Invoke-Checked 'npm' @('run', 'validate:foundation')
@@ -39,6 +39,8 @@ if ($frontendChanged) {
 
 if ($backendChanged) {
     Invoke-Checked 'pwsh' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/validate-api-platform-conventions.ps1')
+    Invoke-Checked 'pwsh' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/validate-health-contract.ps1')
+    Invoke-Checked 'pwsh' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/audit-service-standardization.ps1', '-MinimumOccurrences', '6', '-MinimumFiles', '3')
     if ($Ci) {
         Invoke-Checked 'dotnet' @('restore', 'His.Hope.sln', '-warnAsError:NU1605', '-warnAsError:NU1901', '-warnAsError:NU1902', '-warnAsError:NU1903', '-warnAsError:NU1904')
         Invoke-Checked 'dotnet' @('build', 'His.Hope.sln', '--no-restore', '--warnaserror:NU1605', '--warnaserror:NU1901', '--warnaserror:NU1902', '--warnaserror:NU1903', '--warnaserror:NU1904')

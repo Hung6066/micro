@@ -59,7 +59,7 @@ spec:
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
-    path: k8s/overlays/prod-spire-azure
+    path: k8s/overlays/prod-spire-azure-shared-storage
   destination:
     server: https://kubernetes.default.svc
     namespace: spire

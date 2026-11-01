@@ -25,6 +25,11 @@ public sealed class ControlPlaneEntityDefaultsTests
         policy.LifecycleStatus.Should().Be("draft");
         policy.RulesJson.Should().Be("{}");
 
+        var bundle = new AuthorizationPolicyBundleArtifact();
+        bundle.SchemaVersion.Should().Be("authorization-policy-bundle.v1");
+        bundle.PoliciesJson.Should().Be("[]");
+        bundle.Id.Should().NotBeEmpty();
+
         var devicePolicy = new DevicePosturePolicy();
         devicePolicy.Id.Should().Be("default");
         devicePolicy.Mode.Should().Be("observe");

@@ -1,9 +1,7 @@
-# syntax=docker/dockerfile:1
-
 # ============================================================
 # BUILD STAGE
 # ============================================================
-FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:e2f26f26169fd10d6f1b426e01c97397717b32e9d5ab4ee4a7d5497ed9403007 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:738f72aff955d5c5690e06b6fc8ecd1b90ead564099a257ac528ff720b8da85f AS build
 WORKDIR /src
 
 # --- Restore dependencies (layer cached) ---
@@ -13,6 +11,11 @@ COPY ["src/Bff/His.Hope.Bff.Core/*.csproj", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/*.csproj", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/*.csproj", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/*.csproj", "Shared/Persistence/His.Hope.Persistence/"]
+COPY ["src/Shared/ServiceDefaults/His.Hope.ServiceDefaults/*.csproj", "Shared/ServiceDefaults/His.Hope.ServiceDefaults/"]
+COPY ["src/Shared/Resilience/His.Hope.Resilience/*.csproj", "Shared/Resilience/His.Hope.Resilience/"]
+COPY ["src/Shared/Validation/His.Hope.Validation/*.csproj", "Shared/Validation/His.Hope.Validation/"]
+COPY ["src/Shared/Secrets/His.Hope.Secrets/*.csproj", "Shared/Secrets/His.Hope.Secrets/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/*.csproj", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/*.csproj", "Shared/Contracts/His.Hope.Contracts/"]
 COPY ["src/Shared/Messaging/His.Hope.Messaging.Abstractions/*.csproj", "Shared/Messaging/His.Hope.Messaging.Abstractions/"]
@@ -24,7 +27,7 @@ COPY ["src/Shared/Observability/His.Hope.Observability.OpenTelemetry/*.csproj", 
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN \
     dotnet restore "ApiGateway/ApiGateway.csproj"
 
 # --- Copy source and publish ---
@@ -33,6 +36,11 @@ COPY ["src/Bff/His.Hope.Bff.Core/", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/Configuration/His.Hope.Configuration/", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructure/His.Hope.Infrastructure/"]
+COPY ["src/Shared/Persistence/His.Hope.Persistence/", "Shared/Persistence/His.Hope.Persistence/"]
+COPY ["src/Shared/ServiceDefaults/His.Hope.ServiceDefaults/", "Shared/ServiceDefaults/His.Hope.ServiceDefaults/"]
+COPY ["src/Shared/Resilience/His.Hope.Resilience/", "Shared/Resilience/His.Hope.Resilience/"]
+COPY ["src/Shared/Validation/His.Hope.Validation/", "Shared/Validation/His.Hope.Validation/"]
+COPY ["src/Shared/Secrets/His.Hope.Secrets/", "Shared/Secrets/His.Hope.Secrets/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/", "Shared/Contracts/His.Hope.Contracts/"]
 COPY ["src/Shared/Messaging/His.Hope.Messaging.Abstractions/", "Shared/Messaging/His.Hope.Messaging.Abstractions/"]
@@ -46,7 +54,7 @@ COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN \
     dotnet publish "ApiGateway/ApiGateway.csproj" \
     -c Release \
     -o /app/publish
@@ -55,7 +63,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled-extra)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:4b3c234b8d8bd1dd2691482fe0c103644f0334ef9727e5ecddd87d9175116dbd AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:ad469e7458fcd86bdd578d617417fd3af314bbb30e2dfd5097761482299d152f AS runtime
 WORKDIR /app
 EXPOSE 8080
 

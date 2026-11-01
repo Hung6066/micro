@@ -9,6 +9,7 @@ export interface IamServiceDefinition { id: string; key: string; displayName: st
 export interface IamPermissionSet { id: string; key: string; displayName: string; scopeId: string; permissionsJson: string; version: number; lifecycleStatus: string; publishedAt?: string; }
 export interface IamAssignment { id: string; permissionSetId: string; principalId: string; principalType: string; scopeId: string; status: string; expiresAt?: string; createdAt: string; }
 export interface IamWorkloadRole { id: string; key: string; displayName: string; scopeId: string; audience: string; trustPolicyJson: string; permissionsJson: string; maxSessionSeconds: number; }
+export interface IamServicePrincipal { id: string; key: string; displayName: string; principalType: string; audience: string; scopeId: string; isActive: boolean; lifecycleStatus?: string; }
 export interface IamWorkloadSession { sessionId: string; clientId: string; workloadRoleId: string; issuedAt: string; expiresAt: string; }
 export interface IamWorkloadSessionResponse { id: string; audience: string; sessions: IamWorkloadSession[]; }
 export interface IamPermissionBoundary { id: string; principalId: string; principalType: string; scopeId: string; allowedPermissionsJson: string; resourceConstraintsJson: string; isActive: boolean; }

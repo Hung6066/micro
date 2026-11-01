@@ -89,15 +89,6 @@ public sealed class StaleCacheFallbackPolicy : IDegradedResponseProvider, IDispo
     }
 
     /// <inheritdoc />
-    public bool HasDegradedResponse(string cacheKey)
-    {
-        // In-memory check is not available via ICacheService (async only).
-        // We optimistically attempt GetDegradedResponseAsync and treat null as "not available".
-        // Callers should prefer the async overload when possible.
-        return false;
-    }
-
-    /// <inheritdoc />
     public async Task RecordSuccessfulResponseAsync<T>(
         string cacheKey, T value, CancellationToken ct = default) where T : class
     {

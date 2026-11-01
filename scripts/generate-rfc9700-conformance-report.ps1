@@ -25,6 +25,7 @@ try {
 
     $report = [ordered]@{
         assessmentType = 'oidc-conformance'
+        evidenceSource = 'automated-repository'
         profile = 'RFC9700'
         status = 'passed'
         assessor = 'His.Hope automated RFC 9700 matrix'

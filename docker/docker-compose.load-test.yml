@@ -1,0 +1,13 @@
+services:
+  # Local capacity drills run behind one Docker bridge IP. Keep production
+  # abuse limits intact and raise only this ephemeral load-test override so
+  # the run measures service capacity rather than one-IP admission control.
+  api-gateway:
+    environment:
+      RateLimiting__MaxRequestsPerIp: "1000000"
+  patientservice:
+    environment:
+      RateLimiting__MaxRequestsPerIp: "1000000"
+  appointmentservice:
+    environment:
+      RateLimiting__MaxRequestsPerIp: "1000000"

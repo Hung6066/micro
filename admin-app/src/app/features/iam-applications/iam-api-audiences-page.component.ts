@@ -14,6 +14,7 @@ import {
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import {
   IamApiAudiencesResponse,
   IamScope,
@@ -42,6 +43,7 @@ import { forkJoin, map } from "rxjs";
 })
 export class IamApiAudiencesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -91,6 +93,7 @@ export class IamApiAudiencesPageComponent implements OnInit {
   }
   ngOnInit() {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load() {
     this.state.load(
@@ -98,7 +101,9 @@ export class IamApiAudiencesPageComponent implements OnInit {
         audiences: this.api
           .getIamApiAudiences()
           .pipe(map((response) => response.audiences)),
-        scopes: this.api.getIamScopes(),
+        scopes: this.api
+          .getIamScopes()
+          .pipe(map((scopes) => this.tenantContext.filterScopes(scopes))),
       }),
     );
   }

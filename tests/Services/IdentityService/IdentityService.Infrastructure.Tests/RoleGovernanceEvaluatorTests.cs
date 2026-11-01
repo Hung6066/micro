@@ -3,6 +3,7 @@ using FluentAssertions;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -32,6 +33,23 @@ public sealed class RoleGovernanceEvaluatorTests
             db, actor, ["billing.void"], CancellationToken.None);
 
         result.Should().Contain("ROLE_GRANT_OUT_OF_SCOPE").And.Contain("billing.void");
+    }
+
+    [Fact]
+    public async Task ValidateRolePermissions_loads_actor_permissions_from_database_when_claims_are_absent()
+    {
+        await using var db = CreateDb();
+        var actorId = Guid.NewGuid();
+        var role = new Role { Id = Guid.NewGuid(), Name = "Auditor", NormalizedName = "AUDITOR" };
+        db.Roles.Add(role);
+        db.UserRoles.Add(new IdentityUserRole<Guid> { UserId = actorId, RoleId = role.Id });
+        db.RolePermissions.Add(new RolePermission { RoleId = role.Id, PermissionCode = "audit.read" });
+        await db.SaveChangesAsync();
+
+        var result = await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(
+            db, Principal(actorId, string.Empty), ["audit.read"], CancellationToken.None);
+
+        result.Should().BeNull();
     }
 
     [Fact]
@@ -81,6 +99,17 @@ public sealed class RoleGovernanceEvaluatorTests
 
         var result = await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
             db, Principal(Guid.NewGuid(), "admin.permissions.write"), Guid.NewGuid(), ["missing-role"], CancellationToken.None);
+
+        result.Should().StartWith("ROLE_NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task ValidateRoleAssignment_reports_unknown_guid_role()
+    {
+        await using var db = CreateDb();
+
+        var result = await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
+            db, Principal(Guid.NewGuid(), "admin.permissions.write"), Guid.NewGuid(), [Guid.NewGuid().ToString()], CancellationToken.None);
 
         result.Should().StartWith("ROLE_NOT_FOUND");
     }

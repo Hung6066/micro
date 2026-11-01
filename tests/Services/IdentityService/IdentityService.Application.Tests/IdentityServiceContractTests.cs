@@ -179,20 +179,21 @@ public class IdentityServiceContractTests
     }
 
     [Fact]
-    public async Task GetUserByIdAsync_WithNonExistentId_ShouldReturnNull()
+    public async Task GetUserByIdAsync_WithNonExistentId_ShouldThrowNotFound()
     {
         // Arrange
         var userId = Guid.NewGuid();
 
         _mockService
             .Setup(s => s.GetUserByIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((UserDto?)null);
+            .ThrowsAsync(new KeyNotFoundException("User not found."));
 
         // Act
-        var result = await _mockService.Object.GetUserByIdAsync(userId, CancellationToken.None);
+        var act = () => _mockService.Object.GetUserByIdAsync(userId, CancellationToken.None);
 
         // Assert
-        result.Should().BeNull();
+        await act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("User not found.");
     }
 
     [Fact]
@@ -270,7 +271,7 @@ public class IdentityServiceContractTests
     }
 
     [Fact]
-    public async Task TokenResponse_ShouldHaveCorrectStructure()
+    public void TokenResponse_ShouldHaveCorrectStructure()
     {
         // Arrange
         var tokenResponse = new TokenResponse(
@@ -298,7 +299,7 @@ public class IdentityServiceContractTests
     }
 
     [Fact]
-    public async Task UserDto_WithRoles_ShouldContainRoles()
+    public void UserDto_WithRoles_ShouldContainRoles()
     {
         // Arrange
         var roles = new List<string> { "Admin", "Doctor", "Nurse" };

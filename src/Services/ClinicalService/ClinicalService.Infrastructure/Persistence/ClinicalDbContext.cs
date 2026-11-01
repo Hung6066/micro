@@ -4,6 +4,7 @@ using His.Hope.ClinicalService.Domain.Aggregates;
 using His.Hope.ClinicalService.Domain.Entities;
 using His.Hope.ClinicalService.Domain.ValueObjects;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -36,8 +37,9 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         modelBuilder.Entity<Encounter>().HasQueryFilter(encounter =>
-            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
-            _facilityScope.FacilityIds.Contains(encounter.FacilityId!));
+            EF.Property<bool?>(encounter, "IsDeleted") != true &&
+            (!_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(encounter.FacilityId!)));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("outbox_messages");
@@ -64,6 +66,7 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
             entity.HasIndex(e => new { e.Status, e.OccurredOn }).HasDatabaseName("ix_outboxmessages_status_occurredon");
         });
         base.OnModelCreating(modelBuilder);
+        HisHopeDataConventions.Apply(modelBuilder, typeof(Encounter));
     }
 
     public override async Task<int> SaveChangesAsync(
