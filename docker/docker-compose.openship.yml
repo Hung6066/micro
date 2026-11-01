@@ -1,24 +1,15 @@
-name: manufacturing
+name: micro
 
-# Standalone Manufacturing backend stack.
-# This file intentionally does not include Patient, Appointment, Clinical,
-# Lab, Billing, Pharmacy, API Gateway, or frontend apps.
-# Identity/OIDC, Commerce and Content are included because they are shared
-# dependencies of the Manufacturing business flow. Unrelated clinical and
-# hospital services are intentionally absent.
-# Openship variant: Postgres, Redis, RabbitMQ and identity-keys-init are provided by
-# Openship service bindings and Vault-backed identity_keys, so only the 8 application
-# services are declared here.
-# OpenShip puts project services on one namespace network; Docker network declarations
-# from the standalone stack are intentionally omitted from this variant.
+# OpenShip Compose source for the Micro project.
+# Keep only application services here; PostgreSQL, Redis, RabbitMQ and identity
+# key files are supplied by OpenShip service bindings and Vault-backed mounts.
+# OpenShip reads service build, ports, environment, volumes, dependencies,
+# restart policy and healthcheck from Compose. Replica counts and Kubernetes
+# resource requests/limits are configured on the OpenShip service, not with
+# Compose deploy.* fields.
 
 services:
   identityservice:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ..
       dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
@@ -76,11 +67,6 @@ services:
     restart: unless-stopped
 
   commerceservice:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ../src
       dockerfile: Services/CommerceService/CommerceService.Api/Dockerfile
@@ -118,11 +104,6 @@ services:
     restart: unless-stopped
 
   contentservice:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ../src
       dockerfile: Services/ContentService/ContentService.Api/Dockerfile
@@ -155,11 +136,6 @@ services:
     restart: unless-stopped
 
   manufacturingservice:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ../src
       dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
@@ -202,11 +178,6 @@ services:
     restart: unless-stopped
 
   api-gateway:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
@@ -238,11 +209,6 @@ services:
       start_period: 30s
 
   manufacturing-buyer-app:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ..
       dockerfile: manufacturing-buyer-app/Dockerfile
@@ -262,11 +228,6 @@ services:
       start_period: 15s
 
   internal-operator-app:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ..
       dockerfile: internal-operator-app/Dockerfile
@@ -286,11 +247,6 @@ services:
       start_period: 15s
 
   admin-app:
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: "0.05"
     build:
       context: ..
       dockerfile: admin-app/Dockerfile
@@ -309,5 +265,5 @@ services:
 
 volumes:
   identity_keys:
-    name: manufacturing-identity-keys
+    name: micro-identity-keys
 
