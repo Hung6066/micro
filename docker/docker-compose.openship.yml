@@ -9,6 +9,8 @@ name: manufacturing
 # Openship variant: Postgres, Redis, RabbitMQ and identity-keys-init are provided by
 # Openship service bindings and Vault-backed identity_keys, so only the 8 application
 # services are declared here.
+# OpenShip puts project services on one namespace network; Docker network declarations
+# from the standalone stack are intentionally omitted from this variant.
 
 services:
   identityservice:
@@ -65,7 +67,6 @@ services:
       Vault__AllowStaticToken: "true"
     volumes:
       - identity_keys:/etc/hishop/certs
-    networks: [manufacturing, openship_observability]
     healthcheck:
       test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
@@ -106,7 +107,6 @@ services:
       Outbox__Enabled: "true"
     volumes:
       - identity_keys:/etc/hishop/certs
-    networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
     healthcheck:
@@ -144,7 +144,6 @@ services:
       Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
     volumes:
       - identity_keys:/etc/hishop/certs
-    networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
     healthcheck:
@@ -198,7 +197,6 @@ services:
       Consumers__CommerceOrdersEnabled: "true"
     volumes:
       - identity_keys:/etc/hishop/certs
-    networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
     restart: unless-stopped
@@ -226,7 +224,6 @@ services:
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4317}
       CORS__AllowedOrigins: "http://localhost:8083,http://localhost:4205,http://localhost:4300"
-    networks: [manufacturing, openship_observability]
     depends_on:
       identityservice: { condition: service_healthy }
       commerceservice: { condition: service_healthy }
@@ -251,7 +248,6 @@ services:
       dockerfile: manufacturing-buyer-app/Dockerfile
     ports:
       - "${MANUFACTURING_BUYER_APP_PORT:-4205}:8080"
-    networks: [manufacturing]
     depends_on:
       api-gateway: { condition: service_healthy }
       identityservice: { condition: service_healthy }
@@ -276,7 +272,6 @@ services:
       dockerfile: internal-operator-app/Dockerfile
     ports:
       - "${MANUFACTURING_OPERATOR_APP_PORT:-4300}:8080"
-    networks: [manufacturing]
     depends_on:
       api-gateway: { condition: service_healthy }
       identityservice: { condition: service_healthy }
@@ -301,7 +296,6 @@ services:
       dockerfile: admin-app/Dockerfile
     ports:
       - "${MANUFACTURING_ADMIN_APP_PORT:-8083}:8080"
-    networks: [manufacturing]
     depends_on:
       api-gateway: { condition: service_healthy }
       identityservice: { condition: service_healthy }
@@ -312,13 +306,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-
-networks:
-  manufacturing:
-    name: manufacturing-standalone
-  openship_observability:
-    external: true
-    name: openship_observability
 
 volumes:
   identity_keys:
