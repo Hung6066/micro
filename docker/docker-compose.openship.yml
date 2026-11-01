@@ -113,6 +113,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5016
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
       Persistence__RunMigrationsOnStartup: "false"
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: http://identityservice:5003
