@@ -62,6 +62,6 @@
     "test:e2e:security": "npm --prefix tests/e2e run test:security"
   },
   "devDependencies": {
-    "@angular/localize": "^21.2.19"
+    "@angular/localize": "^21.2.25"
   }
 }
