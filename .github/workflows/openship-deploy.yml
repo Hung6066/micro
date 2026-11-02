@@ -1,19 +1,8 @@
 name: Sync environment to Openship
 
 on:
-  push:
-    branches: [developer]
-    paths:
-      - "src/**"
-      - "admin-app/**"
-      - "internal-operator-app/**"
-      - "manufacturing-buyer-app/**"
-      - "docker/docker-compose.yml"
-      - "docker/docker-compose.openship.yml"
-      - "docker/openship/**"
-      - "openship.yaml"
-      - "scripts/openship/**"
-      - ".github/workflows/openship-deploy.yml"
+  # Source publication must not replace stored production environment.
+  # Dispatch only after verifying the authoritative per-service configuration.
   workflow_dispatch:
 
 permissions:
