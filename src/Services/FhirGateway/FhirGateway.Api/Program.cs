@@ -16,13 +16,14 @@ using His.Hope.FhirGateway.Api;
 using His.Hope.PatientGrpc;
 using His.Hope.ClinicalGrpc;
 using Serilog;
+using Serilog.Enrichers.Span;
 
 var builder = WebApplication.CreateBuilder(args);
 var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "fhir-gateway");
 builder.Services.AddHisHopeServicePlatform(builder.Configuration, "fhir-gateway");
 
 builder.Host.UseSerilog((context, config) =>
-    config.ReadFrom.Configuration(context.Configuration));
+    config.ReadFrom.Configuration(context.Configuration).Enrich.WithSpan());
 
 // Add controllers
 builder.Services.AddControllers()

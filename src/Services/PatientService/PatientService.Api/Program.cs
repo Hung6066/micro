@@ -37,12 +37,14 @@ using His.Hope.PatientService.Infrastructure.Projections;
 using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Serilog;
+using Serilog.Enrichers.Span;
 using His.Hope.SharedKernel.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
+                .Enrich.WithSpan()
                 .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                 .Enrich.WithProperty("service", "patient-service"));
 

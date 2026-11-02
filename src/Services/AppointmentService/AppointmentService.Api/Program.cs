@@ -36,6 +36,7 @@ using His.Hope.PatientGrpc;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+using Serilog.Enrichers.Span;
 
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
@@ -43,6 +44,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
+                .Enrich.WithSpan()
                 .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                 .Enrich.WithProperty("service", "appointment-service"));
 

@@ -121,9 +121,9 @@ jobs:
           - { name: lab-service, context: ., dockerfile: src/Services/LabService/LabService.Api/Dockerfile }
           - { name: patient-service, context: ., dockerfile: src/Services/PatientService/PatientService.Api/Dockerfile }
           - { name: pharmacy-service, context: ., dockerfile: src/Services/PharmacyService/PharmacyService.Api/Dockerfile }
-          - { name: commerce-service, context: ., dockerfile: src/Services/CommerceService/CommerceService.Api/Dockerfile }
-          - { name: content-service, context: ., dockerfile: src/Services/ContentService/ContentService.Api/Dockerfile }
-          - { name: manufacturing-service, context: ., dockerfile: src/Services/ManufacturingService/ManufacturingService.Api/Dockerfile }
+          - { name: commerce-service, context: ./src, dockerfile: src/Services/CommerceService/CommerceService.Api/Dockerfile }
+          - { name: content-service, context: ./src, dockerfile: src/Services/ContentService/ContentService.Api/Dockerfile }
+          - { name: manufacturing-service, context: ./src, dockerfile: src/Services/ManufacturingService/ManufacturingService.Api/Dockerfile }
           - { name: dashboard-bff, context: ., dockerfile: src/Bff/DashboardBff/Dockerfile }
           - { name: systemdashboard-bff, context: ., dockerfile: src/Bff/SystemDashboard.Bff/Dockerfile }
           - { name: patient-bff, context: ., dockerfile: src/Bff/PatientBff/Dockerfile }

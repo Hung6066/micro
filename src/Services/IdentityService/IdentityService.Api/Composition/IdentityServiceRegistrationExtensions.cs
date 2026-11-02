@@ -62,6 +62,7 @@ using Microsoft.EntityFrameworkCore;
 using His.Hope.Infrastructure.DataLifecycle;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Serilog.Enrichers.Span;
 using StackExchange.Redis;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
@@ -140,6 +141,7 @@ public static class IdentityServiceRegistrationExtensions
 
         builder.Host.UseSerilog((context, config) =>
             config.ReadFrom.Configuration(context.Configuration)
+                        .Enrich.WithSpan()
                         .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                         .Enrich.WithProperty("service", "identity-service"));
 

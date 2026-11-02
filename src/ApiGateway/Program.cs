@@ -10,7 +10,9 @@ using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Configuration;
 using His.Hope.AspNetCore;
 using His.Hope.Observability;
+using His.Hope.Observability.OpenTelemetry;
 using Serilog;
+using Serilog.Enrichers.Span;
 using StackExchange.Redis;
 using His.Hope.Bff.Core.Authentication;
 using Microsoft.AspNetCore.DataProtection;
@@ -146,9 +148,10 @@ if (contentEndpoint is not null && (pluginRegistry.Get("content")?.Enabled ?? tr
 builder.Configuration.AddInMemoryCollection(reverseProxyClusters);
 builder.Services.AddHisHopeAspNetCore();
 builder.Services.AddObservability(options => options.ServiceName = "ApiGateway");
+builder.Services.AddHisHopeOpenTelemetryExporters(builder.Configuration, "ApiGateway");
 
 builder.Host.UseSerilog((context, config) =>
-    config.ReadFrom.Configuration(context.Configuration));
+    config.ReadFrom.Configuration(context.Configuration).Enrich.WithSpan());
 
 // SECURITY: CORS configured with explicit allowed origins from configuration.
 // CORS uses explicit configured origins and never falls back to a wildcard.
@@ -689,4 +692,3 @@ static X509Certificate2 LoadCertificate(IConfiguration config)
     throw new InvalidOperationException(
         "Gateway:RequireHttps is enabled but no configured gateway certificate was found.");
 }
-
