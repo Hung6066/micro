@@ -6,6 +6,28 @@ namespace His.Hope.Configuration.Tests;
 
 public sealed class ServiceEndpointOptionsTests
 {
+    [Theory]
+    [InlineData("rediss://gateway:fixture%2B%2F%3D@redis.internal:6379/2",
+        "redis.internal:6379,user=gateway,password=fixture+/=,defaultDatabase=2,ssl=True")]
+    [InlineData("redis://:fixture%3Avalue@redis.internal:6379",
+        "redis.internal:6379,password=fixture:value")]
+    [InlineData("rediss://gateway%3Atenant:fixture%3Avalue@redis.internal:6379",
+        "redis.internal:6379,user=gateway:tenant,password=fixture:value,ssl=True")]
+    [InlineData("redis://redis.internal:6379", "redis.internal:6379")]
+    public void ToRedisConnectionString_PreservesAclIdentityAndEncodedCredentials(
+        string url, string expected)
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["REDIS_URL"] = url
+        });
+        var endpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(configuration, "ApiGateway");
+
+        var result = RuntimeConfigurationExtensions.ToRedisConnectionString(endpoints.GetRequired("redis"));
+
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void EventBusKeys_UseCanonicalConfigurationPaths()
     {
