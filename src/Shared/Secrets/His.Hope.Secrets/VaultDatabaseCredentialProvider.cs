@@ -19,6 +19,7 @@ public sealed class VaultDatabaseOptions
 public interface IVaultDatabaseConnectionStringResolver
 {
     string Resolve(string configuredConnectionString, string connectionName);
+    void Invalidate(string connectionName);
 }
 
 public sealed class VaultDatabaseConnectionStringResolver(
@@ -63,6 +64,18 @@ public sealed class VaultDatabaseConnectionStringResolver(
             cache[role] = credential;
         logger.LogDebug("Resolved leased database credential for connection {ConnectionName} using Vault role {Role}; lease expires at {ExpiresAt}", connectionName, role, credential.ExpiresAt);
         return ApplyCredential(configuredConnectionString, credential.Username, credential.Password);
+    }
+
+    public void Invalidate(string connectionName)
+    {
+        var settings = databaseOptions.CurrentValue;
+        var role = string.IsNullOrWhiteSpace(settings.Role)
+            ? DefaultRoleFor(connectionName)
+            : settings.Role.Trim();
+        if (string.IsNullOrWhiteSpace(role)) return;
+
+        lock (sync)
+            cache.Remove(role);
     }
 
     private async Task<CachedCredential> FetchCredentialAsync(string role, string token)

@@ -65,6 +65,8 @@ public static class HisHopeDatabaseOptions
 
         var environmentName = configuration["HIS_HOPE_ENVIRONMENT"]
             ?? configuration["ASPNETCORE_ENVIRONMENT"];
+        var vaultDatabaseCredentials = configuration.GetValue<bool>("Vault:Database:Enabled") ||
+            string.Equals(environmentName, "production", StringComparison.OrdinalIgnoreCase);
         if (string.Equals(environmentName, "production", StringComparison.OrdinalIgnoreCase) &&
             (string.IsNullOrWhiteSpace(builder.Password) ||
              builder.Password.Equals("postgres", StringComparison.OrdinalIgnoreCase) ||
@@ -80,7 +82,7 @@ public static class HisHopeDatabaseOptions
             npgsql.EnableRetryOnFailure(
                 database.GetValue("MaxRetryCount", 5),
                 TimeSpan.FromSeconds(database.GetValue("MaxRetryDelaySeconds", 30)),
-                errorCodesToAdd: null);
+                errorCodesToAdd: vaultDatabaseCredentials ? [PostgresErrorCodes.InvalidPassword] : null);
             configure?.Invoke(npgsql);
         });
 

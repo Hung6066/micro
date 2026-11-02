@@ -125,4 +125,62 @@ public sealed class HisHopeDatabaseOptionsTests
         asyncConnectionSettings.Password.Should().Be("leased");
         resolver.Verify(item => item.Resolve(configuredConnectionString, "IdentityDb"), Times.Exactly(3));
     }
+
+    [Fact]
+    public async Task Vault_backed_database_retries_password_rejections_with_a_fresh_lease()
+    {
+        const string configuredConnectionString = "Host=localhost;Database=identity;Username=bootstrap;Password=bootstrap";
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:IdentityDb"] = configuredConnectionString,
+                ["Vault:Database:Enabled"] = "true"
+            })
+            .Build();
+        var resolver = new Mock<IVaultDatabaseConnectionStringResolver>();
+        resolver.Setup(item => item.Resolve(configuredConnectionString, "IdentityDb"))
+            .Returns("Host=localhost;Database=identity;Username=leased;Password=leased");
+        using var provider = new ServiceCollection()
+            .AddSingleton(resolver.Object)
+            .BuildServiceProvider();
+        var options = new DbContextOptionsBuilder()
+            .UseHisHopeNpgsql(provider, configuration, "IdentityDb")
+            .Options;
+        using var context = new DbContext(options);
+        var strategy = context.Database.CreateExecutionStrategy();
+        var attempts = 0;
+
+        var result = await strategy.ExecuteAsync(() =>
+        {
+            attempts++;
+            if (attempts == 1)
+                throw new Npgsql.PostgresException("password authentication failed", "ERROR", "FATAL", "28P01");
+            return Task.FromResult("connected");
+        });
+
+        result.Should().Be("connected");
+        attempts.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Vault_credential_interceptor_invalidates_only_rejected_passwords()
+    {
+        var resolver = new Mock<IVaultDatabaseConnectionStringResolver>();
+        var interceptor = new VaultDatabaseCredentialRefreshInterceptor(resolver.Object, "Host=localhost", "IdentityDb");
+        using var connection = new Npgsql.NpgsqlConnection();
+        var passwordRejected = new Npgsql.PostgresException("password authentication failed", "ERROR", "FATAL", "28P01");
+        var rejectedEvent = new ConnectionErrorEventData(
+            null!, (_, _) => string.Empty, connection, null!, Guid.Empty,
+            passwordRejected, false, DateTimeOffset.UtcNow, TimeSpan.Zero);
+        interceptor.ConnectionFailed(connection, rejectedEvent);
+        await interceptor.ConnectionFailedAsync(connection, rejectedEvent);
+        resolver.Verify(item => item.Invalidate("IdentityDb"), Times.Exactly(2));
+
+        var networkFailure = new Npgsql.NpgsqlException("connection refused");
+        var networkEvent = new ConnectionErrorEventData(
+            null!, (_, _) => string.Empty, connection, null!, Guid.Empty,
+            networkFailure, false, DateTimeOffset.UtcNow, TimeSpan.Zero);
+        interceptor.ConnectionFailed(connection, networkEvent);
+        resolver.Verify(item => item.Invalidate("IdentityDb"), Times.Exactly(2));
+    }
 }

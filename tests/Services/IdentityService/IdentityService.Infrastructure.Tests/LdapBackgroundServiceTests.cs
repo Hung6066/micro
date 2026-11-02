@@ -23,6 +23,17 @@ public sealed class LdapBackgroundServiceTests
         scopes.Verify(factory => factory.CreateScope(), Times.Never);
     }
 
+    [Fact]
+    public async Task ResolveSyncDelayAsync_uses_safe_fallback_when_database_configuration_cannot_be_read()
+    {
+        var delay = await LdapBackgroundService.ResolveSyncDelayAsync(
+            _ => Task.FromException<int>(new InvalidOperationException("database unavailable")),
+            NullLogger<LdapBackgroundService>.Instance,
+            CancellationToken.None);
+
+        Assert.Equal(TimeSpan.FromMinutes(5), delay);
+    }
+
     private sealed class TestableLdapBackgroundService(
         IServiceScopeFactory scopeFactory,
         Microsoft.Extensions.Logging.ILogger<LdapBackgroundService> logger)
