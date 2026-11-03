@@ -42,8 +42,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5003
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
       Persistence__RunMigrationsOnStartup: "false"
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-https://identity-api.nacoms.com.vn/}
       Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-https://identity-api.nacoms.com.vn/}
@@ -101,8 +102,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5015
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
       Persistence__RunMigrationsOnStartup: "false"
       TenantPlacement__Enabled: "true"
       TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
@@ -138,8 +140,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5016
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
       Persistence__RunMigrationsOnStartup: "false"
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: https://identity-api.nacoms.com.vn/
@@ -172,8 +175,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5050
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
 
       Persistence__RunMigrationsOnStartup: "false"
       TenantPlacement__Enabled: "false"
@@ -214,14 +218,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5000
-      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "0"
+      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "1"
       SERVICE_IDENTITY_URL: http://identityservice:5003
       SERVICE_IDENTITY_API_URL: http://identityservice:5003
       SERVICE_COMMERCE_URL: http://commerceservice:5015
       SERVICE_CONTENT_URL: http://contentservice:5016
       SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
-      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-http://openship-otel-collector.openship-tracing.svc.cluster.local:4317}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
+      OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
       CORS__AllowedOrigins: "http://localhost:8083,http://localhost:4205,http://localhost:4300"
     depends_on:
       identityservice: { condition: service_healthy }

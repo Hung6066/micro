@@ -2,6 +2,31 @@
 
 Cập nhật: 2026-11-03
 
+## Project tracing deployment contract
+
+The OpenShip Compose backend services export OTLP/gRPC to the project-bound
+HTTPS alias `openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317`.
+Mount each service's project collector CA Secret read-only at
+`/etc/openship-tracing/ca.crt` using the saved advanced Secret-file mount.
+`OTEL_EXPORTER_OTLP_CERTIFICATE` selects that trust bundle; hostname and chain
+verification remain enabled. Do not send project spans to the shared collector
+or supply a tenant header: the dedicated collector assigns the project tenant.
+Gateway must retain HTTP/2 support for gRPC export; this does not force YARP's
+upstream request version.
+
+Existing service-scoped environment rows override Compose defaults and survive
+rebuilds. Update both the saved service configuration and Compose source when
+repairing an old endpoint. Prefer `OTEL_EXPORTER_OTLP_ENDPOINT` (the standard
+key has priority over legacy aliases), preserve unrelated masked rows by their
+source IDs, and apply through a strictly service-scoped current-image refresh.
+An image rebuild by itself does not change saved environment variables.
+The static admin-app is not an instrumented backend: loading its HTML alone
+does not create spans. Validate actual non-health Identity/Gateway requests;
+health and metrics are intentionally excluded. Allow the collector's 30-second
+tail-sampling window plus batching. Error and slow traces are retained, normal
+traffic is sampled at 10%; trace IDs and parent-child relationships, not Pod
+readiness or synthetic collector fixtures, prove application tracing.
+
 ## Nacoms Group admin session contract (2026-11-03)
 
 The HQ tenant key is `nacoms-group`, displayed as **Nacoms Group**. OAuth client
