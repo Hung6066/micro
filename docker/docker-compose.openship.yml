@@ -12,6 +12,27 @@ name: micro
 # Compose deploy.* fields.
 
 services:
+  openfga:
+    build:
+      context: ..
+      dockerfile: docker/openfga/Dockerfile
+    ports:
+      - "8080"
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_AUTHN_METHOD: preshared
+      OPENFGA_PLAYGROUND_ENABLED: "false"
+      OPENFGA_HTTP_ADDR: 0.0.0.0:8080
+      OPENFGA_GRPC_ADDR: 0.0.0.0:8081
+      OPENFGA_DATASTORE_MAX_OPEN_CONNS: "10"
+      OPENFGA_DATASTORE_MAX_IDLE_CONNS: "5"
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=127.0.0.1:8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   identityservice:
     build:
       context: ..
