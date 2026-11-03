@@ -345,7 +345,7 @@
       ]
     },
     {
-      "key": "group-hq",
+      "key": "nacoms-group",
       "groups": [
         {
           "key": "group-auditors",
@@ -413,7 +413,7 @@
             "identity.view",
             "identity.update"
           ],
-          "tenantKey": "group-hq"
+          "tenantKey": "nacoms-group"
         }
       ]
     },
@@ -616,7 +616,7 @@
       "email": "hq.pilot@abc-group.example",
       "firstName": "Group",
       "lastName": "HQ",
-      "tenantKey": "group-hq"
+      "tenantKey": "nacoms-group"
     },
     {
       "userName": "acme.pilot",

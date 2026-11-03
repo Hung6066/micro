@@ -65,8 +65,8 @@ export class TenantContextService {
         this.membershipsSubject.next(memberships);
 
         const stored = this.activeTenantKeySubject.value;
-        const preferredMembership = memberships.includes("group-hq")
-          ? "group-hq"
+        const preferredMembership = memberships.includes("nacoms-group")
+          ? "nacoms-group"
           : memberships[0];
         const defaultKey =
           stored && memberships.includes(stored)
@@ -100,7 +100,7 @@ export class TenantContextService {
   }
 
   isGroupHqOperator(): boolean {
-    return this.membershipsSubject.value.includes("group-hq");
+    return this.membershipsSubject.value.includes("nacoms-group");
   }
 
   getActiveEnvironmentScopeId(): string | undefined {
@@ -185,7 +185,7 @@ export class TenantContextService {
     memberships: string[],
   ): TenantOption[] {
     const tenantScopes = scopes.filter((scope) => scope.kind === "tenant");
-    const isGroupHqOperator = memberships.includes("group-hq");
+    const isGroupHqOperator = memberships.includes("nacoms-group");
     const visible = isGroupHqOperator
       ? tenantScopes
       : memberships.length

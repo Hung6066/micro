@@ -571,12 +571,12 @@ services:
       Conglomerate__Tenants__0__DisplayName: Manufacturing Co
       Conglomerate__Tenants__1__Key: tech-vendor
       Conglomerate__Tenants__1__DisplayName: Technology Co
-      Conglomerate__Tenants__2__Key: group-hq
+      Conglomerate__Tenants__2__Key: nacoms-group
       Conglomerate__Tenants__2__DisplayName: Group HQ
-      Conglomerate__OidcClientTenants__group-hq-admin: group-hq
-      Conglomerate__OidcClientTenants__his-hope-dashboard: group-hq
-      Conglomerate__OidcClientTenants__his-hope-spa: group-hq
-      Conglomerate__OidcClientTenants__his-hope-mobile: group-hq
+      Conglomerate__OidcClientTenants__group-hq-admin: nacoms-group
+      Conglomerate__OidcClientTenants__his-hope-dashboard: nacoms-group
+      Conglomerate__OidcClientTenants__his-hope-spa: nacoms-group
+      Conglomerate__OidcClientTenants__his-hope-mobile: nacoms-group
       Conglomerate__OidcClientTenants__his-hope-operator-mobile: manufacturing
       Conglomerate__OidcClientTenants__manufacturing-app: manufacturing
       Conglomerate__OidcClientTenants__tech-console: tech-vendor

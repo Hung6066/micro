@@ -128,7 +128,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         manager.Setup(x => x.GetClaimsAsync(user)).ReturnsAsync(
         [
             new Claim("tenant_membership", "manufacturing"),
-            new Claim("tenant_membership", "group-hq")
+            new Claim("tenant_membership", "nacoms-group")
         ]);
         var registry = new TestConglomerateTenantRegistry(
             enabled: true,
@@ -144,7 +144,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         await Handler(db, registry, manager.Object).HandleAsync(context);
 
         identity.FindFirst("tenant_id")!.Value.Should().Be("manufacturing");
-        identity.FindFirst("tenant_memberships")!.Value.Should().Contain("group-hq");
+        identity.FindFirst("tenant_memberships")!.Value.Should().Contain("nacoms-group");
     }
 
     [Fact]

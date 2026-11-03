@@ -171,8 +171,12 @@ public class IdentityServiceTestFixture : IAsyncLifetime
         builder.Configuration["RateLimiting:MaxRequestsPerIp"] = "10000";
         builder.Configuration["RateLimiting:MaxRequestsPerUser"] = "5000";
         builder.Configuration["Conglomerate:Enabled"] = "false";
-        builder.Configuration["Conglomerate:OidcClientTenants:his-hope-admin"] = "group-hq";
-        builder.Configuration["Conglomerate:OidcClientTenants:integration-hq-portal"] = "group-hq";
+        builder.Configuration["Conglomerate:Organization:Key"] = "nacoms";
+        builder.Configuration["Conglomerate:Organization:DisplayName"] = "Nacoms Group";
+        builder.Configuration["Conglomerate:Tenants:0:Key"] = "nacoms-group";
+        builder.Configuration["Conglomerate:Tenants:0:DisplayName"] = "Nacoms Group";
+        builder.Configuration["Conglomerate:OidcClientTenants:his-hope-admin"] = "nacoms-group";
+        builder.Configuration["Conglomerate:OidcClientTenants:integration-hq-portal"] = "nacoms-group";
         builder.Configuration["Conglomerate:OidcClientTenants:integration-tenant-portal"] = "manufacturing";
         builder.Configuration["Identity:SuperAdmin:UserIds:0"] = IdentityTestData.AdminId.ToString("D");
         builder.Configuration["Authentication:OidcClients:his-hope-test:RedirectUris:0"] = "http://localhost:4200/auth/callback";
@@ -272,9 +276,9 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             // tests intentionally skip the production initializer.
             var adminClaims = await userManager.GetClaimsAsync(adminUser);
             if (!adminClaims.Any(claim => claim.Type == "tenant_membership" &&
-                string.Equals(claim.Value, "group-hq", StringComparison.OrdinalIgnoreCase)))
+                string.Equals(claim.Value, "nacoms-group", StringComparison.OrdinalIgnoreCase)))
             {
-                await userManager.AddClaimAsync(adminUser, new Claim("tenant_membership", "group-hq"));
+                await userManager.AddClaimAsync(adminUser, new Claim("tenant_membership", "nacoms-group"));
             }
 
             // Keep the bootstrap invariant explicit even when a pre-existing

@@ -72,13 +72,7 @@ public static class IdentityBffSessionEndpoints
                 identityService,
                 user,
                 ct);
-            if (string.Equals(request?.ClientId, "his-hope-admin", StringComparison.Ordinal))
-            {
-                // Identity's built-in control-plane client is not a tenant portal.
-                if (!user.IsActive || !isPrivileged || !roles.Contains("Admin"))
-                    return Results.Forbid();
-            }
-            else if (!string.IsNullOrWhiteSpace(request?.ClientId))
+            if (!string.IsNullOrWhiteSpace(request?.ClientId))
             {
                 var clientTenant = tenantRegistry.GetClientTenant(request.ClientId);
                 if (clientTenant is null || !tenantRegistry.IsConglomerateClient(request.ClientId))

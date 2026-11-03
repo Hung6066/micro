@@ -22,8 +22,8 @@
       "environmentDisplayName": "Azure staging"
     },
     {
-      "key": "group-hq",
-      "displayName": "Group HQ",
+      "key": "nacoms-group",
+      "displayName": "Nacoms Group",
       "accountKey": "group-hq-account",
       "accountDisplayName": "Group administration",
       "environmentKey": "group-hq-staging",
@@ -34,7 +34,7 @@
     "defaultDeny": true,
     "allowedPairs": [
       {
-        "source": "group-hq",
+        "source": "nacoms-group",
         "target": "manufacturing",
         "reason": "group-iam-read",
         "permissions": [
@@ -45,7 +45,7 @@
         ]
       },
       {
-        "source": "group-hq",
+        "source": "nacoms-group",
         "target": "tech-vendor",
         "reason": "group-iam-read",
         "permissions": [
@@ -56,7 +56,7 @@
         ]
       },
       {
-        "source": "group-hq",
+        "source": "nacoms-group",
         "targetClass": "customer",
         "reason": "group-customer-iam-read",
         "permissions": [

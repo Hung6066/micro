@@ -37,22 +37,23 @@ services:
       OpenIddict__Encryption__PrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       OpenIddict__Encryption__KeyId: manufacturing-oidc-encryption-v1
       Identity__BootstrapAdmin__ResetPassword: ${MANUFACTURING_IDENTITY_RESET_PASSWORD:-false}
+      Identity__SuperAdmin__SeedHqMembership: "true"
       Conglomerate__Enabled: "true"
-      Conglomerate__Organization__Key: manufacturing
-      Conglomerate__Organization__DisplayName: Manufacturing
+      Conglomerate__Organization__Key: nacoms
+      Conglomerate__Organization__DisplayName: Nacoms Group
       Conglomerate__SeedPilotMemberships: "false"
       Conglomerate__SeedPilotUsers: "false"
       Conglomerate__Tenants__0__Key: manufacturing
       Conglomerate__Tenants__0__DisplayName: Manufacturing
       Conglomerate__Tenants__1__Key: tech-vendor
       Conglomerate__Tenants__1__DisplayName: Technology Vendor
-      Conglomerate__Tenants__2__Key: group-hq
-      Conglomerate__Tenants__2__DisplayName: Group Headquarters
+      Conglomerate__Tenants__2__Key: nacoms-group
+      Conglomerate__Tenants__2__DisplayName: Nacoms Group
       Conglomerate__Tenants__3__Key: customer-acme
       Conglomerate__Tenants__3__DisplayName: Acme Healthcare
       Conglomerate__Tenants__4__Key: customer-factory-x
       Conglomerate__Tenants__4__DisplayName: Factory X Industrial
-      Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"group-hq","his-hope-admin":"group-hq","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
+      Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"nacoms-group","his-hope-admin":"nacoms-group","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
       AUTHZ_PDP_MODE: ${AUTHZ_PDP_MODE:-canary}
       Vault__Address: https://vault.openship-vault.svc.cluster.local:8200
       Vault__RequireVault: "true"
@@ -270,4 +271,3 @@ services:
 volumes:
   identity_keys:
     name: micro-identity-keys
-

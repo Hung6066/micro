@@ -2,8 +2,6 @@ using System.Security.Claims;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
-using His.Hope.SharedKernel.Authorization;
-using His.Hope.SharedKernel.Protocol;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Authorization;
@@ -26,7 +24,7 @@ public sealed record IamTenantScopeFilter(
 public static class IamTenantScopeResolver
 {
     public const string TenantMembershipClaimType = "tenant_membership";
-    public const string GroupHqTenantKey = "group-hq";
+    public const string GroupHqTenantKey = "nacoms-group";
 
     public static IReadOnlyList<string> GetMemberships(ClaimsPrincipal user) =>
         user.FindAll(TenantMembershipClaimType)
@@ -53,13 +51,6 @@ public static class IamTenantScopeResolver
         IConglomerateTenantRegistry? registry,
         CancellationToken ct)
     {
-        // Match HumanSuperAdmin; ordinary Admin roles remain tenant-scoped.
-        if (user.Identity?.IsAuthenticated == true &&
-            user.IsInRole("Admin") &&
-            user.HasClaim(HisHopeProtocolConstants.Claims.SuperAdmin, "true") &&
-            user.HasClaim(AuthorizationConstants.Claims.PrincipalType, AuthorizationConstants.PrincipalTypes.Human))
-            return IamTenantScopeFilter.Unrestricted;
-
         var memberships = GetMemberships(user);
         var isHq = IsGroupHqOperator(memberships);
         var scopes = await db.IamScopes.AsNoTracking()

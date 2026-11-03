@@ -53,7 +53,7 @@
     "defaultDeny": true,
     "allowedPairs": [
       {
-        "source": "group-hq",
+        "source": "nacoms-group",
         "targetClass": "customer",
         "reason": "group-customer-audit-read",
         "permissions": [

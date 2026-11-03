@@ -47,6 +47,7 @@ public static class IdentityDbInitializer
         var migrationOnly = configuration?.GetValue<bool>("Persistence:MigrationOnly") == true;
         if (configuration?.GetValue<bool>("Persistence:RunMigrationsOnStartup") != true && !migrationOnly)
         {
+            await SeedSuperAdminHqMembershipsAsync(context, userManager, configuration, logger, ct);
             logger.LogInformation(
                 "Skipping identity migration and seed on API startup; run the dedicated persistence job first.");
             return;
@@ -773,7 +774,75 @@ public static class IdentityDbInitializer
                 await SeedConglomeratePilotMembershipsAsync(userManager, configuration, logger, ct);
             }
         }
+        await SeedSuperAdminHqMembershipsAsync(context, userManager, configuration, logger, ct);
         logger.LogInformation("Database seeding completed successfully.");
+    }
+
+    private static async Task SeedSuperAdminHqMembershipsAsync(
+        IdentityDbContext db,
+        UserManager<User> userManager,
+        IConfiguration? configuration,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        if (configuration?.GetValue("Identity:SuperAdmin:SeedHqMembership", false) != true)
+            return;
+
+        await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            db.ChangeTracker.Clear();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // Serialize the narrowly scoped seed across rolling API replicas.
+            await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(198083011, 1)", ct);
+            await ValidateProductionSuperAdminsAsync(configuration, userManager, db, logger, ct);
+            var userIds = configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>() ?? [];
+            var admins = new List<User>();
+            foreach (var userId in userIds)
+            {
+                var user = await userManager.FindByIdAsync(userId)
+                    ?? throw new InvalidOperationException("The configured super-admin no longer exists.");
+                if (!await userManager.IsInRoleAsync(user, "Admin"))
+                    throw new InvalidOperationException("HQ membership seeding requires an existing Admin role.");
+                admins.Add(user);
+            }
+
+            var oldTenant = await db.IamScopes.SingleOrDefaultAsync(
+                scope => scope.Kind == "tenant" && scope.Key == "group-hq", ct);
+            if (oldTenant is not null)
+            {
+                if (await db.IamScopes.AnyAsync(
+                        scope => scope.Kind == "tenant" && scope.Key == "nacoms-group", ct))
+                    throw new InvalidOperationException("Both old and new HQ tenant scopes exist; reconcile them before seeding.");
+                oldTenant.Key = "nacoms-group";
+                oldTenant.DisplayName = "Nacoms Group";
+                await db.SaveChangesAsync(ct);
+            }
+            await SeedConglomerateScopesAsync(db, configuration, logger, ct, onlyTenantKey: "nacoms-group");
+            if (!await db.IamScopes.AnyAsync(scope =>
+                    scope.Kind == "tenant" && scope.Key == "nacoms-group" && scope.IsActive, ct))
+                throw new InvalidOperationException("HQ membership seeding requires an active nacoms-group tenant.");
+            await db.UserClaims.Where(claim =>
+                    (claim.ClaimType == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership ||
+                     claim.ClaimType == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantId) &&
+                    claim.ClaimValue == "group-hq")
+                .ExecuteUpdateAsync(setters => setters.SetProperty(claim => claim.ClaimValue, "nacoms-group"), ct);
+            foreach (var user in admins)
+            {
+                var claims = await userManager.GetClaimsAsync(user);
+                if (claims.Any(claim =>
+                        claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership &&
+                        string.Equals(claim.Value, "nacoms-group", StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var result = await userManager.AddClaimAsync(user, new Claim(
+                    His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, "nacoms-group"));
+                if (!result.Succeeded)
+                    throw new InvalidOperationException(
+                        $"Failed to seed super-admin HQ membership: {string.Join("; ", result.Errors.Select(error => error.Description))}");
+                logger.LogInformation("Granted nacoms-group membership to configured super-admin {UserId}.", user.Id);
+            }
+            await transaction.CommitAsync(ct);
+        });
     }
 
     private static async Task EnsureSystemRoleAsync(
@@ -1877,7 +1946,8 @@ public static class IdentityDbInitializer
         IdentityDbContext db,
         IConfiguration configuration,
         ILogger logger,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? onlyTenantKey = null)
     {
         var orgKey = configuration["Conglomerate:Organization:Key"];
         var orgName = configuration["Conglomerate:Organization:DisplayName"];
@@ -1888,6 +1958,9 @@ public static class IdentityDbInitializer
         }
 
         var tenantSections = configuration.GetSection("Conglomerate:Tenants").GetChildren().ToArray();
+        if (onlyTenantKey is not null)
+            tenantSections = tenantSections.Where(section =>
+                string.Equals(section["Key"], onlyTenantKey, StringComparison.OrdinalIgnoreCase)).ToArray();
         if (tenantSections.Length == 0)
         {
             throw new InvalidOperationException(

@@ -16,7 +16,7 @@ public sealed class IamTenantAccessGuardTests
     [Fact]
     public void EnsureCrossTenantRead_allows_hq_operator_with_direct_membership()
     {
-        var user = UserWithMemberships("group-hq", "manufacturing");
+        var user = UserWithMemberships("nacoms-group", "manufacturing");
         var filter = new IamTenantScopeFilter(
             [Guid.NewGuid()],
             ["manufacturing"],
@@ -24,7 +24,7 @@ public sealed class IamTenantAccessGuardTests
             AccessDenied: false);
         var policy = new ConfigurableCrossTenantAccessPolicy(
         [
-            new CrossTenantAllowedPair("group-hq", "manufacturing", "audit", ["admin.audit.read"])
+            new CrossTenantAllowedPair("nacoms-group", "manufacturing", "audit", ["admin.audit.read"])
         ]);
 
         var result = IamTenantAccessGuard.EnsureCrossTenantRead(
@@ -39,7 +39,7 @@ public sealed class IamTenantAccessGuardTests
     [Fact]
     public void EnsureCrossTenantRead_denies_hq_operator_without_membership_for_non_audit_action()
     {
-        var user = UserWithMemberships("group-hq");
+        var user = UserWithMemberships("nacoms-group");
         var filter = new IamTenantScopeFilter(
             [Guid.NewGuid()],
             ["manufacturing"],
@@ -47,7 +47,7 @@ public sealed class IamTenantAccessGuardTests
             AccessDenied: false);
         var policy = new ConfigurableCrossTenantAccessPolicy(
         [
-            new CrossTenantAllowedPair("group-hq", "manufacturing", "audit", ["admin.audit.read"])
+            new CrossTenantAllowedPair("nacoms-group", "manufacturing", "audit", ["admin.audit.read"])
         ]);
 
         var result = IamTenantAccessGuard.EnsureCrossTenantRead(
@@ -63,7 +63,7 @@ public sealed class IamTenantAccessGuardTests
     [Fact]
     public void EnsureCrossTenantRead_allows_hq_operator_without_membership_for_audit_action()
     {
-        var user = UserWithMemberships("group-hq");
+        var user = UserWithMemberships("nacoms-group");
         var filter = new IamTenantScopeFilter(
             [Guid.NewGuid()],
             ["manufacturing"],
@@ -71,7 +71,7 @@ public sealed class IamTenantAccessGuardTests
             AccessDenied: false);
         var policy = new ConfigurableCrossTenantAccessPolicy(
         [
-            new CrossTenantAllowedPair("group-hq", "manufacturing", "audit", ["admin.audit.read"])
+            new CrossTenantAllowedPair("nacoms-group", "manufacturing", "audit", ["admin.audit.read"])
         ]);
 
         var result = IamTenantAccessGuard.EnsureCrossTenantRead(
@@ -106,7 +106,7 @@ public sealed class IamTenantAccessGuardTests
 public sealed class IamTenantScopeResolverTests
 {
     [Fact]
-    public async Task ResolveAsync_allows_authenticated_human_platform_admin_without_memberships()
+    public async Task ResolveAsync_denies_authenticated_human_platform_admin_without_memberships()
     {
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -121,8 +121,8 @@ public sealed class IamTenantScopeResolverTests
 
         var filter = await IamTenantScopeResolver.ResolveAsync(db, user, null, CancellationToken.None);
 
-        filter.AccessDenied.Should().BeFalse();
-        filter.IsRestricted.Should().BeFalse();
+        filter.AccessDenied.Should().BeTrue();
+        filter.IsRestricted.Should().BeTrue();
         IamTenantScopeResolver.GetMemberships(user).Should().BeEmpty();
     }
 

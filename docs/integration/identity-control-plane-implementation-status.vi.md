@@ -2,22 +2,31 @@
 
 Cập nhật: 2026-11-03
 
-## Platform admin session contract (2026-11-03)
+## Nacoms Group admin session contract (2026-11-03)
 
-The built-in `his-hope-admin` client uses the existing configured
-`Identity:SuperAdmin:UserIds` allowlist plus the persisted Admin role, not
-`group-hq` tenant membership. A tenant Admin cannot use this client merely by
-having HQ membership. Other BFF clients retain their registry and membership
-checks; an unsuccessful exchange does not revoke the previous browser session.
+The HQ tenant key is `nacoms-group`, displayed as **Nacoms Group**. OAuth client
+identifiers, including `his-hope-admin` and `group-hq-admin`, are unchanged;
+their tenant mappings and HQ policy sources use the new key.
 
-IAM scope resolution recognizes the existing HumanSuperAdmin trust tier:
-authenticated human principal, Admin role, and server-issued `super_admin=true`.
-It does not add tenant memberships or change the configured privileged
-control-plane permission boundary. Anonymous, workload, ordinary Admin, and
-incomplete identities remain denied when they have no tenant membership.
+There is no tenantless SuperAdmin exception in BFF exchange or IAM resolution.
+The explicit `Identity:SuperAdmin:SeedHqMembership=true` startup reconciliation
+reuses the tenant-scope seeder for Nacoms Group only and grants membership only
+to configured, active, email-confirmed SuperAdmin users with an existing Admin
+role and enrolled MFA or two passkeys. It works with startup migrations disabled
+and does not enable pilot users, pilot-wide memberships, or password resets.
+The seed is transactional, serialized across replicas, and idempotent.
+Existing `group-hq` tenant scopes are renamed in place, preserving scope IDs;
+membership and tenant-ID claims migrate to `nacoms-group`. Conflicting old/new
+tenant scopes cause an explicit startup failure instead of merging access.
 
-Regression coverage exercises the real signed Identity cookie, Redis BFF
-session exchange, authenticated client listing, and negative tenant cases.
+Existing HQ visibility/cross-tenant policies remain effective; HQ membership is
+an intentional authorization grant, not a Clients-only privilege. Permission
+checks and fresh MFA for mutations remain required. Rejected BFF exchanges do
+not revoke the previous session.
+
+Regression coverage exercises signed Identity cookies, Redis BFF exchange,
+client list/create/delete, idempotent membership seeding and old-key migration,
+and tenant portal rejection without membership.
 Production acceptance still requires MFA login followed by an authenticated
 Clients reload; health/readiness alone is insufficient.
 

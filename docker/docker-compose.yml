@@ -143,13 +143,13 @@ services:
       Conglomerate__Tenants__0__DisplayName: Manufacturing
       Conglomerate__Tenants__1__Key: tech-vendor
       Conglomerate__Tenants__1__DisplayName: Technology Vendor
-      Conglomerate__Tenants__2__Key: group-hq
-      Conglomerate__Tenants__2__DisplayName: Group Headquarters
+      Conglomerate__Tenants__2__Key: nacoms-group
+      Conglomerate__Tenants__2__DisplayName: Nacoms Group
       Conglomerate__Tenants__3__Key: customer-acme
       Conglomerate__Tenants__3__DisplayName: Acme Healthcare
       Conglomerate__Tenants__4__Key: customer-factory-x
       Conglomerate__Tenants__4__DisplayName: Factory X Industrial
-      Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"group-hq","his-hope-admin":"group-hq","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
+      Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"nacoms-group","his-hope-admin":"nacoms-group","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
       AUTHZ_PDP_MODE: disabled
       Vault__Address: ""
       Vault__RequireVault: "false"

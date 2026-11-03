@@ -304,11 +304,11 @@ public sealed class AuthorizationEvaluatorTests
     {
         var policy = new ConfigurableCrossTenantAccessPolicy(
         [
-            new CrossTenantAllowedPair("group-hq", "manufacturing", "group-audit-read", ["admin.audit.read"])
+            new CrossTenantAllowedPair("nacoms-group", "manufacturing", "group-audit-read", ["admin.audit.read"])
         ]);
         var evaluator = new AuthorizationEvaluator(crossTenantPolicy: policy);
         var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
-            Principal("admin.audit.read", "facility-a", "group-hq"),
+            Principal("admin.audit.read", "facility-a", "nacoms-group"),
             "admin.audit.read",
             new AuthorizationResource("audit-log", "entry-1", TenantId: "manufacturing", FacilityId: "facility-a"),
             RequireResource: true));
@@ -321,11 +321,11 @@ public sealed class AuthorizationEvaluatorTests
     {
         var policy = new ConfigurableCrossTenantAccessPolicy(
         [
-            new CrossTenantAllowedPair("group-hq", "manufacturing", "group-audit-read", ["admin.audit.read"])
+            new CrossTenantAllowedPair("nacoms-group", "manufacturing", "group-audit-read", ["admin.audit.read"])
         ]);
         var evaluator = new AuthorizationEvaluator(crossTenantPolicy: policy);
         var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
-            Principal("patients.view", "facility-a", "group-hq"),
+            Principal("patients.view", "facility-a", "nacoms-group"),
             "patients.view",
             new AuthorizationResource("patient", "patient-1", TenantId: "manufacturing", FacilityId: "facility-a"),
             RequireResource: true));

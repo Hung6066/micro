@@ -36,8 +36,8 @@ public sealed class ConglomerateTenantRegistryTests
             HqCustomerVisibility = ConglomerateConstants.HqCustomerVisibilityAll,
             Tenants =
             [
-                new() { Key = "group-hq", TenantClass = ConglomerateConstants.TenantClassInternal },
-                new() { Key = "customer-a", TenantClass = ConglomerateConstants.TenantClassCustomer, OperatorHome = "GROUP-HQ" },
+                new() { Key = "nacoms-group", TenantClass = ConglomerateConstants.TenantClassInternal },
+                new() { Key = "customer-a", TenantClass = ConglomerateConstants.TenantClassCustomer, OperatorHome = "NACOMS-GROUP" },
                 new() { Key = "", TenantClass = ConglomerateConstants.TenantClassCustomer }
             ],
             OidcClientTenants = new(StringComparer.Ordinal) { ["portal-a"] = "customer-a" },
@@ -45,7 +45,7 @@ public sealed class ConglomerateTenantRegistryTests
             CrossTenantPolicy = new()
             {
                 DefaultDeny = false,
-                AllowedPairs = [new() { Source = "group-hq", Target = "customer-a", Permissions = ["admin.audit.read"] }]
+                AllowedPairs = [new() { Source = "nacoms-group", Target = "customer-a", Permissions = ["admin.audit.read"] }]
             }
         };
 
@@ -62,13 +62,13 @@ public sealed class ConglomerateTenantRegistryTests
         Assert.Equal(ConglomerateConstants.PortalClassOperator, registry.GetPortalClass("missing"));
         Assert.Equal(ConglomerateConstants.TenantClassCustomer, registry.GetTenantClass("CUSTOMER-A"));
         Assert.Equal(ConglomerateConstants.TenantClassInternal, registry.GetTenantClass("missing"));
-        Assert.Equal("GROUP-HQ", registry.GetOperatorHome("customer-a"));
+        Assert.Equal("NACOMS-GROUP", registry.GetOperatorHome("customer-a"));
         Assert.Null(registry.GetOperatorHome("missing"));
         Assert.Equal(["portal-a"], registry.GetClientIdsForTenant("CUSTOMER-A"));
         Assert.Empty(registry.GetClientIdsForTenant(""));
-        Assert.Equal(["customer-a"], registry.GetCustomerTenantsForOperator("group-hq"));
+        Assert.Equal(["customer-a"], registry.GetCustomerTenantsForOperator("nacoms-group"));
         Assert.True(registry.IsCustomerTenant("customer-a"));
-        Assert.False(registry.IsCustomerTenant("group-hq"));
+        Assert.False(registry.IsCustomerTenant("nacoms-group"));
         Assert.Single(registry.AllowedCrossTenantPairs);
         Assert.Equal("customer-a", registry.GetTenantProfile("CUSTOMER-A")?.Key);
         Assert.Null(registry.GetTenantProfile("missing"));
@@ -84,7 +84,7 @@ public sealed class ConglomerateTenantRegistryTests
             {
               "key": "customer-file",
               "displayName": "File Customer",
-              "operatorHome": "group-hq",
+              "operatorHome": "nacoms-group",
               "accountKey": "account-a",
               "accountDisplayName": "Account A",
               "environmentKey": "prod",
@@ -106,7 +106,7 @@ public sealed class ConglomerateTenantRegistryTests
           "crossTenantPolicy": {
             "defaultDeny": false,
             "allowedPairs": [
-              { "source": "group-hq", "targetClass": "customer", "operatorHomeMatch": true, "requiresJit": true, "maxDurationMinutes": 15, "reason": "support", "permissions": ["admin.audit.read", " ", 42] },
+              { "source": "nacoms-group", "targetClass": "customer", "operatorHomeMatch": true, "requiresJit": true, "maxDurationMinutes": 15, "reason": "support", "permissions": ["admin.audit.read", " ", 42] },
               { "source": " ", "target": "ignored" },
               { "source": "valid", "target": " " }
             ]
@@ -145,8 +145,8 @@ public sealed class ConglomerateTenantRegistryTests
         { "crossTenantPolicy": {
           "defaultDeny": true,
           "allowedPairs": [
-            { "source": "group-hq", "target": "tenant-a" },
-            { "source": "group-hq", "targetClass": "customer", "permissions": [] },
+            { "source": "nacoms-group", "target": "tenant-a" },
+            { "source": "nacoms-group", "targetClass": "customer", "permissions": [] },
             { "source": " ", "target": "ignored" },
             { "source": "missing-target" }
           ]
