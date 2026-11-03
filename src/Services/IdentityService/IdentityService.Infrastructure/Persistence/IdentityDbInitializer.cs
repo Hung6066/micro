@@ -1991,6 +1991,23 @@ public static class IdentityDbInitializer
                 throw new InvalidOperationException("Each Conglomerate:Tenants entry requires Key and DisplayName.");
             }
 
+            if (onlyTenantKey is not null)
+            {
+                // Explicit HQ reconciliation moves its subtree, not other tenants.
+                var existingTenant = await db.IamScopes.SingleOrDefaultAsync(
+                    scope => scope.Kind == "tenant" && scope.Key == tenantKey, ct);
+                if (existingTenant is not null)
+                {
+                    if (existingTenant.ParentId != organization.Id)
+                        logger.LogInformation(
+                            "Moving HQ tenant {TenantId} from organization {PreviousParentId} to {OrganizationId}.",
+                            existingTenant.Id, existingTenant.ParentId, organization.Id);
+                    existingTenant.ParentId = organization.Id;
+                    existingTenant.DisplayName = tenantName;
+                    await db.SaveChangesAsync(ct);
+                }
+            }
+
             var tenant = await Scope(tenantKey, tenantName, "tenant", organization.Id);
             var accountKey = tenantSection["AccountKey"] ?? $"{tenantKey}-account";
             var accountName = tenantSection["AccountDisplayName"] ?? $"{tenantName} account";

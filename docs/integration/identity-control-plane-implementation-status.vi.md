@@ -18,6 +18,11 @@ The seed is transactional, serialized across replicas, and idempotent.
 Existing `group-hq` tenant scopes are renamed in place, preserving scope IDs;
 membership and tenant-ID claims migrate to `nacoms-group`. Conflicting old/new
 tenant scopes cause an explicit startup failure instead of merging access.
+When the existing HQ belongs to a legacy organization, this explicit
+reconciliation reparents only that tenant to the configured Nacoms organization.
+Its scope ID, descendant IDs, policies, and assignments are retained; other
+tenants stay under their original organization. Both old-key and already-renamed
+HQ trees are covered by the migration regression tests.
 
 Existing HQ visibility/cross-tenant policies remain effective; HQ membership is
 an intentional authorization grant, not a Clients-only privilege. Permission

@@ -98,16 +98,48 @@ public sealed class PlatformAdminSessionTests(IdentityServiceTestFixture fixture
 
             var hq = await db.IamScopes.SingleAsync(item => item.Kind == "tenant" && item.Key == "nacoms-group");
             var hqId = hq.Id;
-            hq.Key = "group-hq";
+            var targetOrganizationId = hq.ParentId;
+            var legacyOrganization = new IamScope
+            {
+                Kind = "organization", Key = $"legacy-{Guid.NewGuid():N}", DisplayName = "Legacy group"
+            };
+            var otherTenant = new IamScope
+            {
+                Kind = "tenant", Key = $"other-{Guid.NewGuid():N}", DisplayName = "Other tenant",
+                ParentId = legacyOrganization.Id
+            };
+            db.IamScopes.AddRange(legacyOrganization, otherTenant);
+            var descendants = await db.IamScopes.Where(item => item.ParentId == hqId)
+                .Select(item => item.Id).ToArrayAsync();
+            hq.Key = restrictToControlPlane ? "group-hq" : "nacoms-group";
+            hq.ParentId = legacyOrganization.Id;
             await db.SaveChangesAsync();
-            Assert.True((await users.RemoveClaimsAsync(admin, seeded)).Succeeded);
-            Assert.True((await users.AddClaimAsync(admin, new Claim(
-                HisHopeProtocolConstants.Claims.TenantMembership, "group-hq"))).Succeeded);
-            IdentityDbInitializer.Initialize(fixture.Services);
-            await db.Entry(admin).ReloadAsync();
-            await db.Entry(hq).ReloadAsync();
-            Assert.Equal(hqId, hq.Id);
-            Assert.Equal("nacoms-group", hq.Key);
+            try
+            {
+                Assert.True((await users.RemoveClaimsAsync(admin, seeded)).Succeeded);
+                Assert.True((await users.AddClaimAsync(admin, new Claim(
+                    HisHopeProtocolConstants.Claims.TenantMembership, hq.Key))).Succeeded);
+                IdentityDbInitializer.Initialize(fixture.Services);
+                IdentityDbInitializer.Initialize(fixture.Services);
+                await db.Entry(admin).ReloadAsync();
+                await db.Entry(hq).ReloadAsync();
+                Assert.Equal(hqId, hq.Id);
+                Assert.Equal("nacoms-group", hq.Key);
+                Assert.Equal(targetOrganizationId, hq.ParentId);
+                Assert.Equal("Nacoms Group", hq.DisplayName);
+                Assert.Equal(descendants.Order(), (await db.IamScopes.Where(item => item.ParentId == hqId)
+                    .Select(item => item.Id).ToArrayAsync()).Order());
+                await db.Entry(otherTenant).ReloadAsync();
+                Assert.Equal(legacyOrganization.Id, otherTenant.ParentId);
+            }
+            finally
+            {
+                await db.IamScopes.Where(item => item.Id == hqId).ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.Key, "nacoms-group")
+                    .SetProperty(item => item.ParentId, targetOrganizationId));
+                await db.IamScopes.Where(item => item.Id == otherTenant.Id).ExecuteDeleteAsync();
+                await db.IamScopes.Where(item => item.Id == legacyOrganization.Id).ExecuteDeleteAsync();
+            }
             foreach (var claimEntry in db.ChangeTracker.Entries<IdentityUserClaim<Guid>>().ToArray())
                 await claimEntry.ReloadAsync();
             var migrated = (await users.GetClaimsAsync(admin))
