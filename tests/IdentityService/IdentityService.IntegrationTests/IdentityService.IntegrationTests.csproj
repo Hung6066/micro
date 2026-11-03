@@ -42,6 +42,9 @@
     <ProjectReference Include="..\IdentityService.Testing\IdentityService.Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\..\..\docker\openfga\permission-model.json"
+             Link="OpenFgaPermissionModel.json"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\src\Services\IdentityService\IdentityService.Api\appsettings.json"
              Link="IdentityService.appsettings.json"
              CopyToOutputDirectory="PreserveNewest" />

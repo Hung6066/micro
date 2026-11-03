@@ -565,6 +565,12 @@ public static class IdentityServiceRegistrationExtensions
             builder.Services.AddHostedService<OpenShipManagedClientTransitionExpiryWorker>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<AccessReviewExpiryWorker>();
+        if (builder.Configuration.GetValue("AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED", false))
+        {
+            builder.Services.AddHttpClient(OpenFgaPermissionProjection.HttpClientName);
+            if (!builder.Environment.IsEnvironment("Testing"))
+                builder.Services.AddHostedService<OpenFgaPermissionSyncWorker>();
+        }
 
         // SECURITY: Binds tokens to (user_id, ip_hash, client_id) to prevent cross-IP replay attacks
         builder.Services.AddSingleton<TokenBindingService>();

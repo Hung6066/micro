@@ -35,6 +35,37 @@ and tenant portal rejection without membership.
 Production acceptance still requires MFA login followed by an authenticated
 Clients reload; health/readiness alone is insufficient.
 
+## OpenFGA canonical permission projection
+
+The private OpenFGA service uses authenticated HTTP, a dedicated managed
+PostgreSQL database, and two replicas with serialized migrations. Provision the
+dedicated store named `micro-identity-canonical-permissions` with the model in
+`docker/openfga/permission-model.json`. Only direct `user:<Guid>` grants on
+`permission:<code>` objects are accepted; the model has no wildcard grants.
+Both Compose and K3s use HTTP `/healthz` readiness. The runtime deliberately
+does not copy the upstream `grpc_health_probe`: its embedded Go dependencies
+triggered fixable HIGH findings despite the OpenFGA server itself passing.
+
+Identity retains `AUTHZ_PDP_MODE=canary`. Configure its service-scoped
+`AUTHZ_OPENFGA_URL`, `AUTHZ_OPENFGA_STORE_ID`, `AUTHZ_OPENFGA_MODEL_ID` and masked
+`AUTHZ_OPENFGA_TOKEN`, then explicitly set
+`AUTHZ_OPENFGA_PERMISSION_RELATION=granted` and
+`AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED=true`. Without the relation override,
+existing deployments retain their legacy per-permission relation contract.
+
+The projection runs every 30 seconds under a five-minute Redis lease, with a
+one-minute reconciliation deadline. It derives grants only from active,
+unlocked users and `IIdentityService.GetEffectivePermissionsAsync`, including
+published assignments, expiry, permission boundaries and the configured
+SuperAdmin restriction. It reads all tuple pages and revokes stale grants
+before adding new ones, in batches of at most 100. Repeated reconciliation is
+idempotent. An unowned store, unmanaged tuple, or remote failure is reported
+explicitly and never becomes an implicit permission grant. Local tenant,
+permission and MFA checks remain authoritative in addition to OpenFGA.
+Revocation propagation is periodic, not instantaneous. A failed synchronization
+can leave earlier tuples in place until a successful retry; it is not equivalent
+to the fail-closed behavior of an unavailable PDP.
+
 ## Xác thực phase tổng thể mới nhất (2026-08-29)
 
 Full integration matrix trên source hiện tại (`integration-matrix-current14`)

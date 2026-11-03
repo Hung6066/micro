@@ -9,6 +9,31 @@ namespace His.Hope.Infrastructure.Tests;
 
 public sealed class OpenFgaCanaryAuthorizerTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task Configured_direct_permission_relation_preserves_fail_closed_checks(bool? external)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AUTHZ_PDP_MODE"] = "canary",
+                ["AUTHZ_OPENFGA_PERMISSION_RELATION"] = "granted"
+            }).Build();
+        var openFga = new Mock<IOpenFgaClient>();
+        openFga.Setup(client => client.CheckAsync(
+            "user:user-1", "granted", "permission:admin.clients.read", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(external);
+        var authorizer = new OpenFgaCanaryAuthorizer(
+            openFga.Object, NullLogger<OpenFgaCanaryAuthorizer>.Instance, configuration);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "user-1")], "Bearer"));
+
+        Assert.Equal(external == true, await authorizer.AllowsAsync(principal, "admin.clients.read"));
+        openFga.Verify(client => client.CheckAsync(
+            "user:user-1", "granted", "permission:admin.clients.read", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task AllowsAsync_returns_true_when_mode_is_shadow()
     {

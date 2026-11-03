@@ -14,6 +14,7 @@ public sealed class OpenFgaCanaryAuthorizer(
     IConfiguration? configuration = null)
 {
     private readonly string _mode = (configuration?["AUTHZ_PDP_MODE"] ?? "disabled").Trim().ToLowerInvariant();
+    private readonly string? _permissionRelation = configuration?["AUTHZ_OPENFGA_PERMISSION_RELATION"];
 
     public async Task<bool> AllowsAsync(ClaimsPrincipal principal, string permissionCode, CancellationToken cancellationToken = default)
     {
@@ -27,7 +28,9 @@ public sealed class OpenFgaCanaryAuthorizer(
             return false;
         }
 
-        var relation = permissionCode.Replace(':', '_').Replace('.', '_').Replace('/', '_');
+        var relation = string.IsNullOrWhiteSpace(_permissionRelation)
+            ? permissionCode.Replace(':', '_').Replace('.', '_').Replace('/', '_')
+            : _permissionRelation;
         var external = await openFga.CheckAsync($"user:{subject}", relation, $"permission:{permissionCode}", cancellationToken);
         if (external is null)
         {

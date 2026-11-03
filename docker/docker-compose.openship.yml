@@ -27,7 +27,7 @@ services:
       OPENFGA_DATASTORE_MAX_OPEN_CONNS: "10"
       OPENFGA_DATASTORE_MAX_IDLE_CONNS: "5"
     healthcheck:
-      test: ["CMD", "grpc_health_probe", "-addr=127.0.0.1:8081"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -76,6 +76,8 @@ services:
       Conglomerate__Tenants__4__DisplayName: Factory X Industrial
       Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"nacoms-group","his-hope-admin":"nacoms-group","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
       AUTHZ_PDP_MODE: ${AUTHZ_PDP_MODE:-canary}
+      AUTHZ_OPENFGA_PERMISSION_RELATION: ${AUTHZ_OPENFGA_PERMISSION_RELATION:-}
+      AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED: ${AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED:-false}
       Vault__Address: https://vault.openship-vault.svc.cluster.local:8200
       Vault__RequireVault: "true"
       Vault__EnableTransit: "true"
