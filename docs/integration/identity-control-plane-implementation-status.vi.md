@@ -50,6 +50,19 @@ put a URI in `PGDATABASE`: libpq does not expand environment defaults as URI
 connection parameters, and OpenShip's arbitrary workload UID has no local
 passwd entry from which to derive a default database user.
 
+Managed PostgreSQL also requires a dedicated client mTLS identity. Mount the
+cert-manager Secret `micro-openfga-postgres-client` read-only at
+`/run/secrets/openfga-postgres`, containing `tls.crt` and `tls.key`. The wrapper
+copies the key to app-owned `/tmp` with mode 0600 and retains `verify-full`.
+Missing files fail startup explicitly; API and Identity leaf certificates must
+not be reused. The OpenShip project-services PKI manifest requests a client-only
+certificate for `micro-openfga.pg-client.openship.internal`, valid for seven
+days and renewed 36 hours before expiry. pgx v5.11.0 caches the TLS key pair
+when parsing its configuration, so Secret renewal alone is insufficient:
+OpenShip's scoped host timer watches the Certificate UID/revision and rolls only
+the two-replica OpenFGA Deployment, retaining maxUnavailable=0/maxSurge=1 and
+its signed image. Install and validate this timer before accepting production.
+
 Identity retains `AUTHZ_PDP_MODE=canary`. Configure its service-scoped
 `AUTHZ_OPENFGA_URL`, `AUTHZ_OPENFGA_STORE_ID`, `AUTHZ_OPENFGA_MODEL_ID` and masked
 `AUTHZ_OPENFGA_TOKEN`, then explicitly set
