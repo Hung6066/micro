@@ -1,6 +1,25 @@
 # Trạng thái triển khai blueprint Identity Control Plane
 
-Cập nhật: 2026-08-29
+Cập nhật: 2026-11-03
+
+## Platform admin session contract (2026-11-03)
+
+The built-in `his-hope-admin` client uses the existing configured
+`Identity:SuperAdmin:UserIds` allowlist plus the persisted Admin role, not
+`group-hq` tenant membership. A tenant Admin cannot use this client merely by
+having HQ membership. Other BFF clients retain their registry and membership
+checks; an unsuccessful exchange does not revoke the previous browser session.
+
+IAM scope resolution recognizes the existing HumanSuperAdmin trust tier:
+authenticated human principal, Admin role, and server-issued `super_admin=true`.
+It does not add tenant memberships or change the configured privileged
+control-plane permission boundary. Anonymous, workload, ordinary Admin, and
+incomplete identities remain denied when they have no tenant membership.
+
+Regression coverage exercises the real signed Identity cookie, Redis BFF
+session exchange, authenticated client listing, and negative tenant cases.
+Production acceptance still requires MFA login followed by an authenticated
+Clients reload; health/readiness alone is insufficient.
 
 ## Xác thực phase tổng thể mới nhất (2026-08-29)
 

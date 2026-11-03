@@ -4,6 +4,8 @@ using His.Hope.Authorization;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -103,6 +105,51 @@ public sealed class IamTenantAccessGuardTests
 
 public sealed class IamTenantScopeResolverTests
 {
+    [Fact]
+    public async Task ResolveAsync_allows_authenticated_human_platform_admin_without_memberships()
+    {
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new IdentityDbContext(options);
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Role, "Admin"),
+            new Claim(HisHopeProtocolConstants.Claims.SuperAdmin, "true"),
+            new Claim(AuthorizationConstants.Claims.PrincipalType, AuthorizationConstants.PrincipalTypes.Human)
+        ], "test"));
+
+        var filter = await IamTenantScopeResolver.ResolveAsync(db, user, null, CancellationToken.None);
+
+        filter.AccessDenied.Should().BeFalse();
+        filter.IsRestricted.Should().BeFalse();
+        IamTenantScopeResolver.GetMemberships(user).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false, true, true, true)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, true, true, false)]
+    public async Task ResolveAsync_denies_incomplete_platform_admin_identity(
+        bool authenticated, bool adminRole, bool superAdmin, bool human)
+    {
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new IdentityDbContext(options);
+        var claims = new List<Claim>();
+        if (adminRole) claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+        if (superAdmin) claims.Add(new Claim(HisHopeProtocolConstants.Claims.SuperAdmin, "true"));
+        claims.Add(new Claim(AuthorizationConstants.Claims.PrincipalType,
+            human ? AuthorizationConstants.PrincipalTypes.Human : AuthorizationConstants.PrincipalTypes.Workload));
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims, authenticated ? "test" : null));
+
+        var filter = await IamTenantScopeResolver.ResolveAsync(db, user, null, CancellationToken.None);
+
+        filter.AccessDenied.Should().BeTrue();
+    }
+
     [Fact]
     public async Task ResolveAsync_denies_non_hq_user_without_memberships()
     {

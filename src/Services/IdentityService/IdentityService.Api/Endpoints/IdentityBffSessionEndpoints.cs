@@ -64,23 +64,21 @@ public static class IdentityBffSessionEndpoints
             if (user is null)
                 return Results.Unauthorized();
 
-            var existingSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
-            if (!string.IsNullOrWhiteSpace(existingSessionId))
-            {
-                // Always rotate the browser BFF session after an OIDC callback. The
-                // user may have switched Keycloak accounts while the old cookie still
-                // exists; returning early would keep the stale session and omit a new
-                // Set-Cookie header.
-                await redis.GetDatabase().KeyDeleteAsync($"session:{existingSessionId}");
-            }
-
+            var isPrivileged = configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>()
+                ?.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)) == true;
             var roles = await userManager.GetRolesAsync(user);
             var (permissions, tenantClaims) = await HumanSessionAuthClaims.ResolveAsync(
                 userManager,
                 identityService,
                 user,
                 ct);
-            if (!string.IsNullOrWhiteSpace(request?.ClientId))
+            if (string.Equals(request?.ClientId, "his-hope-admin", StringComparison.Ordinal))
+            {
+                // Identity's built-in control-plane client is not a tenant portal.
+                if (!user.IsActive || !isPrivileged || !roles.Contains("Admin"))
+                    return Results.Forbid();
+            }
+            else if (!string.IsNullOrWhiteSpace(request?.ClientId))
             {
                 var clientTenant = tenantRegistry.GetClientTenant(request.ClientId);
                 if (clientTenant is null || !tenantRegistry.IsConglomerateClient(request.ClientId))
@@ -116,8 +114,6 @@ public static class IdentityBffSessionEndpoints
             var sessionId = Guid.NewGuid().ToString("N");
             var csrfToken = Guid.NewGuid().ToString("N");
             var sessionIssuedAt = DateTimeOffset.UtcNow;
-            var isPrivileged = configuration.GetSection("Identity:SuperAdmin:UserIds").Get<string[]>()
-                ?.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)) == true;
             var session = new SessionData
             {
                 UserId = user.Id.ToString(),
@@ -133,6 +129,10 @@ public static class IdentityBffSessionEndpoints
                 IdleExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30)),
                 AbsoluteExpiresAt = sessionIssuedAt.Add(isPrivileged ? TimeSpan.FromHours(4) : TimeSpan.FromHours(8))
             };
+
+            var existingSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
+            if (!string.IsNullOrWhiteSpace(existingSessionId))
+                await redis.GetDatabase().KeyDeleteAsync($"session:{existingSessionId}");
 
             await redis.GetDatabase().StringSetAsync(
                 $"session:{sessionId}",
