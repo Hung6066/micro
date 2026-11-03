@@ -14,7 +14,7 @@ export OPENFGA_DATASTORE_ENGINE=postgres
 export OPENFGA_AUTHN_METHOD=preshared
 export OPENFGA_PLAYGROUND_ENABLED=false
 # Hold a database-session lock while the migration subprocess runs on HA starts.
-PGDATABASE="$OPENFGA_DATASTORE_URI" psql --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
+psql --dbname="$OPENFGA_DATASTORE_URI" --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
 SELECT pg_advisory_lock(198083011, 2);
 \! openfga migrate
 \if :SHELL_ERROR

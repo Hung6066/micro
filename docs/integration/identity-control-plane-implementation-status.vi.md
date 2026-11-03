@@ -45,6 +45,10 @@ dedicated store named `micro-identity-canonical-permissions` with the model in
 Both Compose and K3s use HTTP `/healthz` readiness. The runtime deliberately
 does not copy the upstream `grpc_health_probe`: its embedded Go dependencies
 triggered fixable HIGH findings despite the OpenFGA server itself passing.
+Pass the managed URI explicitly to `psql --dbname` during migration. Do not
+put a URI in `PGDATABASE`: libpq does not expand environment defaults as URI
+connection parameters, and OpenShip's arbitrary workload UID has no local
+passwd entry from which to derive a default database user.
 
 Identity retains `AUTHZ_PDP_MODE=canary`. Configure its service-scoped
 `AUTHZ_OPENFGA_URL`, `AUTHZ_OPENFGA_STORE_ID`, `AUTHZ_OPENFGA_MODEL_ID` and masked
