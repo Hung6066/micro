@@ -76,7 +76,7 @@ RUN dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:3aa3a0b03b4f8f3806b5f3ff5e7c51a1e7939452fe2cf8ff07c1c413d8dc3ae2 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:3197f427d1ccf6fb9249f86a70acd4b8530c9a72d28bbc5f870bec9a524b350e AS final
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 5012
@@ -101,7 +101,7 @@ ENV OpenIddict__Issuer=https://identity.his-hope.local \
 COPY --from=build /app/publish .
 USER root
 # Build nodes allow only HTTPS egress, so apt sources are switched from http to https.
-RUN find /etc/apt/sources.list /etc/apt/sources.list.d -type f -exec sed -i 's|http://|https://|g' {} + && apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+RUN find /etc/apt/sources.list /etc/apt/sources.list.d -type f -exec sed -i 's|http://|https://|g' {} + && apt-get update && apt-get upgrade -y --no-install-recommends && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 USER app
 
 # Docker HEALTHCHECK uses curl (available in jammy base image)

@@ -63,7 +63,7 @@ RUN \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled-extra)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:ad469e7458fcd86bdd578d617417fd3af314bbb30e2dfd5097761482299d152f AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:7a6bf765edb270c1b1443d09a76f247948e1a019b1756ebf746bb3898eaed21d AS runtime
 WORKDIR /app
 EXPOSE 8080
 
