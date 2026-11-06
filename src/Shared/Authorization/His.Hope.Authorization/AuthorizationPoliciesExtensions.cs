@@ -16,7 +16,9 @@ public static class AuthorizationPoliciesExtensions
         {
             var url = serviceProvider.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?["AUTHZ_OPENFGA_URL"];
             if (Uri.TryCreate(url, UriKind.Absolute, out var baseAddress)) client.BaseAddress = new Uri(baseAddress.ToString().TrimEnd('/') + "/");
-            client.Timeout = TimeSpan.FromMilliseconds(500);
+            // The PDP is reached through the service mesh; connection setup can
+            // exceed 500 ms even when the authorization service is healthy.
+            client.Timeout = TimeSpan.FromSeconds(5);
         });
         services.AddSingleton<IOpenFgaClient>(serviceProvider => serviceProvider.GetRequiredService<OpenFgaClient>());
         services.AddSingleton<OpenFgaCanaryAuthorizer>();
