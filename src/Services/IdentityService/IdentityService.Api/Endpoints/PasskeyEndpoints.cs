@@ -135,9 +135,9 @@ public static class PasskeyEndpoints
         {
             var redisDb = redis.GetDatabase();
             var rawOptions = await redisDb.StringGetDeleteAsync(AssertionKey(request.UserId));
-            if (!rawOptions.HasValue || string.IsNullOrWhiteSpace(request.Response.Id)) return Results.Unauthorized();
+            if (!rawOptions.HasValue || !TryNormalizeCredentialId(request.Response.Id, out var credentialId)) return Results.Unauthorized();
             var stored = await db.PasskeyCredentials.SingleOrDefaultAsync(
-                credential => credential.UserId == request.UserId && credential.CredentialId == request.Response.Id, ct);
+                credential => credential.UserId == request.UserId && credential.CredentialId == credentialId, ct);
             if (stored is null) return Results.Unauthorized();
             var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
             {
@@ -217,11 +217,11 @@ public static class PasskeyEndpoints
             // flow works with the minimum Redis version supported by local
             // test/dev installations as well as Redis 6.2+.
             var rawOptions = await GetAndDeleteAsync(redisDb, MfaAssertionKey(pending));
-            if (!rawOptions.HasValue || string.IsNullOrWhiteSpace(request.Response.Id))
+            if (!rawOptions.HasValue || !TryNormalizeCredentialId(request.Response.Id, out var credentialId))
                 return Results.Unauthorized();
 
             var stored = await db.PasskeyCredentials.SingleOrDefaultAsync(
-                credential => credential.UserId == userId.ToString() && credential.CredentialId == request.Response.Id, ct);
+                credential => credential.UserId == userId.ToString() && credential.CredentialId == credentialId, ct);
             if (stored is null) return Results.Unauthorized();
 
             var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
@@ -477,6 +477,26 @@ public static class PasskeyEndpoints
 
     private static string? GetUserId(HttpContext context) =>
         context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+    private static bool TryNormalizeCredentialId(string? credentialId, out string normalized)
+    {
+        normalized = string.Empty;
+        if (string.IsNullOrWhiteSpace(credentialId)) return false;
+
+        var base64 = credentialId.Replace('-', '+').Replace('_', '/').TrimEnd('=');
+        if (base64.Length % 4 == 1) return false;
+        var padded = base64.PadRight(base64.Length + (4 - base64.Length % 4) % 4, '=');
+
+        try
+        {
+            normalized = Convert.ToBase64String(Convert.FromBase64String(padded));
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
 
     public sealed record PasskeyUserRequest(string? UserId, string? UserName);
     public sealed record PasskeyAssertionRequest(string UserId, AuthenticatorAssertionRawResponse Response, string? ReturnUrl);
