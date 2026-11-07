@@ -42,6 +42,10 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5003
+      Kestrel__Endpoints__IdentityOrigin__Url: https://+:5443
+      Kestrel__Endpoints__IdentityOrigin__Protocols: Http1AndHttp2
+      Kestrel__Endpoints__IdentityOrigin__Certificate__Path: /etc/identity-origin-tls/tls.crt
+      Kestrel__Endpoints__IdentityOrigin__Certificate__KeyPath: /etc/identity-origin-tls/tls.key
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt

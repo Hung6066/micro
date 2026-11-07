@@ -820,6 +820,7 @@ public static class IdentityServiceRegistrationExtensions
         {
             builder.WebHost.ConfigureKestrel(options =>
             {
+                options.Configure(builder.Configuration.GetSection("Kestrel"));
                 options.Listen(System.Net.IPAddress.Any, 5003, listenOptions =>
                 {
                     listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
