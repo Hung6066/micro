@@ -62,6 +62,12 @@ public sealed class SecuritySignalDispatcher(
                     .SetProperty(item => item.LeaseId, _leaseId)
                     .SetProperty(item => item.LeaseUntil, leaseUntil), ct);
         }
+        // ExecuteUpdateAsync bypasses EF's change tracker. The candidate query
+        // above tracked the same rows with their old lease values, so clear the
+        // tracker before reloading the claimed entries; otherwise identity
+        // resolution can return stale entities and the final lease release is
+        // not persisted reliably.
+        db.ChangeTracker.Clear();
         var entries = await db.SecuritySignalOutbox
             .Where(item => item.LeaseId == _leaseId && item.LeaseUntil == leaseUntil)
             .OrderBy(item => item.CreatedAt).ToListAsync(ct);

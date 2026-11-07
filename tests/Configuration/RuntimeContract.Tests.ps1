@@ -43,6 +43,7 @@ BeforeAll {
             HIS_HOPE_PUBLIC_ADMIN_ORIGIN                = 'https://admin.his-hope.example'
             HIS_HOPE_PUBLIC_DASHBOARD_ORIGIN            = 'https://ops.his-hope.example'
             HIS_HOPE_OIDC_AUTHORITY                     = 'https://identity.his-hope.example'
+            AUTHZ_PDP_MODE                              = 'disabled'
             HIS_HOPE_SECRET_PROVIDER                    = 'vault'
             HIS_HOPE_SECRET_PROVIDER_REF                = 'kv/data/his-hope/runtime'
             SERVICE_API_GATEWAY_URL                     = 'http://gateway.internal.staging.his-hope.example:5000'
@@ -53,6 +54,7 @@ BeforeAll {
             SERVICE_LAB_URL                             = 'http://lab.internal.staging.his-hope.example:5010'
             SERVICE_BILLING_URL                         = 'http://billing.internal.staging.his-hope.example:5020'
             SERVICE_PHARMACY_URL                        = 'http://pharmacy.internal.staging.his-hope.example:5030'
+            SERVICE_FHIR_GATEWAY_URL                    = 'http://fhir.internal.staging.his-hope.example:5040'
             SERVICE_DASHBOARD_BFF_URL                   = 'http://dashboard.internal.staging.his-hope.example:5600'
             SERVICE_DATABASE_CONTINUITY_URL             = 'http://database-continuity.internal.staging.his-hope.example:5800'
             DATABASE_POSTGRES_URL                       = 'postgresql://his_hope_app@postgres.internal.staging.his-hope.example:5432/hishope'
@@ -67,6 +69,8 @@ BeforeAll {
             OBSERVABILITY_ELASTICSEARCH_REQUIRED        = 'false'
             OBSERVABILITY_JAEGER_URL                    = 'http://jaeger.internal.staging.his-hope.example:16686'
             OBSERVABILITY_JAEGER_REQUIRED               = 'false'
+            OBSERVABILITY_LOKI_URL                      = 'http://loki.internal.staging.his-hope.example:3100'
+            OBSERVABILITY_ALERTMANAGER_URL              = 'http://alertmanager.internal.staging.his-hope.example:9093'
             SECRET_POSTGRES_PASSWORD                    = '__FROM_SECRET_PROVIDER__'
             SECRET_POSTGRES_PASSWORD_REF                = 'kv/data/his-hope/postgres#password'
             SECRET_RABBITMQ_PASSWORD                    = '__FROM_SECRET_PROVIDER__'
@@ -75,19 +79,36 @@ BeforeAll {
             SECRET_REDIS_PASSWORD_REF                   = 'kv/data/his-hope/redis#password'
             SECRET_OIDC_CLIENT_SECRET                   = '__FROM_SECRET_PROVIDER__'
             SECRET_OIDC_CLIENT_SECRET_REF               = 'kv/data/his-hope/oidc#client-secret'
+            DEVICE_POSTURE_MODE                         = 'observe'
+            DEVICE_POSTURE_PROVIDERS                    = 'chrome-enterprise'
+            DEVICE_POSTURE_TTL_SECONDS                  = '300'
+            DEVICE_POSTURE_ENFORCE_CLINICAL             = 'false'
+            PASSWORD_HISTORY_ENABLED                    = 'true'
+            PASSWORD_HISTORY_COUNT                      = '5'
+            AUDIT_APPEND_ONLY                            = 'true'
+            AUDIT_REDACTION_ENABLED                     = 'true'
+            EXTERNAL_FEDERATION_ENABLED                 = 'false'
+            SCIM_M2M_ENABLED                            = 'false'
+            PROVISIONING_MODE                           = 'dry-run'
+            PROVISIONING_TARGETS                        = 'scim'
+            SSF_ENABLED                                 = 'false'
+            MTLS_ENABLED                                = 'false'
+            RADIUS_EAP_TLS_ENABLED                      = 'false'
+            CSV_EXPORT_ENABLED                          = 'false'
         }
 
         switch ($Runtime) {
             'docker' {
                 $values.SERVICE_API_GATEWAY_URL = 'http://api-gateway:5000'
-                $values.SERVICE_IDENTITY_URL = 'http://identityservice:5001'
+                $values.SERVICE_IDENTITY_URL = 'http://identityservice:5003'
                 $values.SERVICE_PATIENT_URL = 'http://patientservice:5002'
                 $values.SERVICE_APPOINTMENT_URL = 'http://appointmentservice:5003'
                 $values.SERVICE_CLINICAL_URL = 'http://clinicalservice:5004'
                 $values.SERVICE_LAB_URL = 'http://labservice:5010'
                 $values.SERVICE_BILLING_URL = 'http://billingservice:5020'
                 $values.SERVICE_PHARMACY_URL = 'http://pharmacyservice:5030'
-                $values.SERVICE_DASHBOARD_BFF_URL = 'http://systemdashboard-bff:5700'
+                $values.SERVICE_FHIR_GATEWAY_URL = 'http://fhir-gateway:5040'
+                $values.SERVICE_DASHBOARD_BFF_URL = 'http://dashboard-bff:5600'
                 $values.SERVICE_DATABASE_CONTINUITY_URL = 'http://database-continuity-service:5800'
                 $values.DATABASE_POSTGRES_URL = 'postgresql://his_hope_app@postgres:5432/hishope'
                 $values.REDIS_URL = 'redis://redis:6379'
@@ -103,6 +124,7 @@ BeforeAll {
                 $values.SERVICE_LAB_URL = 'http://lab-service.his-hope.svc.cluster.local:5010'
                 $values.SERVICE_BILLING_URL = 'http://billing-service.his-hope.svc.cluster.local:5020'
                 $values.SERVICE_PHARMACY_URL = 'http://pharmacy-service.his-hope.svc.cluster.local:5030'
+                $values.SERVICE_FHIR_GATEWAY_URL = 'http://fhir-gateway.his-hope.svc.cluster.local:5040'
                 $values.SERVICE_DASHBOARD_BFF_URL = 'http://dashboard-bff.his-hope.svc.cluster.local:5600'
                 $values.SERVICE_DATABASE_CONTINUITY_URL = 'http://database-continuity.his-hope.svc.cluster.local:5800'
                 $values.DATABASE_POSTGRES_URL = 'postgresql://his_hope_app@postgres.his-hope.svc.cluster.local:5432/hishope'
@@ -142,7 +164,7 @@ services:
   identityservice:
     image: scratch
     ports:
-      - "5001:5001"
+      - "5003:5003"
   patientservice:
     image: scratch
     ports:
@@ -167,10 +189,18 @@ services:
     image: scratch
     ports:
       - "5030:5030"
+  fhir-gateway:
+    image: scratch
+    ports:
+      - "5040:5040"
   systemdashboard-bff:
     image: scratch
     ports:
       - "5700:5700"
+  dashboard-bff:
+    image: scratch
+    ports:
+      - "5600:5600"
   database-continuity-service:
     image: scratch
     ports:
@@ -191,6 +221,119 @@ services:
     image: scratch
     ports:
       - "4317:4317"
+  postgres-wal-archive-init:
+    image: scratch
+  postgres-replica:
+    image: scratch
+    ports:
+      - "5432:5432"
+  postgres-restore-drill:
+    image: scratch
+  elasticsearch:
+    image: scratch
+    ports:
+      - "9200:9200"
+  kibana:
+    image: scratch
+    ports:
+      - "5601:5601"
+  consul:
+    image: scratch
+    ports:
+      - "8500:8500"
+  jaeger:
+    image: scratch
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+  glitchtip-postgres:
+    image: scratch
+  glitchtip-valkey:
+    image: scratch
+  glitchtip:
+    image: scratch
+    ports:
+      - "8000:8000"
+  prometheus:
+    image: scratch
+    ports:
+      - "9090:9090"
+  loki:
+    image: scratch
+    ports:
+      - "3100:3100"
+  vault:
+    image: scratch
+    ports:
+      - "8200:8200"
+  vault-init:
+    image: scratch
+  postgres-exporter:
+    image: scratch
+  redis-exporter:
+    image: scratch
+  alertmanager:
+    image: scratch
+    ports:
+      - "9093:9093"
+  grafana:
+    image: scratch
+    ports:
+      - "3000:3000"
+  external-integration-service:
+    image: scratch
+    ports:
+      - "5060:5060"
+  frontend:
+    image: scratch
+    ports:
+      - "8080:8080"
+  admin-app:
+    image: scratch
+    ports:
+      - "8080:8080"
+  manufacturingservice:
+    image: scratch
+    ports:
+      - "5050:5050"
+  commerceservice:
+    image: scratch
+    ports:
+      - "5015:5015"
+  contentservice:
+    image: scratch
+    ports:
+      - "5016:5016"
+  manufacturing-buyer-app:
+    image: scratch
+    ports:
+      - "8080:8080"
+  internal-operator-app:
+    image: scratch
+    ports:
+      - "8080:8080"
+  dashboard-app:
+    image: scratch
+    ports:
+      - "8080:8080"
+  temporal:
+    image: scratch
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+  temporal-admin-tools:
+    image: scratch
+  temporal-worker:
+    image: scratch
+    ports:
+      - "5270:5270"
+  agentharness:
+    image: scratch
+    ports:
+      - "5200:5200"
+  certgen:
+    image: scratch
 '@
 
         Set-Content -LiteralPath $Path -Value $compose -Encoding UTF8
@@ -382,7 +525,7 @@ Describe 'validate-runtime-references.ps1' {
             '-ComposeFile', $composeFile
         )
 
-        $result.ExitCode | Should -Be 0
+        if ($result.ExitCode -ne 0) { throw $result.Output }
         $result.Output | Should -Match '"status":"pass"'
     }
 

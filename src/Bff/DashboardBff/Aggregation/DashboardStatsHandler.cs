@@ -89,9 +89,7 @@ public sealed class DashboardStatsHandler : IAggregationHandler
             }, ct).AsTask()
         });
 
-        return results.Successes.Count > 0
-            ? AggregationResult.Partial(new { stats = results.Successes }, results.Failures)
-            : AggregationResult.Failed("All downstream services unavailable");
+        return AggregationResult.Partial(new { stats = results.Successes }, results.Failures);
     }
 
     private static Metadata? CreateHeaders(string jwt) =>

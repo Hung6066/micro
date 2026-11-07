@@ -1,10 +1,13 @@
 using System.Text.Json;
 using His.Hope.Bff.Core.Authentication;
+using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
@@ -16,7 +19,7 @@ public static class AdminIncidentEndpoints
     public static void MapAdminIncidentEndpoints(this WebApplication app)
     {
         MapAdminIncidentEndpoints(app.MapGroup("/api/v1/admin")
-            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin));
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanSuperAdmin));
     }
 
     public static void MapAdminIncidentEndpoints(this RouteGroupBuilder group)
@@ -27,27 +30,31 @@ public static class AdminIncidentEndpoints
             IUserSessionTracker sessionTracker,
             IConnectionMultiplexer redis,
             FacilityContext facility,
+            HttpContext http,
             CancellationToken ct) =>
         {
+            var filter = IamTenantHttpContext.RequireFilter(http);
+
             var users = await db.Users.AsNoTracking()
-                .Where(user => user.IsActive)
-                .OrderBy(user => user.Email)
+                .Where(userEntity => userEntity.IsActive)
+                .WhereTenantMembership(db, filter.AllowedTenantKeys)
+                .OrderBy(userEntity => userEntity.Email)
                 .Take(1000)
-                .Select(user => new { user.Id, user.Email, user.UserName })
+                .Select(userEntity => new { userEntity.Id, userEntity.Email, userEntity.UserName })
                 .ToListAsync(ct);
             var database = redis.GetDatabase();
             var sessions = new List<object>();
-            foreach (var user in users)
+            foreach (var tenantUser in users)
             {
-                if (!await HasFacilityAccessAsync(db, facility, user.Id, ct)) continue;
-                foreach (var sessionId in await sessionTracker.GetUserSessionsAsync(user.Id.ToString()))
+                if (!await HasFacilityAccessAsync(db, facility, tenantUser.Id, ct)) continue;
+                foreach (var sessionId in await sessionTracker.GetUserSessionsAsync(tenantUser.Id.ToString()))
                 {
                     var raw = await database.StringGetAsync($"session:{sessionId}");
                     var session = raw.HasValue ? JsonSerializer.Deserialize<SessionData>(raw!) : null;
                     sessions.Add(new
                     {
-                        userId = user.Id,
-                        email = user.Email ?? user.UserName,
+                        userId = tenantUser.Id,
+                        email = tenantUser.Email ?? tenantUser.UserName,
                         id = sessionId,
                         deviceInfo = session?.UserAgentHash is { Length: > 0 } hash ? hash[..Math.Min(20, hash.Length)] : null,
                         issuedAt = session?.IssuedAt,
@@ -57,7 +64,8 @@ public static class AdminIncidentEndpoints
                 }
             }
             return Results.Ok(new { schemaVersion = "admin-session-center.v1", evaluatedAt = DateTime.UtcNow, sessions });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.SessionsRead);
 
         group.MapGet("/users/{id:guid}/sessions", async (
             Guid id,
@@ -65,10 +73,15 @@ public static class AdminIncidentEndpoints
             IUserSessionTracker sessionTracker,
             IConnectionMultiplexer redis,
             FacilityContext facility,
+            HttpContext http,
             CancellationToken ct) =>
         {
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } accessError)
+                return accessError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
-            if (!await db.Users.AnyAsync(user => user.Id == id, ct)) return Results.NotFound();
+            _ = Guard.Against.NotFound(
+                await db.Users.AsNoTracking().FirstOrDefaultAsync(userEntity => userEntity.Id == id, ct), "User", id);
 
             var current = await sessionTracker.GetUserSessionsAsync(id.ToString());
             var database = redis.GetDatabase();
@@ -88,7 +101,8 @@ public static class AdminIncidentEndpoints
             }
 
             return Results.Ok(new { userId = id, sessions });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.SessionsRead);
 
         group.MapDelete("/users/{id:guid}/sessions/{sessionId}", async (
             Guid id,
@@ -103,6 +117,9 @@ public static class AdminIncidentEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(reason)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["reason"] = ["A reason is required."] });
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } accessError)
+                return accessError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
             var sessionIds = await sessionTracker.GetUserSessionsAsync(id.ToString());
             if (!sessionIds.Contains(sessionId, StringComparer.Ordinal)) return Results.NotFound();
@@ -111,7 +128,8 @@ public static class AdminIncidentEndpoints
             await sessionTracker.RemoveSessionAsync(id.ToString(), sessionId);
             await AdminAudit.LogAsync(audit, http, "REVOKE_SESSION", "UserSession", $"{id}:{sessionId}", ct);
             return Results.NoContent();
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRevoke);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRevoke)
+            .WithTenantMutationScope();
 
         group.MapPost("/users/{id:guid}/sessions/revoke-all", async (
             Guid id,
@@ -126,8 +144,12 @@ public static class AdminIncidentEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.Reason)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["reason"] = ["A reason is required."] });
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } accessError)
+                return accessError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
-            if (!await db.Users.AnyAsync(user => user.Id == id, ct)) return Results.NotFound();
+            _ = Guard.Against.NotFound(
+                await db.Users.AsNoTracking().FirstOrDefaultAsync(userEntity => userEntity.Id == id, ct), "User", id);
 
             var sessionIds = await sessionTracker.GetUserSessionsAsync(id.ToString());
             var keys = sessionIds.Select(sessionId => (RedisKey)$"session:{sessionId}").ToArray();
@@ -136,7 +158,8 @@ public static class AdminIncidentEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "REVOKE_ALL_SESSIONS", "User", id.ToString(), ct);
             return Results.Ok(new { userId = id, revokedSessions = sessionIds.Length });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRevoke);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSessionsRevoke)
+            .WithTenantMutationScope();
 
         group.MapPost("/users/{id:guid}/credentials/reset", async (
             Guid id,
@@ -150,9 +173,11 @@ public static class AdminIncidentEndpoints
         {
             if (string.IsNullOrWhiteSpace(request.Reason)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["reason"] = ["A reason is required."] });
             if (!request.ResetMfa && !request.RevokePasskeys) return Results.ValidationProblem(new Dictionary<string, string[]> { ["credentials"] = ["Select MFA or passkeys to reset."] });
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } userError) return userError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
-            var user = await db.Users.SingleOrDefaultAsync(item => item.Id == id, ct);
-            if (user is null) return Results.NotFound();
+            var user = Guard.Against.NotFound(
+                await db.Users.SingleOrDefaultAsync(item => item.Id == id, ct), "User", id);
 
             var removedMfa = 0;
             var removedPasskeys = 0;
@@ -168,7 +193,8 @@ public static class AdminIncidentEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "RESET_CREDENTIALS", "User", id.ToString(), ct);
             return Results.Ok(new { userId = id, removedMfa, removedPasskeys, tokensRevoked = true });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminCredentialsReset);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminCredentialsReset)
+            .WithTenantMutationScope();
     }
 
     private static async Task<bool> HasFacilityAccessAsync(IdentityDbContext db, FacilityContext facility, Guid userId, CancellationToken ct)

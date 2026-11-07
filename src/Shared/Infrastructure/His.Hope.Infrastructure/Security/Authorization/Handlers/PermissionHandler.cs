@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using His.Hope.Infrastructure.Security.Authorization.Requirements;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Infrastructure.Security.Authorization.Handlers;
 
@@ -37,7 +38,7 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
         }
 
         // PRIORITY 1: Check direct "permissions" claims from JWT
-        var permissionsClaims = context.User.FindAll("permissions")
+        var permissionsClaims = context.User.FindAll(HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(c => c.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

@@ -27,6 +27,20 @@ foreach ($relative in $required) {
     if ($document.assessmentType -ne $expectedType) {
         throw "Security evidence has the wrong assessmentType: $path"
     }
+    if ($document.evidenceSource -ne "external-independent") {
+        throw "Security evidence is not independently produced: $path"
+    }
+    if ($null -eq $document.signature -or
+        $document.signature.verified -ne $true -or
+        [string]::IsNullOrWhiteSpace([string]$document.signature.algorithm) -or
+        [string]::IsNullOrWhiteSpace([string]$document.signature.verificationUri)) {
+        throw "Security evidence lacks verified signature metadata: $path"
+    }
+    $signatureUri = $null
+    if (-not [Uri]::TryCreate([string]$document.signature.verificationUri, [UriKind]::Absolute, [ref]$signatureUri) -or
+        $signatureUri.Scheme -ne "https") {
+        throw "Security evidence signature metadata is malformed: $path"
+    }
     if ([string]::IsNullOrWhiteSpace([string]$document.assessor) -or
         [string]::IsNullOrWhiteSpace([string]$document.reportUri) -or
         [string]::IsNullOrWhiteSpace([string]$document.completedAt)) {

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using His.Hope.ServiceDefaults;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,6 +17,34 @@ namespace His.Hope.IdentityService.Infrastructure.Tests;
 
 public sealed class PushDeliveryServiceTests
 {
+    [Theory]
+    [InlineData("android")]
+    [InlineData("ios")]
+    public async Task Unconfigured_provider_records_unavailable_without_sending_or_revoking_device(string platform)
+    {
+        await using var db = CreateDb();
+        var protector = DataProtectionProvider.Create("IdentityService.Tests.PushDelivery").CreateProtector("HisHope.Mobile.PushToken.v1");
+        db.MobileDeviceRegistrations.Add(new MobileDeviceRegistration
+        {
+            UserId = "user-1", Platform = platform, TokenCiphertext = protector.Protect("device-token")
+        });
+        await db.SaveChangesAsync();
+        var handler = new RecordingHandler();
+        var service = new PushDeliveryService(
+            db, new TestHttpClientFactory(handler),
+            DataProtectionProvider.Create("IdentityService.Tests.PushDelivery"),
+            Options.Create(new PushProviderOptions()), new RecordingFirebaseSender(handler),
+            NullLogger<PushDeliveryService>.Instance);
+
+        (await service.DeliverAsync("user-1", "Title", "Body")).Should().BeFalse();
+
+        var attempt = db.PushDeliveryAttempts.Single();
+        attempt.Status.Should().Be("failed");
+        attempt.ErrorCode.Should().Be("push_provider_unavailable");
+        db.MobileDeviceRegistrations.Single().RevokedAt.Should().BeNull();
+        handler.Requests.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Enqueue_persists_in_app_and_outbox_notifications()
     {
@@ -162,6 +191,7 @@ public sealed class PushDeliveryServiceTests
             ApnsEnabled = false,
             FirebaseCredentialsJson = firebaseCredentials ?? "{\"project_id\":\"demo\",\"client_email\":\"push@example.test\",\"private_key\":\"\"}"
         }),
+        new RecordingFirebaseSender(handler ?? new RecordingHandler()),
         NullLogger<PushDeliveryService>.Instance);
 
     private static IdentityDbContext CreateDb() => new(new DbContextOptionsBuilder<IdentityDbContext>()
@@ -173,6 +203,19 @@ public sealed class PushDeliveryServiceTests
     private sealed class TestHttpClientFactory(RecordingHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
+
+    private sealed class RecordingFirebaseSender(RecordingHandler handler) : IFirebasePushSender
+    {
+        public async Task SendAsync(string deviceToken, string title, string body, CancellationToken cancellationToken = default)
+        {
+            using var oauth = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token");
+            using var oauthResponse = await handler.SendAsyncForTest(oauth, cancellationToken);
+            if (!oauthResponse.IsSuccessStatusCode) throw new HttpRequestException("Firebase OAuth token request failed.");
+            using var message = new HttpRequestMessage(HttpMethod.Post, "https://fcm.googleapis.com/messages:send");
+            using var response = await handler.SendAsyncForTest(message, cancellationToken);
+            if (!response.IsSuccessStatusCode) throw new HttpRequestException("Firebase message request failed.");
+        }
     }
 
     private sealed class RecordingHandler(params HttpResponseMessage[] responses) : HttpMessageHandler
@@ -187,5 +230,7 @@ public sealed class PushDeliveryServiceTests
                 ? _responses.Dequeue()
                 : new HttpResponseMessage(HttpStatusCode.OK));
         }
+
+        public Task<HttpResponseMessage> SendAsyncForTest(HttpRequestMessage request, CancellationToken cancellationToken) => SendAsync(request, cancellationToken);
     }
 }

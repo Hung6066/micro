@@ -100,6 +100,7 @@ export class AuthService {
         defaultReturnUrl: "/dashboard",
         sessionStatusUrl: this.sessionStatusUrl,
         sessionExchangeUrl: `${environment.apiUrl}/auth/session/exchange`,
+        bffClientId: environment.oidc.clientId,
         logoutUrl: `${environment.apiUrl}/auth/logout`,
         bffOnly: true,
       },
@@ -313,11 +314,17 @@ export class AuthService {
       );
   }
 
-  isLoggedIn(): Observable<boolean> {
+  isLoggedIn(returnUrl?: string): Observable<boolean> {
     if (this.currentUserSubject.value) {
       return of(true);
     }
-    return this.isAuthenticated();
+    // A BFF login completes on the Identity host and returns to the SPA with
+    // only the HttpOnly Identity cookie. Trigger the shared handoff here so
+    // the first auth-guard check cannot observe a false negative before the
+    // login page's polling timer runs.
+    return this.authCoordinator.trySsoLogin(returnUrl).pipe(
+      switchMap((exchanged) => exchanged ? of(true) : this.isAuthenticated()),
+    );
   }
 
   ensureCurrentUser(): Observable<User | null> {

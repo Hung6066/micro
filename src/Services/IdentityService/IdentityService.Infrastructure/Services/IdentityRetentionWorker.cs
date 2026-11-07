@@ -46,37 +46,55 @@ public sealed class IdentityRetentionWorker(
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var now = DateTime.UtcNow;
         var deleted = 0;
+        var remainingBudget = Math.Clamp(settings.MaxRowsPerRun, 1, 100_000);
         deleted += await DeleteInBatchesAsync(db.DirectoryProvisioningOutbox
             .Where(item => item.CompletedAt != null && item.CompletedAt < now.AddDays(-Math.Max(1, settings.CompletedOutboxDays))),
-            settings.BatchSize, ct);
+            settings.BatchSize, remainingBudget, ct);
+        remainingBudget -= deleted;
+        if (remainingBudget <= 0) { LogBudgetReached(logger, deleted, settings.MaxRowsPerRun); return; }
         deleted += await DeleteInBatchesAsync(db.SecuritySignalOutbox
             .Where(item => item.DispatchedAt != null && item.DispatchedAt < now.AddDays(-Math.Max(1, settings.CompletedOutboxDays))),
-            settings.BatchSize, ct);
+            settings.BatchSize, remainingBudget, ct);
+        remainingBudget = Math.Clamp(settings.MaxRowsPerRun - deleted, 0, 100_000);
+        if (remainingBudget <= 0) { LogBudgetReached(logger, deleted, settings.MaxRowsPerRun); return; }
         deleted += await DeleteInBatchesAsync(db.PushNotificationOutbox
             .Where(item => item.ProcessedAt != null && item.ProcessedAt < now.AddDays(-Math.Max(1, settings.ProcessedPushDays))),
-            settings.BatchSize, ct);
+            settings.BatchSize, remainingBudget, ct);
+        remainingBudget = Math.Clamp(settings.MaxRowsPerRun - deleted, 0, 100_000);
+        if (remainingBudget <= 0) { LogBudgetReached(logger, deleted, settings.MaxRowsPerRun); return; }
         deleted += await DeleteInBatchesAsync(db.MobileTelemetryEvents
             .Where(item => item.CreatedAt < now.AddDays(-Math.Max(1, settings.TelemetryDays))),
-            settings.BatchSize, ct);
+            settings.BatchSize, remainingBudget, ct);
+        remainingBudget = Math.Clamp(settings.MaxRowsPerRun - deleted, 0, 100_000);
+        if (remainingBudget <= 0) { LogBudgetReached(logger, deleted, settings.MaxRowsPerRun); return; }
         deleted += await DeleteInBatchesAsync(db.SecurityEvents
             .Where(item => item.Timestamp < now.AddDays(-Math.Max(1, settings.SecurityEventDays))),
-            settings.BatchSize, ct);
+            settings.BatchSize, remainingBudget, ct);
+        remainingBudget = Math.Clamp(settings.MaxRowsPerRun - deleted, 0, 100_000);
+        if (remainingBudget <= 0) { LogBudgetReached(logger, deleted, settings.MaxRowsPerRun); return; }
         deleted += await DeleteInBatchesAsync(db.DevicePostureAssessments
             .Where(item => item.CreatedAt < now.AddDays(-Math.Max(1, settings.DevicePostureDays))),
-            settings.BatchSize, ct);
+            settings.BatchSize, remainingBudget, ct);
         if (deleted > 0) logger.LogInformation("Identity retention cleanup removed {Count} records", deleted);
     }
 
-    private static async Task<int> DeleteInBatchesAsync<TEntity>(IQueryable<TEntity> query, int configuredBatchSize, CancellationToken ct)
+    private static async Task<int> DeleteInBatchesAsync<TEntity>(IQueryable<TEntity> query, int configuredBatchSize, int maxRows, CancellationToken ct)
         where TEntity : class
     {
         var batchSize = Math.Clamp(configuredBatchSize, 1, 10_000);
+        var budget = Math.Clamp(maxRows, 0, 100_000);
         var total = 0;
-        while (true)
+        while (total < budget)
         {
-            var batch = await query.Take(batchSize).ExecuteDeleteAsync(ct);
+            var batch = await query.Take(Math.Min(batchSize, budget - total)).ExecuteDeleteAsync(ct);
             total += batch;
             if (batch < batchSize) return total;
         }
+        return total;
     }
+
+    private static void LogBudgetReached(ILogger logger, int deleted, int configuredBudget) =>
+        logger.LogInformation(
+            "Identity retention cleanup reached per-run budget {Budget}; removed {Count} records; remaining backlog will be processed in a later cycle",
+            Math.Clamp(configuredBudget, 1, 100_000), deleted);
 }

@@ -1,0 +1,305 @@
+{
+  "options": {
+    "noColor": true,
+    "summaryTrendStats": [
+      "avg",
+      "min",
+      "med",
+      "max",
+      "p(90)",
+      "p(95)"
+    ],
+    "summaryTimeUnit": ""
+  },
+  "state": {
+    "isStdOutTTY": false,
+    "isStdErrTTY": false,
+    "testRunDurationMs": 1140063.0451
+  },
+  "metrics": {
+    "patient_latency": {
+      "type": "trend",
+      "contains": "default",
+      "values": {
+        "avg": 16.63481017661542,
+        "min": 0.5126,
+        "med": 7.1123,
+        "max": 2125.8888,
+        "p(90)": 17.03321,
+        "p(95)": 27.72932499999998
+      }
+    },
+    "data_received": {
+      "contains": "data",
+      "values": {
+        "rate": 509833.0943171803,
+        "count": 581241870
+      },
+      "type": "counter"
+    },
+    "appointment_latency": {
+      "values": {
+        "avg": 12.639062363094215,
+        "min": 0,
+        "med": 7.601,
+        "max": 2043.5042,
+        "p(90)": 16.888740000000002,
+        "p(95)": 24.80748999999998
+      },
+      "type": "trend",
+      "contains": "default"
+    },
+    "http_req_failed": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 523170
+      }
+    },
+    "vus": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 1,
+        "min": 1,
+        "max": 200
+      }
+    },
+    "group_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 10.881479477034674,
+        "min": 0,
+        "med": 6.5105,
+        "max": 2125.8888,
+        "p(90)": 13.918420000000006,
+        "p(95)": 21.63842499999998
+      }
+    },
+    "vus_max": {
+      "type": "gauge",
+      "contains": "default",
+      "values": {
+        "value": 200,
+        "min": 200,
+        "max": 200
+      }
+    },
+    "http_reqs": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 523170,
+        "rate": 458.89567445290754
+      }
+    },
+    "iterations": {
+      "type": "counter",
+      "contains": "default",
+      "values": {
+        "count": 174390,
+        "rate": 152.96522481763583
+      }
+    },
+    "iteration_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 533.4099070198899,
+        "min": 507.45,
+        "med": 517.168,
+        "max": 3945.865,
+        "p(90)": 537.08642,
+        "p(95)": 556.0977399999999
+      }
+    },
+    "http_req_blocked": {
+      "values": {
+        "max": 13.0573,
+        "p(90)": 0,
+        "p(95)": 0,
+        "avg": 0.0031735789513924716,
+        "min": 0,
+        "med": 0
+      },
+      "type": "trend",
+      "contains": "time"
+    },
+    "checks": {
+      "contains": "default",
+      "values": {
+        "rate": 1,
+        "passes": 523170,
+        "fails": 0
+      },
+      "type": "rate"
+    },
+    "http_req_duration{expected_response:true}": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 10.778370922262617,
+        "min": 0,
+        "med": 6.4012,
+        "max": 2125.8888,
+        "p(90)": 13.793820000000006,
+        "p(95)": 21.48208499999999
+      }
+    },
+    "http_req_tls_handshaking": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 0,
+        "avg": 0,
+        "min": 0,
+        "med": 0,
+        "max": 0,
+        "p(90)": 0
+      }
+    },
+    "http_req_connecting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.0002571212034329185,
+        "min": 0,
+        "med": 0,
+        "max": 11.2798,
+        "p(90)": 0,
+        "p(95)": 0
+      }
+    },
+    "http_req_sending": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.04732928856776902,
+        "min": 0,
+        "med": 0,
+        "max": 72.8839,
+        "p(90)": 0,
+        "p(95)": 0.5198
+      }
+    },
+    "data_sent": {
+      "type": "counter",
+      "contains": "data",
+      "values": {
+        "rate": 1364308.6114273348,
+        "count": 1555397830
+      }
+    },
+    "errors": {
+      "type": "rate",
+      "contains": "default",
+      "values": {
+        "rate": 0,
+        "passes": 0,
+        "fails": 348780
+      },
+      "thresholds": {
+        "rate<0.01": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_duration": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "p(95)": 21.48208499999999,
+        "avg": 10.778370922262617,
+        "min": 0,
+        "med": 6.4012,
+        "max": 2125.8888,
+        "p(90)": 13.793820000000006
+      },
+      "thresholds": {
+        "p(95)<500": {
+          "ok": true
+        }
+      }
+    },
+    "http_req_waiting": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 10.67023433262656,
+        "min": 0,
+        "med": 6.3326,
+        "max": 2125.8888,
+        "p(90)": 13.6453,
+        "p(95)": 21.295494999999992
+      }
+    },
+    "http_req_receiving": {
+      "type": "trend",
+      "contains": "time",
+      "values": {
+        "avg": 0.06080730106848508,
+        "min": 0,
+        "med": 0,
+        "max": 120.6979,
+        "p(90)": 0.367620000000007,
+        "p(95)": 0.527
+      }
+    }
+  },
+  "root_group": {
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": [
+      {
+        "groups": [],
+        "checks": [
+            {
+              "fails": 0,
+              "name": "GET /patients status 200",
+              "path": "::Patient Service::GET /patients status 200",
+              "id": "0742f09ad7a03975771c92a591a18916",
+              "passes": 174390
+            }
+          ],
+        "name": "Patient Service",
+        "path": "::Patient Service",
+        "id": "672c3a0ed53a542c589316a8b4acdf20"
+      },
+      {
+        "groups": [],
+        "checks": [
+            {
+              "fails": 0,
+              "name": "GET /appointments status 200",
+              "path": "::Appointment Service::GET /appointments status 200",
+              "id": "79cb6ce987b0eef7e9331a23fa4e2b17",
+              "passes": 174390
+            }
+          ],
+        "name": "Appointment Service",
+        "path": "::Appointment Service",
+        "id": "433a01c017820cc54fd64c5e9470a300"
+      },
+      {
+        "name": "Health Check",
+        "path": "::Health Check",
+        "id": "167c726a79efe9afd2c220eb9d49c1a2",
+        "groups": [],
+        "checks": [
+            {
+              "name": "Health check OK",
+              "path": "::Health Check::Health check OK",
+              "id": "bd24d8d6787de0a0974aebfd320c6a50",
+              "passes": 174390,
+              "fails": 0
+            }
+          ]
+      }
+    ],
+    "checks": []
+  }
+}

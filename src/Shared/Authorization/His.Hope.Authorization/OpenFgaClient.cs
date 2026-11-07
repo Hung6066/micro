@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Authorization;
 
@@ -16,11 +17,11 @@ public interface IOpenFgaClient
 /// endpoint or failed request returns null; callers must retain local
 /// fail-closed authorization and never use this adapter as an implicit grant.
 /// </summary>
-public sealed class OpenFgaClient(HttpClient httpClient, IConfiguration configuration) : IOpenFgaClient
+public sealed class OpenFgaClient(HttpClient httpClient, IConfiguration? configuration = null) : IOpenFgaClient
 {
-    private readonly string _storeId = configuration["AUTHZ_OPENFGA_STORE_ID"] ?? string.Empty;
-    private readonly string _modelId = configuration["AUTHZ_OPENFGA_MODEL_ID"] ?? string.Empty;
-    private readonly string _token = configuration["AUTHZ_OPENFGA_TOKEN"] ?? string.Empty;
+    private readonly string _storeId = configuration?["AUTHZ_OPENFGA_STORE_ID"] ?? string.Empty;
+    private readonly string _modelId = configuration?["AUTHZ_OPENFGA_MODEL_ID"] ?? string.Empty;
+    private readonly string _token = configuration?["AUTHZ_OPENFGA_TOKEN"] ?? string.Empty;
 
     public async Task<bool?> CheckAsync(string subject, string relation, string resource, CancellationToken cancellationToken = default)
     {
@@ -55,6 +56,6 @@ public sealed class OpenFgaClient(HttpClient httpClient, IConfiguration configur
 
     private void AddToken(HttpRequestMessage request)
     {
-        if (!string.IsNullOrWhiteSpace(_token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+        if (!string.IsNullOrWhiteSpace(_token)) request.Headers.Authorization = new AuthenticationHeaderValue(HisHopeProtocolConstants.AuthorizationSchemes.Bearer, _token);
     }
 }

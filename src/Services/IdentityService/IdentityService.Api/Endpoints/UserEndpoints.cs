@@ -9,7 +9,9 @@ using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.Infrastructure.Audit;
 using System.Text.Json;
 using His.Hope.IdentityService.Api.Authorization;
+using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Contracts.Identity;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -21,7 +23,6 @@ public static class UserEndpoints
 {
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder group)
     {
-        // GET /api/v1/auth/users - Paginated user list
         group.MapGet(IdentityApiRoutes.UsersSegment, async (
             int page = 1,
             int pageSize = 20,
@@ -30,6 +31,7 @@ public static class UserEndpoints
             bool? isActive = null,
             string? sort = null,
             IMediator mediator = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             QueryRequest normalized;
@@ -50,31 +52,43 @@ public static class UserEndpoints
                         new HashSet<string>(["role", "isActive"], StringComparer.OrdinalIgnoreCase));
             }
             catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
-            if (normalized.Search?.Length > 100 || normalized.Filters["role"]?.Length > 100)
+            if (normalized.Search?.Length > 100 || (normalized.Filters?.TryGetValue("role", out var roleFilter) == true && roleFilter?.Length > 100))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search and role filters must be 100 characters or fewer."] });
 
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             var result = await mediator.Send(
                 new GetUsersQuery(
                     normalized.Page,
                     normalized.PageSize,
                     normalized.Search,
-                    normalized.Filters["role"],
+                    normalized.Filters?.GetValueOrDefault("role"),
                     isActive,
-                    normalized.Sort), ct);
+                    normalized.Sort,
+                    tenantFilter.AllowedTenantKeys?.ToArray()), ct);
             return Results.Ok(result);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
 
-        // GET /api/v1/auth/users/{id} - User detail
         group.MapGet(IdentityApiRoutes.UsersSegment + "/{id:guid}", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            var user = await mediator.Send(new GetUserByIdQuery(id), ct);
-            return user is null ? Results.NotFound() : Results.Ok(user);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            var user = Guard.Against.NotFound(
+                await mediator.Send(new GetUserByIdQuery(id), ct), "User", id);
 
-        // POST /api/v1/auth/users - Create user
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            return Results.Ok(user);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
+
         group.MapPost(IdentityApiRoutes.UsersSegment, async (
             CreateUserRequest request,
             IMediator mediator = null!,
@@ -99,18 +113,24 @@ public static class UserEndpoints
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
 
-        // PUT /api/v1/auth/users/{id} - Update user
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}", async (
             Guid id,
             UpdateUserRequest request,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             ITokenBlacklistService tokenBlacklist = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
             try
             {
                 var command = new UpdateUserCommand(
@@ -122,73 +142,73 @@ public static class UserEndpoints
                 await AdminAudit.LogAsync(audit, http, "UPDATE", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
             catch (InvalidOperationException ex)
             {
                 return Results.Problem(statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400,
                     detail: ex.Message,
                     extensions: new Dictionary<string, object?> { ["errorCode"] = ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? ApiErrorCodes.ConcurrencyConflict : ApiErrorCodes.UserRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
 
-        // PUT /api/v1/auth/users/{id}/deactivate - Soft-delete user
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/deactivate", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
             ITokenBlacklistService tokenBlacklist = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            try
-            {
-                await mediator.Send(new DeactivateUserCommand(id), ct);
-                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
-                await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
-                return Results.NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
 
-        // PUT /api/v1/auth/users/{id}/activate - Reactivate user
+            await mediator.Send(new DeactivateUserCommand(id), ct);
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
+            return Results.NoContent();
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/activate", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
             ITokenBlacklistService tokenBlacklist = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            try
-            {
-                await mediator.Send(new ActivateUserCommand(id), ct);
-                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
-                await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
-                return Results.NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
 
-        // PUT /api/v1/auth/users/{id}/roles - Assign roles
+            await mediator.Send(new ActivateUserCommand(id), ct);
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
+            return Results.NoContent();
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/roles", async (
             Guid id,
             AssignRolesRequest request,
             IMediator mediator = null!,
             ITokenBlacklistService tokenBlacklist = null!,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
             try
             {
                 var governanceError = await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
@@ -206,16 +226,14 @@ public static class UserEndpoints
                 await AdminAudit.LogAsync(audit, http, "ASSIGN_ROLES", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
             catch (InvalidOperationException ex)
             {
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         return group;
     }

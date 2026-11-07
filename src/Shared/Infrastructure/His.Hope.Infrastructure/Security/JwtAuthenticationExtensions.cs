@@ -99,7 +99,7 @@ public static class JwtAuthenticationExtensions
                         .GetRequiredService<ILogger<JwtBearerHandler>>();
 
                     var jti = context.Principal?.FindFirst("jti")?.Value;
-                    var userId = context.Principal?.FindFirst("sub")?.Value;
+                    var userId = context.Principal?.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
 
                     if (!string.IsNullOrEmpty(jti))
                     {

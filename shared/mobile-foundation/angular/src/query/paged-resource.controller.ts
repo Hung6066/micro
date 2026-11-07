@@ -2,10 +2,13 @@ import { Observable, catchError, finalize, of } from "rxjs";
 import {
   HisHopeBulkActionRequest,
   HisHopeBulkActionResult,
+  HisHopeCursorPageResult,
   HisHopePageQuery,
   HisHopePageResult,
   HisHopeTranslateFn,
 } from "@his-hope/frontend-foundation/contracts";
+
+type HisHopeMobilePageResult<T> = HisHopePageResult<T> | HisHopeCursorPageResult<T>;
 
 export interface HisHopeMobilePagedResourceOptions<
   TQuery extends HisHopePageQuery,
@@ -13,7 +16,7 @@ export interface HisHopeMobilePagedResourceOptions<
 > {
   readonly i18n: HisHopeTranslateFn;
   readonly initialQuery: TQuery;
-  readonly loader: (query: TQuery) => Observable<HisHopePageResult<TItem>>;
+  readonly loader: (query: TQuery) => Observable<HisHopeMobilePageResult<TItem>>;
   readonly loadErrorMessageKey: string;
   readonly loadErrorFallback: string;
   readonly loadMoreErrorMessageKey: string;
@@ -29,7 +32,7 @@ export class HisHopeMobilePagedResourceController<
   private readonly i18n: HisHopeTranslateFn;
   private readonly loader: (
     query: TQuery,
-  ) => Observable<HisHopePageResult<TItem>>;
+  ) => Observable<HisHopeMobilePageResult<TItem>>;
   private readonly loadErrorMessageKey: string;
   private readonly loadErrorFallback: string;
   private readonly loadMoreErrorMessageKey: string;
@@ -188,10 +191,10 @@ export class HisHopeMobilePagedResourceController<
   }
 
   private applyPageResult(
-    result: HisHopePageResult<TItem>,
+    result: HisHopeMobilePageResult<TItem>,
     append: boolean,
   ): void {
-    this.totalCount = result.totalCount;
+    this.totalCount = result.totalCount ?? result.items.length;
     this.nextCursor = result.nextCursor ?? null;
     this.hasMore = !!result.nextCursor || result.hasNextPage;
     this.items = append

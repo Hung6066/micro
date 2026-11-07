@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using System.Diagnostics.CodeAnalysis;
+using His.Hope.SharedKernel.Domain.Exceptions;
 
 namespace His.Hope.SharedKernel.Domain.Common;
 
@@ -18,6 +20,20 @@ public static partial class Guard
             if (value is null)
                 throw new ArgumentNullException(parameterName, $"'{parameterName}' cannot be null.");
             return value;
+        }
+
+        [return: NotNull]
+        public static T NotFound<T>(T? value, string entityName, object key) where T : class
+        {
+            if (value is null)
+                throw new NotFoundException(entityName, key);
+            return value;
+        }
+
+        public static void Conflict(bool condition, string message)
+        {
+            if (condition)
+                throw new ConflictException(message);
         }
 
         public static string InvalidFormat(string value, string pattern, string parameterName)

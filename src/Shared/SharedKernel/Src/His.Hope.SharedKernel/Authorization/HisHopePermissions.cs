@@ -142,6 +142,48 @@ public static class HisHopePermissions
     }
 
     // ──────────────────────────────────────────────
+    // Commerce / B2B ordering module
+    // ──────────────────────────────────────────────
+    public static class Commerce
+    {
+        public const string CatalogView = "commerce.catalog.view";
+        public const string OrdersCreate = "commerce.orders.create";
+        public const string OrdersView = "commerce.orders.view";
+        public const string OrdersUpdate = "commerce.orders.update";
+        public const string ProfileManage = "commerce.profile.manage";
+        public const string NotificationsView = "commerce.notifications.view";
+        public const string RfqCreate = "commerce.rfq.create";
+        public const string RfqView = "commerce.rfq.view";
+        public const string RfqRespond = "commerce.rfq.respond";
+    }
+
+    // ──────────────────────────────────────────────
+    // Content / CMS module
+    // ──────────────────────────────────────────────
+    public static class Content
+    {
+        public const string Read = "content.read";
+        public const string Manage = "content.manage";
+        public const string InquiriesView = "content.inquiries.view";
+    }
+
+    // ──────────────────────────────────────────────
+    // Manufacturing field operations module
+    // ──────────────────────────────────────────────
+    public static class Manufacturing
+    {
+        public const string ProductionExecute = "manufacturing.production.execute";
+        public const string QualityInspect = "manufacturing.quality.inspect";
+        public const string QualityApprove = "manufacturing.quality.approve";
+        public const string RecipeApprove = "manufacturing.recipe.approve";
+        public const string SpecificationApprove = "manufacturing.specification.approve";
+        public const string SopApprove = "manufacturing.sop.approve";
+        public const string BusinessSign = "manufacturing.business.sign";
+        public const string MaintenanceComplete = "manufacturing.maintenance.complete";
+        public const string CostManage = "manufacturing.cost.manage";
+    }
+
+    // ──────────────────────────────────────────────
     // All Permissions - for enumeration and seeding
     // ──────────────────────────────────────────────
 
@@ -191,6 +233,21 @@ public static class HisHopePermissions
 
         // Dashboard
         Dashboard.View, Dashboard.Manage,
+
+        // Commerce
+        Commerce.CatalogView, Commerce.OrdersCreate, Commerce.OrdersView,
+        Commerce.OrdersUpdate, Commerce.ProfileManage, Commerce.NotificationsView,
+        Commerce.RfqCreate, Commerce.RfqView, Commerce.RfqRespond,
+
+        // Content
+        Content.Read, Content.Manage, Content.InquiriesView,
+
+        // Manufacturing field operations
+        Manufacturing.ProductionExecute, Manufacturing.QualityInspect, Manufacturing.QualityApprove,
+        Manufacturing.RecipeApprove, Manufacturing.SpecificationApprove,
+        Manufacturing.SopApprove, Manufacturing.BusinessSign,
+        Manufacturing.MaintenanceComplete,
+        Manufacturing.CostManage,
     }.ToFrozenSet();
 
     /// <summary>
@@ -280,6 +337,33 @@ public static class HisHopePermissions
         // Dashboard
         new(Dashboard.View, "Xem dashboard vận hành", "Dashboard", "Xem log, metric, trace và trạng thái dịch vụ"),
         new(Dashboard.Manage, "Quản lý dashboard vận hành", "Dashboard", "Khởi động, dừng hoặc khởi động lại dịch vụ"),
+
+        // Commerce
+        new(Commerce.CatalogView, "Xem catalog", "Commerce", "Xem danh mục sản phẩm B2B"),
+        new(Commerce.OrdersCreate, "Tạo đơn hàng", "Commerce", "Đặt hàng từ catalog"),
+        new(Commerce.OrdersView, "Xem đơn hàng", "Commerce", "Xem đơn hàng trong tenant"),
+        new(Commerce.OrdersUpdate, "Cập nhật đơn hàng", "Commerce", "Fulfill hoặc cập nhật trạng thái đơn"),
+        new(Commerce.ProfileManage, "Quản lý hồ sơ buyer", "Commerce", "Cập nhật thông tin liên hệ buyer"),
+        new(Commerce.NotificationsView, "Xem thông báo", "Commerce", "Xem thông báo đơn hàng"),
+        new(Commerce.RfqCreate, "Tạo RFQ", "Commerce", "Gửi yêu cầu báo giá"),
+        new(Commerce.RfqView, "Xem RFQ", "Commerce", "Xem yêu cầu báo giá"),
+        new(Commerce.RfqRespond, "Phản hồi RFQ", "Commerce", "Trả lời báo giá cho buyer"),
+
+        // Content
+        new(Content.Read, "Xem nội dung", "Content", "Xem nội dung công khai đã publish"),
+        new(Content.Manage, "Quản lý nội dung", "Content", "CMS banners, bài viết, story blocks"),
+        new(Content.InquiriesView, "Xem hỏi hợp tác", "Content", "Xem form hợp tác kinh doanh"),
+
+        // Manufacturing field operations
+        new(Manufacturing.ProductionExecute, "Thực thi sản xuất", "Manufacturing", "Ghi nhận công đoạn và sản lượng tại hiện trường"),
+        new(Manufacturing.QualityInspect, "Kiểm tra chất lượng", "Manufacturing", "Ghi nhận kiểm tra chất lượng và sai lệch"),
+        new(Manufacturing.QualityApprove, "Phê duyệt chất lượng", "Manufacturing", "Phê duyệt hoặc từ chối kết quả chất lượng"),
+        new(Manufacturing.RecipeApprove, "Phê duyệt công thức", "Manufacturing", "Phê duyệt vòng đời công thức sản xuất"),
+        new(Manufacturing.SpecificationApprove, "Phê duyệt đặc tả", "Manufacturing", "Phê duyệt đặc tả sản phẩm"),
+        new(Manufacturing.SopApprove, "Phê duyệt SOP", "Manufacturing", "Phê duyệt và phát hành hướng dẫn thao tác"),
+        new(Manufacturing.BusinessSign, "Ký nghiệp vụ", "Manufacturing", "Ký điện tử các hành động nghiệp vụ được ủy quyền"),
+        new(Manufacturing.MaintenanceComplete, "Hoàn tất bảo trì", "Manufacturing", "Hoàn tất work order và bằng chứng bảo trì"),
+        new(Manufacturing.CostManage, "Quản lý giá vốn", "Manufacturing", "Tính và điều chỉnh giá vốn theo batch"),
     }.ToFrozenSet();
 
     /// <summary>

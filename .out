@@ -1,0 +1,1 @@
+{"type":"https://his-hope.com/errors/internal_error","title":"The request could not be completed.","status":500,"detail":null,"instance":"http://identityservice:5003/api/v1/auth/login","traceId":"d80002d1f55e62b3984c0fa6a3d87e27","correlationId":"unknown","errorCode":"internal_error","timestamp":"2026-09-01T00:34:43.0162095Z"}

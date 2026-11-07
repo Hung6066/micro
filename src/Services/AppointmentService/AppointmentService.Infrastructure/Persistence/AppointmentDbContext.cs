@@ -3,6 +3,7 @@ using His.Hope.Authorization;
 using His.Hope.AppointmentService.Domain.Aggregates;
 using His.Hope.AppointmentService.Domain.ValueObjects;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -34,34 +35,32 @@ public class AppointmentDbContext : DbContext, IUnitOfWork
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         modelBuilder.Entity<Appointment>().HasQueryFilter(appointment =>
-            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
-            _facilityScope.FacilityIds.Contains(appointment.FacilityId!));
+            EF.Property<bool?>(appointment, "IsDeleted") != true &&
+            (!_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(appointment.FacilityId!)));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("outbox_messages");
             entity.HasKey(e => e.Id);
-            // The initial appointment migration created every outbox column with
-            // PascalCase names. Map the complete legacy shape explicitly; the
-            // service-wide snake_case convention must not rewrite these names to
-            // lowercase SQL (for example, o.id instead of "Id").
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.Type).HasColumnName("Type").HasMaxLength(500).IsRequired();
-            entity.Property(e => e.Content).HasColumnName("Content").IsRequired();
-            entity.Property(e => e.CorrelationId).HasColumnName("CorrelationId").HasMaxLength(200);
-            entity.Property(e => e.CausationId).HasColumnName("CausationId").HasMaxLength(200);
-            entity.Property(e => e.OccurredOn).HasColumnName("OccurredOn").IsRequired();
-            entity.Property(e => e.ProcessedOn).HasColumnName("ProcessedOn");
-            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Error).HasColumnName("Error").HasMaxLength(1000);
-            entity.Property(e => e.RetryCount).HasColumnName("RetryCount");
-            entity.Property(e => e.LastRetryOn).HasColumnName("LastRetryOn");
-            entity.Property(e => e.LockExpiresAt).HasColumnName("LockExpiresAt");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Type).HasColumnName("type").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Content).HasColumnName("content").IsRequired();
+            entity.Property(e => e.CorrelationId).HasColumnName("correlation_id").HasMaxLength(200);
+            entity.Property(e => e.CausationId).HasColumnName("causation_id").HasMaxLength(200);
+            entity.Property(e => e.OccurredOn).HasColumnName("occurred_on").IsRequired();
+            entity.Property(e => e.ProcessedOn).HasColumnName("processed_on");
+            entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Error).HasColumnName("error").HasMaxLength(1000);
+            entity.Property(e => e.RetryCount).HasColumnName("retry_count");
+            entity.Property(e => e.LastRetryOn).HasColumnName("last_retry_on");
+            entity.Property(e => e.LockExpiresAt).HasColumnName("lock_expires_at");
             entity.Property(e => e.ClaimedBy).HasColumnName("ClaimedBy");
             entity.Property(e => e.NextAttemptAt).HasColumnName("NextAttemptAt");
             entity.Property(e => e.DeadLetteredOn).HasColumnName("DeadLetteredOn");
             entity.HasIndex(e => new { e.Status, e.OccurredOn });
         });
         base.OnModelCreating(modelBuilder);
+        HisHopeDataConventions.Apply(modelBuilder, typeof(Appointment));
     }
 
     public override async Task<int> SaveChangesAsync(

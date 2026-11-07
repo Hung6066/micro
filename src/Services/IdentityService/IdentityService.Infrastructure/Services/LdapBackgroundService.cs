@@ -61,9 +61,33 @@ public class LdapBackgroundService : BackgroundService
             using (var scope = _scopeFactory.CreateScope())
             {
                 var runtime = scope.ServiceProvider.GetRequiredService<ExternalIdentityProviderRuntime>();
-                var intervalMinutes = Math.Clamp((await runtime.GetLdapAsync(stoppingToken)).SyncIntervalMinutes, 1, 1440);
-                await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
+                var delay = await ResolveSyncDelayAsync(
+                    async ct => (await runtime.GetLdapAsync(ct)).SyncIntervalMinutes,
+                    _logger,
+                    stoppingToken);
+                await Task.Delay(delay, stoppingToken);
             }
+        }
+    }
+
+    internal static async Task<TimeSpan> ResolveSyncDelayAsync(
+        Func<CancellationToken, Task<int>> loadIntervalMinutes,
+        ILogger<LdapBackgroundService> logger,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var intervalMinutes = Math.Clamp(await loadIntervalMinutes(cancellationToken), 1, 1440);
+            return TimeSpan.FromMinutes(intervalMinutes);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Unable to load LDAP sync interval; retrying in five minutes");
+            return TimeSpan.FromMinutes(5);
         }
     }
 }

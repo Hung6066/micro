@@ -2,11 +2,15 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Protocol;
+using His.Hope.Authorization;
+using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -107,7 +111,7 @@ public sealed class CustomHandleClientCredentialsRequest :
         identity.SetClaim("authorization_version", workloadRole.CreatedAt.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var workloadSessionId = Guid.NewGuid().ToString("N");
         identity.SetClaim("session_id", workloadSessionId);
-        identity.SetClaim("permissions", string.Join(',', permissions));
+        identity.SetClaim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(',', permissions));
         if (boundary is not null)
             identity.SetClaim("authorization_constraints", boundary.ResourceConstraintsJson);
 
@@ -121,7 +125,7 @@ public sealed class CustomHandleClientCredentialsRequest :
                     scope => scope.ParentId, parent => parent.Id, (_, parent) => parent.Key)
                 .SingleOrDefaultAsync(context.CancellationToken);
         if (!string.IsNullOrWhiteSpace(tenantKey))
-            identity.SetClaim("tenant_id", tenantKey);
+            identity.SetClaim(HisHopeProtocolConstants.Claims.TenantId, tenantKey);
         var workloadPolicies = await ResourcePolicyClaimBuilder.BuildAsync(
             _dbContext, workloadRole.ScopeId,
             [workloadRole.Key, workloadRole.Audience, context.ClientId],
@@ -188,7 +192,11 @@ public sealed class CustomHandleTokenExchangeRequest :
         ClaimsPrincipal source;
         try
         {
-            var handler = new JwtSecurityTokenHandler();
+            // Keep claim names stable for RFC 8693 processing.  Relying on the
+            // process-wide JwtSecurityTokenHandler.DefaultMapInboundClaims
+            // makes concurrent token requests (and tests) race on a mutable
+            // global and can hide the standard `sub` claim.
+            var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
             source = handler.ValidateToken(subjectToken, _serverOptions.CurrentValue.TokenValidationParameters, out _);
         }
         catch (Exception)
@@ -252,7 +260,10 @@ public sealed class CustomHandleTokenExchangeRequest :
         var exchangedSessionId = Guid.NewGuid().ToString("N");
         identity.SetClaim("session_id", exchangedSessionId);
         identity.SetClaim("authorization_version", role.CreatedAt.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        identity.SetClaim("permissions", string.Join(',', permissions));
+        identity.SetClaim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(',', permissions));
+        var sourceTenant = source.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value;
+        if (!string.IsNullOrWhiteSpace(sourceTenant))
+            identity.SetClaim(HisHopeProtocolConstants.Claims.TenantId, sourceTenant);
         var exchangedPolicies = await ResourcePolicyClaimBuilder.BuildAsync(
             _dbContext, role.ScopeId, [role.Key, role.Audience, clientId], context.CancellationToken);
         if (exchangedPolicies is not null)
@@ -317,14 +328,25 @@ internal static class ResourcePolicyClaimBuilder
         Guid scopeId,
         IEnumerable<string> principals,
         CancellationToken cancellationToken)
+        => await BuildManyAsync(db, [scopeId], principals, cancellationToken);
+
+    public static async Task<string?> BuildManyAsync(
+        IApplicationDbContext db,
+        IEnumerable<Guid> scopeIds,
+        IEnumerable<string> principals,
+        CancellationToken cancellationToken)
     {
+        var requestedScopeIds = scopeIds.Distinct().ToArray();
+        if (requestedScopeIds.Length == 0) return null;
+
         var principalSet = principals
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (principalSet.Count == 0) return null;
 
         var policies = await db.IamResourcePolicies.AsNoTracking()
-            .Where(policy => policy.ScopeId == scopeId &&
+            .TagWith("Identity.Oidc.ResolveResourcePolicies")
+            .Where(policy => requestedScopeIds.Contains(policy.ScopeId) &&
                 policy.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published)
             .ToListAsync(cancellationToken);
         var statements = new List<ResourcePolicyClaim>();
@@ -346,7 +368,10 @@ internal static class ResourcePolicyClaimBuilder
                         statement.TryGetProperty("effect", out var effect) && effect.ValueKind == JsonValueKind.String
                             ? effect.GetString()!.Trim().ToLowerInvariant()
                             : "allow",
-                        actions));
+                        actions,
+                        statement.TryGetProperty("condition", out var condition)
+                            ? condition.Clone()
+                            : null));
                 }
             }
             catch (JsonException)
@@ -376,19 +401,20 @@ internal sealed record ResourcePolicyClaim(
     string ServiceKey,
     string ResourcePattern,
     string Effect,
-    IReadOnlyList<string> Actions);
+    IReadOnlyList<string> Actions,
+    JsonElement? Condition = null);
 
 public class CustomValidateAuthorizationRequest :
     IOpenIddictServerHandler<OpenIddictServerEvents.ValidateAuthorizationRequestContext>
 {
-    private readonly UserManager<User> _userManager;
+    private readonly IConglomerateTenantRegistry _tenantRegistry;
     private readonly ILogger<CustomValidateAuthorizationRequest> _logger;
 
     public CustomValidateAuthorizationRequest(
-        UserManager<User> userManager,
+        IConglomerateTenantRegistry tenantRegistry,
         ILogger<CustomValidateAuthorizationRequest> logger)
     {
-        _userManager = userManager;
+        _tenantRegistry = tenantRegistry;
         _logger = logger;
     }
 
@@ -401,6 +427,21 @@ public class CustomValidateAuthorizationRequest :
 
     public ValueTask HandleAsync(OpenIddictServerEvents.ValidateAuthorizationRequestContext context)
     {
+        if (!_tenantRegistry.IsEnabled || string.IsNullOrWhiteSpace(context.ClientId))
+            return default;
+
+        if (!_tenantRegistry.IsConglomerateClient(context.ClientId))
+            return default;
+
+        if (string.IsNullOrWhiteSpace(_tenantRegistry.GetClientTenant(context.ClientId)))
+        {
+            _logger.LogWarning("Rejecting authorization for unbound conglomerate client {ClientId}.", context.ClientId);
+            context.Reject(
+                OpenIddictConstants.Errors.InvalidClient,
+                "The OAuth client is not bound to a tenant.",
+                null);
+        }
+
         return default;
     }
 }
@@ -410,15 +451,21 @@ public class CustomPopulateTokenClaims :
 {
     private readonly UserManager<User> _userManager;
     private readonly IApplicationDbContext _dbContext;
+    private readonly IConglomerateTenantRegistry _tenantRegistry;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<CustomPopulateTokenClaims> _logger;
 
     public CustomPopulateTokenClaims(
         UserManager<User> userManager,
         IApplicationDbContext dbContext,
+        IConglomerateTenantRegistry tenantRegistry,
+        IConfiguration configuration,
         ILogger<CustomPopulateTokenClaims> logger)
     {
         _userManager = userManager;
         _dbContext = dbContext;
+        _tenantRegistry = tenantRegistry;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -470,13 +517,15 @@ public class CustomPopulateTokenClaims :
                 // the client id. New roles are resolved by audience above.
                 var workloadRole = await _dbContext.IamWorkloadRoles
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(item => (item.Key == userId || item.Audience == userId) && item.IsActive);
+                    .TagWith("Identity.Oidc.ResolveWorkloadFallback")
+                    .FirstOrDefaultAsync(item => (item.Key == userId || item.Audience == userId) && item.IsActive, context.CancellationToken);
                 if (workloadRole is not null)
                 {
                     var workloadPermissions = JsonSerializer.Deserialize<string[]>(workloadRole.PermissionsJson) ?? [];
                     var boundary = await _dbContext.IamPermissionBoundaries.AsNoTracking()
+                        .TagWith("Identity.Oidc.ResolveWorkloadBoundary")
                         .SingleOrDefaultAsync(item => item.IsActive && item.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload &&
-                            item.PrincipalId == workloadRole.Id && item.ScopeId == workloadRole.ScopeId);
+                            item.PrincipalId == workloadRole.Id && item.ScopeId == workloadRole.ScopeId, context.CancellationToken);
                     if (boundary is not null)
                     {
                         var allowed = JsonSerializer.Deserialize<string[]>(boundary.AllowedPermissionsJson) ?? [];
@@ -484,7 +533,7 @@ public class CustomPopulateTokenClaims :
                     }
                     if (workloadPermissions.Length > 0)
                     {
-                        var permissionsClaim = new Claim("permissions", string.Join(",", workloadPermissions));
+                        var permissionsClaim = new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", workloadPermissions));
                         permissionsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
                         identity.AddClaim(permissionsClaim);
                     }
@@ -508,6 +557,14 @@ public class CustomPopulateTokenClaims :
         securityVersionClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
         identity.AddClaim(securityVersionClaim);
 
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            var emailClaim = new Claim(OpenIddictConstants.Claims.Email, user.Email);
+            emailClaim.SetDestinations(
+                OpenIddictConstants.Destinations.AccessToken,
+                OpenIddictConstants.Destinations.IdentityToken);
+            identity.AddClaim(emailClaim);
+        }
         identity.AddClaim(new Claim("fullName", user.FullName ?? ""));
         identity.AddClaim(new Claim("licenseNumber", user.LicenseNumber ?? ""));
         identity.AddClaim(new Claim("license_number", user.LicenseNumber ?? ""));
@@ -520,6 +577,21 @@ public class CustomPopulateTokenClaims :
             identity.AddClaim(roleClaim);
         }
 
+        var configuredSuperAdminIds = _configuration.GetSection("Identity:SuperAdmin:UserIds")
+            .Get<string[]>() ?? [];
+        if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            var superAdminClaim = new Claim(HisHopeProtocolConstants.Claims.SuperAdmin, "true");
+            superAdminClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(superAdminClaim);
+            if (_configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false))
+            {
+                var portalClassClaim = new Claim(PortalClassConstants.Claim, PortalClassConstants.PrivilegedOperator);
+                portalClassClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+                identity.AddClaim(portalClassClaim);
+            }
+        }
+
         identity.AddClaim(new Claim("scope", "hishop:permissions"));
 
         // The authentication cookie is the source of truth for the methods
@@ -527,17 +599,18 @@ public class CustomPopulateTokenClaims :
         // after a successful MFA challenge. Do not infer "mfa" merely because
         // the account is enrolled: that would misrepresent an unchallenged
         // login and could weaken downstream step-up policy decisions.
-        if (!identity.FindAll("amr").Any())
-            identity.AddClaim(new Claim("amr", "pwd"));
+        if (!identity.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any())
+            identity.AddClaim(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, "pwd"));
 
         var legacyClaims = await _userManager.GetClaimsAsync(user);
         var legacyFacility = legacyClaims.FirstOrDefault(c => c.Type == "facility_id")?.Value;
-        var memberships = await _dbContext.UserFacilities
+        var memberships = await _dbContext.UserFacilities.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveUserFacilities")
             .Where(membership => membership.UserId == user.Id && membership.IsActive)
             .OrderByDescending(membership => membership.IsPrimary)
             .ThenBy(membership => membership.FacilityId)
             .Select(membership => membership.FacilityId)
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
         if (memberships.Count == 0 && !string.IsNullOrWhiteSpace(legacyFacility))
             memberships.Add(legacyFacility);
         if (memberships.Count > 0)
@@ -546,50 +619,52 @@ public class CustomPopulateTokenClaims :
             identity.AddClaim(new Claim("facility_ids", string.Join(",", memberships.Distinct(StringComparer.OrdinalIgnoreCase))));
         }
 
-        var permissions = await _dbContext.RolePermissions
+        var permissions = await _dbContext.RolePermissions.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveRolePermissions")
             .Where(rp => roles.Contains(rp.Role.Name!))
             .Select(rp => rp.PermissionCode)
             .Distinct()
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
 
-        var groupIds = await _dbContext.IamGroupMemberships
+        var groupIds = await _dbContext.IamGroupMemberships.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveUserGroups")
             .Where(membership => membership.UserId == user.Id)
             .Select(membership => membership.GroupId)
-            .ToListAsync();
-        var policyScopeIds = await _dbContext.IamPermissionSetAssignments
+            .ToListAsync(context.CancellationToken);
+        var policyScopeIds = await _dbContext.IamPermissionSetAssignments.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolvePolicyScopes")
             .Where(assignment => assignment.Status == AuthorizationConstants.LifecycleStatuses.Active &&
                 (assignment.ExpiresAt == null || assignment.ExpiresAt > DateTime.UtcNow) &&
                 ((assignment.PrincipalId == user.Id && assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Human) ||
                  (assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Group && groupIds.Contains(assignment.PrincipalId))))
             .Select(assignment => assignment.ScopeId)
             .Distinct()
-            .ToListAsync();
-        var policyClaims = new List<ResourcePolicyClaim>();
-        foreach (var policyScopeId in policyScopeIds)
-        {
-            var policyJson = await ResourcePolicyClaimBuilder.BuildAsync(
-                _dbContext, policyScopeId,
-                roles.Append(user.Id.ToString("D")).Concat(groupIds.Select(id => id.ToString("D"))),
-                context.CancellationToken);
-            if (policyJson is not null)
-                policyClaims.AddRange(JsonSerializer.Deserialize<List<ResourcePolicyClaim>>(policyJson) ?? []);
-        }
+            .ToListAsync(context.CancellationToken);
+        var policyJson = await ResourcePolicyClaimBuilder.BuildManyAsync(
+            _dbContext,
+            policyScopeIds,
+            roles.Append(user.Id.ToString("D")).Concat(groupIds.Select(id => id.ToString("D"))),
+            context.CancellationToken);
+        var policyClaims = policyJson is null
+            ? []
+            : JsonSerializer.Deserialize<List<ResourcePolicyClaim>>(policyJson) ?? [];
         if (policyClaims.Count > 0)
         {
             var policyClaim = new Claim("resource_policies", JsonSerializer.Serialize(policyClaims));
             policyClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
             identity.AddClaim(policyClaim);
         }
-        var assignedSetJson = await _dbContext.IamPermissionSetAssignments
+        var assignedSetJson = await _dbContext.IamPermissionSetAssignments.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolvePermissionSets")
             .Where(assignment => assignment.Status == AuthorizationConstants.LifecycleStatuses.Active &&
                 (assignment.ExpiresAt == null || assignment.ExpiresAt > DateTime.UtcNow) &&
                 ((assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Human && assignment.PrincipalId == user.Id) ||
                  (assignment.PrincipalType == "group" && groupIds.Contains(assignment.PrincipalId))))
-            .Join(_dbContext.IamPermissionSets.Where(set => set.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published),
+            .Join(_dbContext.IamPermissionSets.AsNoTracking().Where(set => set.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published),
                 assignment => assignment.PermissionSetId,
                 set => set.Id,
                 (_, set) => set.PermissionsJson)
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
         var registeredPrefixes = await _dbContext.IamServiceDefinitions.AsNoTracking()
             .Where(item => item.IsActive).Select(item => item.PermissionPrefix)
             .ToListAsync(context.CancellationToken);
@@ -606,15 +681,17 @@ public class CustomPopulateTokenClaims :
             }
         }
 
-        permissions.AddRange(await _dbContext.BreakGlassRequests
+        permissions.AddRange(await _dbContext.BreakGlassRequests.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveBreakGlassPermissions")
             .Where(item => item.SubjectUserId == user.Id && item.Status == "approved" &&
                 item.RevokedAt == null && item.ExpiresAt > DateTime.UtcNow)
             .Select(item => item.PermissionCode)
-            .ToListAsync());
+            .ToListAsync(context.CancellationToken));
 
-        var boundaries = await _dbContext.IamPermissionBoundaries
+        var boundaries = await _dbContext.IamPermissionBoundaries.AsNoTracking()
+            .TagWith("Identity.Oidc.ResolveUserPermissionBoundaries")
             .Where(item => item.IsActive && item.PrincipalType == AuthorizationConstants.PrincipalTypes.Human && item.PrincipalId == user.Id)
-            .ToListAsync();
+            .ToListAsync(context.CancellationToken);
         foreach (var boundary in boundaries)
         {
             try
@@ -640,11 +717,127 @@ public class CustomPopulateTokenClaims :
             .Where(code => PermissionCatalogRules.IsValid(code, registeredPrefixes))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
+            permissions = PrivilegedIdentityPermissionBoundary.Filter(permissions).ToList();
         if (permissions.Count > 0)
         {
-            var permissionsClaim = new Claim("permissions", string.Join(",", permissions));
+            var permissionsClaim = new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", permissions));
             permissionsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
             identity.AddClaim(permissionsClaim);
         }
+
+        if (!await TryIssueTenantClaimsAsync(context, identity, user, context.CancellationToken))
+            return;
+    }
+
+    private async Task IssueUserMembershipTenantClaimsAsync(
+        ClaimsIdentity identity,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        var memberships = (await _userManager.GetClaimsAsync(user))
+            .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
+            .Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (memberships.Count == 0)
+            return;
+
+        var primaryTenant = memberships[0];
+        var tenantClaim = new Claim(HisHopeProtocolConstants.Claims.TenantId, primaryTenant);
+        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+        identity.AddClaim(tenantClaim);
+
+        foreach (var membership in memberships)
+        {
+            var membershipClaim = new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership, membership);
+            membershipClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+            identity.AddClaim(membershipClaim);
+        }
+
+        if (memberships.Count > 1)
+        {
+            var membershipsClaim = new Claim("tenant_memberships", string.Join(",", memberships));
+            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+            identity.AddClaim(membershipsClaim);
+        }
+    }
+
+    private async Task<bool> TryIssueTenantClaimsAsync(
+        OpenIddictServerEvents.HandleTokenRequestContext context,
+        ClaimsIdentity identity,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        if (!_tenantRegistry.IsEnabled)
+            return true;
+
+        var clientId = context.Request.ClientId;
+        if (!_tenantRegistry.IsConglomerateClient(clientId))
+        {
+            if (_tenantRegistry.IsEnabled)
+                await IssueUserMembershipTenantClaimsAsync(identity, user, cancellationToken);
+            return true;
+        }
+
+        var clientTenant = _tenantRegistry.GetClientTenant(clientId);
+        if (string.IsNullOrWhiteSpace(clientTenant))
+        {
+            _logger.LogWarning("Conglomerate client {ClientId} is missing a tenant binding.", clientId);
+            context.Reject(OpenIddictConstants.Errors.InvalidClient, "The OAuth client is not bound to a tenant.", null);
+            return false;
+        }
+
+        var memberships = (await _userManager.GetClaimsAsync(user))
+            .Where(claim => claim.Type == His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership)
+            .Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!memberships.Any(tenant => string.Equals(tenant, clientTenant, StringComparison.OrdinalIgnoreCase)))
+        {
+            _logger.LogWarning(
+                "User {UserId} is not a member of tenant {TenantKey} required by client {ClientId}.",
+                user.Id,
+                clientTenant,
+                clientId);
+            context.Reject(
+                OpenIddictConstants.Errors.InvalidGrant,
+                "The user is not authorized for this tenant.",
+                null);
+            return false;
+        }
+
+        var tenantClaim = new Claim(HisHopeProtocolConstants.Claims.TenantId, clientTenant);
+        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+        identity.AddClaim(tenantClaim);
+
+        IssuePortalClaims(identity, clientId, clientTenant);
+
+        if (memberships.Count > 1)
+        {
+            var membershipsClaim = new Claim("tenant_memberships", string.Join(",", memberships));
+            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+            identity.AddClaim(membershipsClaim);
+        }
+
+        return true;
+    }
+
+    private void IssuePortalClaims(ClaimsIdentity identity, string? clientId, string clientTenant)
+    {
+        var portalClass = _tenantRegistry.GetPortalClass(clientId);
+        var tenantClass = _tenantRegistry.GetTenantClass(clientTenant);
+
+        var portalClaim = new Claim(ConglomerateConstants.ClaimPortalClass, portalClass);
+        portalClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(portalClaim);
+
+        var tenantClassClaim = new Claim(ConglomerateConstants.ClaimTenantClass, tenantClass);
+        tenantClassClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(tenantClassClaim);
     }
 }

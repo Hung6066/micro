@@ -6,6 +6,7 @@ using System.Security.Claims;
 using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -38,7 +39,8 @@ public static class SettingsEndpoints
             string? facilityId = null) =>
         {
             var setting = await mediator.Send(new GetSettingByKeyQuery(key, ResolveScope(facilityContext, facilityId)), ct);
-            return setting is null ? Results.NotFound() : Results.Ok(setting);
+            Guard.Against.NotFound(setting, "Setting", key);
+            return Results.Ok(setting);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 
         // PUT /api/v1/settings/{key} - Update single setting
@@ -52,7 +54,7 @@ public static class SettingsEndpoints
             string? facilityId = null) =>
         {
             var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? httpContext.User.FindFirst("sub")?.Value;
+                ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
 
             var setting = await mediator.Send(
                 new UpdateSettingCommand(key, request.Value, request.Description, userId, ResolveScope(facilityContext, facilityId)), ct);
@@ -69,7 +71,7 @@ public static class SettingsEndpoints
             string? facilityId = null) =>
         {
             var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? httpContext.User.FindFirst("sub")?.Value;
+                ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
 
             var settings = await mediator.Send(
                 new BulkUpdateSettingsCommand(request, userId, ResolveScope(facilityContext, facilityId)), ct);
@@ -86,7 +88,7 @@ public static class SettingsEndpoints
             string? facilityId = null) =>
         {
             var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? httpContext.User.FindFirst("sub")?.Value;
+                ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
 
             var settings = await mediator.Send(
                 new BulkUpdateSettingsCommand(request.Settings, userId, ResolveScope(facilityContext, facilityId)), ct);

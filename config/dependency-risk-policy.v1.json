@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "approvedBy": ["Security", "Platform Engineering"],
+  "scanCadenceDays": 7,
+  "serviceLevelObjectivesDays": {
+    "critical": 7,
+    "high": 30,
+    "moderate": 90,
+    "low": 180
+  },
+  "exceptionRequirements": [
+    "id",
+    "package",
+    "ecosystem",
+    "severity",
+    "reason",
+    "owner",
+    "compensatingControl",
+    "trackingIssue",
+    "approvedBy",
+    "expiresAt"
+  ],
+  "exceptions": []
+}

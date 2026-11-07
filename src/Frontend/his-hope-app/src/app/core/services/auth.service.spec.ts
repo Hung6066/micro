@@ -62,6 +62,17 @@ describe('AuthService (BFF/session contract)', () => {
     expect(oidc.authorize).not.toHaveBeenCalled();
   });
 
+  it('exchanges the BFF session before reporting a logged-in redirect', (done) => {
+    const coordinator = (service as any).authCoordinator;
+    jest.spyOn(coordinator, 'trySsoLogin').mockReturnValue(of(true));
+
+    service.isLoggedIn().subscribe((loggedIn) => {
+      expect(loggedIn).toBeTrue();
+      expect(coordinator.trySsoLogin).toHaveBeenCalled();
+      done();
+    });
+  });
+
   it('maps external providers without exposing credentials', (done) => {
     service.externalProviders$.subscribe((providers) => {
       expect(providers).toEqual([{ provider: 'AcmeSaml', displayName: 'Acme SAML', icon: 'openid' }]);

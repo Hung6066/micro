@@ -1,6 +1,6 @@
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, NEVER, of } from 'rxjs';
 import {
   createHisHopeAdaptiveMfaState,
   getHisHopeAdaptiveMfaAlternateMethods,
@@ -54,14 +54,17 @@ describe('adaptive MFA public API', () => {
 });
 
 describe('LoginComponent', () => {
-  function configureTestBed(returnUrl?: string): void {
-    const isAuthenticated$ = new BehaviorSubject(false);
+  function configureTestBed(
+    returnUrl?: string,
+    isAuthenticated$ = new BehaviorSubject(false).asObservable(),
+  ): void {
     const authService = jasmine.createSpyObj<AuthService>(
       'AuthService',
-      ['login', 'trySsoLogin'],
-      { isAuthenticated$: isAuthenticated$.asObservable() },
+      ['login', 'trySsoLogin', 'checkAuth'],
+      { isAuthenticated$: isAuthenticated$ },
     );
     authService.trySsoLogin.and.returnValue(of(false));
+    authService.checkAuth.and.returnValue(of(void 0));
 
     TestBed.configureTestingModule({
       imports: [LoginComponent],
@@ -96,6 +99,21 @@ describe('LoginComponent', () => {
     fixture.componentInstance.startLogin();
 
     expect(authService.login).toHaveBeenCalledWith('/users?tab=security');
+  });
+
+  it('waits for auth initialization before enabling the sign-in button', () => {
+    configureTestBed(undefined, NEVER);
+    const fixture = TestBed.createComponent(LoginComponent);
+    const authService = TestBed.inject(AuthService) as jasmine.SpyObj<AuthService>;
+
+    fixture.detectChanges();
+
+    expect(authService.checkAuth).toHaveBeenCalledTimes(1);
+    expect(
+      (fixture.nativeElement.querySelector('button') as HTMLButtonElement).disabled,
+    ).toBeFalse();
+
+    fixture.destroy();
   });
 
   it('preserves the requested return url during automatic SSO polling', fakeAsync(() => {

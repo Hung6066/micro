@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using Xunit;
 
 namespace His.Hope.IdentityService.Infrastructure.Tests;
@@ -21,7 +20,8 @@ public sealed class VaultMfaSecretEncryptorTests
         var act = () => new VaultMfaSecretEncryptor(
             configuration,
             NullLogger<VaultMfaSecretEncryptor>.Instance,
-            Mock.Of<IVaultTokenProvider>());
+            Mock.Of<IVaultTokenProvider>(),
+            TestHttpClientFactory.Empty);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("Vault is not configured. Use AesMfaSecretEncryptor (DataProtection) for development.");
@@ -62,6 +62,21 @@ public sealed class VaultMfaSecretEncryptorTests
     }
 
     [Fact]
+    public void Encrypt_uses_the_shared_vault_client_configured_for_mtls()
+    {
+        var handler = new RecordingHandler(_ => JsonResponse("{\"data\":{\"ciphertext\":\"vault:v1:encrypted\"}}"));
+        var factory = new TestHttpClientFactory(new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://vault.test/")
+        });
+        using var encryptor = CreateEncryptor(handler, Mock.Of<IVaultTokenProvider>(), factory);
+
+        encryptor.Encrypt("secret-value");
+
+        factory.CreatedClientNames.Should().ContainSingle().Which.Should().Be("vault");
+    }
+
+    [Fact]
     public void Encrypt_rejects_response_with_empty_ciphertext()
     {
         var handler = new RecordingHandler(_ => JsonResponse("{\"data\":{\"ciphertext\":\"\"}}"));
@@ -87,7 +102,8 @@ public sealed class VaultMfaSecretEncryptorTests
 
     private static VaultMfaSecretEncryptor CreateEncryptor(
         HttpMessageHandler handler,
-        IVaultTokenProvider tokenProvider)
+        IVaultTokenProvider tokenProvider,
+        TestHttpClientFactory? factory = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -96,17 +112,15 @@ public sealed class VaultMfaSecretEncryptorTests
                 ["Vault:Transit:MfaKeyName"] = "custom-mfa"
             })
             .Build();
+        factory ??= new TestHttpClientFactory(new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://vault.test/")
+        });
         var encryptor = new VaultMfaSecretEncryptor(
             configuration,
             NullLogger<VaultMfaSecretEncryptor>.Instance,
-            tokenProvider);
-        var field = typeof(VaultMfaSecretEncryptor).GetField(
-            "_httpClient", BindingFlags.Instance | BindingFlags.NonPublic);
-        field.Should().NotBeNull();
-        field!.SetValue(encryptor, new HttpClient(handler)
-        {
-            BaseAddress = new Uri("https://vault.test")
-        });
+            tokenProvider,
+            factory);
         return encryptor;
     }
 
@@ -129,6 +143,18 @@ public sealed class VaultMfaSecretEncryptorTests
             Request = request;
             Body = request.Content?.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
             return Task.FromResult(responder(request));
+        }
+    }
+
+    private sealed class TestHttpClientFactory(HttpClient client) : IHttpClientFactory
+    {
+        public List<string> CreatedClientNames { get; } = [];
+        public static TestHttpClientFactory Empty { get; } = new(new HttpClient());
+
+        public HttpClient CreateClient(string name)
+        {
+            CreatedClientNames.Add(name);
+            return client;
         }
     }
 }

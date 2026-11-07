@@ -9,7 +9,7 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
 {
     public void Configure(EntityTypeBuilder<Prescription> builder)
     {
-        builder.ToTable("Prescriptions");
+        builder.ToTable("prescriptions");
 
         builder.Property(p => p.FacilityId).HasColumnName("facilityid").HasMaxLength(100);
 

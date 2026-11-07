@@ -26,6 +26,19 @@ internal sealed class DpopHeaderTransform : ITransformProvider
                 transformContext.ProxyRequest.Headers.TryAddWithoutValidation("DPoP", proof.ToString());
             }
 
+            // YARP's default forwarded-header transform can be absent or can
+            // describe the internal cluster origin. Resource services validate
+            // the DPoP `htu` against the public gateway URL, so copy the values
+            // explicitly from the original request.
+            foreach (var header in new[] { "X-Forwarded-Proto", "X-Forwarded-Host" })
+            {
+                if (transformContext.HttpContext.Request.Headers.TryGetValue(header, out var value))
+                {
+                    transformContext.ProxyRequest.Headers.Remove(header);
+                    transformContext.ProxyRequest.Headers.TryAddWithoutValidation(header, value.ToString());
+                }
+            }
+
             return ValueTask.CompletedTask;
         });
     }

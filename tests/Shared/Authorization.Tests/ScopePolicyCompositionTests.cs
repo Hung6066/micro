@@ -40,6 +40,24 @@ public sealed class ScopePolicyCompositionTests
     }
 
     [Fact]
+    public async Task Human_super_admin_policy_requires_admin_role_and_human_principal()
+    {
+        await using var provider = BuildProvider();
+        var authorization = provider.GetRequiredService<IAuthorizationService>();
+
+        var superAdmin = Principal("admin.users.read", principalType: "human");
+        ((ClaimsIdentity)superAdmin.Identity!).AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+        ((ClaimsIdentity)superAdmin.Identity!).AddClaim(new Claim("super_admin", "true"));
+
+        (await authorization.AuthorizeAsync(superAdmin, "HumanSuperAdmin"))
+            .Succeeded.Should().BeTrue();
+        (await authorization.AuthorizeAsync(Principal("admin.users.read", principalType: "human"), "HumanSuperAdmin"))
+            .Succeeded.Should().BeFalse();
+        (await authorization.AuthorizeAsync(Principal("admin.users.read", principalType: "workload"), "HumanSuperAdmin"))
+            .Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Allows_permission_holder_with_explicit_workload_scope()
     {
         await using var provider = BuildProvider();

@@ -22,8 +22,15 @@ $refs = [regex]::Matches(($rendered -join "`n"), '(?m)^\s*image:\s*(?<image>[^\s
 if (-not $refs) { throw "No container images were found in $Overlay." }
 
 $unresolved = @($refs | Where-Object { $_ -notmatch '@sha256:[0-9a-f]{64}$' })
+$mutableTagged = @($refs | Where-Object { $_ -match ':(latest|production)@sha256:[0-9a-f]{64}$' })
 $zero = @($refs | Where-Object { $_ -match 'sha256:0{64}' })
 if ($zero.Count -gt 0) { throw "Zero placeholder image digests remain: $($zero -join ', ')" }
+
+if ($mutableTagged.Count -gt 0) {
+    $message = "Mutable production tags remain even though the references are digest-pinned: $($mutableTagged -join ', ')"
+    if ($RequireSigned) { throw $message }
+    Write-Warning $message
+}
 
 if ($unresolved.Count -gt 0) {
     $message = "Unpinned image references remain: $($unresolved -join ', ')"
@@ -72,10 +79,10 @@ if ($RequireSigned -and $unsigned.Count -gt 0) {
     throw "Cosign verification failed for $($unsigned.Count) image(s): $($unsigned -join ', ')"
 }
 
-if ($unresolved.Count -eq 0 -and $unsigned.Count -eq 0 -and $cosign) {
+if ($unresolved.Count -eq 0 -and $mutableTagged.Count -eq 0 -and $unsigned.Count -eq 0 -and $cosign) {
     Write-Output "Production image gate PASS: $($refs.Count) image references are digest-pinned and cosign-verified."
-} elseif ($unresolved.Count -eq 0) {
+} elseif ($unresolved.Count -eq 0 -and $mutableTagged.Count -eq 0) {
     Write-Output "Production image gate PARTIAL: $($refs.Count) image references are real digest-pinned, but signed verification is unavailable or not requested."
 } else {
-    Write-Output "Production image gate BLOCKED: digest pinning is incomplete; signed verification was not claimed."
+    Write-Output "Production image gate BLOCKED: digest pinning or immutable tag policy is incomplete; signed verification was not claimed."
 }

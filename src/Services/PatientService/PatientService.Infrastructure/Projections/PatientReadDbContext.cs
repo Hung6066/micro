@@ -1,4 +1,5 @@
 using His.Hope.Authorization;
+using His.Hope.Infrastructure.DataLifecycle;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,6 +14,7 @@ public class PatientReadDbContext : DbContext
     private readonly FacilityAccessScope _facilityScope;
 
     public DbSet<PatientProjection> PatientProjections => Set<PatientProjection>();
+    public DbSet<ProcessedProjectionEvent> ProcessedProjectionEvents => Set<ProcessedProjectionEvent>();
 
     public PatientReadDbContext(
         DbContextOptions<PatientReadDbContext> options,
@@ -39,9 +41,10 @@ public class PatientReadDbContext : DbContext
                 .HasDatabaseName("ix_patient_read_models_facility_id");
 
             entity.HasQueryFilter(projection =>
-                !_facilityScope.IsEnforced ||
+                EF.Property<bool?>(projection, "IsDeleted") != true &&
+                (!_facilityScope.IsEnforced ||
                 _facilityScope.IsCrossFacility ||
-                _facilityScope.FacilityIds.Contains(projection.FacilityId!));
+                _facilityScope.FacilityIds.Contains(projection.FacilityId!)));
 
             entity.Property(e => e.PatientId)
                 .HasColumnName("patient_id")
@@ -86,6 +89,16 @@ public class PatientReadDbContext : DbContext
                 .HasDatabaseName("ix_patient_read_models_full_name");
         });
 
+        modelBuilder.Entity<ProcessedProjectionEvent>(entity =>
+        {
+            entity.ToTable("patient_processed_projection_events");
+            entity.HasKey(e => new { e.EventId, e.ProjectionName });
+            entity.Property(e => e.EventId).HasColumnName("event_id").ValueGeneratedNever();
+            entity.Property(e => e.ProjectionName).HasColumnName("projection_name").HasMaxLength(200);
+            entity.Property(e => e.ProcessedAt).HasColumnName("processed_at").IsRequired();
+        });
+
         base.OnModelCreating(modelBuilder);
+        HisHopeDataConventions.Apply(modelBuilder);
     }
 }

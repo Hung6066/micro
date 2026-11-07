@@ -25,6 +25,7 @@ import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeToolbarComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -33,6 +34,7 @@ import {
 import { AdminPageQuery, Role } from "../../core/contracts/admin.contracts";
 import { AdminTableApiService } from "../../core/services/admin-table-api.service";
 import { RolesApiService } from "../../core/services/roles-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { RoleEditDialogComponent } from "./role-edit-dialog.component";
 import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
 import { AdminConfirmState } from "../../core/services/admin-confirm-state";
@@ -152,9 +154,11 @@ import { downloadAdminTableExport } from "../../core/services/admin-query.util";
 })
 export class RolesPageComponent implements OnInit {
   private readonly api = inject(RolesApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly tableApi = inject(AdminTableApiService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly i18n = inject(HisHopeI18nService);
+  private readonly toast = inject(HisHopeToastService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -225,6 +229,7 @@ export class RolesPageComponent implements OnInit {
   ngOnInit(): void {
     this.table.loadServerView(() => this.tableApi.getViews("roles"));
     this.loadRoles();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadRoles());
   }
 
   openCreateRole(): void {
@@ -313,7 +318,15 @@ export class RolesPageComponent implements OnInit {
 
   private runPublish(id: string): void {
     this.api.publishRole(id).subscribe({
-      next: () => this.loadRoles(this.query),
+      next: (result) => {
+        if (result.changeRequestId) {
+          this.toast.success(
+            this.i18n.t("admin.authorizationChangeCreated", "Approval request created."),
+            { duration: 4000 },
+          );
+        }
+        this.loadRoles(this.query);
+      },
       error: () =>
         this.table.setActionError(this.i18n.t("admin.rolePublishFailed")),
     });
@@ -321,7 +334,15 @@ export class RolesPageComponent implements OnInit {
 
   private runRollback(id: string): void {
     this.api.rollbackRole(id).subscribe({
-      next: () => this.loadRoles(this.query),
+      next: (result) => {
+        if (result.changeRequestId) {
+          this.toast.success(
+            this.i18n.t("admin.authorizationChangeCreated", "Approval request created."),
+            { duration: 4000 },
+          );
+        }
+        this.loadRoles(this.query);
+      },
       error: () =>
         this.table.setActionError(this.i18n.t("admin.roleRollbackFailed")),
     });

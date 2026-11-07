@@ -18,7 +18,8 @@ public class GetRoleByIdQueryHandler : IRequestHandler<GetRoleByIdQuery, RoleDto
 
     public async Task<RoleDto?> Handle(GetRoleByIdQuery request, CancellationToken cancellationToken)
     {
-        var role = await _context.Roles
+        var role = await _context.Roles.AsNoTracking()
+            .TagWith("Identity.Roles.GetRoleById")
             .Include(r => r.RolePermissions)
                 .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken);

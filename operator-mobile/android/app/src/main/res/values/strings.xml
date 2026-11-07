@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">His.Hope Operator Mobile</string>
+    <string name="title_activity_main">His.Hope Operator Mobile</string>
+    <string name="package_name">com.hishope.operator.mobile</string>
+    <string name="custom_url_scheme">com.hishope.operator.mobile</string>
+</resources>

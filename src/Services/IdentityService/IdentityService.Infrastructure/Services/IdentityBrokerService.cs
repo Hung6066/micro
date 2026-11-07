@@ -74,8 +74,8 @@ public class IdentityBrokerService
                 new UserLoginInfo(provider, providerKey!, provider));
         }
 
-        _logger.LogInformation("Provisioned new user {UserId} from {Provider} ({Email})",
-            newUser.Id, provider, email);
+        _logger.LogInformation("Provisioned new user {UserId} from {Provider}",
+            newUser.Id, provider);
 
         return (newUser, true, null);
     }

@@ -2,6 +2,9 @@ using FluentAssertions;
 using His.Hope.Contracts;
 using His.Hope.Contracts.Pagination;
 using His.Hope.Contracts.Query;
+using His.Hope.Contracts.Commerce;
+using His.Hope.Contracts.Messaging;
+using System.Text.Json;
 using Xunit;
 
 namespace His.Hope.Core.Contract.Tests;
@@ -66,5 +69,85 @@ public sealed class ContractNormalizationTests
         ApiErrorCodes.PasswordResetRejected.Should().Be("password_reset_rejected");
         ApiProblemExtensions.CorrelationId.Should().Be("correlationId");
         ApiProblemExtensions.ErrorCode.Should().Be("errorCode");
+    }
+
+    [Fact]
+    public void Commerce_order_placed_contract_preserves_event_and_line_identity()
+    {
+        var eventId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var contract = new CommerceOrderPlacedV1(
+            eventId,
+            SchemaVersion: 1,
+            OccurredAt: DateTimeOffset.UtcNow,
+            OrderId: orderId,
+            TenantKey: "tenant-a",
+            BuyerUserId: "buyer-a",
+            TotalAmount: 125.50m,
+            Lines: [new CommerceOrderLineV1("product-1", "FG-MANGO", 10m, 12.55m)],
+            CorrelationId: "corr-1");
+
+        var json = JsonSerializer.Serialize(contract);
+        var roundTrip = JsonSerializer.Deserialize<CommerceOrderPlacedV1>(json);
+
+        roundTrip.Should().NotBeNull();
+        roundTrip!.EventId.Should().Be(eventId);
+        roundTrip.OrderId.Should().Be(orderId);
+        roundTrip.Lines.Should().ContainSingle()
+            .Which.Sku.Should().Be("FG-MANGO");
+        roundTrip.CorrelationId.Should().Be("corr-1");
+    }
+
+    [Fact]
+    public void Integration_event_transport_headers_extract_canonical_metadata()
+    {
+        var headers = IntegrationEventTransportHeaders.Create(
+            "Commerce.OrderPlaced.v1",
+            "{\"schemaVersion\":2,\"tenantKey\":\"tenant-a\",\"correlationId\":\"corr-1\",\"causationId\":\"cause-1\",\"priority\":\"P3\"}",
+            audience: "manufacturing");
+
+        headers[IntegrationEventTransportHeaders.EventType].Should().Be("Commerce.OrderPlaced.v1");
+        headers[IntegrationEventTransportHeaders.SchemaVersion].Should().Be(2);
+        headers[IntegrationEventTransportHeaders.TenantKey].Should().Be("tenant-a");
+        headers[IntegrationEventTransportHeaders.CorrelationId].Should().Be("corr-1");
+        headers[IntegrationEventTransportHeaders.CausationId].Should().Be("cause-1");
+        headers[IntegrationEventTransportHeaders.Audience].Should().Be("manufacturing");
+        headers[IntegrationEventTransportHeaders.Priority].Should().Be("P3");
+    }
+
+    [Fact]
+    public void Integration_event_transport_headers_ignore_untrusted_priority_values()
+    {
+        var headers = IntegrationEventTransportHeaders.Create(
+            "Commerce.OrderPlaced.v1",
+            "{\"priority\":\"P0;admin\"}");
+
+        headers.Should().NotContainKey(IntegrationEventTransportHeaders.Priority);
+    }
+
+    [Fact]
+    public void Integration_event_transport_headers_reject_missing_or_mismatched_envelope()
+    {
+        var headers = IntegrationEventTransportHeaders.Create(
+            "Commerce.OrderPlaced.v1",
+            "{\"schemaVersion\":1}");
+
+        Action missing = () => IntegrationEventTransportHeaders.Validate(
+            null,
+            "Commerce.OrderPlaced.v1");
+        Action mismatched = () => IntegrationEventTransportHeaders.Validate(
+            headers,
+            "Commerce.OtherEvent.v1");
+        Action unsupportedVersion = () => IntegrationEventTransportHeaders.Validate(
+            headers,
+            "Commerce.OrderPlaced.v1",
+            expectedSchemaVersion: 2);
+
+        missing.Should().Throw<InvalidOperationException>()
+            .WithMessage("integration_event_transport_headers_missing");
+        mismatched.Should().Throw<InvalidOperationException>()
+            .WithMessage("integration_event_transport_event_type_mismatch");
+        unsupportedVersion.Should().Throw<InvalidOperationException>()
+            .WithMessage("integration_event_transport_schema_version_unsupported");
     }
 }

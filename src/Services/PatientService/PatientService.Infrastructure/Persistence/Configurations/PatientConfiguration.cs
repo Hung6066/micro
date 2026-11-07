@@ -36,7 +36,7 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
         builder.Property(p => p.Gender)
             .HasConversion(
                 g => g == null ? null : g.Code,
-                code => code == null ? null : His.Hope.PatientService.Domain.ValueObjects.Gender.FromCode(code))
+                code => His.Hope.PatientService.Domain.ValueObjects.Gender.FromCode(code!)!)
             .HasColumnName("gender")
             .HasMaxLength(10)
             .IsRequired();
@@ -63,11 +63,6 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
                 code => code == null ? null : His.Hope.PatientService.Domain.ValueObjects.BloodType.FromCode(code))
             .HasColumnName("blood_type")
             .HasMaxLength(10);
-
-        // Simple enumeration types stored as code strings
-        var convertEnum = new ValueConverter<His.Hope.SharedKernel.Domain.Common.Enumeration<His.Hope.PatientService.Domain.ValueObjects.Race>, string>(
-            e => e.Code,
-            s => s == null ? null : His.Hope.PatientService.Domain.ValueObjects.Race.FromCode(s));
 
         builder.Property(p => p.Race)
             .HasConversion(

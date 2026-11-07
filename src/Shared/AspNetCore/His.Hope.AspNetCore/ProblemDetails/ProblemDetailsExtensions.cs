@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using His.Hope.Contracts;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.AspNetCore.ProblemDetails;
 
@@ -21,7 +22,7 @@ public static class ProblemDetailsExtensions
                     ? existingErrorCode?.ToString() ?? ApiErrorCodes.ForStatus(status)
                     : ApiErrorCodes.ForStatus(status);
                 context.ProblemDetails.Instance ??= httpContext.Request.Path;
-                context.ProblemDetails.Extensions["correlationId"] =
+                context.ProblemDetails.Extensions[HisHopeProtocolConstants.Claims.CorrelationId] =
                     HisHopeCorrelation.GetId(httpContext);
                 context.ProblemDetails.Extensions.TryAdd(
                     ApiProblemExtensions.ErrorCode,
@@ -73,13 +74,13 @@ public static class ProblemDetailsExtensions
             Detail = status >= 500 ? null : detail,
             Instance = context.Request.Path
         };
-        problem.Extensions["correlationId"] = HisHopeCorrelation.GetId(context);
+        problem.Extensions[HisHopeProtocolConstants.Claims.CorrelationId] = HisHopeCorrelation.GetId(context);
         problem.Extensions["errorCode"] = errorCode ?? StatusCodeToErrorCode(status);
         if (errors is not null)
             problem.Extensions["errors"] = errors;
 
         context.Response.StatusCode = status;
-        context.Response.ContentType = "application/problem+json";
+        context.Response.ContentType = HisHopeProtocolConstants.MediaTypes.ProblemJson;
         return context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(problem));
     }
 
