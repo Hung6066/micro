@@ -23,14 +23,28 @@ public sealed class PushProviderOptions
     public string ApnsBundleId { get; set; } = string.Empty;
     public string ApnsEndpoint { get; set; } = "https://api.push.apple.com";
 
-    public IEnumerable<ValidationResult> Validate()
+    public bool HasFirebaseConfiguration =>
+        !string.IsNullOrWhiteSpace(FirebaseCredentialsJson) ||
+        !string.IsNullOrWhiteSpace(FirebaseCredentialsFile) ||
+        !string.IsNullOrWhiteSpace(FirebaseCredentialsSecretPath);
+
+    public bool HasApnsConfiguration =>
+        !string.IsNullOrWhiteSpace(ApnsKeyId) ||
+        !string.IsNullOrWhiteSpace(ApnsTeamId) ||
+        !string.IsNullOrWhiteSpace(ApnsPrivateKey) ||
+        !string.IsNullOrWhiteSpace(ApnsBundleId);
+
+    public IEnumerable<ValidationResult> Validate(bool allowUnconfigured = false)
     {
         if (!Uri.TryCreate(ApnsEndpoint, UriKind.Absolute, out var apnsEndpoint) ||
             apnsEndpoint.Scheme != Uri.UriSchemeHttps)
             yield return new ValidationResult("PushProviders:ApnsEndpoint must be an HTTPS URL");
-        if (!IsValidFirebaseCredentials(FirebaseCredentialsJson) && string.IsNullOrWhiteSpace(FirebaseCredentialsSecretPath))
+        if ((!allowUnconfigured || HasFirebaseConfiguration) &&
+            (!string.IsNullOrWhiteSpace(FirebaseCredentialsJson)
+                ? !IsValidFirebaseCredentials(FirebaseCredentialsJson)
+                : !IsConfigured(FirebaseCredentialsSecretPath)))
             yield return new ValidationResult("PushProviders:FirebaseCredentialsJson is required");
-        if (!ApnsEnabled)
+        if (!ApnsEnabled || (allowUnconfigured && !HasApnsConfiguration))
             yield break;
 
         if (!IsConfigured(ApnsKeyId) || !IsConfigured(ApnsTeamId) ||

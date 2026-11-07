@@ -17,6 +17,34 @@ namespace His.Hope.IdentityService.Infrastructure.Tests;
 
 public sealed class PushDeliveryServiceTests
 {
+    [Theory]
+    [InlineData("android")]
+    [InlineData("ios")]
+    public async Task Unconfigured_provider_records_unavailable_without_sending_or_revoking_device(string platform)
+    {
+        await using var db = CreateDb();
+        var protector = DataProtectionProvider.Create("IdentityService.Tests.PushDelivery").CreateProtector("HisHope.Mobile.PushToken.v1");
+        db.MobileDeviceRegistrations.Add(new MobileDeviceRegistration
+        {
+            UserId = "user-1", Platform = platform, TokenCiphertext = protector.Protect("device-token")
+        });
+        await db.SaveChangesAsync();
+        var handler = new RecordingHandler();
+        var service = new PushDeliveryService(
+            db, new TestHttpClientFactory(handler),
+            DataProtectionProvider.Create("IdentityService.Tests.PushDelivery"),
+            Options.Create(new PushProviderOptions()), new RecordingFirebaseSender(handler),
+            NullLogger<PushDeliveryService>.Instance);
+
+        (await service.DeliverAsync("user-1", "Title", "Body")).Should().BeFalse();
+
+        var attempt = db.PushDeliveryAttempts.Single();
+        attempt.Status.Should().Be("failed");
+        attempt.ErrorCode.Should().Be("push_provider_unavailable");
+        db.MobileDeviceRegistrations.Single().RevokedAt.Should().BeNull();
+        handler.Requests.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Enqueue_persists_in_app_and_outbox_notifications()
     {

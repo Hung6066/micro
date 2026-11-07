@@ -76,7 +76,7 @@ public static class IdentityServiceRegistrationExtensions
     {
         builder.Services.AddOptions<PushProviderOptions>()
             .Bind(builder.Configuration.GetSection("PushProviders"))
-            .PostConfigure(options =>
+            .PostConfigure<ILogger<PushProviderOptions>>((options, logger) =>
             {
                 if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsJson) &&
                     !string.IsNullOrWhiteSpace(options.FirebaseCredentialsFile) &&
@@ -88,11 +88,13 @@ public static class IdentityServiceRegistrationExtensions
                     options.FirebaseCredentialsSecretPath = builder.Configuration["ExternalProviders:Firebase:CredentialsSecretPath"] ?? string.Empty;
                 if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsSecretKey))
                     options.FirebaseCredentialsSecretKey = builder.Configuration["ExternalProviders:Firebase:CredentialsSecretKey"] ?? "credentials_json";
+                if (!options.HasFirebaseConfiguration)
+                    logger.LogWarning("Firebase push is unavailable until provider credentials are configured");
+                if (options.ApnsEnabled && !options.HasApnsConfiguration)
+                    logger.LogWarning("APNs push is unavailable until provider credentials are configured");
             })
-            // Production must never be able to disable provider validation via
-            // configuration. Development can still run without push material.
-            .Validate(options => !builder.Environment.IsProduction() || !options.Validate().Any(),
-                "Production push provider credentials are incomplete")
+            .Validate(options => !builder.Environment.IsProduction() || !options.Validate(allowUnconfigured: true).Any(),
+                "Production push provider configuration is invalid or incomplete")
             .ValidateOnStart();
 
         builder.Services.AddSingleton(sp => new Fido2NetLib.Fido2(new Fido2NetLib.Fido2Configuration

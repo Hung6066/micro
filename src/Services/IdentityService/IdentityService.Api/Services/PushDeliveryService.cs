@@ -64,6 +64,20 @@ public sealed class PushDeliveryService(
 
         foreach (var device in devices)
         {
+            if ((device.Platform == "android" && !options.HasFirebaseConfiguration) ||
+                (device.Platform == "ios" && options.ApnsEnabled && !options.HasApnsConfiguration))
+            {
+                logger.LogWarning("Push provider is unavailable for {Platform} device {DeviceId}", device.Platform, device.Id);
+                db.PushDeliveryAttempts.Add(new Domain.Entities.PushDeliveryAttempt
+                {
+                    OutboxId = outboxId ?? Guid.Empty,
+                    DeviceId = device.Id,
+                    Platform = device.Platform,
+                    Status = "failed",
+                    ErrorCode = "push_provider_unavailable"
+                });
+                continue;
+            }
             try
             {
                 var token = protector.Unprotect(device.TokenCiphertext);
