@@ -123,6 +123,31 @@ public sealed class IamControlPlaneEndpointTests
     }
 
     [Fact]
+    public async Task Existing_browser_session_refreshes_super_admin_claim_after_allowlist_changes()
+    {
+        var configuration = _fixture.Services.GetRequiredService<IConfiguration>();
+        const string key = "Identity:SuperAdmin:UserIds:0";
+        var previous = configuration[key];
+
+        try
+        {
+            configuration[key] = null;
+            using var session = _fixture.CreateSessionClient();
+            var login = await session.LoginAsAdminAsync();
+            Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+
+            configuration[key] = IdentityTestData.AdminId.ToString("D");
+            var response = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/groups");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+        finally
+        {
+            configuration[key] = previous;
+        }
+    }
+
+    [Fact]
     public async Task Iam_control_plane_all_read_and_write_routes_reject_anonymous_callers()
     {
         var id = Guid.NewGuid().ToString("D");

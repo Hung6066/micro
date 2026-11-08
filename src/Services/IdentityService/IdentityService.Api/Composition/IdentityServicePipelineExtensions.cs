@@ -196,9 +196,21 @@ public static class IdentityServicePipelineExtensions
                             var hasPermissionClaims = tokenPrincipal?.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
                                 .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
                                 .Any() == true;
-                            if ((!hasHumanPrincipal || !hasPermissionClaims) &&
+                            var hasSessionUserId = Guid.TryParse(root.GetProperty("UserId").GetString(), out var sessionUserId);
+                            var isConfiguredSuperAdmin = hasHumanPrincipal &&
+                                hasSessionUserId &&
+                                context.RequestServices.GetRequiredService<IConfiguration>()
+                                    .GetSection("Identity:SuperAdmin:UserIds")
+                                    .Get<string[]>()
+                                    ?.Any(id => string.Equals(id, sessionUserId.ToString(), StringComparison.OrdinalIgnoreCase)) == true;
+                            var hasSuperAdminClaim = string.Equals(
+                                tokenPrincipal?.FindFirst(HisHopeProtocolConstants.Claims.SuperAdmin)?.Value,
+                                "true",
+                                StringComparison.OrdinalIgnoreCase);
+                            var superAdminClaimIsStale = isConfiguredSuperAdmin != hasSuperAdminClaim;
+                            if ((!hasHumanPrincipal || !hasPermissionClaims || superAdminClaimIsStale) &&
                                 tokenPrincipal is not null &&
-                                Guid.TryParse(root.GetProperty("UserId").GetString(), out var sessionUserId))
+                                hasSessionUserId)
                             {
                                 var userManager = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<User>>();
                                 var identityService = context.RequestServices.GetRequiredService<IIdentityService>();
@@ -219,12 +231,26 @@ public static class IdentityServicePipelineExtensions
                                     jwt = migratedJwt;
                                     if (sessionData is not null)
                                     {
+                                        var sessionIsPrivileged = isConfiguredSuperAdmin;
+                                        var absoluteSessionLimit = sessionData.IssuedAt.Add(
+                                            sessionIsPrivileged ? TimeSpan.FromHours(4) : TimeSpan.FromHours(8));
+                                        var migratedAbsoluteExpiresAt = sessionData.AbsoluteExpiresAt is { } existingAbsoluteExpiry &&
+                                            existingAbsoluteExpiry < absoluteSessionLimit
+                                                ? existingAbsoluteExpiry
+                                                : absoluteSessionLimit;
+                                        var migratedIdleExpiresAt = DateTimeOffset.UtcNow.Add(
+                                            sessionIsPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30));
+                                        if (migratedIdleExpiresAt > migratedAbsoluteExpiresAt)
+                                            migratedIdleExpiresAt = migratedAbsoluteExpiresAt;
                                         sessionData = sessionData with
                                         {
                                             Jwt = protector.Protect(migratedJwt),
                                             PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
                                             Permissions = permissionList.ToArray(),
-                                            ExpiresAt = migratedExpiry < sessionData.ExpiresAt ? migratedExpiry : sessionData.ExpiresAt
+                                            ExpiresAt = migratedExpiry < sessionData.ExpiresAt ? migratedExpiry : sessionData.ExpiresAt,
+                                            IsPrivileged = sessionIsPrivileged,
+                                            IdleExpiresAt = migratedIdleExpiresAt,
+                                            AbsoluteExpiresAt = migratedAbsoluteExpiresAt
                                         };
                                         await redis.GetDatabase().StringSetAsync(
                                             $"session:{sessionId}",
