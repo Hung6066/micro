@@ -24,6 +24,11 @@ His.Hope.Configuration.PlatformPki.Materialize();
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.ApplyOpenshipBindings(databaseConnectionName: null);
 var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "ApiGateway");
+var identityTlsServerName = builder.Configuration["IDENTITY_TLS_SERVER_NAME"] ?? string.Empty;
+var identityInternalEndpoint = runtimeEndpoints.GetRequired("identity-api");
+var identityDestinationAddress = IdentityClusterHttpClientConfiguration.GetDestinationAddress(
+    identityInternalEndpoint,
+    identityTlsServerName);
 var pluginRegistry = new ServicePluginRegistry(builder.Configuration);
 
 builder.Services.AddHisHopeRuntimeConfiguration(builder.Configuration, "ApiGateway");
@@ -63,7 +68,7 @@ void DisableRoutesWhenEndpointMissing(
 
 var reverseProxyClusters = new Dictionary<string, string?>
 {
-    ["ReverseProxy:Clusters:identity:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("identity-api").ToString(),
+    ["ReverseProxy:Clusters:identity:Destinations:dest:Address"] = identityDestinationAddress.ToString(),
 };
 
 // These BFFs are not part of the standalone manufacturing Compose stack. Add
@@ -187,6 +192,12 @@ builder.Services.AddReverseProxy()
     .AddTransforms<DpopHeaderTransform>()
     .ConfigureHttpClient((context, handler) =>
     {
+        IdentityClusterHttpClientConfiguration.Configure(
+            context.ClusterId,
+            handler,
+            identityInternalEndpoint,
+            identityTlsServerName);
+
         // Recycle connections every 2 minutes to prevent stale connections
         // across container restarts, while still benefiting from pooling.
         handler.PooledConnectionLifetime = TimeSpan.FromMinutes(2);

@@ -12,6 +12,9 @@
     <PackageReference Include="StackExchange.Redis" Version="2.7.27" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="ApiGateway.Contract.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
     <ProjectReference Include="..\Shared\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
