@@ -343,6 +343,24 @@ public sealed class OpenIddictPopulateTokenClaimsTests
     }
 
     [Fact]
+    public async Task Regular_client_issues_verified_user_membership_when_conglomerate_mode_is_disabled()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "group-admin@example.test" };
+        var manager = MockManager(user, claims: [new Claim("tenant_membership", "nacoms-group")]);
+        var identity = SubjectIdentity(user.Id);
+        var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
+        context.Transaction!.Request!.ClientId = "identity-admin";
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), manager.Object).HandleAsync(context);
+
+        context.Error.Should().BeNull();
+        identity.FindFirst("tenant_id")!.Value.Should().Be("nacoms-group");
+        identity.FindAll("tenant_membership").Select(claim => claim.Value)
+            .Should().ContainSingle().Which.Should().Be("nacoms-group");
+    }
+
+    [Fact]
     public async Task Conglomerate_client_without_binding_rejects_human_token()
     {
         await using var db = TestApplicationDbContext.Create();

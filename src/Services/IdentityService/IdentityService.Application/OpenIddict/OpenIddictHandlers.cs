@@ -771,14 +771,17 @@ public class CustomPopulateTokenClaims :
         User user,
         CancellationToken cancellationToken)
     {
-        if (!_tenantRegistry.IsEnabled)
-            return true;
-
         var clientId = context.Request.ClientId;
+        if (!_tenantRegistry.IsEnabled)
+        {
+            if (!_tenantRegistry.IsConglomerateClient(clientId))
+                await IssueUserMembershipTenantClaimsAsync(identity, user, cancellationToken);
+            return true;
+        }
+
         if (!_tenantRegistry.IsConglomerateClient(clientId))
         {
-            if (_tenantRegistry.IsEnabled)
-                await IssueUserMembershipTenantClaimsAsync(identity, user, cancellationToken);
+            await IssueUserMembershipTenantClaimsAsync(identity, user, cancellationToken);
             return true;
         }
 
