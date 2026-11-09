@@ -201,18 +201,7 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
                   [label]="'admin.scopes' | hhTranslate"
                   kind="select"
                   [multiple]="true"
-                  [options]="[
-                    { value: 'openid', label: 'openid' },
-                    { value: 'profile', label: 'profile' },
-                    { value: 'email', label: 'email' },
-                    { value: 'roles', label: 'roles' },
-                    {
-                      value: 'hishop:permissions',
-                      label: 'hishop:permissions',
-                    },
-                    { value: 'hishop:admin', label: 'hishop:admin' },
-                    { value: 'offline_access', label: 'offline_access' },
-                  ]"
+                  [options]="scopeOptions"
                 />
                 <hh-mat-form-field
                   [control]="formGroup.controls['grantTypes']"
@@ -347,6 +336,19 @@ export class ClientEditDialogComponent {
   private readonly i18n = inject(HisHopeI18nService);
 
   readonly isEdit: boolean;
+  readonly scopeOptions = [
+    { value: "openid", label: "openid" },
+    { value: "profile", label: "profile" },
+    { value: "email", label: "email" },
+    { value: "roles", label: "roles" },
+    { value: "hishop:permissions", label: "hishop:permissions" },
+    { value: "hishop:admin", label: "hishop:admin" },
+    { value: "offline_access", label: "offline_access" },
+    {
+      value: "identity.clients.reconcile",
+      label: "identity.clients.reconcile",
+    },
+  ] as const;
   readonly formGroup: FormGroup;
   private readonly initialClient: OidcClient | null;
   saving = false;
