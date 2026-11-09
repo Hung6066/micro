@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.IdentityService.Api.Authorization;
 
@@ -8,8 +10,12 @@ public static class PortalClassGuard
     public static IResult? EnsureOperatorPortal(ClaimsPrincipal user)
     {
         var portalClass = user.FindFirst(ConglomerateConstants.ClaimPortalClass)?.Value;
+        var isRestrictedSuperAdminPortal =
+            string.Equals(portalClass, PortalClassConstants.PrivilegedOperator, StringComparison.OrdinalIgnoreCase) &&
+            user.HasClaim(HisHopeProtocolConstants.Claims.SuperAdmin, "true");
         if (string.IsNullOrWhiteSpace(portalClass) ||
-            string.Equals(portalClass, ConglomerateConstants.PortalClassOperator, StringComparison.OrdinalIgnoreCase))
+            string.Equals(portalClass, ConglomerateConstants.PortalClassOperator, StringComparison.OrdinalIgnoreCase) ||
+            isRestrictedSuperAdminPortal)
             return null;
 
         return Results.Forbid();

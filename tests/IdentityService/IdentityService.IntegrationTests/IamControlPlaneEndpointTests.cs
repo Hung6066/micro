@@ -128,10 +128,13 @@ public sealed class IamControlPlaneEndpointTests
         var configuration = _fixture.Services.GetRequiredService<IConfiguration>();
         const string key = "Identity:SuperAdmin:UserIds:0";
         var previous = configuration[key];
+        const string restrictKey = "Identity:SuperAdmin:RestrictToControlPlane";
+        var previousRestriction = configuration[restrictKey];
 
         try
         {
             configuration[key] = null;
+            configuration[restrictKey] = "true";
             using var session = _fixture.CreateSessionClient();
             var login = await session.LoginAsAdminAsync();
             Assert.Equal(HttpStatusCode.OK, login.StatusCode);
@@ -144,6 +147,7 @@ public sealed class IamControlPlaneEndpointTests
         finally
         {
             configuration[key] = previous;
+            configuration[restrictKey] = previousRestriction;
         }
     }
 
