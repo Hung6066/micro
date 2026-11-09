@@ -321,6 +321,28 @@ public sealed class OpenIddictPopulateTokenClaimsTests
     }
 
     [Fact]
+    public async Task Conglomerate_client_issues_membership_claim_for_its_bound_tenant_only()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "group-admin@example.test" };
+        var manager = MockManager(user,
+            claims: [new Claim("tenant_membership", "nacoms-group"), new Claim("tenant_membership", "customer-acme")]);
+        var registry = new TestConglomerateTenantRegistry(
+            enabled: true,
+            clientTenants: new Dictionary<string, string> { ["group-hq-admin"] = "nacoms-group" });
+        var identity = SubjectIdentity(user.Id);
+        var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
+        context.Transaction!.Request!.ClientId = "group-hq-admin";
+
+        await Handler(db, registry, manager.Object).HandleAsync(context);
+
+        context.Error.Should().BeNull();
+        identity.FindFirst("tenant_id")!.Value.Should().Be("nacoms-group");
+        identity.FindAll("tenant_membership").Select(claim => claim.Value)
+            .Should().ContainSingle().Which.Should().Be("nacoms-group");
+    }
+
+    [Fact]
     public async Task Conglomerate_client_without_binding_rejects_human_token()
     {
         await using var db = TestApplicationDbContext.Create();

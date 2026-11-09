@@ -815,6 +815,12 @@ public class CustomPopulateTokenClaims :
         tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
         identity.AddClaim(tenantClaim);
 
+        var tenantMembershipClaim = new Claim(
+            His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.TenantMembership,
+            clientTenant);
+        tenantMembershipClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+        identity.AddClaim(tenantMembershipClaim);
+
         IssuePortalClaims(identity, clientId, clientTenant);
 
         if (memberships.Count > 1)
