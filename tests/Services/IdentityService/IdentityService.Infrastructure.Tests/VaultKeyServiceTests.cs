@@ -100,6 +100,28 @@ public sealed class VaultKeyServiceTests
     }
 
     [Fact]
+    public async Task Vault_health_disposes_the_response_and_releases_its_connection()
+    {
+        var content = new TrackingContent();
+        var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content };
+        var factory = new TestHttpClientFactory(new HttpClient(new SuccessfulHandler(response)));
+        using var service = new VaultKeyService(
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:EnableTransit"] = "true",
+                ["Vault:Address"] = "https://vault.test"
+            }).Build(),
+            NullLogger<VaultKeyService>.Instance,
+            new TestHostEnvironment(Environments.Development),
+            Mock.Of<IVaultTokenProvider>(),
+            factory);
+
+        (await service.IsHealthyAsync()).Should().BeTrue();
+
+        content.IsDisposed.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Vault_rotation_surfaces_provider_failure_without_silently_succeeding()
     {
         using var service = new VaultKeyService(
@@ -151,11 +173,25 @@ public sealed class VaultKeyServiceTests
         }
     }
 
-    private sealed class SuccessfulHandler : HttpMessageHandler
+    private sealed class SuccessfulHandler(HttpResponseMessage? response = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken cancellationToken) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+            CancellationToken cancellationToken) => Task.FromResult(
+                response ?? new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+    }
+
+    private sealed class TrackingContent : ByteArrayContent
+    {
+        public TrackingContent() : base([]) { }
+
+        public bool IsDisposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
     }
 
     private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment

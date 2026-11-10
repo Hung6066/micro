@@ -128,7 +128,7 @@ public partial class VaultKeyService : IVaultKeyProvider, IDisposable
                 // Vault returns 429 for a healthy standby node. The service endpoint
                 // load-balances across the HA set, so standbyok keeps readiness from
                 // flapping while still returning non-success for sealed/uninitialized Vault.
-                var response = await httpClient.GetAsync($"{vaultAddr}/v1/sys/health?standbyok=true&sealedcode=503&uninitcode=503", ct);
+                using var response = await httpClient.GetAsync($"{vaultAddr}/v1/sys/health?standbyok=true&sealedcode=503&uninitcode=503", ct);
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
@@ -180,12 +180,13 @@ public partial class VaultKeyService : IVaultKeyProvider, IDisposable
                 var httpClient = _httpClientFactory.CreateClient("vault");
                 httpClient.DefaultRequestHeaders.Add("X-Vault-Token", await _tokenProvider.GetTokenAsync(ct));
                 var vaultAddr = _config["Vault:Address"]!;
-                var content = new StringContent(
+                using var content = new StringContent(
                     System.Text.Json.JsonSerializer.Serialize(new { }),
                     System.Text.Encoding.UTF8, "application/json");
 
-                await httpClient.PostAsync(
+                using var response = await httpClient.PostAsync(
                     $"{vaultAddr}/v1/transit/keys/{_keyName}/rotate", content, ct);
+                response.EnsureSuccessStatusCode();
                 LogVaultRotationTriggered(_logger, _keyName);
             }
             catch (Exception ex)
