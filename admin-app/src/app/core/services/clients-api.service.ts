@@ -58,7 +58,10 @@ export class ClientsApiService {
 
   createClient(client: Partial<OidcClient>): Observable<ClientSecretResponse> {
     return this.http
-      .post<ClientSecretResponse>(`${this.baseUrl}/clients`, client)
+      .post<ClientSecretResponse>(`${this.baseUrl}/clients`, {
+        ...client,
+        type: client.clientType,
+      })
       .pipe(tap(() => this.requestCache.invalidate("admin:clients:")));
   }
 

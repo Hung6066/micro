@@ -1,4 +1,4 @@
-import { Component, ElementRef, Inject, inject } from "@angular/core";
+import { ChangeDetectorRef, Component, ElementRef, Inject, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
   AbstractControl,
@@ -13,7 +13,7 @@ import { MatChipsModule } from "@angular/material/chips";
 import { MatIconModule } from "@angular/material/icon";
 import { OidcClient } from "../../core/contracts/admin.contracts";
 import { ClientsApiService } from "../../core/services/clients-api.service";
-import { catchError, map } from "rxjs/operators";
+import { catchError, finalize, map } from "rxjs/operators";
 import { of } from "rxjs";
 import {
   HisHopeActionButtonComponent,
@@ -327,6 +327,7 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
   ],
 })
 export class ClientEditDialogComponent {
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly api = inject(ClientsApiService);
   private readonly dialogRef = inject(
@@ -447,8 +448,11 @@ export class ClientEditDialogComponent {
             this.i18n.t("admin.saveClientFailed", "Failed to save client"),
             { duration: 3000 },
           );
-          this.saving = false;
           return of(null);
+        }),
+        finalize(() => {
+          this.saving = false;
+          this.changeDetector.markForCheck();
         }),
       )
       .subscribe((result) => {
@@ -461,7 +465,6 @@ export class ClientEditDialogComponent {
           ) {
             this.createdSecret = result.clientSecret;
             this.formGroup.disable();
-            this.saving = false;
             this.toast.success(
               this.i18n.t(
                 "admin.clientCreated",
@@ -475,7 +478,6 @@ export class ClientEditDialogComponent {
             this.i18n.t("admin.clientSaved", "Client saved successfully"),
             { duration: 2000 },
           );
-          this.saving = false;
           this.dialogRef.close(true);
         }
       });
