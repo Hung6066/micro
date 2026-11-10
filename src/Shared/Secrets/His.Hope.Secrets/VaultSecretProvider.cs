@@ -75,11 +75,17 @@ public sealed class VaultSecretProvider(
 
     private string DataPath(string path)
     {
-        var segments = $"{options.CurrentValue.SecretsPathPrefix.Trim('/')}/{path.Trim('/')}"
+        var mount = string.IsNullOrWhiteSpace(options.CurrentValue.SecretsMount)
+            ? "secret"
+            : options.CurrentValue.SecretsMount.Trim('/');
+        var rootPrefix = string.IsNullOrWhiteSpace(options.CurrentValue.SecretsPathPrefix)
+            ? "his-hope"
+            : options.CurrentValue.SecretsPathPrefix.Trim('/');
+        var segments = $"{rootPrefix}/{path.Trim('/')}"
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
             .Where(segment => !string.IsNullOrWhiteSpace(segment))
             .Select(Uri.EscapeDataString);
-        return $"/v1/{Uri.EscapeDataString(options.CurrentValue.SecretsMount.Trim('/'))}/data/{string.Join('/', segments)}";
+        return $"/v1/{Uri.EscapeDataString(mount)}/data/{string.Join('/', segments)}";
     }
 
     private static void Validate(string path, string key)

@@ -16,6 +16,7 @@ public class VaultClientSecretStore
     private readonly ConcurrentDictionary<string, CachedSecret> _cache = new();
     private readonly HttpClient? _vaultClient;
     private readonly string _vaultPathPrefix;
+    private readonly string _clientSecretPathPrefix;
     private readonly string _vaultSecretsMount;
     private readonly IVaultTokenProvider _tokenProvider;
     private readonly IVaultSecretProvider? _secretProvider;
@@ -36,8 +37,26 @@ public class VaultClientSecretStore
         _secretProvider = secretProvider;
         _environment = environment;
         _developmentSecretSeed = config["Vault:DevelopmentSecretSeed"];
-        _vaultSecretsMount = config["Vault:SecretsMount"] ?? "secret";
-        _vaultPathPrefix = config["Vault:SecretsPathPrefix"] ?? "his-hope/identity/client-secrets";
+        _vaultSecretsMount = ConfiguredOrDefault(config["Vault:SecretsMount"], "secret");
+        var configuredPathPrefix = ConfiguredOrDefault(config["Vault:SecretsPathPrefix"], "his-hope");
+        var configuredClientPathPrefix = config["Vault:ClientSecretsPathPrefix"];
+        if (!string.IsNullOrWhiteSpace(configuredClientPathPrefix))
+        {
+            _vaultPathPrefix = configuredPathPrefix;
+            _clientSecretPathPrefix = ConfiguredOrDefault(configuredClientPathPrefix, "identity/client-secrets");
+        }
+        else if (configuredPathPrefix.TrimEnd('/').EndsWith("/identity/client-secrets", StringComparison.OrdinalIgnoreCase))
+        {
+            _vaultPathPrefix = configuredPathPrefix.TrimEnd('/')[..^"/identity/client-secrets".Length];
+            _clientSecretPathPrefix = "identity/client-secrets";
+            if (string.IsNullOrWhiteSpace(_vaultPathPrefix))
+                _vaultPathPrefix = "his-hope";
+        }
+        else
+        {
+            _vaultPathPrefix = configuredPathPrefix;
+            _clientSecretPathPrefix = "identity/client-secrets";
+        }
         var vaultAddress = config["Vault:Address"];
         var requireVault = config.GetValue("Vault:RequireVault", environment.IsProduction());
         if (requireVault && string.IsNullOrWhiteSpace(vaultAddress))
@@ -184,10 +203,12 @@ public class VaultClientSecretStore
         public bool IsExpired => DateTime.UtcNow > ExpiresAt;
     }
 
-    private string SecretPath(string clientId) => $"/v1/{_vaultSecretsMount}/data/{_vaultPathPrefix}/{Uri.EscapeDataString(clientId)}";
+    private string SecretPath(string clientId) => $"/v1/{_vaultSecretsMount}/data/{_vaultPathPrefix.Trim('/')}/{_clientSecretPathPrefix.Trim('/')}/{Uri.EscapeDataString(clientId)}";
 
-    private string SecretLogicalPath(string clientId) => $"{_vaultPathPrefix}/{clientId}";
+    private string SecretLogicalPath(string clientId) => $"{_clientSecretPathPrefix.Trim('/')}/{clientId}";
 
-    private static string? FirstConfigured(params string?[] values) => values.FirstOrDefault(value =>
-        !string.IsNullOrWhiteSpace(value) && !(value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}')));
+    private static string ConfiguredOrDefault(string? value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) || (value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}'))
+            ? fallback
+            : value.Trim();
 }
