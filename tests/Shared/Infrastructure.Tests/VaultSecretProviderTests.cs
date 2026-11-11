@@ -69,6 +69,28 @@ public sealed class VaultSecretProviderTests
     }
 
     [Fact]
+    public async Task Put_composes_client_id_under_configured_identity_client_secret_root_once()
+    {
+        var factory = new FakeHttpClientFactory(request =>
+        {
+            request.Method.Should().Be(HttpMethod.Post);
+            request.RequestUri!.PathAndQuery.Should().Be("/v1/secret/data/his-hope/identity/client-secrets/client-a");
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        });
+        var provider = new VaultSecretProvider(
+            factory,
+            new StaticOptionsMonitor<VaultOptions>(new VaultOptions
+            {
+                Address = "https://vault.test",
+                SecretsMount = "secret",
+                SecretsPathPrefix = "his-hope/identity/client-secrets"
+            }),
+            new FakeVaultTokenProvider());
+
+        await provider.PutAsync("client-a", "secret", "value");
+    }
+
+    [Fact]
     public async Task Traversal_paths_are_rejected_before_http()
     {
         var factory = new FakeHttpClientFactory(_ => throw new InvalidOperationException("HTTP must not be called"));

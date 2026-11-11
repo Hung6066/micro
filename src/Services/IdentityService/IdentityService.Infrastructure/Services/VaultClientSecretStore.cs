@@ -17,6 +17,7 @@ public class VaultClientSecretStore
     private readonly HttpClient? _vaultClient;
     private readonly string _vaultPathPrefix;
     private readonly string _clientSecretPathPrefix;
+    private readonly bool _sharedProviderRootIncludesClientPath;
     private readonly string _vaultSecretsMount;
     private readonly IVaultTokenProvider _tokenProvider;
     private readonly IVaultSecretProvider? _secretProvider;
@@ -49,6 +50,7 @@ public class VaultClientSecretStore
         {
             _vaultPathPrefix = configuredPathPrefix.TrimEnd('/')[..^"/identity/client-secrets".Length];
             _clientSecretPathPrefix = "identity/client-secrets";
+            _sharedProviderRootIncludesClientPath = true;
             if (string.IsNullOrWhiteSpace(_vaultPathPrefix))
                 _vaultPathPrefix = "his-hope";
         }
@@ -205,7 +207,9 @@ public class VaultClientSecretStore
 
     private string SecretPath(string clientId) => $"/v1/{_vaultSecretsMount}/data/{_vaultPathPrefix.Trim('/')}/{_clientSecretPathPrefix.Trim('/')}/{Uri.EscapeDataString(clientId)}";
 
-    private string SecretLogicalPath(string clientId) => $"{_clientSecretPathPrefix.Trim('/')}/{clientId}";
+    private string SecretLogicalPath(string clientId) => _sharedProviderRootIncludesClientPath
+        ? clientId
+        : $"{_clientSecretPathPrefix.Trim('/')}/{clientId}";
 
     private static string ConfiguredOrDefault(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) || (value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}'))

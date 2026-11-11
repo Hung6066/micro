@@ -115,6 +115,36 @@ public sealed class VaultClientSecretStoreTests
     }
 
     [Fact]
+    public async Task Shared_secret_provider_receives_only_client_id_when_configured_root_includes_client_path()
+    {
+        string? storedPath = null;
+        var secretProvider = new Mock<IVaultSecretProvider>();
+        secretProvider
+            .Setup(provider => provider.PutAsync(It.IsAny<string>(), "secret", "secret-a", It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, CancellationToken>((path, _, _, _) => storedPath = path)
+            .Returns(Task.CompletedTask);
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:SecretsMount"] = "secret",
+                ["Vault:SecretsPathPrefix"] = "his-hope/identity/client-secrets"
+            })
+            .Build();
+        var store = new VaultClientSecretStore(
+            config,
+            NullLogger<VaultClientSecretStore>.Instance,
+            new TestHostEnvironment(Environments.Production),
+            Mock.Of<IVaultTokenProvider>(),
+            Mock.Of<IHttpClientFactory>(factory => factory.CreateClient("vault") == new HttpClient()),
+            secretProvider.Object);
+
+        await store.StoreSecretAsync("client-a", "secret-a");
+
+        storedPath.Should().Be("client-a");
+    }
+
+    [Fact]
     public async Task Vault_backed_store_treats_missing_secret_payload_as_cache_miss()
     {
         var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
