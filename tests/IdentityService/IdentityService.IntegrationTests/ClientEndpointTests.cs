@@ -14,6 +14,23 @@ namespace His.Hope.IdentityService.IntegrationTests;
 public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
 {
     [Fact]
+    public async Task Admin_client_creation_rejects_missing_type_without_server_error()
+    {
+        using var session = await LoginAsync();
+        var response = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId = $"integration-client-{Guid.NewGuid():N}",
+            displayName = "Missing type",
+            clientType = "Public",
+            grantTypes = new[] { "authorization_code" },
+            redirectUris = new[] { "https://app.example/callback" },
+            scopes = new[] { "openid" }
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Admin_client_crud_and_onboarding_paths_are_exercised()
     {
         using var session = await LoginAsync();

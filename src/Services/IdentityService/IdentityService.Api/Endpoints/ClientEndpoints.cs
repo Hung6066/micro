@@ -169,7 +169,7 @@ public static class ClientEndpoints
         if (await appManager.FindByClientIdAsync(request.ClientId, ct) is not null)
             return TypedResults.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Conflict });
 
-        var normalizedType = request.Type.Trim().ToLowerInvariant();
+        var normalizedType = request.Type?.Trim().ToLowerInvariant();
         if (normalizedType is not ("public" or "confidential"))
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation });
 
