@@ -84,6 +84,7 @@ services:
       AUTHZ_OPENFGA_PERMISSION_RELATION: ${AUTHZ_OPENFGA_PERMISSION_RELATION:-}
       AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED: ${AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED:-false}
       Vault__Address: https://vault.openship-vault.svc.cluster.local:8200
+      Vault__SecretsMount: openship-runtime
       Vault__RequireVault: "true"
       Vault__EnableTransit: "true"
       Vault__AllowStaticToken: "false"
