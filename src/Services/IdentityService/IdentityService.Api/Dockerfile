@@ -76,7 +76,7 @@ RUN dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:3197f427d1ccf6fb9249f86a70acd4b8530c9a72d28bbc5f870bec9a524b350e AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:5cd87b27e31ced7711a98c90d2f445ef594b8387ffe8616fe513c9f2ddd66dd0 AS final
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 5012
