@@ -25,6 +25,7 @@ USER root
 RUN mkdir -p /etc/nginx/templates
 COPY --from=build /workspace/admin-app/dist/admin-app/browser /usr/share/nginx/html
 COPY admin-app/nginx.conf /etc/nginx/templates/admin.conf.template
+COPY admin-app/runtime-config.openship.js.template /etc/nginx/templates/runtime-config.openship.js.template
 COPY --chmod=755 admin-app/docker-entrypoint.sh /usr/local/bin/admin-entrypoint
 RUN rm -f /etc/nginx/conf.d/default.conf \
     && ln -s /tmp/default.conf /etc/nginx/conf.d/default.conf

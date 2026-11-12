@@ -19,5 +19,8 @@ FROM ghcr.io/nginx/nginx-unprivileged:1.30.6-alpine3.24-slim@sha256:984a21e29bb1
 USER 101
 COPY --from=build /workspace/manufacturing-buyer-app/dist/manufacturing-buyer-app/browser /usr/share/nginx/html
 COPY manufacturing-buyer-app/nginx.conf /etc/nginx/conf.d/default.conf
+COPY manufacturing-buyer-app/runtime-config.openship.js.template /etc/nginx/runtime-config.openship.js.template
+COPY --chmod=755 manufacturing-buyer-app/docker-entrypoint.sh /usr/local/bin/buyer-entrypoint
+ENTRYPOINT ["/usr/local/bin/buyer-entrypoint"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1
