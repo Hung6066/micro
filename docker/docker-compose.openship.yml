@@ -79,7 +79,7 @@ services:
       Conglomerate__Tenants__3__DisplayName: Acme Healthcare
       Conglomerate__Tenants__4__Key: customer-factory-x
       Conglomerate__Tenants__4__DisplayName: Factory X Industrial
-      Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"nacoms-group","his-hope-admin":"nacoms-group","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
+      Conglomerate__OidcClientTenantsJson: '{"manufacturing-app":"manufacturing","his-hope-operator-mobile":"manufacturing","tech-console":"tech-vendor","group-hq-admin":"nacoms-group","his-hope-admin":"nacoms-group","openship-runtime-provisioner":"nacoms-group","customer-acme-portal":"customer-acme","customer-acme-app":"customer-acme","customer-factory-x-portal":"customer-factory-x","customer-factory-x-app":"customer-factory-x"}'
       AUTHZ_PDP_MODE: ${AUTHZ_PDP_MODE:-canary}
       AUTHZ_OPENFGA_PERMISSION_RELATION: ${AUTHZ_OPENFGA_PERMISSION_RELATION:-}
       AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED: ${AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED:-false}
@@ -149,6 +149,7 @@ services:
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
       Persistence__RunMigrationsOnStartup: "false"
+      TenantPlacement__Services__content__DefaultConnectionName: ContentDb
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: https://identity-api.nacoms.com.vn/
       Jwt__MetadataAddress: https://identity-api.nacoms.com.vn/.well-known/openid-configuration
@@ -224,8 +225,9 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5000
       DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "1"
-      SERVICE_IDENTITY_URL: http://identityservice:5003
-      SERVICE_IDENTITY_API_URL: http://identityservice:5003
+      SERVICE_IDENTITY_URL: https://micro-identityservice:5443
+      SERVICE_IDENTITY_API_URL: https://micro-identityservice:5443
+      IDENTITY_TLS_SERVER_NAME: ${IDENTITY_TLS_SERVER_NAME:-identity-api.nacoms.com.vn}
       SERVICE_COMMERCE_URL: http://commerceservice:5015
       SERVICE_CONTENT_URL: http://contentservice:5016
       SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050

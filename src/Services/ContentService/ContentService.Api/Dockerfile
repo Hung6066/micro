@@ -14,10 +14,11 @@ COPY . .
 RUN dotnet restore "Services/ContentService/ContentService.Api/ContentService.Api.csproj"
 RUN dotnet publish "Services/ContentService/ContentService.Api/ContentService.Api.csproj" -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:3197f427d1ccf6fb9249f86a70acd4b8530c9a72d28bbc5f870bec9a524b350e AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:5cd87b27e31ced7711a98c90d2f445ef594b8387ffe8616fe513c9f2ddd66dd0 AS final
 WORKDIR /app
 # Pull OS security fixes published after the base image; build nodes allow only HTTPS egress.
-RUN find /etc/apt/sources.list /etc/apt/sources.list.d -type f -exec sed -i 's|http://|https://|g' {} + && apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*ENV ASPNETCORE_URLS=http://+:5016
+RUN find /etc/apt/sources.list /etc/apt/sources.list.d -type f -exec sed -i 's|http://|https://|g' {} + && apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
+ENV ASPNETCORE_URLS=http://+:5016
 EXPOSE 5016
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "ContentService.Api.dll"]
