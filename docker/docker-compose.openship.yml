@@ -17,7 +17,8 @@ services:
       context: ..
       dockerfile: docker/openfga/Dockerfile
     ports:
-      - "8080"
+      - target: 8080
+        protocol: tcp
     environment:
       OPENFGA_DATASTORE_ENGINE: postgres
       OPENFGA_AUTHN_METHOD: preshared
@@ -38,7 +39,12 @@ services:
       context: ..
       dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
     ports:
-      - "${MANUFACTURING_IDENTITY_PORT:-5001}:5003"
+      - target: 5003
+        published: "${MANUFACTURING_IDENTITY_PORT:-5001}"
+        protocol: tcp
+      # Internal TLS listener used by api-gateway and the Identity API route.
+      - target: 5443
+        protocol: tcp
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5003
@@ -103,7 +109,9 @@ services:
       context: ../src
       dockerfile: Services/CommerceService/CommerceService.Api/Dockerfile
     ports:
-      - "${MANUFACTURING_COMMERCE_PORT:-5015}:5015"
+      - target: 5015
+        published: "${MANUFACTURING_COMMERCE_PORT:-5015}"
+        protocol: tcp
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5015
@@ -141,7 +149,9 @@ services:
       context: ../src
       dockerfile: Services/ContentService/ContentService.Api/Dockerfile
     ports:
-      - "${MANUFACTURING_CONTENT_PORT:-5016}:5016"
+      - target: 5016
+        published: "${MANUFACTURING_CONTENT_PORT:-5016}"
+        protocol: tcp
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5016
@@ -177,7 +187,9 @@ services:
       context: ../src
       dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
     ports:
-      - "${MANUFACTURING_API_PORT:-5050}:5050"
+      - target: 5050
+        published: "${MANUFACTURING_API_PORT:-5050}"
+        protocol: tcp
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5050
@@ -220,7 +232,9 @@ services:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
     ports:
-      - "${MANUFACTURING_GATEWAY_PORT:-5000}:5000"
+      - target: 5000
+        published: "${MANUFACTURING_GATEWAY_PORT:-5000}"
+        protocol: tcp
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5000
@@ -253,7 +267,9 @@ services:
       context: ..
       dockerfile: manufacturing-buyer-app/Dockerfile
     ports:
-      - "${MANUFACTURING_BUYER_APP_PORT:-4205}:8080"
+      - target: 8080
+        published: "${MANUFACTURING_BUYER_APP_PORT:-4205}"
+        protocol: tcp
     depends_on:
       api-gateway: { condition: service_healthy }
       identityservice: { condition: service_healthy }
@@ -272,7 +288,9 @@ services:
       context: ..
       dockerfile: internal-operator-app/Dockerfile
     ports:
-      - "${MANUFACTURING_OPERATOR_APP_PORT:-4300}:8080"
+      - target: 8080
+        published: "${MANUFACTURING_OPERATOR_APP_PORT:-4300}"
+        protocol: tcp
     depends_on:
       api-gateway: { condition: service_healthy }
       identityservice: { condition: service_healthy }
@@ -291,7 +309,9 @@ services:
       context: ..
       dockerfile: admin-app/Dockerfile
     ports:
-      - "${MANUFACTURING_ADMIN_APP_PORT:-8083}:8080"
+      - target: 8080
+        published: "${MANUFACTURING_ADMIN_APP_PORT:-8083}"
+        protocol: tcp
     depends_on:
       api-gateway: { condition: service_healthy }
       identityservice: { condition: service_healthy }
