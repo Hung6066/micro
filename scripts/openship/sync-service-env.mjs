@@ -176,7 +176,9 @@ function readExistingServiceEnvironment(service, opts) {
     },
   );
   if (result.status !== 0) {
-    throw new Error(`openship service env get failed for ${service} (exit ${result.status}).`);
+    const httpStatus = result.stderr?.match(/\((4\d{2}|5\d{2})\)/u)?.[1];
+    const statusDetail = httpStatus ? ` (HTTP ${httpStatus})` : ` (exit ${result.status})`;
+    throw new Error(`openship service env get failed for ${service}${statusDetail}.`);
   }
   let rows;
   try {

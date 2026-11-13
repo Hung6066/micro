@@ -9,7 +9,7 @@ import test from "node:test";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const syncScript = path.join(repoRoot, "scripts/openship/sync-service-env.mjs");
 
-function runSync({ contentEnvironment, overrides, existingEnvironments = {}, checkLive = false }) {
+function runSync({ contentEnvironment, overrides, existingEnvironments = {}, checkLive = false, failGetFor = "" }) {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "micro-openship-sync-"));
   const composePath = path.join(tempDir, "compose.json");
   const overridesPath = path.join(tempDir, "overrides.json");
@@ -47,6 +47,10 @@ function runSync({ contentEnvironment, overrides, existingEnvironments = {}, che
     const operation = args.slice(0, 3).join(" ");
     if (operation === "service env get") {
       const service = args[3];
+      if (service === process.env.OPENSHIP_TEST_FAIL_GET_FOR) {
+        process.stderr.write("  API error: permission denied (403)\\n");
+        process.exit(1);
+      }
       process.stdout.write(JSON.stringify(existing[service] ?? []));
     } else if (operation === "service env set") {
       const service = args[3];
@@ -74,6 +78,7 @@ function runSync({ contentEnvironment, overrides, existingEnvironments = {}, che
       OPENSHIP_BIN_ARGS: fakeOpenShipPath,
       OPENSHIP_TEST_CALLS: callsPath,
       OPENSHIP_TEST_EXISTING: initialEnvironmentsPath,
+      OPENSHIP_TEST_FAIL_GET_FOR: failGetFor,
     },
   });
 
@@ -162,6 +167,19 @@ test("checks the complete live replacement without writing or printing environme
   assert.deepEqual(calls, []);
   assert.match(result.stdout, /\[check-live\] contentservice: .*variables validated; no changes written/u);
   assert.equal(result.stdout.includes("project-micro:service-content:production:"), false);
+});
+
+test("reports a safe HTTP status and performs no writes when a live service read is denied", () => {
+  const { result, calls } = runSync({
+    contentEnvironment: { TenantPlacement__Enabled: "false" },
+    overrides: safeOverrides,
+    failGetFor: "contentservice",
+    existingEnvironments: { identityservice: [], contentservice: [] },
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /openship service env get failed for contentservice \(HTTP 403\)/u);
+  assert.deepEqual(calls, []);
 });
 
 test("blocks all writes when an existing service env key is not declared by Compose or managed by OpenShip", () => {
