@@ -10,6 +10,7 @@ public sealed class StepUpAuthenticationGuardTests
 {
     [Theory]
     [InlineData("mfa")]
+    [InlineData("otp")]
     [InlineData("totp")]
     [InlineData("passkey")]
     [InlineData("webauthn")]
@@ -27,6 +28,13 @@ public sealed class StepUpAuthenticationGuardTests
             Principal("pwd", DateTimeOffset.UtcNow)).Should().BeFalse();
         StepUpAuthenticationGuard.HasFreshMfa(
             Principal("mfa", DateTimeOffset.UtcNow.AddMinutes(-16))).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Fresh_mfa_rejects_stale_otp_authentication()
+    {
+        StepUpAuthenticationGuard.HasFreshMfa(
+            Principal("otp", DateTimeOffset.UtcNow.AddMinutes(-16))).Should().BeFalse();
     }
 
     [Fact]

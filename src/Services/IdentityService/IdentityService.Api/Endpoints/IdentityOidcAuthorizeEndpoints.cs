@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Globalization;
 using System.Text.Json;
 using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Api.Services;
@@ -21,6 +22,63 @@ namespace His.Hope.IdentityService.Api.Endpoints;
 
 public static class IdentityOidcAuthorizeEndpoints
 {
+    public static bool HasFreshAuthentication(
+        ClaimsPrincipal principal,
+        long maxAgeSeconds,
+        DateTimeOffset? now = null)
+    {
+        if (maxAgeSeconds is < 1 or > 300)
+            return false;
+
+        var value = principal.FindFirst("auth_time")?.Value;
+        if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var unixSeconds))
+            return false;
+
+        DateTimeOffset authenticatedAt;
+        try
+        {
+            authenticatedAt = DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
+        var age = (now ?? DateTimeOffset.UtcNow) - authenticatedAt;
+        return age >= TimeSpan.FromSeconds(-30) && age <= TimeSpan.FromSeconds(maxAgeSeconds);
+    }
+
+    public static bool RequiresFreshAuthentication(
+        ClaimsPrincipal principal,
+        long? requestedMaxAgeSeconds,
+        bool promptLogin,
+        DateTimeOffset? now = null)
+    {
+        if (requestedMaxAgeSeconds == 0)
+            return true;
+
+        // Enforce at most five minutes even when a client asks for a longer
+        // max_age. A stricter issuer policy is safe and avoids stale MFA reuse.
+        var freshnessWindowSeconds = requestedMaxAgeSeconds.HasValue
+            ? Math.Clamp(requestedMaxAgeSeconds.Value, 1L, 300L)
+            : 300L;
+        var authenticationIsFresh = HasFreshAuthentication(principal, freshnessWindowSeconds, now);
+        return requestedMaxAgeSeconds.HasValue && !authenticationIsFresh || promptLogin && !authenticationIsFresh;
+    }
+
+    public static IReadOnlyList<string> ResolveClaimDestinations(string claimType) => claimType switch
+    {
+        // Downstream relying parties need these claims from the ID token to
+        // enforce step-up and freshness at the time of the OIDC login.
+        "amr" or "auth_time" =>
+        [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
+        // Identity claims go to access + identity token.
+        "name" or "given_name" or "family_name" or "email" or "email_verified" =>
+        [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
+        // Role claim goes to access token only.
+        "role" or ClaimTypes.Role => [OpenIddictConstants.Destinations.AccessToken],
+        _ => [OpenIddictConstants.Destinations.AccessToken]
+    };
+
     public static void MapIdentityOidcAuthorizeEndpoints(this WebApplication app)
     {
         app.MapGet(IdentityApiRoutes.OidcAuthorize, async (
@@ -54,7 +112,18 @@ public static class IdentityOidcAuthorizeEndpoints
             var mfaEnabled = user.TwoFactorEnabled || await db.UserMfas
                 .AsNoTracking()
                 .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, context.RequestAborted);
-            if (mfaEnabled && !HasCompletedMfa(context.User))
+            var requiresFreshAuthentication = RequiresFreshAuthentication(
+                context.User,
+                request.MaxAge,
+                request.HasPrompt("login"));
+            if (requiresFreshAuthentication && !mfaEnabled)
+            {
+                // Never turn a max_age/prompt=login request into a fresh
+                // password-only identity when MFA is not enrolled.
+                return Results.Forbid(authenticationSchemes: [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+            }
+
+            if (mfaEnabled && (!HasCompletedMfa(context.User) || requiresFreshAuthentication))
             {
                 var authorizeReturnUrl = context.Request.Path + context.Request.QueryString;
                 var authenticationMethods = context.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod)
@@ -89,6 +158,14 @@ public static class IdentityOidcAuthorizeEndpoints
             }
 
             var principal = await signInManager.CreateUserPrincipalAsync(user);
+
+            if (request.HasScope(OpenIddictConstants.Scopes.Email) && principal.Identity is ClaimsIdentity emailIdentity)
+            {
+                emailIdentity.AddClaim(new Claim(
+                    OpenIddictConstants.Claims.EmailVerified,
+                    user.EmailConfirmed ? "true" : "false",
+                    ClaimValueTypes.Boolean));
+            }
 
             // Ensure sub claim is set (OpenIddict requires it on the principal directly)
             principal.SetClaim(OpenIddictConstants.Claims.Subject, user.Id.ToString());
@@ -174,17 +251,7 @@ public static class IdentityOidcAuthorizeEndpoints
             // Set claim destinations: required for OpenIddict to accept the principal
             foreach (var claim in principal.Claims)
             {
-                claim.SetDestinations(claim.Type switch
-                {
-                    // Identity claims go to access + identity token
-                    "name" or "given_name" or "family_name" or "email" => new[] {
-                OpenIddictConstants.Destinations.AccessToken,
-                OpenIddictConstants.Destinations.IdentityToken },
-                    // Role claim goes to access token
-                    "role" or ClaimTypes.Role => new[] {
-                OpenIddictConstants.Destinations.AccessToken },
-                    _ => new[] { OpenIddictConstants.Destinations.AccessToken }
-                });
+                claim.SetDestinations(ResolveClaimDestinations(claim.Type));
             }
 
             return Results.SignIn(principal,

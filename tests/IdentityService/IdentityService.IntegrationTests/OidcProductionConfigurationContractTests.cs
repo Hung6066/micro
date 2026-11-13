@@ -8,6 +8,14 @@ namespace His.Hope.IdentityService.IntegrationTests;
 public sealed class OidcProductionConfigurationContractTests
 {
     [Fact]
+    public void ProductionConfiguration_UsesCanonicalApiIssuer()
+    {
+        var configuration = LoadProductionConfiguration();
+
+        configuration["OpenIddict:Issuer"].Should().Be("https://identity-api.nacoms.com.vn/");
+    }
+
+    [Fact]
     public void ProductionConfiguration_RequiresPersistentEncryptionAndHttpsClientUris()
     {
         var configuration = LoadProductionConfiguration();
@@ -21,7 +29,7 @@ public sealed class OidcProductionConfigurationContractTests
         configuration["Passkeys:RpId"].Should().Be("his-hope.vn");
         var passkeyOrigins = configuration.GetSection("Passkeys:Origins").Get<string[]>();
         passkeyOrigins
-            .Should().Contain(new[] { "https://his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" });
+            .Should().Contain(new[] { "https://his-hope.vn", "https://dashboard.nacoms.com.vn", "https://admin.nacoms.com.vn" });
         passkeyOrigins.Should().OnlyContain(value => IsProductionHttpsUri(value));
         configuration.GetSection("Authentication:RedirectWhitelist").Get<string[]>()
             .Should().OnlyContain(value => IsProductionHttpsUri(value));

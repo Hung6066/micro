@@ -682,6 +682,7 @@ public static class IdentityServiceRegistrationExtensions
             .AddServer(options =>
             {
                 options.SetIssuer(new Uri(oidcConfig["Issuer"]!));
+                options.RegisterClaims("amr", "auth_time", "email_verified");
 
                 options.SetAuthorizationEndpointUris(IdentityApiRoutes.OidcAuthorize);
                 options.SetTokenEndpointUris(IdentityApiRoutes.OidcToken);

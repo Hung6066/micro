@@ -62,15 +62,17 @@ Conglomerate Identity on Azure (manufacturing + tech vendor + group HQ).  Region
 
 ## Week 4 — CI, hardening, handoff
 
+> The Azure ACR image-push pilot below is retired for the Micro application. GitHub Actions now build and test source only; OpenShip owns Micro image build, signing, and K3s rollout.
+
 | Day | Task | Command |
 |-----|------|---------|
-| 1 | Enable ACR push workflow | `.github/workflows/azure-identity-acr.yml` + `AZURE_CREDENTIALS` secret |
-| 2 | Deploy from ACR to staging host | Pull `identity-service:staging` tag |
+| 1 | Validate the source-only CI workflow | `.github/workflows/source-ci.yml` |
+| 2 | Deploy Micro Identity through OpenShip | Select the reviewed source revision in the Micro project |
 | 3 | Cross-tenant test | Tech user token must not authorize manufacturing tenant resources |
 | 4 | Run enterprise validator (local DR allowed) | `./scripts/validate-enterprise-production-phases.ps1 -AllowLocalDrEvidence` |
 | 5 | Gate checklist + ADR sign-off | ADR 016, update remediation plan |
 
-**Verify:** GitHub Actions `azure-identity-acr` succeeds; pilot login completes authorization code + PKCE flow.
+**Verify:** OpenShip records a successful signed deployment; pilot login completes authorization code + PKCE flow.
 
 ---
 

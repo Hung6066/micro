@@ -1,7 +1,14 @@
 using System.Security.Claims;
+using System.Net.Http;
+using System.Text.Json;
+using His.Hope.AspNetCore;
 using His.Hope.IdentityService.Api.Middleware;
 using His.Hope.IdentityService.Application.Assurance;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Moq;
 using Xunit;
@@ -10,6 +17,43 @@ namespace His.Hope.IdentityService.IntegrationTests;
 
 public sealed class AssurancePolicyMiddlewareTests
 {
+    [Fact]
+    public async Task Production_denial_preserves_step_up_reason_through_error_contract()
+    {
+        using var host = await new HostBuilder()
+            .ConfigureWebHost(web => web
+                .UseEnvironment("Production")
+                .UseTestServer()
+                .ConfigureServices(services =>
+                {
+                    services.AddHisHopeAspNetCore();
+                    services.AddSingleton(Policy());
+                })
+                .Configure(app =>
+                {
+                    app.UseHisHopeAspNetCore();
+                    app.Use(async (context, next) =>
+                    {
+                        context.User = Context(HttpMethods.Post, "/api/v1/admin/clients", "pwd").User;
+                        await next();
+                    });
+                    app.UseMiddleware<AssurancePolicyMiddleware>();
+                    app.Run(_ => Task.CompletedTask);
+                }))
+            .StartAsync();
+
+        using var client = host.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Correlation-ID", "assurance-regression");
+        var response = await client.PostAsync("/api/v1/admin/clients", new StringContent("{}"));
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var body = document.RootElement;
+        Assert.Equal("assurance_policy_denied", body.GetProperty("errorCode").GetString());
+        Assert.Equal("admin-write", body.GetProperty("journey").GetString());
+        Assert.Equal("Assurance below journey minimum.", body.GetProperty("reason").GetString());
+        Assert.Equal("assurance-regression", body.GetProperty("correlationId").GetString());
+    }
+
     private static AssurancePolicyService Policy(bool allowBreakGlass = false) =>
         new(new AssurancePolicyDocument(
             "v1", ["security"],

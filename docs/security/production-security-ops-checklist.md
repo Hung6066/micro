@@ -166,9 +166,10 @@ High-risk endpoints to spot-check manually:
 ## 7. Container supply chain
 
 1. All production images referenced by digest in Kustomize overlays.
-2. Cosign sign + attest in `container-release` / `gitops-release-promotion` workflows.
-3. Sigstore policy controller admission enforced in production cluster.
-4. Harbor HTTPS + canary signature verification: `./scripts/validate-harbor-production.ps1`
+2. Micro application images are built, scanned, signed, and rolled out to K3s by OpenShip; verify each successful deployment against its immutable digest and supply-chain evidence.
+3. GitHub Actions run source builds, tests, and source scans. They do not publish or sign application images.
+4. The existing Harbor `ClusterImagePolicy` still trusts the legacy GitHub OIDC release identity. Before routing OpenShip artifacts through the Harbor/Kustomize production path, migrate that policy to a reviewed OpenShip signer identity and run positive/negative admission probes.
+5. Harbor HTTPS + canary signature verification for the legacy Harbor path: `./scripts/validate-harbor-production.ps1`
 
 See [cosign-image-signing.md](./cosign-image-signing.md) for key custody and rotation.
 

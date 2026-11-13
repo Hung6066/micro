@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using His.Hope.SharedKernel.Protocol;
 using His.Hope.IdentityService.Application.Assurance;
 using Microsoft.AspNetCore.Http;
 
@@ -14,11 +13,9 @@ public static class StepUpAuthenticationGuard
 {
     public const int DefaultMaxAgeMinutes = 15;
 
-    public static bool HasMfa(ClaimsPrincipal principal) => principal.FindAll(HisHopeProtocolConstants.Claims.AuthenticationMethod)
-        .Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase) ||
-                      claim.Value.Equals("totp", StringComparison.OrdinalIgnoreCase) ||
-                      claim.Value.Equals("passkey", StringComparison.OrdinalIgnoreCase) ||
-                      claim.Value.Equals("webauthn", StringComparison.OrdinalIgnoreCase));
+    public static bool HasMfa(ClaimsPrincipal principal) =>
+        AssuranceClaimResolver.ResolveFactors(principal)
+            .Any(factor => factor is "mfa" or "passkey");
 
     public static bool HasFreshMfa(
         ClaimsPrincipal principal,

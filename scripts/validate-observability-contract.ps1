@@ -171,7 +171,7 @@ if ((Test-Path -LiteralPath $doraCollectorPath -PathType Leaf) -and
     $doraMetrics = @('pipeline_deployment_frequency_per_day','pipeline_lead_time_seconds','pipeline_change_failure_rate_ratio','pipeline_mttr_seconds')
     $missingDora = @($doraMetrics | Where-Object { $doraText -notmatch [regex]::Escape($_) -or $doraDashboard -notmatch [regex]::Escape($_) })
     if ($missingDora.Count -eq 0 -and $doraText -match 'GITHUB_TOKEN' -and $doraText -match 'artifacts/dora') {
-        Add-Check 'dora-metrics' 'pass' 'DORA producer, auditable artifacts and Grafana queries cover frequency, lead time, change failure rate and MTTR.'
+        Add-Check 'dora-metrics' 'pass' 'DORA schema and dashboard queries remain available; GitHub collection is manual historical evidence because OpenShip owns current deployments.'
     } else {
         Add-Check 'dora-metrics' 'fail' "DORA contract is incomplete; missing $($missingDora -join ', ')."
     }

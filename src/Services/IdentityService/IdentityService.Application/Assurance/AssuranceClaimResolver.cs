@@ -41,20 +41,13 @@ public static class AssuranceClaimResolver
 
     public static string ResolveAssuranceLevel(ClaimsPrincipal principal)
     {
-        var methods = principal.FindAll(HisHopeProtocolConstants.Claims.AuthenticationMethod)
-            .Select(claim => claim.Value)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
+        var factors = ResolveFactors(principal);
 
-        if (methods.Any(method => method.Equals("mtls", StringComparison.OrdinalIgnoreCase)))
+        if (factors.Contains("mtls"))
             return "aal3";
-        if (methods.Any(method => method.Equals("passkey", StringComparison.OrdinalIgnoreCase) ||
-            method.Equals("mfa", StringComparison.OrdinalIgnoreCase) ||
-            method.Equals("totp", StringComparison.OrdinalIgnoreCase) ||
-            method.Equals("webauthn", StringComparison.OrdinalIgnoreCase)))
+        if (factors.Contains("passkey") || factors.Contains("mfa"))
             return "aal2";
-        if (methods.Any(method => method.Equals("pwd", StringComparison.OrdinalIgnoreCase) ||
-            method.Equals("password", StringComparison.OrdinalIgnoreCase)))
+        if (factors.Contains("password"))
             return "aal1";
         return "standard";
     }

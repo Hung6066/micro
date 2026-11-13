@@ -12,6 +12,7 @@ public sealed class AssuranceClaimResolverTests
     [InlineData("passkey", "aal2")]
     [InlineData("PASSKEY", "aal2")]
     [InlineData("mfa", "aal2")]
+    [InlineData("otp", "aal2")]
     [InlineData("totp", "aal2")]
     [InlineData("webauthn", "aal2")]
     [InlineData("pwd", "aal1")]
