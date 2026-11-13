@@ -3,7 +3,7 @@
 // Openship. Openship's K3s deploy for project "micro" refuses to run unless every
 // managed key of every service has an explicit, safe stored value, so the compose
 // defaults (Development, localhost, static tokens, seed data, ...) are replaced here.
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -158,36 +158,96 @@ function buildServiceEnvironments(composeServices, overrides) {
   return result;
 }
 
-function openShipCommand() {
-  const bin = process.env.OPENSHIP_BIN || "openship";
-  const prefix = process.env.OPENSHIP_BIN_ARGS ? process.env.OPENSHIP_BIN_ARGS.split(" ") : [];
-  return { bin, prefix };
+function openShipApiBase() {
+  const configured = process.env.OPENSHIP_API_URL?.trim();
+  if (!configured) throw new Error("OPENSHIP_API_URL is required for live environment sync.");
+  let base;
+  try {
+    base = new URL(configured);
+  } catch {
+    throw new Error("OPENSHIP_API_URL must be a valid HTTP(S) URL.");
+  }
+  if (!new Set(["http:", "https:"]).has(base.protocol) || base.username || base.password) {
+    throw new Error("OPENSHIP_API_URL must be a credential-free HTTP(S) URL.");
+  }
+  return configured.replace(/\/+$/u, "");
 }
 
-function readExistingServiceEnvironment(service, opts) {
-  const { bin, prefix } = openShipCommand();
-  const result = spawnSync(
-    bin,
-    [...prefix, "service", "env", "get", service, "-p", opts.project, "-e", opts.environment],
-    {
-      encoding: "utf8",
-      env: { ...process.env, OPENSHIP_JSON: "1" },
-      maxBuffer: 16 * 1024 * 1024,
-    },
-  );
-  if (result.status !== 0) {
-    const httpStatus = result.stderr?.match(/\((4\d{2}|5\d{2})\)/u)?.[1];
-    const statusDetail = httpStatus ? ` (HTTP ${httpStatus})` : ` (exit ${result.status})`;
-    throw new Error(`openship service env get failed for ${service}${statusDetail}.`);
-  }
-  let rows;
+async function openShipRequest(path, operation, target) {
+  const token = process.env.OPENSHIP_TOKEN?.trim();
+  if (!token) throw new Error("OPENSHIP_TOKEN is required for live environment sync.");
+  let response;
   try {
-    rows = JSON.parse(result.stdout);
+    response = await fetch(`${openShipApiBase()}/api/v1${path}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(15_000),
+    });
   } catch {
-    throw new Error(`openship service env get returned invalid JSON for ${service}.`);
+    throw new Error(`OpenShip ${operation} failed for ${target} (transport error).`);
   }
-  if (!Array.isArray(rows)) throw new Error(`openship service env get returned an invalid environment for ${service}.`);
-  return rows;
+  if (!response.ok) throw new Error(`OpenShip ${operation} failed for ${target} (HTTP ${response.status}).`);
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`OpenShip ${operation} returned invalid JSON for ${target}.`);
+  }
+}
+
+async function resolveOpenShipProject(projectRef) {
+  const matches = [];
+  for (let page = 1; ; page++) {
+    const result = await openShipRequest(
+      `/projects?page=${page}&perPage=100`,
+      "project lookup",
+      projectRef,
+    );
+    if (!Array.isArray(result.data)) throw new Error("OpenShip project lookup returned an invalid project list.");
+    matches.push(...result.data.filter((project) =>
+      project?.id === projectRef || project?.slug === projectRef || project?.name === projectRef,
+    ));
+    if (matches.length > 0 || result.data.length === 0 ||
+      (typeof result.total === "number" && page * 100 >= result.total) || result.data.length < 100) break;
+  }
+  if (matches.length !== 1 || typeof matches[0]?.id !== "string") {
+    throw new Error(`OpenShip project lookup did not resolve exactly one project for ${projectRef}.`);
+  }
+  return matches[0];
+}
+
+async function readProjectServices(project) {
+  const result = await openShipRequest(
+    `/projects/${encodeURIComponent(project.id)}/services`,
+    "service list",
+    project.slug ?? project.id,
+  );
+  if (!Array.isArray(result.services)) throw new Error("OpenShip service list returned an invalid response.");
+  const byName = {};
+  for (const service of result.services) {
+    if (!service || typeof service.name !== "string" || typeof service.id !== "string" ||
+      (service.kind !== undefined && service.kind !== "compose")) {
+      throw new Error("OpenShip service list contains an invalid or non-Compose service.");
+    }
+    if (byName[service.name]) throw new Error(`OpenShip service list contains duplicate service ${service.name}.`);
+    byName[service.name] = service;
+  }
+  return byName;
+}
+
+async function readExistingServiceEnvironment(project, service, opts) {
+  const query = new URLSearchParams({ environment: opts.environment });
+  const result = await openShipRequest(
+    `/projects/${encodeURIComponent(project.id)}/services/${encodeURIComponent(service.id)}/env?${query}`,
+    "service env read",
+    service.name,
+  );
+  if (!Array.isArray(result.vars)) throw new Error(`OpenShip service env read returned an invalid environment for ${service.name}.`);
+  for (const row of result.vars) {
+    if (!row || typeof row.id !== "string" || typeof row.key !== "string" ||
+      typeof row.value !== "string" || typeof row.isSecret !== "boolean") {
+      throw new Error(`OpenShip service env read returned an invalid variable for ${service.name}.`);
+    }
+  }
+  return result.vars;
 }
 
 function mergeOpenShipManagedEnvironment(composeEnvironments, existingByService) {
@@ -197,9 +257,6 @@ function mergeOpenShipManagedEnvironment(composeEnvironments, existingByService)
     const environment = { ...desired };
     const existing = existingByService[service] ?? [];
     for (const row of existing) {
-      if (!row || typeof row.key !== "string" || typeof row.value !== "string") {
-        throw new Error(`openship service env get returned an invalid variable for ${service}.`);
-      }
       if (!Object.hasOwn(desired, row.key) && !OPENSHIP_MANAGED_ENV_KEYS.has(row.key)) {
         unknown.push(`${service}.${row.key}`);
         continue;
@@ -216,17 +273,78 @@ function mergeOpenShipManagedEnvironment(composeEnvironments, existingByService)
   return merged;
 }
 
-function main() {
+function isSecretEnvironmentKey(key) {
+  return /(?:PASSWORD|SECRET|TOKEN|PRIVATE|CONNECTIONSTRING|DATABASE_URL|(?:^|[_])(?:KEY|CRT|PEM|CERTIFICATE)(?:$|[_])|PLATFORM_PKI_FILE_)/iu.test(key);
+}
+
+function buildOpenShipEnvironmentRows(environment, existingRows, service) {
+  const existingByKey = new Map(existingRows.map((row) => [row.key, row]));
+  return Object.entries(environment).map(([key, value]) => {
+    const existing = existingByKey.get(key);
+    const isMasked = REDACTED_VALUES.has(String(value).trim());
+    if (isMasked && (!existing?.isSecret || !existing.id)) {
+      throw new Error(`${service}.${key}: masked value cannot be synchronized without its existing secret source.`);
+    }
+    return {
+      ...(existing?.id ? { sourceId: existing.id } : {}),
+      key,
+      value,
+      isSecret: Boolean(existing?.isSecret || isSecretEnvironmentKey(key)),
+    };
+  });
+}
+
+async function writeServiceEnvironment(project, service, environment, existingRows, opts) {
+  const vars = buildOpenShipEnvironmentRows(environment, existingRows, service.name);
+  const token = process.env.OPENSHIP_TOKEN?.trim();
+  if (!token) throw new Error("OPENSHIP_TOKEN is required for live environment sync.");
+  let response;
+  try {
+    response = await fetch(
+      `${openShipApiBase()}/api/v1/projects/${encodeURIComponent(project.id)}/services/${encodeURIComponent(service.id)}/env`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ environment: opts.environment, vars }),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+  } catch {
+    throw new Error(`OpenShip service env write failed for ${service.name} (transport error).`);
+  }
+  if (!response.ok) throw new Error(`OpenShip service env write failed for ${service.name} (HTTP ${response.status}).`);
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`OpenShip service env write returned invalid JSON for ${service.name}.`);
+  }
+  if (result.success !== true || result.count !== vars.length) {
+    throw new Error(`OpenShip service env write was not confirmed for ${service.name}.`);
+  }
+}
+
+async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.checkLive && opts.dryRun) throw new Error("--check-live cannot be combined with --dry-run.");
   const overrides = JSON.parse(readFileSync(resolve(opts.overrides), "utf8"));
   const composeEnvironments = buildServiceEnvironments(loadComposeServices(opts), overrides);
   const existingByService = {};
+  let project;
+  let servicesByName = {};
   if (!opts.dryRun) {
+    project = await resolveOpenShipProject(opts.project);
+    servicesByName = await readProjectServices(project);
     // Read every service and validate the whole replacement before the first
     // write, so an unknown runtime value cannot cause a partial sync.
     for (const service of Object.keys(composeEnvironments)) {
-      existingByService[service] = readExistingServiceEnvironment(service, opts);
+      const openShipService = servicesByName[service];
+      if (!openShipService?.id) throw new Error(`OpenShip service list is missing Compose service ${service}.`);
+      existingByService[service] = await readExistingServiceEnvironment(project, openShipService, opts);
     }
   }
   const environments = opts.dryRun
@@ -241,26 +359,20 @@ function main() {
   }
 
   for (const [service, environment] of Object.entries(environments)) {
-    const pairs = Object.entries(environment).map(([key, value]) => `${key}=${value}`);
-    console.log(`${opts.dryRun ? "[dry-run] " : ""}${service}: ${pairs.length} variables`);
+    const variableCount = Object.keys(environment).length;
+    console.log(`${opts.dryRun ? "[dry-run] " : ""}${service}: ${variableCount} variables`);
     if (opts.dryRun) {
       console.log(`  keys: ${Object.keys(environment).join(", ")}`);
       continue;
     }
-    // spawnSync (not execFileSync) so a failure never echoes the secret-bearing argv.
-    // OPENSHIP_BIN / OPENSHIP_BIN_ARGS let Windows callers run `node <cli>/dist/node-entry.js` instead of the .cmd shim.
-    const { bin, prefix } = openShipCommand();
-    const { status } = spawnSync(
-      bin,
-      [...prefix, "service", "env", "set", service, ...pairs, "-p", opts.project, "-e", opts.environment, "--replace", "--secret"],
-      { stdio: "inherit" },
-    );
-    if (status !== 0) throw new Error(`openship service env set failed for ${service} (exit ${status}).`);
+    const openShipService = servicesByName[service];
+    await writeServiceEnvironment(project, openShipService, environment, existingByService[service], opts);
+    console.log(`  ${service}: ${variableCount} variables synchronized`);
   }
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(error instanceof Error ? error.message.split("\n")[0] : String(error));
   process.exit(1);
