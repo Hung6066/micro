@@ -40,6 +40,9 @@ jobs:
             --api-url "$OPENSHIP_API_URL" \
             --dashboard-url "$OPENSHIP_API_URL"
 
+      - name: Validate Micro-to-OpenShip environment sync
+        run: node --test scripts/openship/sync-service-env.test.mjs
+
       - name: Sync per-service environment
         env:
           MICRO_JWT_ISSUER: ${{ vars.MICRO_JWT_ISSUER }}
@@ -47,7 +50,6 @@ jobs:
           MICRO_OIDC_ISSUER: ${{ vars.MICRO_OIDC_ISSUER }}
           MICRO_AUTHZ_PDP_MODE: ${{ vars.MICRO_AUTHZ_PDP_MODE }}
           MICRO_IDENTITY_BOOTSTRAP_PASSWORD: ${{ secrets.MICRO_IDENTITY_BOOTSTRAP_PASSWORD }}
-          MICRO_REDIS_URL: ${{ secrets.MICRO_REDIS_URL }}
           MICRO_REDIS_CA: ${{ secrets.MICRO_REDIS_CA }}
           MICRO_REDIS_CLIENT_CRT: ${{ secrets.MICRO_REDIS_CLIENT_CRT }}
           MICRO_REDIS_CLIENT_KEY: ${{ secrets.MICRO_REDIS_CLIENT_KEY }}

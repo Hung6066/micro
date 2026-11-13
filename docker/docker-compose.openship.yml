@@ -162,6 +162,7 @@ services:
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
       Persistence__RunMigrationsOnStartup: "false"
+      TenantPlacement__Enabled: "false"
       TenantPlacement__Services__content__DefaultConnectionName: ContentDb
       SERVICE_IDENTITY_URL: http://identityservice:5003
       Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-https://identity-api.nacoms.com.vn/}

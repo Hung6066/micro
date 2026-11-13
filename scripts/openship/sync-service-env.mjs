@@ -64,6 +64,31 @@ function loadComposeServices(opts) {
 }
 
 function buildServiceEnvironments(composeServices, overrides) {
+  const buildServiceNames = Object.entries(composeServices)
+    .filter(([, service]) => service.build)
+    .map(([name]) => name);
+  const buildServiceNameSet = new Set(buildServiceNames);
+  const staleServiceOverrides = Object.keys(overrides.services ?? {})
+    .filter((name) => !buildServiceNameSet.has(name))
+    .sort();
+  if (staleServiceOverrides.length > 0) {
+    throw new Error(
+      `environment overrides target missing or non-build Compose services: ${staleServiceOverrides.join(", ")}`,
+    );
+  }
+
+  const declaredEnvironmentKeys = new Set(buildServiceNames.flatMap((name) =>
+    Object.keys(composeServices[name].environment ?? {}),
+  ));
+  const staleCommonOverrides = Object.keys(overrides.common ?? {})
+    .filter((key) => !declaredEnvironmentKeys.has(key))
+    .sort();
+  if (staleCommonOverrides.length > 0) {
+    throw new Error(
+      `common environment overrides are not declared by any build service: ${staleCommonOverrides.join(", ")}`,
+    );
+  }
+
   const result = {};
   for (const [name, service] of Object.entries(composeServices)) {
     // Replaced platform services (postgres/redis/rabbitmq/key init) are image-only.
@@ -77,6 +102,15 @@ function buildServiceEnvironments(composeServices, overrides) {
     }
     for (const [key, template] of Object.entries(overrides.services?.[name] ?? {})) {
       environment[key] = resolvePlaceholders(template, `${name}.${key}`);
+    }
+    const hasTenantPlacementMappings = Object.keys(environment)
+      .some((key) => key.startsWith("TenantPlacement__Services__"));
+    if (hasTenantPlacementMappings && !["true", "false"].includes(
+      String(environment.TenantPlacement__Enabled ?? "").toLowerCase(),
+    )) {
+      throw new Error(
+        `${name}: TenantPlacement__Enabled must be explicitly set to true or false when tenant service mappings are declared.`,
+      );
     }
     const unresolved = Object.entries(environment)
       .filter(([, value]) => {
