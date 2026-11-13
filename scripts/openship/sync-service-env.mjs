@@ -19,6 +19,24 @@ const REQUIRED_COMPOSE_VARS = [
   "MANUFACTURING_RABBITMQ_USER",
   "MANUFACTURING_RABBITMQ_PASSWORD",
 ];
+// These keys are owned by OpenShip bindings and may rotate independently of
+// the Compose source. Keep their existing values when replacing Compose env.
+const OPENSHIP_MANAGED_ENV_KEYS = new Set([
+  "DATABASE_URL",
+  "OPENSHIP_DATABASE_CA_PEM",
+  "PLATFORM_PKI_FILE_PG_CA",
+  "PLATFORM_PKI_FILE_PG_CLIENT_CRT",
+  "PLATFORM_PKI_FILE_PG_CLIENT_KEY",
+  "Redis__ConnectionString",
+  "Redis__KeyPrefix",
+  "Redis__TlsCaPem",
+  "Redis__TlsClientCertificatePem",
+  "Redis__TlsClientPrivateKeyPem",
+  "EventBus__Host",
+  "EventBus__CaPem",
+  "EventBus__ClientCertificatePem",
+  "EventBus__ClientPrivateKeyPem",
+]);
 
 function parseArgs(argv) {
   const opts = {
@@ -28,10 +46,12 @@ function parseArgs(argv) {
     overrides: "docker/openship/service-env.production.json",
     composeJson: undefined,
     dryRun: false,
+    checkLive: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--dry-run") opts.dryRun = true;
+    else if (arg === "--check-live") opts.checkLive = true;
     else if (arg === "--project") opts.project = argv[++i];
     else if (arg === "--env") opts.environment = argv[++i];
     else if (arg === "--compose") opts.compose = argv[++i];
@@ -138,10 +158,85 @@ function buildServiceEnvironments(composeServices, overrides) {
   return result;
 }
 
+function openShipCommand() {
+  const bin = process.env.OPENSHIP_BIN || "openship";
+  const prefix = process.env.OPENSHIP_BIN_ARGS ? process.env.OPENSHIP_BIN_ARGS.split(" ") : [];
+  return { bin, prefix };
+}
+
+function readExistingServiceEnvironment(service, opts) {
+  const { bin, prefix } = openShipCommand();
+  const result = spawnSync(
+    bin,
+    [...prefix, "service", "env", "get", service, "-p", opts.project, "-e", opts.environment],
+    {
+      encoding: "utf8",
+      env: { ...process.env, OPENSHIP_JSON: "1" },
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(`openship service env get failed for ${service} (exit ${result.status}).`);
+  }
+  let rows;
+  try {
+    rows = JSON.parse(result.stdout);
+  } catch {
+    throw new Error(`openship service env get returned invalid JSON for ${service}.`);
+  }
+  if (!Array.isArray(rows)) throw new Error(`openship service env get returned an invalid environment for ${service}.`);
+  return rows;
+}
+
+function mergeOpenShipManagedEnvironment(composeEnvironments, existingByService) {
+  const merged = {};
+  const unknown = [];
+  for (const [service, desired] of Object.entries(composeEnvironments)) {
+    const environment = { ...desired };
+    const existing = existingByService[service] ?? [];
+    for (const row of existing) {
+      if (!row || typeof row.key !== "string" || typeof row.value !== "string") {
+        throw new Error(`openship service env get returned an invalid variable for ${service}.`);
+      }
+      if (!Object.hasOwn(desired, row.key) && !OPENSHIP_MANAGED_ENV_KEYS.has(row.key)) {
+        unknown.push(`${service}.${row.key}`);
+        continue;
+      }
+      if (OPENSHIP_MANAGED_ENV_KEYS.has(row.key)) environment[row.key] = row.value;
+    }
+    merged[service] = environment;
+  }
+  if (unknown.length > 0) {
+    throw new Error(
+      `existing environment keys are not declared or OpenShip-managed; add them to Compose/overrides before syncing: ${unknown.sort().join(", ")}`,
+    );
+  }
+  return merged;
+}
+
 function main() {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.checkLive && opts.dryRun) throw new Error("--check-live cannot be combined with --dry-run.");
   const overrides = JSON.parse(readFileSync(resolve(opts.overrides), "utf8"));
-  const environments = buildServiceEnvironments(loadComposeServices(opts), overrides);
+  const composeEnvironments = buildServiceEnvironments(loadComposeServices(opts), overrides);
+  const existingByService = {};
+  if (!opts.dryRun) {
+    // Read every service and validate the whole replacement before the first
+    // write, so an unknown runtime value cannot cause a partial sync.
+    for (const service of Object.keys(composeEnvironments)) {
+      existingByService[service] = readExistingServiceEnvironment(service, opts);
+    }
+  }
+  const environments = opts.dryRun
+    ? composeEnvironments
+    : mergeOpenShipManagedEnvironment(composeEnvironments, existingByService);
+
+  if (opts.checkLive) {
+    for (const [service, environment] of Object.entries(environments)) {
+      console.log(`[check-live] ${service}: ${Object.keys(environment).length} variables validated; no changes written`);
+    }
+    return;
+  }
 
   for (const [service, environment] of Object.entries(environments)) {
     const pairs = Object.entries(environment).map(([key, value]) => `${key}=${value}`);
@@ -152,8 +247,7 @@ function main() {
     }
     // spawnSync (not execFileSync) so a failure never echoes the secret-bearing argv.
     // OPENSHIP_BIN / OPENSHIP_BIN_ARGS let Windows callers run `node <cli>/dist/node-entry.js` instead of the .cmd shim.
-    const bin = process.env.OPENSHIP_BIN || "openship";
-    const prefix = process.env.OPENSHIP_BIN_ARGS ? process.env.OPENSHIP_BIN_ARGS.split(" ") : [];
+    const { bin, prefix } = openShipCommand();
     const { status } = spawnSync(
       bin,
       [...prefix, "service", "env", "set", service, ...pairs, "-p", opts.project, "-e", opts.environment, "--replace", "--secret"],
