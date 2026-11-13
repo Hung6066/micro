@@ -19,6 +19,8 @@ services:
     ports:
       - target: 8080
         protocol: tcp
+      - target: 8081
+        protocol: tcp
     environment:
       OPENFGA_DATASTORE_ENGINE: postgres
       OPENFGA_AUTHN_METHOD: preshared
@@ -122,8 +124,8 @@ services:
       TenantPlacement__Enabled: "true"
       TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
       SERVICE_IDENTITY_URL: http://identityservice:5003
-      Jwt__Authority: https://identity-api.nacoms.com.vn/
-      Jwt__MetadataAddress: https://identity-api.nacoms.com.vn/.well-known/openid-configuration
+      Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-https://identity-api.nacoms.com.vn/}
+      Jwt__MetadataAddress: ${MANUFACTURING_JWT_METADATA_ADDRESS:-https://identity-api.nacoms.com.vn/.well-known/openid-configuration}
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "true"
       Jwt__AllowHttp: "false"
@@ -135,7 +137,8 @@ services:
     volumes:
       - identity_keys:/etc/hishop/certs
     depends_on:
-      identityservice: { condition: service_healthy }
+      identityservice:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
@@ -161,8 +164,8 @@ services:
       Persistence__RunMigrationsOnStartup: "false"
       TenantPlacement__Services__content__DefaultConnectionName: ContentDb
       SERVICE_IDENTITY_URL: http://identityservice:5003
-      Jwt__Authority: https://identity-api.nacoms.com.vn/
-      Jwt__MetadataAddress: https://identity-api.nacoms.com.vn/.well-known/openid-configuration
+      Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-https://identity-api.nacoms.com.vn/}
+      Jwt__MetadataAddress: ${MANUFACTURING_JWT_METADATA_ADDRESS:-https://identity-api.nacoms.com.vn/.well-known/openid-configuration}
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RequireHttpsMetadata: "true"
       Jwt__AllowHttp: "false"
@@ -173,7 +176,8 @@ services:
     volumes:
       - identity_keys:/etc/hishop/certs
     depends_on:
-      identityservice: { condition: service_healthy }
+      identityservice:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
@@ -224,7 +228,8 @@ services:
     volumes:
       - identity_keys:/etc/hishop/certs
     depends_on:
-      identityservice: { condition: service_healthy }
+      identityservice:
+        condition: service_healthy
     restart: unless-stopped
 
   api-gateway:
@@ -248,12 +253,16 @@ services:
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
-      CORS__AllowedOrigins: "http://localhost:8083,http://localhost:4205,http://localhost:4300"
+      CORS__AllowedOrigins: "${MANUFACTURING_CORS_ALLOWED_ORIGINS:-https://identity.nacoms.com.vn,https://web.nacoms.com.vn,https://operator.nacoms.com.vn}"
     depends_on:
-      identityservice: { condition: service_healthy }
-      commerceservice: { condition: service_healthy }
-      contentservice: { condition: service_healthy }
-      manufacturingservice: { condition: service_started }
+      identityservice:
+        condition: service_healthy
+      commerceservice:
+        condition: service_healthy
+      contentservice:
+        condition: service_healthy
+      manufacturingservice:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "dotnet", "--list-runtimes"]
@@ -271,9 +280,12 @@ services:
         published: "${MANUFACTURING_BUYER_APP_PORT:-4205}"
         protocol: tcp
     depends_on:
-      api-gateway: { condition: service_healthy }
-      identityservice: { condition: service_healthy }
-      manufacturingservice: { condition: service_started }
+      api-gateway:
+        condition: service_healthy
+      identityservice:
+        condition: service_healthy
+      manufacturingservice:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test:
@@ -292,9 +304,12 @@ services:
         published: "${MANUFACTURING_OPERATOR_APP_PORT:-4300}"
         protocol: tcp
     depends_on:
-      api-gateway: { condition: service_healthy }
-      identityservice: { condition: service_healthy }
-      manufacturingservice: { condition: service_started }
+      api-gateway:
+        condition: service_healthy
+      identityservice:
+        condition: service_healthy
+      manufacturingservice:
+        condition: service_started
     restart: unless-stopped
     healthcheck:
       test:
@@ -313,8 +328,10 @@ services:
         published: "${MANUFACTURING_ADMIN_APP_PORT:-8083}"
         protocol: tcp
     depends_on:
-      api-gateway: { condition: service_healthy }
-      identityservice: { condition: service_healthy }
+      api-gateway:
+        condition: service_healthy
+      identityservice:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
