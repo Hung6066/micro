@@ -127,6 +127,39 @@ test("blocks OpenShip writes when a tenant-mapped service omits its explicit pla
   assert.deepEqual(calls, []);
 });
 
+test("uses the Compose path declared by openship.yaml as the sync source", async () => {
+  const child = spawn(process.execPath, [syncScript, "--print-compose-path"], {
+    cwd: repoRoot,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+  child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+  const result = await new Promise((resolve) => child.on("close", (status) => resolve({ status, stdout, stderr })));
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), "docker/docker-compose.openship.yml");
+});
+
+test("refuses a sync Compose path that differs from openship.yaml", async () => {
+  const child = spawn(process.execPath, [syncScript, "--print-compose-path", "--compose", "docker/docker-compose.yml"], {
+    cwd: repoRoot,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+  child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+  const result = await new Promise((resolve) => child.on("close", (status) => resolve({ status, stdout, stderr })));
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /does not match openship\.yaml composePath/u);
+  assert.equal(result.stdout, "");
+});
+
 test("syncs Compose-owned values with per-variable secret metadata through the OpenShip API", async () => {
   const { result, calls } = await runSync({
     contentEnvironment: {},

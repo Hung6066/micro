@@ -5,7 +5,10 @@
 // defaults (Development, localhost, static tokens, seed data, ...) are replaced here.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const UNSET = "__OPENSHIP_UNSET__";
 const REDACTED_VALUES = new Set(["••••••••", "........", "********", "<redacted>"]);
@@ -42,16 +45,18 @@ function parseArgs(argv) {
   const opts = {
     project: "micro",
     environment: "production",
-    compose: "docker/docker-compose.openship.yml",
+    compose: undefined,
     overrides: "docker/openship/service-env.production.json",
     composeJson: undefined,
     dryRun: false,
     checkLive: false,
+    printComposePath: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--dry-run") opts.dryRun = true;
     else if (arg === "--check-live") opts.checkLive = true;
+    else if (arg === "--print-compose-path") opts.printComposePath = true;
     else if (arg === "--project") opts.project = argv[++i];
     else if (arg === "--env") opts.environment = argv[++i];
     else if (arg === "--compose") opts.compose = argv[++i];
@@ -60,6 +65,35 @@ function parseArgs(argv) {
     else throw new Error(`Unknown argument: ${arg}`);
   }
   return opts;
+}
+
+function canonicalComposePath(requestedPath) {
+  const configPath = resolve(REPO_ROOT, "openship.yaml");
+  const composePathLines = readFileSync(configPath, "utf8")
+    .split(/\r?\n/u)
+    .filter((line) => /^composePath:\s*/u.test(line));
+  if (composePathLines.length !== 1) {
+    throw new Error("openship.yaml must declare exactly one root composePath for the Micro deployment.");
+  }
+  const match = composePathLines[0].match(/^composePath:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))\s*(?:#.*)?$/u);
+  const declaredPath = match?.[1] ?? match?.[2] ?? match?.[3];
+  if (!declaredPath || isAbsolute(declaredPath)) {
+    throw new Error("openship.yaml must declare a relative composePath.");
+  }
+
+  const absolutePath = resolve(REPO_ROOT, declaredPath);
+  const relativePath = relative(REPO_ROOT, absolutePath);
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`)) {
+    throw new Error("openship.yaml composePath must stay inside the Micro repository.");
+  }
+  const normalizedPath = relativePath.split(sep).join("/");
+  if (requestedPath) {
+    const requestedAbsolutePath = resolve(REPO_ROOT, requestedPath);
+    if (requestedAbsolutePath !== absolutePath) {
+      throw new Error("requested Compose path does not match openship.yaml composePath.");
+    }
+  }
+  return { absolutePath, relativePath: normalizedPath };
 }
 
 function resolvePlaceholders(value, context) {
@@ -73,11 +107,12 @@ function resolvePlaceholders(value, context) {
 
 function loadComposeServices(opts) {
   if (opts.composeJson) return JSON.parse(readFileSync(opts.composeJson, "utf8")).services;
+  const composePath = canonicalComposePath(opts.compose).absolutePath;
   const env = { ...process.env };
   for (const name of REQUIRED_COMPOSE_VARS) env[name] ??= UNSET;
   const json = execFileSync(
     "docker",
-    ["compose", "-f", opts.compose, "config", "--format", "json"],
+    ["compose", "-f", composePath, "config", "--format", "json"],
     { env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
   return JSON.parse(json).services;
@@ -330,8 +365,12 @@ async function writeServiceEnvironment(project, service, environment, existingRo
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.printComposePath) {
+    console.log(canonicalComposePath(opts.compose).relativePath);
+    return;
+  }
   if (opts.checkLive && opts.dryRun) throw new Error("--check-live cannot be combined with --dry-run.");
-  const overrides = JSON.parse(readFileSync(resolve(opts.overrides), "utf8"));
+  const overrides = JSON.parse(readFileSync(resolve(REPO_ROOT, opts.overrides), "utf8"));
   const composeEnvironments = buildServiceEnvironments(loadComposeServices(opts), overrides);
   const existingByService = {};
   let project;

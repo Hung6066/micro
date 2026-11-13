@@ -1,3 +1,4 @@
 # Use the repository's Compose file as the service/build description.
 # OpenShip builds selected application images in K3s and renders Kubernetes workloads.
+# The environment sync workflow reads this same path; do not duplicate it there.
 composePath: docker/docker-compose.openship.yml

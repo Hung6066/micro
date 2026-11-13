@@ -30,7 +30,8 @@ jobs:
 
       - name: Validate Micro-to-OpenShip environment sync
         run: |
-          docker compose -f docker/docker-compose.openship.yml config --quiet
+          compose_path="$(node scripts/openship/sync-service-env.mjs --print-compose-path)"
+          docker compose -f "$compose_path" config --quiet
           node --test scripts/openship/sync-service-env.test.mjs
 
       - name: Sync per-service environment
@@ -57,4 +58,4 @@ jobs:
           MICRO_COMMERCE_RABBITMQ_PASSWORD: ${{ secrets.MICRO_COMMERCE_RABBITMQ_PASSWORD }}
           MICRO_MANUFACTURING_RABBITMQ_USER: ${{ secrets.MICRO_MANUFACTURING_RABBITMQ_USER }}
           MICRO_MANUFACTURING_RABBITMQ_PASSWORD: ${{ secrets.MICRO_MANUFACTURING_RABBITMQ_PASSWORD }}
-        run: node scripts/openship/sync-service-env.mjs --project "$OPENSHIP_PROJECT" --env production --compose docker/docker-compose.openship.yml
+        run: node scripts/openship/sync-service-env.mjs --project "$OPENSHIP_PROJECT" --env production
