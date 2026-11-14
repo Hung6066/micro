@@ -173,7 +173,7 @@ services:
       Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:-https://identity-api.nacoms.com.vn/}
       Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-https://identity-api.nacoms.com.vn/}
       Jwt__ValidIssuers__1: his-hope-identity
-      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Jwt__Audience: ${CONTENT_JWT_AUDIENCE:-content-api}
     volumes:
       - identity_keys:/etc/hishop/certs
     depends_on:
