@@ -13,7 +13,7 @@ COPY ["src/Services/FhirGateway/FhirGateway.Domain/", "Services/FhirGateway/Fhir
 COPY ["src/Shared/", "Shared/"]
 RUN dotnet publish "Services/FhirGateway/FhirGateway.Api/FhirGateway.Api.csproj" -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:4b3c234b8d8bd1dd2691482fe0c103644f0334ef9727e5ecddd87d9175116dbd AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:7a6bf765edb270c1b1443d09a76f247948e1a019b1756ebf746bb3898eaed21d AS final
 WORKDIR /app
 EXPOSE 5040
 ENV ASPNETCORE_URLS=http://+:8080 \

@@ -17,6 +17,13 @@ function Require([bool]$Condition, [string]$Message) {
     if (-not $Condition) { $failures.Add($Message) }
 }
 
+function Invoke-Kubectl([string[]]$Arguments) {
+    & kubectl @Arguments "--request-timeout=${TimeoutSeconds}s"
+    if ($LASTEXITCODE -ne 0) {
+        throw "kubectl failed with exit code ${LASTEXITCODE}: $($Arguments -join ' ')"
+    }
+}
+
 function Write-Evidence([string]$Status, [string[]]$FailureMessages) {
     if ([string]::IsNullOrWhiteSpace($OutputPath)) { return }
     $result = [pscustomobject]@{
@@ -31,12 +38,27 @@ function Write-Evidence([string]$Status, [string[]]$FailureMessages) {
     [IO.File]::WriteAllText([IO.Path]::GetFullPath($OutputPath), ($result | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 }
 
-$cluster = kubectl get cluster spire-postgres -n spire -o json | ConvertFrom-Json
-$server = kubectl get statefulset spire-server -n spire -o json | ConvertFrom-Json
-$serverPods = @(kubectl get pods -n spire -l app.kubernetes.io/name=spire-server -o json | ConvertFrom-Json).items
-$agentPods = @(kubectl get pods -n spire -l app.kubernetes.io/name=spire-agent -o json | ConvertFrom-Json).items
-$endpointSlices = kubectl get endpointslice -n spire -l kubernetes.io/service-name=spire-server -o json | ConvertFrom-Json
-$config = [string]::Join("`n", @(kubectl get configmap spire-server -n spire -o jsonpath='{.data.server\.conf}'))
+if (-not (Test-Path -LiteralPath $Kubeconfig -PathType Leaf)) {
+    Write-Evidence -Status 'environment-blocked' -FailureMessages @("Kubeconfig not found: $Kubeconfig")
+    Write-Output "Production SPIRE HA validation environment-blocked: kubeconfig not found ($Kubeconfig)."
+    exit 0
+}
+
+try {
+    Invoke-Kubectl @('version', '--output=json') | Out-Null
+}
+catch {
+    Write-Evidence -Status 'environment-blocked' -FailureMessages @($_.Exception.Message)
+    Write-Output "Production SPIRE HA validation environment-blocked: cluster is unreachable."
+    exit 0
+}
+
+$cluster = Invoke-Kubectl @('get', 'cluster', 'spire-postgres', '-n', 'spire', '-o', 'json') | ConvertFrom-Json
+$server = Invoke-Kubectl @('get', 'statefulset', 'spire-server', '-n', 'spire', '-o', 'json') | ConvertFrom-Json
+$serverPods = @(Invoke-Kubectl @('get', 'pods', '-n', 'spire', '-l', 'app.kubernetes.io/name=spire-server', '-o', 'json') | ConvertFrom-Json).items
+$agentPods = @(Invoke-Kubectl @('get', 'pods', '-n', 'spire', '-l', 'app.kubernetes.io/name=spire-agent', '-o', 'json') | ConvertFrom-Json).items
+$endpointSlices = Invoke-Kubectl @('get', 'endpointslice', '-n', 'spire', '-l', 'kubernetes.io/service-name=spire-server', '-o', 'json') | ConvertFrom-Json
+$config = [string]::Join("`n", @(Invoke-Kubectl @('get', 'configmap', 'spire-server', '-n', 'spire', '-o', 'jsonpath={.data.server\.conf}')))
 $prodRender = [string]::Join("`n", @(kubectl kustomize (Join-Path $repoRoot 'k8s/overlays/prod') --load-restrictor LoadRestrictionsNone))
 $readyServerPods = @($serverPods | Where-Object { $_.status.containerStatuses[0].ready }).Count
 $readyAgentPods = @($agentPods | Where-Object { $_.status.containerStatuses[0].ready }).Count
@@ -46,7 +68,7 @@ Require ($cluster.status.instances -eq 3 -and $cluster.status.readyInstances -eq
 Require ($server.spec.replicas -eq 3 -and $server.status.readyReplicas -eq 3) "SPIRE Server is not 3/3 ready."
 $serverEndpointCount = @($endpointSlices.items | ForEach-Object { $_.endpoints } | Where-Object { $_.conditions.ready -eq $true }).Count
 Require ($serverEndpointCount -eq 3) "SPIRE Server service does not expose 3 ready endpoints (count=$serverEndpointCount)."
-Require ((kubectl get pdb spire-server -n spire -o jsonpath='{.spec.minAvailable}') -eq '2') 'SPIRE Server PDB minAvailable is not 2.'
+Require ((Invoke-Kubectl @('get', 'pdb', 'spire-server', '-n', 'spire', '-o', 'jsonpath={.spec.minAvailable}')) -eq '2') 'SPIRE Server PDB minAvailable is not 2.'
 Require ($config -match 'host=__SPIRE_DB_HOST__') 'SPIRE server config no longer uses the runtime datastore host placeholder.'
 Require ($config -notmatch 'postgres\.his-hope-dev') 'SPIRE server config still points to the dev PostgreSQL service.'
 Require (($serverPods.Count -eq 3) -and ($readyServerPods -eq 3)) 'A SPIRE Server pod is not ready.'
@@ -54,7 +76,7 @@ Require (($agentPods.Count -eq 3) -and ($readyAgentPods -eq 3)) 'A SPIRE Agent i
 $prodImageGateBlocked = $prodRender -match 'sha256:0{64}'
 $prodSecretGateBlocked = $prodRender -match 'cG9zdGdyZXM=|cmVkaXM=|cmFiYml0bXE=|VAULT_TOKEN'
 
-$failoverEvent = kubectl get events -n spire --field-selector reason=FailingOver -o json | ConvertFrom-Json
+$failoverEvent = Invoke-Kubectl @('get', 'events', '-n', 'spire', '--field-selector', 'reason=FailingOver', '-o', 'json') | ConvertFrom-Json
 Require (@($failoverEvent.items).Count -gt 0) 'No CNPG failover event was observed.'
 Require ([string]::IsNullOrWhiteSpace([string]$cluster.status.currentPrimary) -eq $false) "CNPG has no current primary after failover (current=$($cluster.status.currentPrimary))."
 

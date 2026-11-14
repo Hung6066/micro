@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Infrastructure.Idempotency;
 
@@ -103,11 +104,20 @@ public class IdempotencyMiddleware
         var serviceName = context.Request.Host.Host ?? "gateway";
         var endpoint = context.Request.Path.Value ?? "";
         var httpMethod = context.Request.Method;
+        var subject = context.User.FindFirst(HisHopeProtocolConstants.Claims.Subject)?.Value
+            ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? ResolvePreAuthenticationSubject(context);
+        var tenant = context.Request.Headers["X-HisHope-Tenant"].FirstOrDefault()
+            ?? context.User.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value
+            ?? context.User.FindFirst(HisHopeProtocolConstants.Claims.Tenant)?.Value
+            ?? "default";
+        var storageKey = IdempotencyScope.CreateStorageKey(
+            serviceName, tenant, subject, httpMethod, endpoint, idempotencyKey);
 
         // Look for an existing idempotency key record
         var existing = await dbContext.IdempotencyKeys
             .AsNoTracking()
-            .FirstOrDefaultAsync(k => k.IdempotencyKeyValue == idempotencyKey);
+            .FirstOrDefaultAsync(k => k.IdempotencyKeyValue == storageKey);
 
         if (existing != null)
         {
@@ -118,7 +128,7 @@ public class IdempotencyMiddleware
                 // First request is still being processed – second concurrent request must wait
                 _logger.LogWarning(
                     "Idempotency key {Key} is still in Processing state for {Method} {Path}",
-                    idempotencyKey, httpMethod, endpoint);
+                    storageKey, httpMethod, endpoint);
 
                 context.Response.StatusCode = (int)HttpStatusCode.Conflict;
                 context.Response.ContentType = "application/json";
@@ -132,7 +142,7 @@ public class IdempotencyMiddleware
             if (existing.Status == "Processing")
             {
                 var reclaimed = await dbContext.IdempotencyKeys
-                    .Where(k => k.IdempotencyKeyValue == idempotencyKey &&
+                    .Where(k => k.IdempotencyKeyValue == storageKey &&
                                 k.Status == "Processing" &&
                                 (k.ProcessingLeaseExpiresAt == null || k.ProcessingLeaseExpiresAt <= DateTime.UtcNow))
                     .ExecuteUpdateAsync(setters => setters
@@ -152,7 +162,7 @@ public class IdempotencyMiddleware
                 {
                     _logger.LogInformation(
                         "Idempotent replay detected for key {Key} on {Method} {Path} – returning cached response {StatusCode}",
-                        idempotencyKey, httpMethod, endpoint, existing.ResponseStatusCode);
+                        storageKey, httpMethod, endpoint, existing.ResponseStatusCode);
 
                     context.Response.StatusCode = existing.ResponseStatusCode ?? 200;
                     context.Response.ContentType = "application/json";
@@ -168,7 +178,7 @@ public class IdempotencyMiddleware
                 // Same key, DIFFERENT hash → key conflict
                 _logger.LogWarning(
                     "Idempotency key collision: key {Key} already used with different request body for {Method} {Path}",
-                    idempotencyKey, httpMethod, endpoint);
+                    storageKey, httpMethod, endpoint);
 
                 context.Response.StatusCode = (int)HttpStatusCode.Conflict;
                 context.Response.ContentType = "application/json";
@@ -181,7 +191,7 @@ public class IdempotencyMiddleware
             // Unknown status – let it pass (defensive)
             _logger.LogWarning(
                 "Idempotency key {Key} has unexpected status '{Status}' – allowing passthrough",
-                idempotencyKey, existing.Status);
+                storageKey, existing.Status);
             await _next(context);
             return;
         }
@@ -193,7 +203,7 @@ public class IdempotencyMiddleware
 
         var record = new IdempotencyKey
         {
-            IdempotencyKeyValue = idempotencyKey,
+            IdempotencyKeyValue = storageKey,
             ServiceName = serviceName,
             Endpoint = endpoint,
             HttpMethod = httpMethod,
@@ -217,7 +227,7 @@ public class IdempotencyMiddleware
             _logger.LogWarning(
                 ex,
                 "Race condition on idempotency key {Key} – concurrent request inserted first",
-                idempotencyKey);
+                storageKey);
 
             context.Response.StatusCode = (int)HttpStatusCode.Conflict;
             context.Response.ContentType = "application/json";
@@ -227,7 +237,7 @@ public class IdempotencyMiddleware
             return;
         }
 
-        // Capture the response so we can cache it
+    // Capture the response so we can cache it
         var originalBodyStream = context.Response.Body;
         using var responseBodyStream = new MemoryStream();
         context.Response.Body = responseBodyStream;
@@ -263,12 +273,12 @@ public class IdempotencyMiddleware
             {
                 _logger.LogError(dbEx,
                     "Failed to update idempotency key {Key} status to Failed after exception",
-                    idempotencyKey);
+                    storageKey);
             }
 
             _logger.LogError(processingException,
                 "Request with idempotency key {Key} failed – status set to Failed",
-                idempotencyKey);
+                storageKey);
 
             throw processingException; // Re-throw so the exception middleware can handle it
         }
@@ -300,7 +310,7 @@ public class IdempotencyMiddleware
         {
             _logger.LogError(ex,
                 "Failed to update idempotency key {Key} to Completed",
-                idempotencyKey);
+                storageKey);
         }
     }
 
@@ -316,4 +326,22 @@ public class IdempotencyMiddleware
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawData));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
+    private static string ResolvePreAuthenticationSubject(HttpContext context)
+    {
+        // The gateway deliberately runs this middleware before authentication.
+        // Use a one-way session/token fingerprint as a stable subject surrogate
+        // so retries remain isolated without persisting credentials.
+        var sessionId = context.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
+        if (!string.IsNullOrWhiteSpace(sessionId))
+            return Fingerprint("session:" + sessionId);
+
+        var authorization = context.Request.Headers.Authorization.FirstOrDefault();
+        return string.IsNullOrWhiteSpace(authorization)
+            ? "anonymous"
+            : Fingerprint("authorization:" + authorization);
+    }
+
+    private static string Fingerprint(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 }

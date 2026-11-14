@@ -1,0 +1,6 @@
+(function () {
+  const config = window.__HISHOPE_CONFIG__ || (window.__HISHOPE_CONFIG__ = {});
+  config.oidcAuthority = "${OPENSHIP_OIDC_ISSUER}";
+  config.clientId = "${OPENSHIP_OIDC_CLIENT_ID}";
+  config.oidcScope = "${OPENSHIP_OIDC_SCOPES}";
+})();

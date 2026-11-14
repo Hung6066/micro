@@ -5,7 +5,9 @@ public class EventBusOptions
     public string HostName { get; set; } = "localhost";
     public int Port { get; set; } = 5672;
     public string UserName { get; set; } = "admin";
-    public string Password { get; set; } = "admin";
+    // Credentials are supplied by the runtime secret provider. Never ship a
+    // usable broker password as a library default.
+    public string Password { get; set; } = string.Empty;
     public string VirtualHost { get; set; } = "/";
     public string ExchangeName { get; set; } = "his_hope_exchange";
     public string ExchangeType { get; set; } = "direct";
@@ -18,5 +20,7 @@ public class EventBusOptions
     public bool UseSsl { get; set; } = false;
     public string? SslServerName { get; set; }
     public string? ClientCertificatePath { get; set; }
+    public string? ClientPrivateKeyPath { get; set; }
+    public string? CaCertificatePath { get; set; }
     public string? ClientCertificatePassword { get; set; }
 }

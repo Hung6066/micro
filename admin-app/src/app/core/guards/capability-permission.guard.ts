@@ -19,7 +19,7 @@ export const capabilityPermissionGuard = (): Observable<boolean | UrlTree> => {
 
   return api.getCurrent().pipe(
     tap((snapshot) => permissions.setSnapshot(snapshot)),
-    map((snapshot) =>
+    map(() =>
       permissions.has(required)
         ? true
         : router.createUrlTree(["/forbidden"], {

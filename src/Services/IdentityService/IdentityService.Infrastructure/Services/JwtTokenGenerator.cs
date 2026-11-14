@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.Authorization;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
@@ -124,7 +126,8 @@ public class JwtTokenGenerator
         User user,
         IList<string> roles,
         IList<string>? permissions = null,
-        IList<string>? amrValues = null)
+        IList<string>? amrValues = null,
+        IEnumerable<Claim>? additionalClaims = null)
     {
         var claims = new List<Claim>
         {
@@ -146,16 +149,39 @@ public class JwtTokenGenerator
         // SECURITY: Add amr (Authentication Methods References) claim for MFA
         if (amrValues is { Count: > 0 })
         {
-            claims.AddRange(amrValues.Select(amr => new Claim("amr", amr)));
+            claims.AddRange(amrValues.Select(amr => new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod, amr)));
         }
 
         // Add role claims for RBAC enforcement
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
+        var configuredSuperAdminIds = _configuration.GetSection("Identity:SuperAdmin:UserIds")
+            .Get<string[]>() ?? [];
+        if (configuredSuperAdminIds.Any(id => string.Equals(id, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            claims.Add(new Claim(HisHopeProtocolConstants.Claims.SuperAdmin, "true"));
+            if (_configuration.GetValue("Identity:SuperAdmin:RestrictToControlPlane", false))
+                claims.Add(new Claim(PortalClassConstants.Claim, PortalClassConstants.PrivilegedOperator));
+        }
+
         // SECURITY: Add explicit permission claims for fine-grained authorization
         if (permissions is { Count: > 0 })
         {
-            claims.Add(new Claim("permissions", string.Join(",", permissions)));
+            claims.Add(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", permissions)));
+        }
+
+        if (additionalClaims is not null)
+        {
+            foreach (var claim in additionalClaims)
+            {
+                if (string.IsNullOrWhiteSpace(claim.Type) || string.IsNullOrWhiteSpace(claim.Value))
+                    continue;
+                if (claims.Any(existing =>
+                        string.Equals(existing.Type, claim.Type, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(existing.Value, claim.Value, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                claims.Add(claim);
+            }
         }
 
         var expiresAt = DateTime.UtcNow.Add(
@@ -186,6 +212,13 @@ public class JwtTokenGenerator
                 payload[claimType] = claim.Value;
             }
         }
+
+        // Keep authentication methods in the interoperable JWT array form.
+        // Some token handlers do not preserve a List<string> value emitted by
+        // the generic duplicate-claim path, which would silently remove MFA
+        // assurance from a validated token.
+        if (amrValues is { Count: > 0 })
+            payload[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod] = amrValues.ToArray();
 
         var descriptor = new SecurityTokenDescriptor
         {
@@ -224,6 +257,7 @@ public class JwtTokenGenerator
     {
         if (string.IsNullOrEmpty(token)) return null;
         var handler = new JwtSecurityTokenHandler();
+        handler.MapInboundClaims = false;
         try
         {
             handler.ReadJwtToken(token);
@@ -265,11 +299,11 @@ public class JwtTokenGenerator
         var rawSubject = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         if (!string.IsNullOrWhiteSpace(rawSubject) &&
             principal.FindFirst(ClaimTypes.NameIdentifier) is null &&
-            principal.FindFirst("sub") is null)
+            principal.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) is null)
         {
             var identity = principal.Identity as ClaimsIdentity;
             identity?.AddClaim(new Claim(ClaimTypes.NameIdentifier, rawSubject));
-            identity?.AddClaim(new Claim("sub", rawSubject));
+            identity?.AddClaim(new Claim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject, rawSubject));
         }
 
         return principal;

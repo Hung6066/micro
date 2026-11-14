@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE_URL } = require('../config/urls');
 const { signInThroughIdentity } = require('../helpers/sso-login');
+const { ensureSidebarVisible } = require('../helpers/ensure-sidebar-visible');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
@@ -11,8 +12,9 @@ async function login(page) {
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
+  await ensureSidebarVisible(page);
   const labelPattern = label === 'Bệnh nhân' ? /Bệnh nhân|Patients/i : label;
-  const link = page.locator('mat-nav-list a').filter({ hasText: labelPattern });
+  const link = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: labelPattern });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
   await link.first().click();
   if (expectedPath) {
@@ -62,15 +64,19 @@ test.describe('Patient Module', () => {
       test.skip(true, 'Protected patient routes are unavailable in this environment.');
     }
 
-    await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 10000 });
+    await ensureSidebarVisible(page);
   });
 
   test('TC-PAT-01: Patient list page loads with data', async ({ page }) => {
     await navigateToSidebar(page, 'Bệnh nhân', '/patients');
     await waitForLoadingToFinish(page);
 
-    const table = page.locator('mat-table, table');
-    await expect(table).toBeVisible({ timeout: 10000 });
+    // The mobile layout intentionally replaces the desktop table with
+    // accessible row cards. Assert the rendered representation, not a hidden
+    // desktop table kept in the DOM for responsive transitions.
+    const table = page.locator('mat-table:visible, table:visible');
+    const mobileRows = page.getByRole('button', { name: /^Select row/i });
+    await expect(table.or(mobileRows.first())).toBeVisible({ timeout: 10000 });
 
     const rows = page.locator('mat-table mat-row, table tbody tr');
     await expect(rows.first()).toBeVisible({ timeout: 10000 }).catch(() => {
@@ -466,7 +472,8 @@ test.describe('Patient Module', () => {
     const headerCount = await headerCells.count();
     expect(headerCount).toBeGreaterThanOrEqual(4);
 
-    const table = page.locator('mat-table, table');
-    await expect(table).toBeVisible();
+    const table = page.locator('mat-table:visible, table:visible');
+    const mobileRows = page.getByRole('button', { name: /^Select row/i });
+    await expect(table.or(mobileRows.first())).toBeVisible();
   });
 });

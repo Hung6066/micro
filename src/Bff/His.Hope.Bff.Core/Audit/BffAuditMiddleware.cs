@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Bff.Core.Audit;
 
@@ -31,7 +32,7 @@ public sealed class BffAuditMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var sw = Stopwatch.StartNew();
-        var correlationId = context.Request.Headers["X-Correlation-ID"].FirstOrDefault()
+        var correlationId = context.Request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
             ?? Activity.Current?.Id ?? Guid.NewGuid().ToString("N");
 
         await _next(context);

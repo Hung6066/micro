@@ -110,6 +110,11 @@ internal sealed class LoggerStructuredLogger(ILoggerFactory loggerFactory) : ISt
             ? new Dictionary<string, object?>()
             : new Dictionary<string, object?>(properties);
         state["Message"] = message;
+        if (Activity.Current is { } activity)
+        {
+            state["TraceId"] = activity.TraceId.ToString();
+            state["SpanId"] = activity.SpanId.ToString();
+        }
 
         _logger.Log(
             level,

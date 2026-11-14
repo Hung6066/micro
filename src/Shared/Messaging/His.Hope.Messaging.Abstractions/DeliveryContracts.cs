@@ -10,15 +10,15 @@ public sealed record OutboxMessage(
 
 public interface IOutboxStore
 {
-    ValueTask EnqueueAsync(EventEnvelope @event, CancellationToken cancellationToken = default);
+    ValueTask EnqueueAsync(EventEnvelope message, CancellationToken cancellationToken = default);
     ValueTask<IReadOnlyList<OutboxMessage>> ReadPendingAsync(int maxCount, CancellationToken cancellationToken = default);
     ValueTask MarkPublishedAsync(Guid messageId, CancellationToken cancellationToken = default);
-    ValueTask MarkFailedAsync(Guid messageId, string error, DateTimeOffset nextAttemptAt, CancellationToken cancellationToken = default);
+    ValueTask MarkFailedAsync(Guid messageId, string errorMessage, DateTimeOffset nextAttemptAt, CancellationToken cancellationToken = default);
 }
 
 public interface IMessagePublisher
 {
-    ValueTask PublishAsync(EventEnvelope @event, CancellationToken cancellationToken = default);
+    ValueTask PublishAsync(EventEnvelope message, CancellationToken cancellationToken = default);
 }
 
 public interface IInboxStore

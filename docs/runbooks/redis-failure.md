@@ -27,6 +27,25 @@
 
 ## Diagnosis
 
+### MFA returns HTTP 500 before reaching Identity
+
+The gateway reads Redis for browser-session CSRF validation before forwarding
+MFA verification. A successful password login does not prove that the gateway
+can access Redis.
+
+- For connection timeouts, verify both egress and Redis ingress against actual
+  Pod labels. OpenShip normalizes service ID labels to lowercase; database IDs
+  may contain uppercase characters. Keep grants scoped to the source namespace,
+  service selector, and TCP/6379.
+- For `WRONGPASS`, verify that the runtime URL conversion preserves the named
+  ACL user as well as the password. `ToRedisConnectionString` must split URI
+  user-info before percent-decoding each credential, and retain `rediss` TLS.
+  Do not enable the default Redis user or change passwords to mask a dropped
+  username.
+- Never log connection strings, browser cookies, MFA codes, or decrypted MFA
+  secrets. After recovery, invalid synthetic sessions must still fail closed;
+  verify successful MFA separately with a fresh user-entered code.
+
 ```bash
 # 1. Check Redis pod status
 kubectl get pods -n his-hope -l app=redis

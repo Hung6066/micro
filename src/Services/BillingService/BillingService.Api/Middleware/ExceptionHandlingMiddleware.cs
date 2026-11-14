@@ -62,7 +62,7 @@ public class ExceptionHandlingMiddleware
                 break;
         }
 
-        var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+        var correlationId = context.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
             ?? context.TraceIdentifier;
         var error = new ApiErrorLogEntry(
             ApiErrorCodes.ForStatus(statusCode),

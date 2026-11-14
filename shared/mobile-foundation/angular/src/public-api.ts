@@ -15,3 +15,6 @@ export * from "./query/resource-table.controller";
 export * from "./query/resource-state.controller";
 export * from "./services/table-api.service";
 export * from "./forms/schema.util";
+export * from "./components/his-hope-mobile-pin.component";
+export * from "./components/his-hope-mobile-lock-overlay.component";
+export * from "./components/his-hope-mobile-shell-security.component";

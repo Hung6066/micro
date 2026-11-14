@@ -1,0 +1,90 @@
+name: Source Build and Test
+
+on:
+  push:
+    branches: [main, develop, developer]
+  pull_request:
+    branches: [main, develop, developer]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: .NET build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16.14
+        env:
+          POSTGRES_PASSWORD: migration-test-only
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.319'
+      - name: Restore with dependency gates
+        run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
+      - name: Build source
+        run: dotnet build His.Hope.sln --no-restore --configuration Release --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+      - name: Run non-integration tests
+        shell: pwsh
+        env:
+          VSTEST_CONNECTION_TIMEOUT: '300'
+        run: ./scripts/run-non-integration-tests.ps1
+      - name: Check Identity Service dependencies
+        run: dotnet list src/Services/IdentityService/IdentityService.Api/ package --vulnerable --include-transitive
+
+  frontend:
+    name: Frontend build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.14.0'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build frontend source
+        run: npm run build:frontend:production
+      - name: Run frontend foundation and application tests
+        run: |
+          npm run build:shared
+          npm --workspace @his-hope/frontend-foundation run test -- --watch=false --browsers=ChromeHeadless
+          npm --prefix admin-app run test -- --watch=false --browsers=ChromeHeadless
+
+  source-security:
+    name: Source security scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Scan source tree
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          skip-dirs: k8s,docker/spire
+          skip-files: docker/postgres-production.Dockerfile,.tools/dev-render.yaml,backstage/deployment.yaml
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'

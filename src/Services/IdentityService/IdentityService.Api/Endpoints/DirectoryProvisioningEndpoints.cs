@@ -5,6 +5,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -113,7 +114,8 @@ public static class DirectoryProvisioningEndpoints
         group.MapGet("/jobs/{id:guid}", async (Guid id, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             var entry = await db.DirectoryProvisioningOutbox.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, ct);
-            return entry is null ? Results.NotFound() : await HasFacilityAccessAsync(db, facilityContext, entry, ct) ? Results.Ok(ToResponse(entry)) : Results.Forbid();
+            entry = Guard.Against.NotFound(entry, "DirectoryProvisioningJob", id);
+            return await HasFacilityAccessAsync(db, facilityContext, entry, ct) ? Results.Ok(ToResponse(entry)) : Results.Forbid();
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapGet("/jobs", async (IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
@@ -133,7 +135,7 @@ public static class DirectoryProvisioningEndpoints
         group.MapPost("/jobs/{id:guid}/retry", async (Guid id, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             var entry = await db.DirectoryProvisioningOutbox.SingleOrDefaultAsync(item => item.Id == id, ct);
-            if (entry is null) return Results.NotFound();
+            entry = Guard.Against.NotFound(entry, "DirectoryProvisioningJob", id);
             if (!await HasFacilityAccessAsync(db, facilityContext, entry, ct)) return Results.Forbid();
             entry.CompletedAt = null;
             entry.AvailableAt = DateTime.UtcNow;
@@ -157,7 +159,7 @@ public static class DirectoryProvisioningEndpoints
             if (sourceUsers.Count > 10_000)
             {
                 const string message = "Reconciliation exceeds the single-run safety limit; use a paged job.";
-                var correlationId = httpContext.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+                var correlationId = httpContext.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
                     ?? httpContext.TraceIdentifier;
                 var error = new ApiErrorLogEntry(
                     ApiErrorCodes.ReconciliationLimitExceeded,

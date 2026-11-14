@@ -22,6 +22,21 @@ public abstract class Specification<T>
         new NotSpecification<T>(this);
 }
 
+internal sealed class ReplaceParameterVisitor : ExpressionVisitor
+{
+    private readonly ParameterExpression _source;
+    private readonly ParameterExpression _target;
+
+    public ReplaceParameterVisitor(ParameterExpression source, ParameterExpression target)
+    {
+        _source = source;
+        _target = target;
+    }
+
+    protected override Expression VisitParameter(ParameterExpression node) =>
+        node == _source ? _target : base.VisitParameter(node);
+}
+
 public class AndSpecification<T> : Specification<T>
 {
     private readonly Specification<T> _left;
@@ -38,7 +53,8 @@ public class AndSpecification<T> : Specification<T>
         var leftExpr = _left.ToExpression();
         var rightExpr = _right.ToExpression();
         var param = leftExpr.Parameters[0];
-        var body = Expression.AndAlso(leftExpr.Body, rightExpr.Body);
+        var rightBody = new ReplaceParameterVisitor(rightExpr.Parameters[0], param).Visit(rightExpr.Body)!;
+        var body = Expression.AndAlso(leftExpr.Body, rightBody);
         return Expression.Lambda<Func<T, bool>>(body, param);
     }
 }
@@ -59,7 +75,8 @@ public class OrSpecification<T> : Specification<T>
         var leftExpr = _left.ToExpression();
         var rightExpr = _right.ToExpression();
         var param = leftExpr.Parameters[0];
-        var body = Expression.OrElse(leftExpr.Body, rightExpr.Body);
+        var rightBody = new ReplaceParameterVisitor(rightExpr.Parameters[0], param).Visit(rightExpr.Body)!;
+        var body = Expression.OrElse(leftExpr.Body, rightBody);
         return Expression.Lambda<Func<T, bool>>(body, param);
     }
 }

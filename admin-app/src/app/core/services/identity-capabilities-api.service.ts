@@ -49,6 +49,7 @@ export class IdentityCapabilitiesApiService {
   getDevicePosturePolicy(facilityId?: string): Observable<DevicePosturePolicy> {
     return this.http.get<DevicePosturePolicy>(
       `${this.baseUrl}/device-posture/policy`,
+      facilityId ? { params: { facilityId } } : {},
     );
   }
 
@@ -105,14 +106,13 @@ export class IdentityCapabilitiesApiService {
     page?: number;
     pageSize?: number;
   }): Observable<IdentityCapabilitiesAuditPage> {
+    const params: Record<string, string> = {
+      page: String(query.page ?? 1),
+      pageSize: String(query.pageSize ?? 50),
+    };
     return this.http.get<IdentityCapabilitiesAuditPage>(
       `${this.baseUrl.replace(/\/admin$/, "")}/audit-logs`,
-      {
-        params: {
-          page: String(query.page ?? 1),
-          pageSize: String(query.pageSize ?? 50),
-        },
-      },
+      { params },
     );
   }
 

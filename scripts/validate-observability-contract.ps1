@@ -106,6 +106,38 @@ $monitoringUnpinned = @($monitoringImages | Where-Object { $_ -notmatch '@sha256
 if ($monitoringUnpinned.Count -eq 0) { Add-Check 'monitoring-image-digests' 'pass' "$($monitoringImages.Count) monitoring images are digest-pinned." }
 else { Add-Check 'monitoring-image-digests' 'fail' "Unpinned monitoring images: $($monitoringUnpinned -join ', ')" }
 
+$requiredServiceSloRules = @{
+    'patient_service' = 'patientservice'
+    'identity_service' = 'identityservice'
+    'appointment_service' = 'appointmentservice'
+    'clinical_service' = 'clinicalservice'
+    'lab_service' = 'labservice'
+    'billing_service' = 'billingservice'
+    'pharmacy_service' = 'pharmacyservice'
+}
+$missingServiceSloRules = [System.Collections.Generic.List[string]]::new()
+foreach ($service in $requiredServiceSloRules.Keys) {
+    $requiredNames = @(
+        "slo:availability:${service}:ratio_30d",
+        "slo:availability:${service}:ratio_7d",
+        "slo:availability:${service}:ratio_1h",
+        "slo:latency_p99:${service}:ratio_30d",
+        "slo:error_budget_remaining:${service}",
+        "slo:burn_rate_1h:${service}",
+        "slo:burn_rate_6h:${service}"
+    )
+    foreach ($rule in $requiredNames) {
+        if ($monitoringText -notmatch [regex]::Escape($rule)) {
+            $missingServiceSloRules.Add("$service/$rule")
+        }
+    }
+}
+if ($missingServiceSloRules.Count -eq 0) {
+    Add-Check 'per-service-slo-coverage' 'pass' "$($requiredServiceSloRules.Count) critical services have availability, latency, error-budget and multi-window burn-rate rules."
+} else {
+    Add-Check 'per-service-slo-coverage' 'fail' "Missing per-service SLO rules: $($missingServiceSloRules -join ', ')"
+}
+
 $jaegerPaths = @('k8s/monitoring/jaeger.yaml', 'k8s/observability/k3s-observability.yaml')
 $missingJaeger = @($jaegerPaths | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
 if ($missingJaeger.Count -gt 0) {
@@ -139,7 +171,7 @@ if ((Test-Path -LiteralPath $doraCollectorPath -PathType Leaf) -and
     $doraMetrics = @('pipeline_deployment_frequency_per_day','pipeline_lead_time_seconds','pipeline_change_failure_rate_ratio','pipeline_mttr_seconds')
     $missingDora = @($doraMetrics | Where-Object { $doraText -notmatch [regex]::Escape($_) -or $doraDashboard -notmatch [regex]::Escape($_) })
     if ($missingDora.Count -eq 0 -and $doraText -match 'GITHUB_TOKEN' -and $doraText -match 'artifacts/dora') {
-        Add-Check 'dora-metrics' 'pass' 'DORA producer, auditable artifacts and Grafana queries cover frequency, lead time, change failure rate and MTTR.'
+        Add-Check 'dora-metrics' 'pass' 'DORA schema and dashboard queries remain available; GitHub collection is manual historical evidence because OpenShip owns current deployments.'
     } else {
         Add-Check 'dora-metrics' 'fail' "DORA contract is incomplete; missing $($missingDora -join ', ')."
     }

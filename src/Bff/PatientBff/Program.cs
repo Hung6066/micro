@@ -24,14 +24,10 @@ builder.Configuration["ReverseProxy:Clusters:patient-service:Destinations:patien
 builder.Services.AddBffCore(builder.Configuration, "PatientBff");
 builder.Services.AddBffProxy(builder.Configuration);
 
-builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("patient-grpc"));
-builder.Services.AddGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("clinical-grpc"));
-builder.Services.AddGrpcClient<LabGrpcService.LabGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("lab-grpc"));
-builder.Services.AddGrpcClient<PharmacyGrpcService.PharmacyGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("pharmacy-grpc"));
+builder.Services.AddHisHopeGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(runtimeEndpoints, "patient-grpc");
+builder.Services.AddHisHopeGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(runtimeEndpoints, "clinical-grpc");
+builder.Services.AddHisHopeGrpcClient<LabGrpcService.LabGrpcServiceClient>(runtimeEndpoints, "lab-grpc");
+builder.Services.AddHisHopeGrpcClient<PharmacyGrpcService.PharmacyGrpcServiceClient>(runtimeEndpoints, "pharmacy-grpc");
 
 builder.Services.AddSingleton<IAggregationHandler, PatientTimelineHandler>();
 

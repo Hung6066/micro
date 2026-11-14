@@ -22,8 +22,40 @@ public class OidcFlowTests
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.EndsWith(IdentityApiRoutes.OidcRevoke, document.RootElement
-            .GetProperty("revocation_endpoint").GetString());
+        var root = document.RootElement;
+        Assert.EndsWith(IdentityApiRoutes.OidcRevoke, root.GetProperty("revocation_endpoint").GetString());
+        var supportedClaims = root.GetProperty("claims_supported").EnumerateArray()
+            .Select(claim => claim.GetString())
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.Contains("email_verified", supportedClaims);
+        Assert.Contains("amr", supportedClaims);
+        Assert.Contains("auth_time", supportedClaims);
+    }
+
+    [Fact]
+    public async Task DiscoveryEndpoints_UseConfiguredIssuerInsteadOfRequestHost()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/.well-known/openid-configuration");
+        request.Headers.Host = "identity-ui-alias.example.test";
+
+        var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = document.RootElement;
+        var issuer = new Uri(root.GetProperty("issuer").GetString()!, UriKind.Absolute);
+
+        foreach (var endpointName in new[]
+                 {
+                     "authorization_endpoint",
+                     "token_endpoint",
+                     "jwks_uri",
+                     "revocation_endpoint"
+                 })
+        {
+            var endpoint = new Uri(root.GetProperty(endpointName).GetString()!, UriKind.Absolute);
+            Assert.Equal(issuer.Scheme, endpoint.Scheme);
+            Assert.Equal(issuer.Authority, endpoint.Authority);
+        }
     }
 
     [Fact]

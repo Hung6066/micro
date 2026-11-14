@@ -59,6 +59,16 @@ jobs:
           [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($encoded))
           "path=$path" >> $env:GITHUB_OUTPUT
 
+      - name: Validate production release contracts before bootstrap
+        if: ${{ inputs.environment == 'production' }}
+        shell: pwsh
+        run: |
+          ./scripts/validate-kustomize-release.ps1 -Environment prod
+          ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          python scripts/validate-production-ha-contract.py
+          python scripts/validate-production-data-plane-ha-contract.py
+          ./scripts/validate-signature-controller-contract.ps1
+
       - name: Verify and optionally bootstrap Argo CD
         shell: pwsh
         run: |

@@ -45,7 +45,7 @@ listener "tcp" {
 }
 
 seal "shamir" {
-  secret_shreshold = 3
+  secret_threshold = 3
   secret_shares    = 5
 }
 

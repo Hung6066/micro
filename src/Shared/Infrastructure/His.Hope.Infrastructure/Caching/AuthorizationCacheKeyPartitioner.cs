@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Infrastructure.Caching;
 
@@ -20,7 +21,7 @@ public sealed class AuthorizationCacheKeyPartitioner(IHttpContextAccessor httpCo
 
         var httpContext = httpContextAccessor.HttpContext;
         var principal = httpContext?.User;
-        var subject = principal?.FindFirst("sub")?.Value
+        var subject = principal?.FindFirst(HisHopeProtocolConstants.Claims.Subject)?.Value
             ?? principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? "anonymous";
         var token = principal?.FindFirst("jti")?.Value ?? "no-token";

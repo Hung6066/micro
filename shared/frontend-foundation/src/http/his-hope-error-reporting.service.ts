@@ -1,5 +1,4 @@
 import { Injectable, signal } from "@angular/core";
-import type { HisHopeProblemDetails } from "@his-hope/frontend-foundation/contracts";
 
 export type HisHopeErrorSeverity = "fatal" | "error" | "warning";
 

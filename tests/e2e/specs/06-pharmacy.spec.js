@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE_URL } = require('../config/urls');
 const { signInThroughIdentity } = require('../helpers/sso-login');
+const { ensureSidebarVisible } = require('../helpers/ensure-sidebar-visible');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
@@ -11,7 +12,8 @@ async function login(page) {
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
-  const link = page.locator('mat-nav-list a').filter({ hasText: label === 'Dược phẩm' ? /Dược phẩm|Pharmacy/i : label });
+  await ensureSidebarVisible(page);
+  const link = page.locator('nav[hhShellNavigation] a:visible, mat-nav-list a:visible').filter({ hasText: label === 'Dược phẩm' ? /Dược phẩm|Pharmacy/i : label });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
   await link.first().click();
   if (expectedPath) {
@@ -46,7 +48,7 @@ test.describe('Pharmacy Module', () => {
       test.skip(true, 'Protected pharmacy routes are unavailable in this environment.');
     }
 
-    await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 10000 });
+    await ensureSidebarVisible(page);
   });
 
   test('TC-PHR-01: Medications tab loads with list', async ({ page }) => {
@@ -68,11 +70,14 @@ test.describe('Pharmacy Module', () => {
   test('TC-PHR-03: Create medication form renders', async ({ page }) => {
     await navigateToSidebar(page, 'Dược phẩm', '/pharmacy');
 
-    const addBtn = page.locator('button:has-text("Thêm thuốc"), button:has-text("Add medication"), a[routerLink*="/pharmacy/medications/new"]').first();
+    const addBtn = page.locator(
+      'button:visible:has-text("Thêm thuốc"), button:visible:has-text("Add medication"), ' +
+      'a:visible[routerLink*="/pharmacy/medications/new"]'
+    ).first();
     await expect(addBtn).toBeVisible({ timeout: 10000 });
     await Promise.all([
       page.waitForURL(/\/pharmacy\/medications\/new/, { timeout: 15000 }),
-      addBtn.click({ force: true }),
+      addBtn.click(),
     ]);
 
     const fieldNames = ['name', 'genericName', 'dosageForm', 'strength', 'route'];
@@ -94,7 +99,9 @@ test.describe('Pharmacy Module', () => {
   test('TC-PHR-04: Submit empty medication shows validation', async ({ page }) => {
     await navigateToSidebar(page, 'Dược phẩm', '/pharmacy');
 
-    const addBtn = page.locator('button:has-text("Thêm thuốc"), a[routerLink*="/pharmacy/medications/new"]').first();
+    const addBtn = page.locator(
+      'button:visible:has-text("Thêm thuốc"), a:visible[routerLink*="/pharmacy/medications/new"]'
+    ).first();
     if (await addBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await addBtn.click();
       await page.waitForTimeout(1000);
@@ -117,7 +124,9 @@ test.describe('Pharmacy Module', () => {
   test('TC-PHR-05: Fill and save medication', async ({ page }) => {
     await navigateToSidebar(page, 'Dược phẩm', '/pharmacy');
 
-    const addBtn = page.locator('button:has-text("Thêm thuốc"), a[routerLink*="/pharmacy/medications/new"]').first();
+    const addBtn = page.locator(
+      'button:visible:has-text("Thêm thuốc"), a:visible[routerLink*="/pharmacy/medications/new"]'
+    ).first();
     if (await addBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await addBtn.click();
       await page.waitForTimeout(1000);

@@ -15,7 +15,18 @@ public static class JwtAuthenticationExtensions
         IConfiguration configuration)
     {
         var symmetricKey = configuration["Jwt:Key"];
-        var useOidc = string.IsNullOrWhiteSpace(symmetricKey);
+        var runtimeIssuer = Environment.GetEnvironmentVariable("OPENSHIP_OIDC_ISSUER");
+        var runtimeAudience = Environment.GetEnvironmentVariable("OPENSHIP_OIDC_AUDIENCE");
+        var runtimeIdentityEnabled = !string.IsNullOrWhiteSpace(runtimeIssuer) ||
+            !string.IsNullOrWhiteSpace(runtimeAudience);
+        if (runtimeIdentityEnabled &&
+            (string.IsNullOrWhiteSpace(runtimeIssuer) || string.IsNullOrWhiteSpace(runtimeAudience)))
+        {
+            throw new InvalidOperationException(
+                "OpenShip Runtime Identity requires both OPENSHIP_OIDC_ISSUER and OPENSHIP_OIDC_AUDIENCE.");
+        }
+
+        var useOidc = runtimeIdentityEnabled || string.IsNullOrWhiteSpace(symmetricKey);
 
         services.AddHttpClient("HisHopeJwtBackchannel", client =>
         {
@@ -34,11 +45,14 @@ public static class JwtAuthenticationExtensions
 
             if (useOidc)
             {
-                var authority = configuration["Jwt:Authority"]
+                var authority = runtimeIssuer ?? configuration["Jwt:Authority"]
                     ?? "http://identityservice:5001";
 
                 options.Authority = authority;
-                options.MetadataAddress = configuration["Jwt:MetadataAddress"]
+                options.RequireHttpsMetadata = runtimeIdentityEnabled || options.RequireHttpsMetadata;
+                options.MetadataAddress = runtimeIssuer is not null
+                    ? $"{runtimeIssuer.TrimEnd('/')}/.well-known/openid-configuration"
+                    : configuration["Jwt:MetadataAddress"]
                     ?? $"{authority.TrimEnd('/')}/.well-known/openid-configuration";
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -46,8 +60,8 @@ public static class JwtAuthenticationExtensions
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = configuration["Jwt:Issuer"] ?? "His.Hope.IdentityService",
-                    ValidAudience = configuration["Jwt:Audience"] ?? "His.Hope",
+                    ValidIssuer = runtimeIssuer ?? configuration["Jwt:Issuer"] ?? "His.Hope.IdentityService",
+                    ValidAudience = runtimeAudience ?? configuration["Jwt:Audience"] ?? "His.Hope",
                     ValidAlgorithms = new[] { SecurityAlgorithms.RsaSha256 },
                     ClockSkew = TimeSpan.FromMinutes(configuration.GetValue("Jwt:ClockSkewMinutes", 1)),
                 };
@@ -99,7 +113,7 @@ public static class JwtAuthenticationExtensions
                         .GetRequiredService<ILogger<JwtBearerHandler>>();
 
                     var jti = context.Principal?.FindFirst("jti")?.Value;
-                    var userId = context.Principal?.FindFirst("sub")?.Value;
+                    var userId = context.Principal?.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
 
                     if (!string.IsNullOrEmpty(jti))
                     {

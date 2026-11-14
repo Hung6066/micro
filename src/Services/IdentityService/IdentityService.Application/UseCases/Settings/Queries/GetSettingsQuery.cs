@@ -20,7 +20,8 @@ public class GetSettingsQueryHandler : IRequestHandler<GetSettingsQuery, List<Sy
     public async Task<List<SystemSettingDto>> Handle(GetSettingsQuery request,
         CancellationToken cancellationToken)
     {
-        var settings = await _context.SystemSettings
+        var settings = await _context.SystemSettings.AsNoTracking()
+            .TagWith("Identity.Settings.GetSettings")
             .Where(s => s.ScopeId == IdentityScope.Global || s.ScopeId == (request.ScopeId ?? IdentityScope.Global))
             .ToListAsync(cancellationToken);
 

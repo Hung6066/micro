@@ -6,6 +6,7 @@ using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Infrastructure.Observability;
 
@@ -47,7 +48,7 @@ public static class OpenTelemetryExtensions
                     {
                         activity.SetTag("http.method", request.Method);
                         activity.SetTag("http.url", request.Path);
-                        activity.SetTag("correlation.id", request.Headers["X-Correlation-Id"].FirstOrDefault() ?? "unknown");
+                        activity.SetTag("correlation.id", request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? "unknown");
                     };
                     options.EnrichWithHttpResponse = (activity, response) =>
                     {
@@ -81,6 +82,7 @@ public static class OpenTelemetryExtensions
             .WithMetrics(metrics => metrics
                 .AddMeter("His.Hope.Infrastructure.Caching")
                 .AddMeter("His.Hope.Outbox")
+                .AddMeter("His.Hope.AspNetCore.Tenancy")
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()

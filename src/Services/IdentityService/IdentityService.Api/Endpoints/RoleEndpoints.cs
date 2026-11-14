@@ -12,9 +12,11 @@ using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using His.Hope.Authorization;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.Contracts.Identity;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -33,6 +35,7 @@ public static class RoleEndpoints
             string? search = null,
             string? sort = null,
             IMediator mediator = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             QueryRequest normalized;
@@ -46,20 +49,39 @@ public static class RoleEndpoints
             catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
             if (normalized.Search?.Length > 100)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search must be 100 characters or fewer."] });
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             var roles = await mediator.Send(
-                new GetRolesQuery(normalized.Page, normalized.PageSize, normalized.Search, normalized.Sort), ct);
+                new GetRolesQuery(
+                    normalized.Page,
+                    normalized.PageSize,
+                    normalized.Search,
+                    normalized.Sort,
+                    tenantFilter.AllowedTenantKeys?.ToArray()), ct);
             return Results.Ok(roles);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         // GET /api/v1/auth/roles/{id} - Get role with permissions
         group.MapGet(IdentityApiRoutes.RolesSegment + "/{id:guid}", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            var role = await mediator.Send(new GetRoleByIdQuery(id), ct);
-            return role is null ? Results.NotFound() : Results.Ok(role);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            var role = Guard.Against.NotFound(
+                await mediator.Send(new GetRoleByIdQuery(id), ct), "Role", id);
+
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(db, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
+            return Results.Ok(role);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         // POST /api/v1/auth/roles - Create role
         group.MapPost(IdentityApiRoutes.RolesSegment, async (
@@ -68,8 +90,10 @@ public static class RoleEndpoints
             IAuditService audit = null!,
             HttpContext http = null!,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             CancellationToken ct = default) =>
         {
+            _ = IamTenantHttpContext.RequireFilter(http);
             try
             {
                 if (!IsKnownRoleOwner(request.Owner))
@@ -80,7 +104,7 @@ public static class RoleEndpoints
                     return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
                 var role = await mediator.Send(
                     new CreateRoleCommand(request.Name, request.Description, request.Permissions, request.Owner), ct);
-                await CaptureTemplateVersionAsync(db, role.Id, "published", http.User.FindFirst("sub")?.Value, ct);
+                await CaptureTemplateVersionAsync(db, role.Id, "published", http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value, ct);
                 await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_CREATE", "Role", role.Id.ToString(),
                     "Role created through admin control plane.", null, JsonSerializer.Serialize(new { request.Name, request.Description, request.Permissions }), ct);
                 await AdminAudit.LogAsync(audit, http, "CREATE", "Role", role.Id.ToString(), ct);
@@ -91,7 +115,8 @@ public static class RoleEndpoints
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RoleRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // PUT /api/v1/auth/roles/{id} - Update role
         group.MapPut(IdentityApiRoutes.RolesSegment + "/{id:guid}", async (
@@ -105,6 +130,10 @@ public static class RoleEndpoints
             ITokenBlacklistService tokenBlacklist = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(db, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
             try
             {
                 if (!IsKnownRoleOwner(request.Owner))
@@ -116,15 +145,11 @@ public static class RoleEndpoints
                 var role = await mediator.Send(
                     new UpdateRoleCommand(id, request.Name, request.Description, request.Permissions, request.ConcurrencyToken, request.Owner), ct);
                 await RevokeRoleUsersAsync(db, tokenBlacklist, id, ct);
-                await CaptureTemplateVersionAsync(auditDb, id, "published", http.User.FindFirst("sub")?.Value, ct);
+                await CaptureTemplateVersionAsync(auditDb, id, "published", http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value, ct);
                 await AdminAudit.LogAuthorizationChangeAsync(auditDb, http, "ROLE_UPDATE", "Role", id.ToString(),
                     "Role permissions or metadata changed through admin control plane.", null, JsonSerializer.Serialize(new { request.Name, request.Description, request.Permissions }), ct);
                 await AdminAudit.LogAsync(audit, http, "UPDATE", "Role", id.ToString(), ct);
                 return Results.Ok(role);
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
             }
             catch (InvalidOperationException ex)
             {
@@ -132,16 +157,23 @@ public static class RoleEndpoints
                     detail: ex.Message,
                     extensions: new Dictionary<string, object?> { ["errorCode"] = ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? ApiErrorCodes.ConcurrencyConflict : ApiErrorCodes.RoleRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // GET /api/v1/auth/roles/{id}/versions - immutable role template history
         group.MapGet(IdentityApiRoutes.RolesSegment + "/{id:guid}/versions", async (
             Guid id,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            var exists = await db.Roles.AsNoTracking().AnyAsync(role => role.Id == id, ct);
-            if (!exists) return Results.NotFound();
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
+            _ = Guard.Against.NotFound(
+                await db.Roles.AsNoTracking().FirstOrDefaultAsync(role => role.Id == id, ct), "Role", id);
             var versions = await db.RoleTemplateVersions.AsNoTracking()
                 .Where(version => version.RoleId == id)
                 .OrderByDescending(version => version.Version)
@@ -153,19 +185,27 @@ public static class RoleEndpoints
                     version.PublishedAt, version.PublishedBy))
                 .ToListAsync(ct);
             return Results.Ok(versions);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         // POST /api/v1/auth/roles/{id}/publish - explicit control-plane publish
         group.MapPost(IdentityApiRoutes.RolesSegment + "/{id:guid}/publish", async (
             Guid id,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            var role = await db.Roles.Include(item => item.RolePermissions)
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (role is null) return Results.NotFound();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
+            var role = Guard.Against.NotFound(
+                await db.Roles.Include(item => item.RolePermissions)
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "Role", id);
             if (role.IsSystem)
                 return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
             var governanceError = await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(
@@ -175,18 +215,49 @@ public static class RoleEndpoints
             if (string.Equals(role.LifecycleStatus, "retired", StringComparison.OrdinalIgnoreCase))
                 return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RetiredRoleCannotBePublished });
 
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "Role", id, "role.publish", AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("authorizationVersion", out var version) ||
+                    version.GetInt32() != role.AuthorizationVersion)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "Role", id, "role.publish",
+                    JsonSerializer.Serialize(new { authorizationVersion = role.AuthorizationVersion }),
+                    "Role template publish requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt
+                });
+            }
+
             var before = JsonSerializer.Serialize(new { role.LifecycleStatus, role.AuthorizationVersion });
             role.LifecycleStatus = "active";
             role.PublishedAt = DateTime.UtcNow;
-            role.PublishedBy = http.User.FindFirst("sub")?.Value ?? "system";
+            role.PublishedBy = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system";
             role.ConcurrencyStamp = Guid.NewGuid().ToString("N");
             await CaptureTemplateVersionAsync(db, role.Id, "published", role.PublishedBy, ct);
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_PUBLISH", "Role", id.ToString(),
                 "Role template published through admin control plane.", before,
                 JsonSerializer.Serialize(new { role.LifecycleStatus, role.AuthorizationVersion }), ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange, http, ct);
             await AdminAudit.LogAsync(audit, http, "PUBLISH", "Role", id.ToString(), ct);
             return Results.Ok(new { role.Id, role.AuthorizationVersion, role.LifecycleStatus, role.PublishedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // POST /api/v1/auth/roles/{id}/rollback - restore the previous published template
         group.MapPost(IdentityApiRoutes.RolesSegment + "/{id:guid}/rollback", async (
@@ -198,9 +269,14 @@ public static class RoleEndpoints
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            var role = await db.Roles.Include(item => item.RolePermissions)
-                .FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (role is null) return Results.NotFound();
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
+            var role = Guard.Against.NotFound(
+                await db.Roles.Include(item => item.RolePermissions)
+                    .FirstOrDefaultAsync(item => item.Id == id, ct), "Role", id);
             if (role.IsSystem)
                 return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
             var target = await db.RoleTemplateVersions.AsNoTracking()
@@ -218,6 +294,38 @@ public static class RoleEndpoints
                 .Where(permission => permissions.Contains(permission.Code))
                 .Select(permission => permission.Code)
                 .ToArrayAsync(ct);
+
+            var changeRequestValue = http.Request.Query["changeRequestId"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(changeRequestValue) && !Guid.TryParse(changeRequestValue, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+            AuthorizationChangeRequest? approvedChange = null;
+            if (Guid.TryParse(changeRequestValue, out changeRequestId))
+            {
+                approvedChange = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                    db, changeRequestId, "Role", id, "role.rollback", AuthorizationChangeRequestWorkflow.Actor(http), ct);
+                if (approvedChange is null)
+                    return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+                using var snapshot = JsonDocument.Parse(approvedChange.PayloadJson);
+                if (!snapshot.RootElement.TryGetProperty("currentVersion", out var currentVersion) ||
+                    !snapshot.RootElement.TryGetProperty("targetVersion", out var targetVersion) ||
+                    currentVersion.GetInt32() != role.AuthorizationVersion || targetVersion.GetInt32() != target.Version)
+                    return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            }
+            else
+            {
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    db, http, "Role", id, "role.rollback",
+                    JsonSerializer.Serialize(new { currentVersion = role.AuthorizationVersion, targetVersion = target.Version }),
+                    $"Role template rollback to version {target.Version} requires independent approval.", ct);
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt,
+                    targetVersion = target.Version
+                });
+            }
+
             var before = JsonSerializer.Serialize(new { role.Name, role.AuthorizationVersion, permissions = role.RolePermissions.Select(link => link.PermissionCode) });
             db.RolePermissions.RemoveRange(role.RolePermissions);
             foreach (var permissionCode in validPermissions)
@@ -231,7 +339,7 @@ public static class RoleEndpoints
             role.AuthorizationVersion++;
             role.LifecycleStatus = "active";
             role.PublishedAt = DateTime.UtcNow;
-            role.PublishedBy = http.User.FindFirst("sub")?.Value ?? "system";
+            role.PublishedBy = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "system";
             role.ConcurrencyStamp = Guid.NewGuid().ToString("N");
             await db.SaveChangesAsync(ct);
             await RevokeRoleUsersAsync(identityDb, tokenBlacklist, id, ct);
@@ -239,9 +347,11 @@ public static class RoleEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_ROLLBACK", "Role", id.ToString(),
                 $"Role template rolled back to version {target.Version}.", before,
                 JsonSerializer.Serialize(new { role.Name, role.AuthorizationVersion, permissions = validPermissions }), ct);
+            await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(db, approvedChange, http, ct);
             await AdminAudit.LogAsync(audit, http, "ROLLBACK", "Role", id.ToString(), ct);
             return Results.Ok(new { role.Id, role.AuthorizationVersion, role.LifecycleStatus, restoredFromVersion = target.Version });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // DELETE /api/v1/auth/roles/{id} - Delete role (only if no users assigned)
         group.MapDelete(IdentityApiRoutes.RolesSegment + "/{id:guid}", async (
@@ -250,12 +360,17 @@ public static class RoleEndpoints
             IAuditService audit = null!,
             HttpContext http = null!,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
             try
             {
-                var existingRole = await db.Roles.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
-                if (existingRole is null) return Results.NotFound();
+                var existingRole = Guard.Against.NotFound(
+                    await db.Roles.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct), "Role", id);
                 if (existingRole.IsSystem)
                     return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
                 await mediator.Send(new DeleteRoleCommand(id), ct);
@@ -264,16 +379,13 @@ public static class RoleEndpoints
                 await AdminAudit.LogAsync(audit, http, "DELETE", "Role", id.ToString(), ct);
                 return Results.NoContent();
             }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
             catch (InvalidOperationException ex)
             {
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RoleRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // GET /api/v1/auth/permissions - List all permissions
         group.MapGet(IdentityApiRoutes.PermissionsSegment, async (

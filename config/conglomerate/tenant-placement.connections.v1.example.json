@@ -1,0 +1,5 @@
+{
+  "ManufacturingDb_customer_enterprise_y": "Host=localhost;Port=5432;Database=manufacturingdb_customer_enterprise_y;Username=postgres;Password=postgres",
+  "CommerceDb_customer_enterprise_y": "Host=localhost;Port=5432;Database=commercedb_customer_enterprise_y;Username=postgres;Password=postgres",
+  "ContentDb_customer_enterprise_y": "Host=localhost;Port=5432;Database=contentdb_customer_enterprise_y;Username=postgres;Password=postgres"
+}

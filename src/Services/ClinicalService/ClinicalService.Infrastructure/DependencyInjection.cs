@@ -3,6 +3,7 @@ using His.Hope.ClinicalService.Domain.Events;
 using His.Hope.ClinicalService.Infrastructure.Persistence;
 using His.Hope.ClinicalService.Infrastructure.Persistence.Repositories;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Infrastructure.Events;
 using His.Hope.IntegrationEvents.Clinical;
 using His.Hope.SharedKernel.Domain.Common;
@@ -19,6 +20,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SoftDeleteInterceptor>();
         services.AddDbContext<ClinicalDbContext>((serviceProvider, options) =>
             options.UseHisHopeNpgsql(
                 serviceProvider,
@@ -30,7 +33,7 @@ public static class DependencyInjection
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 })
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(new OutboxDomainEventInterceptor()));
+            .AddInterceptors(new OutboxDomainEventInterceptor(), serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
 
         services.AddScoped<IEncounterRepository, EncounterRepository>();
         services.AddScoped<DomainEventDispatcher>();

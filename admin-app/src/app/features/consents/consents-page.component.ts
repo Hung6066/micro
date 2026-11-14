@@ -7,7 +7,6 @@ import {
   effect,
   inject,
 } from "@angular/core";
-import { CommonModule } from "@angular/common";
 import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
@@ -23,6 +22,7 @@ import {
 import { AdminPageQuery, Consent } from "../../core/contracts/admin.contracts";
 import { ConsentsApiService } from "../../core/services/consents-api.service";
 import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -75,6 +75,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class ConsentsPageComponent implements OnInit {
   private readonly api = inject(ConsentsApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   consents: Consent[] = [];
@@ -146,6 +147,7 @@ export class ConsentsPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.loadConsents();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadConsents());
   }
   loadConsents(query = this.query): void {
     this.table.load(query);

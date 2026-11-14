@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 
 const { dashboardUrl: BASE } = require('../config/urls');
 const { signInThroughIdentity } = require('../helpers/sso-login');
+const { ensureSidebarVisible } = require('../helpers/ensure-sidebar-visible');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 const DASHBOARD_RE = /\/(?:en\/)?resources(?:\?|$)/;
@@ -28,7 +29,7 @@ test.describe('Dashboard Page', () => {
     if (await mobileMenu.isVisible().catch(() => false)) {
       await mobileMenu.click();
     }
-    await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 10000 });
+    await ensureSidebarVisible(page);
   });
 
   test('TC-DASH-01: Dashboard page loads and renders correctly', async ({ page }) => {
@@ -46,7 +47,7 @@ test.describe('Dashboard Page', () => {
     await expect(header.first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('TC-DASH-02: Dashboard displays widget cards', async ({ page }) => {
+  test('TC-DASH-02: Metrics route displays the system resource view', async ({ page }) => {
     // Playwright's project baseURL points at the clinical SPA for legacy
     // specs; dashboard tests must navigate through the dashboard origin.
     await page.goto(`${BASE}/metrics`);
@@ -64,12 +65,8 @@ test.describe('Dashboard Page', () => {
       test.skip(true, 'Metrics route is unavailable for the authenticated dashboard principal.');
     }
     await page.waitForURL(/\/(?:en\/)?metrics(?:\?|$)/, { timeout: 10000 });
-    await expect(page.locator('app-metrics-overview')).toBeVisible({ timeout: 10000 });
-    // Metric cards are shared-foundation components, not raw Material cards.
-    const cards = page.locator('hh-metric-card');
-    await expect(cards.first()).toBeVisible({ timeout: 10000 });
-    const count = await cards.count();
-    expect(count).toBeGreaterThanOrEqual(1);
+    await expect(page.getByRole('heading', { name: /system resources|tài nguyên hệ thống/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /health timeline|dòng thời gian sức khỏe/i })).toBeVisible({ timeout: 10000 });
 
     await page.screenshot({ path: 'screenshots/tc-dash-02-widget-cards.png', fullPage: true });
   });

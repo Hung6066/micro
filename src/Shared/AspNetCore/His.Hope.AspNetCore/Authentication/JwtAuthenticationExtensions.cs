@@ -20,6 +20,8 @@ public sealed class JwtAuthenticationOptions
     public string? Issuer { get; set; }
     public string[] ValidIssuers { get; set; } = [];
     public string? Audience { get; set; }
+    public string[] AdditionalAudiences { get; set; } = [];
+    public bool RuntimeIdentityEnabled { get; set; }
     public bool AllowHttp { get; set; }
     public int BackchannelTimeoutSeconds { get; set; } = 10;
     public int ClockSkewMinutes { get; set; } = 1;
@@ -32,17 +34,36 @@ public static class JwtAuthenticationExtensions
         IConfiguration configuration,
         Action<JwtAuthenticationOptions>? configure = null)
     {
+        var runtimeIssuer = Environment.GetEnvironmentVariable("OPENSHIP_OIDC_ISSUER");
+        var runtimeAudience = Environment.GetEnvironmentVariable("OPENSHIP_OIDC_AUDIENCE");
+        var runtimeIdentityEnabled = !string.IsNullOrWhiteSpace(runtimeIssuer) ||
+            !string.IsNullOrWhiteSpace(runtimeAudience);
+        if (runtimeIdentityEnabled &&
+            (string.IsNullOrWhiteSpace(runtimeIssuer) || string.IsNullOrWhiteSpace(runtimeAudience)))
+        {
+            throw new InvalidOperationException(
+                "OpenShip Runtime Identity requires both OPENSHIP_OIDC_ISSUER and OPENSHIP_OIDC_AUDIENCE.");
+        }
+
         var options = new JwtAuthenticationOptions
         {
             Key = configuration["Jwt:Key"],
-            Authority = configuration["Jwt:Authority"],
-            MetadataAddress = configuration["Jwt:MetadataAddress"],
+            Authority = runtimeIssuer ?? configuration["Jwt:Authority"],
+            MetadataAddress = runtimeIssuer is not null
+                ? $"{runtimeIssuer.TrimEnd('/')}/.well-known/openid-configuration"
+                : configuration["Jwt:MetadataAddress"],
             PublicKeyPath = configuration["Jwt:RsaPublicKeyPath"],
             EncryptionPrivateKey = configuration["Jwt:RsaEncryptionPrivateKey"],
             EncryptionPrivateKeyPath = configuration["Jwt:RsaEncryptionPrivateKeyPath"],
-            Issuer = configuration["Jwt:Issuer"],
-            ValidIssuers = configuration.GetSection("Jwt:ValidIssuers").Get<string[]>() ?? [],
-            Audience = configuration["Jwt:Audience"],
+            Issuer = runtimeIssuer ?? configuration["Jwt:Issuer"],
+            ValidIssuers = runtimeIssuer is not null
+                ? [runtimeIssuer]
+                : configuration.GetSection("Jwt:ValidIssuers").Get<string[]>() ?? [],
+            Audience = runtimeAudience ?? configuration["Jwt:Audience"],
+            AdditionalAudiences = runtimeIdentityEnabled
+                ? []
+                : configuration.GetSection("Jwt:AdditionalAudiences").Get<string[]>() ?? [],
+            RuntimeIdentityEnabled = runtimeIdentityEnabled,
             AllowHttp = configuration.GetValue("Jwt:AllowHttp", false),
             BackchannelTimeoutSeconds = configuration.GetValue("Jwt:BackchannelTimeoutSeconds", 10),
             ClockSkewMinutes = configuration.GetValue("Jwt:ClockSkewMinutes", 1)
@@ -51,7 +72,8 @@ public static class JwtAuthenticationExtensions
 
         // Configuration templates intentionally contain ${...} markers. They
         // must never activate the legacy HMAC branch in production.
-        var useOidc = string.IsNullOrWhiteSpace(options.Key)
+        var useOidc = options.RuntimeIdentityEnabled
+            || string.IsNullOrWhiteSpace(options.Key)
             || options.Key.Contains("${", StringComparison.Ordinal)
             || !string.IsNullOrWhiteSpace(options.PublicKeyPath)
             || !string.IsNullOrWhiteSpace(options.EncryptionPrivateKeyPath);
@@ -76,6 +98,10 @@ public static class JwtAuthenticationExtensions
         JwtAuthenticationOptions settings,
         bool useOidc)
     {
+        // Preserve OIDC claim names (amr, auth_time, permissions, tenant_id)
+        // so assurance and tenant policies evaluate the canonical contract.
+        // Subject normalization below adds the framework aliases explicitly.
+        jwt.MapInboundClaims = false;
         jwt.RequireHttpsMetadata = !settings.AllowHttp;
         jwt.TokenValidationParameters = useOidc
             ? CreateOidcValidationParameters(settings)
@@ -140,15 +166,9 @@ public static class JwtAuthenticationExtensions
             ValidIssuers = settings.ValidIssuers is { Length: > 0 }
                 ? settings.ValidIssuers
                 : null,
-            ValidAudiences =
-            [
-                settings.Audience ?? "His.Hope",
-                "his-hope-services",
-                // IdentityService issues human session/access tokens with
-                // the canonical product audience even when a local Compose
-                // host audience is configured for browser routing.
-                "His.Hope"
-            ],
+            ValidAudiences = BuildValidAudiences(settings),
+            RoleClaimType = "role",
+            NameClaimType = "sub",
             // The session token is a nested JWT: RSA-SHA256 signs the inner JWS,
             // while RSA-OAEP/RSA-OAEP-256 wraps the JWE content-encryption key.
             // Include both key-wrapping variants and the content algorithm so
@@ -296,8 +316,32 @@ public static class JwtAuthenticationExtensions
             ValidateIssuerSigningKey = true,
             ValidIssuer = settings.Issuer,
             ValidAudience = settings.Audience,
+            RoleClaimType = "role",
+            NameClaimType = "sub",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Key!)),
             ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             ClockSkew = TimeSpan.FromMinutes(Math.Max(0, settings.ClockSkewMinutes))
         };
+
+    private static string[] BuildValidAudiences(JwtAuthenticationOptions settings)
+    {
+        if (settings.RuntimeIdentityEnabled)
+            return string.IsNullOrWhiteSpace(settings.Audience) ? [] : [settings.Audience];
+
+        var audiences = new HashSet<string>(StringComparer.Ordinal)
+        {
+            settings.Audience ?? "His.Hope",
+            "his-hope-services",
+            "His.Hope",
+            "commerce-api",
+        };
+
+        foreach (var audience in settings.AdditionalAudiences)
+        {
+            if (!string.IsNullOrWhiteSpace(audience))
+                audiences.Add(audience.Trim());
+        }
+
+        return audiences.ToArray();
+    }
 }

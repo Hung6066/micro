@@ -2,6 +2,7 @@ using His.Hope.AppointmentService.Domain.Repositories;
 using His.Hope.AppointmentService.Infrastructure.Persistence;
 using His.Hope.AppointmentService.Infrastructure.Persistence.Repositories;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Infrastructure.Events;
 using His.Hope.IntegrationEvents.Appointment;
 using His.Hope.AppointmentService.Domain.Events;
@@ -19,6 +20,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddHttpContextAccessor();
+        services.AddSingleton<SoftDeleteInterceptor>();
         services.AddDbContext<AppointmentDbContext>((serviceProvider, options) =>
             options.UseHisHopeNpgsql(
                 serviceProvider,
@@ -30,7 +33,7 @@ public static class DependencyInjection
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 })
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(new OutboxDomainEventInterceptor()));
+            .AddInterceptors(new OutboxDomainEventInterceptor(), serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
 
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<DomainEventDispatcher>();

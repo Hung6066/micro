@@ -203,6 +203,11 @@ async function openMfaPage(page, { nativePrimary = false } = {}) {
               <input id="totp-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">
               <button type="submit">Verify with TOTP</button>
             </form>
+            <form id="recovery-code-form" method="post" action="/Account/Mfa" hidden>
+              <label for="recovery-code">Recovery code</label>
+              <input id="recovery-code" name="recoveryCode" autocomplete="off">
+              <button type="submit">Verify with recovery code</button>
+            </form>
           </section>
         </section>
         </main>

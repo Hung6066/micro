@@ -24,6 +24,6 @@ public interface IDurableJobStore
     ValueTask<bool> EnqueueAsync(DurableJob job, CancellationToken cancellationToken = default);
     ValueTask<DurableJob?> TryClaimAsync(string workerId, DateTimeOffset now, CancellationToken cancellationToken = default);
     ValueTask CompleteAsync(Guid jobId, CancellationToken cancellationToken = default);
-    ValueTask RetryAsync(Guid jobId, string error, DateTimeOffset nextAttemptAt, int maxAttempts, CancellationToken cancellationToken = default);
+    ValueTask RetryAsync(Guid jobId, string errorMessage, DateTimeOffset nextAttemptAt, int maxAttempts, CancellationToken cancellationToken = default);
     ValueTask<DurableJob?> GetAsync(Guid jobId, CancellationToken cancellationToken = default);
 }

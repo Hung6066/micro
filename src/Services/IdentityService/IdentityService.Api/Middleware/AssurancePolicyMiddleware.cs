@@ -1,6 +1,7 @@
 using His.Hope.IdentityService.Application.Assurance;
+using His.Hope.AspNetCore.ProblemDetails;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Mvc;
 
 namespace His.Hope.IdentityService.Api.Middleware;
 
@@ -13,9 +14,9 @@ public sealed class AssurancePolicyMiddleware(RequestDelegate next, IHostEnviron
 
     public async Task InvokeAsync(HttpContext context, AssurancePolicyService assurancePolicy)
     {
-        // Contract tests use password-only sessions. Production and staging
-        // always enforce the configured assurance policy; the Testing host
-        // has dedicated evaluator tests for the policy itself.
+        // Integration tests exercise endpoint contracts with a password-only
+        // session. Production and staging always enforce the configured
+        // assurance policy; the Testing host has dedicated evaluator tests.
         if (environment.IsEnvironment("Testing"))
         {
             await next(context);
@@ -42,13 +43,26 @@ public sealed class AssurancePolicyMiddleware(RequestDelegate next, IHostEnviron
         if (!evaluation.Allowed)
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsJsonAsync(new
+            var problem = new ProblemDetails
             {
-                errorCode = "assurance_policy_denied",
-                journey = evaluation.JourneyId,
-                requiredAssurance = evaluation.RequiredAssurance,
-                reason = evaluation.Reason
-            });
+                Type = "https://his-hope.com/errors/assurance_policy_denied",
+                Title = "Additional authentication required",
+                Status = StatusCodes.Status403Forbidden,
+                Detail = evaluation.Reason,
+                Instance = context.Request.Path,
+                Extensions =
+                {
+                    ["errorCode"] = "assurance_policy_denied",
+                    ["journey"] = evaluation.JourneyId,
+                    ["requiredAssurance"] = evaluation.RequiredAssurance,
+                    ["reason"] = evaluation.Reason,
+                    ["correlationId"] = HisHopeCorrelation.GetId(context),
+                    ["traceId"] = context.TraceIdentifier
+                }
+            };
+            await context.Response.WriteAsJsonAsync(
+                problem, options: null, contentType: "application/problem+json",
+                cancellationToken: context.RequestAborted);
             return;
         }
 

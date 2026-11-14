@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Authorization;
 
@@ -12,7 +13,7 @@ internal static class AuthorizationConstraintEvaluator
 {
     public static string? Evaluate(ClaimsPrincipal principal, AuthorizationResource resource)
     {
-        foreach (var claim in principal.FindAll("authorization_constraints"))
+        foreach (var claim in principal.FindAll(HisHopeProtocolConstants.Claims.AuthorizationConstraints))
         {
             try
             {
@@ -21,11 +22,11 @@ internal static class AuthorizationConstraintEvaluator
                     return "resource_constraint_invalid";
 
                 var root = document.RootElement;
-                if (root.TryGetProperty("tenant", out var tenant) && tenant.ValueKind == JsonValueKind.String)
+                if (root.TryGetProperty(HisHopeProtocolConstants.Claims.Tenant, out var tenant) && tenant.ValueKind == JsonValueKind.String)
                 {
                     var expectedTenant = tenant.GetString();
-                    var actualTenant = principal.FindFirst("tenant_id")?.Value
-                        ?? principal.FindFirst("tenant")?.Value
+                    var actualTenant = principal.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.Tenant)?.Value
                         ?? resource.TenantId;
                     if (string.IsNullOrWhiteSpace(expectedTenant) ||
                         !string.Equals(expectedTenant, actualTenant, StringComparison.OrdinalIgnoreCase))

@@ -1077,10 +1077,10 @@ export class HisHopeDataTableCellDirective {
                   rowClickable() || !!detailTemplate()
                 "
                 [attr.tabindex]="
-                  rowClickable() || !!detailTemplate() ? 0 : null
+                  (rowClickable() || !!detailTemplate()) && !selection() && !inlineEdit() ? 0 : null
                 "
                 [attr.role]="
-                  rowClickable() || !!detailTemplate() ? 'button' : null
+                  (rowClickable() || !!detailTemplate()) && !selection() && !inlineEdit() ? 'button' : null
                 "
                 [attr.aria-expanded]="detailTemplate() ? isExpanded(row) : null"
                 (click)="onMobileRowClick(row)"

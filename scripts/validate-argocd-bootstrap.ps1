@@ -62,6 +62,13 @@ elseif ($production[0] -match '(?m)^\s*automated:\s*$') {
     }
 } else { Add-Check 'production-branch-auto-sync' 'pass' 'Production Application is not automated; manual sync remains fail-closed.' }
 
+$productionHa = @($text -split '(?m)^---\s*$' | Where-Object { $_ -match '(?m)^\s*name:\s*his-hope-production-ha\s*$' } | Select-Object -First 1)
+if ($productionHa.Count -gt 0 -and $productionHa[0] -match '(?m)^\s*path:\s*k8s/overlays/prod-spire-azure-shared-storage\s*$') {
+    Add-Check 'production-ha-shared-storage' 'pass' 'Production HA Application uses the replicated shared-storage data-plane overlay.'
+} else {
+    Add-Check 'production-ha-shared-storage' 'fail' 'Production HA Application must use prod-spire-azure-shared-storage, not the local-path overlay.'
+}
+
 $failed = @($checks | Where-Object status -eq 'fail')
 $status = if ($failed.Count -gt 0) { 'fail' } else { 'pass' }
 $result = [pscustomobject]@{status=$status; checks=@($checks); generatedAtUtc=[DateTime]::UtcNow.ToString('o')}

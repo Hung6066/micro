@@ -1,0 +1,2 @@
+docker/vault/*.sh text eol=lf
+docker/openfga/*.sh text eol=lf

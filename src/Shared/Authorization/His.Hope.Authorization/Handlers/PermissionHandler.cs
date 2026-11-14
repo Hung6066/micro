@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using His.Hope.Authorization.Requirements;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Authorization.Handlers;
 
@@ -17,7 +18,7 @@ public sealed class PermissionHandler(
             return;
         }
 
-        var permissions = context.User.FindAll("permissions")
+        var permissions = context.User.FindAll(HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(c => c.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (permissions.Count > 0)
@@ -54,9 +55,9 @@ public sealed class PermissionHandler(
             allowed
                 ? AuthorizationDecision.Allow(requirement.PermissionCode)
                 : AuthorizationDecision.Deny(requirement.PermissionCode, reasonCode),
-            context.User.FindFirst("sub")?.Value,
-            context.User.FindFirst("tenant")?.Value,
-            context.User.FindFirst("facility_id")?.Value,
+            context.User.FindFirst(HisHopeProtocolConstants.Claims.Subject)?.Value,
+            context.User.FindFirst(HisHopeProtocolConstants.Claims.Tenant)?.Value,
+            context.User.FindFirst(HisHopeProtocolConstants.Claims.FacilityId)?.Value,
             null));
     }
 }

@@ -6,6 +6,7 @@ using System.Text.Json;
 using His.Hope.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
@@ -15,24 +16,37 @@ namespace His.Hope.IdentityService.Infrastructure.Services;
 /// </summary>
 public sealed class SiemWormAuditForwarder
 {
+    private static readonly string[] SafePropertyNames =
+    [
+        "resourceId",
+        "correlationId",
+        "tenantId",
+        "httpMethod",
+        "path"
+    ];
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<SiemWormAuditForwarder> _logger;
-    private readonly ConcurrentQueue<object> _deadLetter = new();
+    private readonly IConnectionMultiplexer? _redis;
+    private readonly ConcurrentQueue<AuditForwarderDeadLetter> _deadLetter = new();
+    private static readonly TimeSpan DeadLetterRetention = TimeSpan.FromDays(30);
     private int _consecutiveFailures;
 
-    public IReadOnlyCollection<object> DeadLetter => _deadLetter.ToArray();
+    public IReadOnlyCollection<AuditForwarderDeadLetter> DeadLetter => _deadLetter.ToArray();
 
     public int ConsecutiveDeliveryFailures => Volatile.Read(ref _consecutiveFailures);
 
     public SiemWormAuditForwarder(
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
-        ILogger<SiemWormAuditForwarder> logger)
+        ILogger<SiemWormAuditForwarder> logger,
+        IConnectionMultiplexer? redis = null)
     {
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _logger = logger;
+        _redis = redis;
     }
 
     public async ValueTask ForwardAsync(AuditRecord auditRecord, CancellationToken cancellationToken = default)
@@ -48,21 +62,22 @@ public sealed class SiemWormAuditForwarder
             auditRecord.Resource,
             auditRecord.SubjectId,
             auditRecord.OccurredAt,
-            auditRecord.Properties,
+            Properties = SelectSafeProperties(auditRecord.Properties),
             previousHash = _previousHash,
             chainHash = ComputeChainHash(auditRecord)
         };
+        var envelopeJson = JsonSerializer.Serialize(envelope);
         _previousHash = envelope.chainHash;
 
         var delivered = true;
         if (!string.IsNullOrWhiteSpace(siemUrl))
-            delivered &= await TryDeliverAsync(client => client.PostAsJsonAsync(siemUrl, envelope, cancellationToken), "SIEM", cancellationToken);
+            delivered &= await TryDeliverAsync(client => client.PostAsJsonAsync(siemUrl, envelope, cancellationToken), "SIEM", envelopeJson, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(wormEndpoint))
         {
             var bucket = _configuration["AUDIT_WORM_BUCKET"] ?? "his-hope-audit";
             var wormUrl = wormEndpoint.TrimEnd('/') + $"/{bucket}/{auditRecord.OccurredAt:yyyy/MM/dd}/{Guid.NewGuid():N}.json";
-            delivered &= await TryDeliverAsync(client => client.PutAsJsonAsync(wormUrl, envelope, cancellationToken), "WORM", cancellationToken);
+            delivered &= await TryDeliverAsync(client => client.PutAsJsonAsync(wormUrl, envelope, cancellationToken), "WORM", envelopeJson, cancellationToken);
         }
 
         if (delivered)
@@ -74,6 +89,7 @@ public sealed class SiemWormAuditForwarder
     private async Task<bool> TryDeliverAsync(
         Func<HttpClient, Task<HttpResponseMessage>> send,
         string sinkName,
+        string envelopeJson,
         CancellationToken cancellationToken)
     {
         var client = _httpClientFactory.CreateClient(nameof(SiemWormAuditForwarder));
@@ -91,8 +107,51 @@ public sealed class SiemWormAuditForwarder
             _logger.LogWarning(ex, "{Sink} audit delivery failed.", sinkName);
         }
 
-        _deadLetter.Enqueue(new { sink = sinkName, failedAtUtc = DateTimeOffset.UtcNow });
+        var failedAtUtc = DateTimeOffset.UtcNow;
+        _deadLetter.Enqueue(new AuditForwarderDeadLetter(sinkName, failedAtUtc, envelopeJson));
+        await PersistDeadLetterAsync(sinkName, failedAtUtc, envelopeJson);
         return false;
+    }
+
+    private async Task PersistDeadLetterAsync(string sinkName, DateTimeOffset failedAtUtc, string envelopeJson)
+    {
+        if (_redis is null)
+            return;
+
+        try
+        {
+            var key = $"his_hope:audit_forwarder_dlq:{failedAtUtc:yyyy-MM-dd}";
+            var payload = JsonSerializer.Serialize(new
+            {
+                sink = sinkName,
+                failedAtUtc,
+                envelope = JsonSerializer.Deserialize<JsonElement>(envelopeJson)
+            });
+            var database = _redis.GetDatabase();
+            await database.ListRightPushAsync(key, payload);
+            await database.KeyExpireAsync(key, DeadLetterRetention);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist {Sink} audit delivery failure to Redis DLQ", sinkName);
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string> SelectSafeProperties(
+        IReadOnlyDictionary<string, object?> properties)
+    {
+        var selected = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var propertyName in SafePropertyNames)
+        {
+            if (!properties.TryGetValue(propertyName, out var value) || value is null)
+                continue;
+
+            var text = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture);
+            if (!string.IsNullOrWhiteSpace(text))
+                selected[propertyName] = text.Length <= 256 ? text : text[..256];
+        }
+
+        return selected;
     }
 
     private string? _previousHash;
@@ -111,6 +170,11 @@ public sealed class SiemWormAuditForwarder
         return Convert.ToHexString(digest).ToLowerInvariant();
     }
 }
+
+public sealed record AuditForwarderDeadLetter(
+    string Sink,
+    DateTimeOffset FailedAtUtc,
+    string EnvelopeJson);
 
 /// <summary>Durable audit sink that persists locally and forwards to SIEM/WORM when configured.</summary>
 public sealed class IdentityDurableAuditSink : IDurableAuditSink

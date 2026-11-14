@@ -49,6 +49,25 @@ public sealed class FixDiscoveryBaseUriHandlerTests
     }
 
     [Fact]
+    public async Task Configured_issuer_overrides_internal_gateway_forwarded_origin()
+    {
+        var handler = new FixDiscoveryBaseUriHandler(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OpenIddict:Issuer"] = "https://issuer.example.test"
+            }).Build());
+        var request = new DefaultHttpContext().Request;
+        request.Scheme = "https";
+        request.Headers["X-Forwarded-Host"] = "gateway.example.test";
+        request.Headers["X-Forwarded-Proto"] = "http";
+        var context = new OpenIddictServerEvents.HandleConfigurationRequestContext(TransactionWithRequest(request));
+
+        await handler.HandleAsync(context);
+
+        context.BaseUri.Should().Be(new Uri("https://issuer.example.test"));
+    }
+
+    [Fact]
     public async Task Issuer_is_used_when_forwarded_host_is_missing()
     {
         var handler = new FixDiscoveryBaseUriHandler(new ConfigurationBuilder()

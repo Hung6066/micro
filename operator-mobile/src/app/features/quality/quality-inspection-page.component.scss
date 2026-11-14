@@ -1,0 +1,5 @@
+.eyebrow { margin: 0; color: var(--text-secondary); font-size: var(--font-size-overline, .7rem); font-weight: 800; letter-spacing: .12em; }
+h2 { margin: 0; font-size: var(--font-size-headline, 1.9rem); }
+.quality-page > p { margin: 0; color: var(--text-secondary); line-height: 1.5; overflow-wrap: anywhere; }
+.load-error { margin: 0; padding: .7rem .8rem; border: 1px solid var(--color-danger, #b42318); border-radius: .7rem; background: var(--surface-danger, #fff1f0); color: var(--color-danger, #b42318); font-weight: 700; }
+.hh-mobile-field-card > p[role="status"] { margin: 0; color: var(--text-secondary); line-height: 1.45; }

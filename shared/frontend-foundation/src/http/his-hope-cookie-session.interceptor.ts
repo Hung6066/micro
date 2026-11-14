@@ -8,6 +8,9 @@ export const hisHopeCookieSessionInterceptor: HttpInterceptorFn = (req, next) =>
   if (
     MUTATING_METHODS.has(req.method) &&
     req.url.includes('/api/') &&
+    // Session exchange is the bootstrap mutation that establishes the CSRF
+    // cookie; all later state-changing API calls still require the token.
+    !req.url.includes('/auth/session/exchange') &&
     !readCookie('hishop_csrf')
   ) {
     return throwError(
