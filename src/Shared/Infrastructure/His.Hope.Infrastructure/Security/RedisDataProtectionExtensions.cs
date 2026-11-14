@@ -24,6 +24,12 @@ public static class RedisDataProtectionExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
         ArgumentException.ThrowIfNullOrWhiteSpace(redisKeyName);
 
+        // Database-migration Jobs exit before serving requests and never use the
+        // application Data Protection provider. Avoid requiring runtime-only
+        // PFX/Redis configuration in this isolated startup mode.
+        if (configuration.GetValue<bool>("Persistence:MigrationOnly"))
+            return services;
+
         var isDevelopment = environment.IsDevelopment();
         var certificatePath = configuration["DataProtection:CertificatePath"];
         X509Certificate2? certificate = null;

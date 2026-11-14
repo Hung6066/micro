@@ -81,6 +81,27 @@ public sealed class RedisDataProtectionExtensionsTests(RedisTestFixture fixture)
     }
 
     [Fact]
+    public void ProductionMigrationOnlyStartupDoesNotRequireRuntimeDataProtection()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Persistence:MigrationOnly"] = "true"
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddHisHopeRedisDataProtection(
+            configuration,
+            CreateEnvironment(Environments.Production),
+            "His.Hope.ContentService",
+            "HisHope:ContentService:DataProtection:Keys");
+
+        Assert.DoesNotContain(services, descriptor =>
+            descriptor.ServiceType == typeof(Microsoft.AspNetCore.DataProtection.IDataProtectionProvider));
+    }
+
+    [Fact]
     public void ProductionStartupRejectsAnInvalidPfxWithoutLeakingItsPassword()
     {
         const string password = "never-include-this-in-errors";
