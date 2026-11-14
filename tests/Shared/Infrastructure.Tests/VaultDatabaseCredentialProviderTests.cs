@@ -12,6 +12,29 @@ namespace His.Hope.Infrastructure.Tests;
 public sealed class VaultDatabaseCredentialProviderTests
 {
     [Fact]
+    public void Uses_OpenShip_managed_connection_in_production_when_Vault_database_credentials_are_disabled()
+    {
+        const string configured = "Host=postgres;Database=commercedb;Username=openship-bound;Password=managed;SslMode=VerifyFull";
+        var tokens = new Mock<IVaultTokenProvider>();
+        tokens.Setup(x => x.GetTokenAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Vault should not be called when database credential leasing is disabled."));
+        var factory = new Mock<IHttpClientFactory>();
+        var environment = new Mock<IHostEnvironment>();
+        environment.SetupGet(x => x.EnvironmentName).Returns("Production");
+        var resolver = new VaultDatabaseConnectionStringResolver(
+            factory.Object,
+            Monitor(new VaultOptions()),
+            Monitor(new VaultDatabaseOptions { Enabled = false }),
+            tokens.Object,
+            environment.Object,
+            NullLogger<VaultDatabaseConnectionStringResolver>.Instance);
+
+        resolver.Resolve(configured, "CommerceDb").Should().Be(configured);
+        tokens.Verify(x => x.GetTokenAsync(It.IsAny<CancellationToken>()), Times.Never);
+        factory.Verify(x => x.CreateClient(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
     public void Refreshes_database_credential_when_issuing_token_changes()
     {
         var tokens = new Mock<IVaultTokenProvider>();

@@ -36,7 +36,11 @@ public sealed class VaultDatabaseConnectionStringResolver(
     public string Resolve(string configuredConnectionString, string connectionName)
     {
         var settings = databaseOptions.CurrentValue;
-        if (!settings.Enabled && !environment.IsProduction())
+        // OpenShip supplies a service-scoped PostgreSQL URL protected with
+        // verify-full TLS. Vault dynamic credentials are an explicit opt-in;
+        // Production must not silently replace that binding when leasing is
+        // disabled, since Vault may not be configured for this service.
+        if (!settings.Enabled)
             return configuredConnectionString;
 
         var role = string.IsNullOrWhiteSpace(settings.Role)
