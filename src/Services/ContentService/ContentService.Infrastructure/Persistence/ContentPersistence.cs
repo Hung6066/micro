@@ -1,5 +1,6 @@
 using His.Hope.ContentService.Application;
 using His.Hope.ContentService.Domain;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Persistence.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -308,7 +309,7 @@ public static class ContentInfrastructureServiceCollectionExtensions
         return services;
     }
 
-    public static void MigrateContentDatabase(this IServiceProvider services)
+    public static void MigrateContentDatabase(this IServiceProvider services, bool initializeApplicationStore = true)
     {
         using var scope = services.CreateScope();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IContentDbContextFactory>();
@@ -316,8 +317,10 @@ public static class ContentInfrastructureServiceCollectionExtensions
         {
             using var db = dbFactory.CreateDbContextForConnection(connectionName);
             db.Database.Migrate();
+            MigrationSchemaVerifier.Verify(db, "ContentService");
         }
 
-        scope.ServiceProvider.GetRequiredService<PostgresContentStore>().Initialize();
+        if (initializeApplicationStore)
+            scope.ServiceProvider.GetRequiredService<PostgresContentStore>().Initialize();
     }
 }

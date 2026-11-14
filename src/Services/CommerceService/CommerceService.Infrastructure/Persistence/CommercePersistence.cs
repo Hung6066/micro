@@ -3,6 +3,7 @@ using His.Hope.CommerceService.Application.Customer;
 using His.Hope.CommerceService.Application.Orders;
 using His.Hope.Contracts.Commerce;
 using His.Hope.Contracts.Saga;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Persistence;
 using His.Hope.Persistence.Tenancy;
@@ -732,6 +733,7 @@ public static class CommerceInfrastructureServiceCollectionExtensions
         {
             await using var db = await factory.CreateDbContextForConnectionAsync(connectionName);
             await db.Database.MigrateAsync();
+            MigrationSchemaVerifier.Verify(db, "CommerceService");
         }
     }
 }

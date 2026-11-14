@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Services;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.Persistence;
@@ -58,6 +59,7 @@ public static class IdentityDbInitializer
 
         if (migrationOnly)
         {
+            MigrationSchemaVerifier.Verify(context, "IdentityService");
             logger.LogInformation("Identity migration-only mode completed; skipping seed and API startup.");
             return;
         }

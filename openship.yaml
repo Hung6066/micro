@@ -2,3 +2,23 @@
 # OpenShip builds selected application images in K3s and renders Kubernetes workloads.
 # The environment sync workflow reads this same path; do not duplicate it there.
 composePath: docker/docker-compose.openship.yml
+
+# Database migrations run as bounded, digest-pinned Jobs before any selected
+# service workload is changed. Keep migrations disabled in API startup env.
+preDeploy:
+  - kind: database-migration
+    service: identityservice
+    argv: [dotnet, IdentityService.Api.dll, --Persistence:MigrationOnly=true]
+    timeoutSeconds: 1800
+  - kind: database-migration
+    service: commerceservice
+    argv: [dotnet, CommerceService.Api.dll, --Persistence:MigrationOnly=true]
+    timeoutSeconds: 1800
+  - kind: database-migration
+    service: contentservice
+    argv: [dotnet, ContentService.Api.dll, --Persistence:MigrationOnly=true]
+    timeoutSeconds: 1800
+  - kind: database-migration
+    service: manufacturingservice
+    argv: [dotnet, ManufacturingService.Api.dll, --Persistence:MigrationOnly=true]
+    timeoutSeconds: 1800

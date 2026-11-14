@@ -49,7 +49,8 @@ var runContentMigrations = PersistenceMigrationStartupPolicy.ShouldRunMigrations
     "ContentService");
 if (runContentMigrations)
 {
-    app.Services.MigrateContentDatabase();
+    app.Services.MigrateContentDatabase(
+        initializeApplicationStore: !builder.Configuration.GetValue("Persistence:MigrationOnly", false));
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))

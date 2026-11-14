@@ -1,5 +1,6 @@
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.ManufacturingService.Infrastructure.Persistence;
+using His.Hope.Infrastructure.Configuration;
 using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Persistence.Tenancy;
 using His.Hope.Persistence;
@@ -73,7 +74,7 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         return services;
     }
 
-    public static void MigrateManufacturingDatabase(this IServiceProvider services)
+    public static void MigrateManufacturingDatabase(this IServiceProvider services, bool initializeApplicationStores = true)
     {
         using var scope = services.CreateScope();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IManufacturingDbContextFactory>();
@@ -81,10 +82,14 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         {
             using var db = dbFactory.CreateDbContextForConnection(connectionName);
             db.Database.Migrate();
+            MigrationSchemaVerifier.Verify(db, "ManufacturingService");
         }
 
         using var sagaDb = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SagaDbContext>>().CreateDbContext();
         sagaDb.Database.Migrate();
+        MigrationSchemaVerifier.Verify(sagaDb, "ManufacturingSaga");
+
+        if (!initializeApplicationStores) return;
 
         scope.ServiceProvider.GetRequiredService<PostgresManufacturingStore>().Initialize();
         if (scope.ServiceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Manufacturing:SeedDemoData"))
