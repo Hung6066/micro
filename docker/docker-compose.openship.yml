@@ -27,8 +27,9 @@ services:
       OPENFGA_PLAYGROUND_ENABLED: "false"
       OPENFGA_HTTP_ADDR: 0.0.0.0:8080
       OPENFGA_GRPC_ADDR: 0.0.0.0:8081
-      OPENFGA_DATASTORE_MAX_OPEN_CONNS: "10"
-      OPENFGA_DATASTORE_MAX_IDLE_CONNS: "5"
+      # Keep a bounded share of PostgreSQL's 100-connection budget at two replicas.
+      OPENFGA_DATASTORE_MAX_OPEN_CONNS: "6"
+      OPENFGA_DATASTORE_MAX_IDLE_CONNS: "3"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
       interval: 10s
@@ -50,6 +51,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5003
+      Database__MaxPoolSize: ${DATABASE_MAX_POOL_SIZE:-4}
       Kestrel__Endpoints__IdentityOrigin__Url: https://+:5443
       Kestrel__Endpoints__IdentityOrigin__Protocols: Http1AndHttp2
       Kestrel__Endpoints__IdentityOrigin__Certificate__Path: /etc/identity-origin-tls/tls.crt
@@ -117,6 +119,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5015
+      Database__MaxPoolSize: ${DATABASE_MAX_POOL_SIZE:-4}
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
@@ -158,6 +161,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5016
+      Database__MaxPoolSize: ${DATABASE_MAX_POOL_SIZE:-4}
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
@@ -206,6 +210,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5050
+      Database__MaxPoolSize: ${DATABASE_MAX_POOL_SIZE:-4}
       Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OpenTelemetry__OtlpEndpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-https://openship-project-otel.os-93c33576-micro-production.svc.cluster.local:4317}
       OTEL_EXPORTER_OTLP_CERTIFICATE: /etc/openship-tracing/ca.crt
