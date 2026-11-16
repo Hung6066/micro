@@ -174,8 +174,15 @@ services:
       Jwt__ValidIssuers__0: ${MANUFACTURING_JWT_ISSUER:-https://identity-api.nacoms.com.vn/}
       Jwt__ValidIssuers__1: his-hope-identity
       Jwt__Audience: ${CONTENT_JWT_AUDIENCE:-content-api}
+      OBJECT_STORAGE_PROVIDER: s3
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_PREFIX: ${S3_PREFIX:-contentservice/}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
     volumes:
-      - content_uploads:/app/uploads
       - identity_keys:/etc/hishop/certs
     depends_on:
       identityservice:
@@ -343,7 +350,5 @@ services:
       start_period: 15s
 
 volumes:
-  content_uploads:
-    name: micro-content-uploads
   identity_keys:
     name: micro-identity-keys

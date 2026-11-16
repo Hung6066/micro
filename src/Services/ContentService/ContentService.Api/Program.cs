@@ -6,6 +6,7 @@ using His.Hope.ContentService.Api;
 using His.Hope.ContentService.Application;
 using His.Hope.ContentService.Infrastructure;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.ObjectStorage;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Configuration;
 using His.Hope.Configuration;
@@ -19,6 +20,7 @@ builder.Configuration.ApplyOpenshipBindings("ContentDb");
 builder.Services.AddHisHopeTenantPlacement(builder.Configuration);
 builder.Services.AddContentInfrastructure(builder.Configuration);
 builder.Services.AddHisHopeServicePlatform(builder.Configuration, "content-service");
+builder.Services.AddHisHopeObjectStorage(builder.Configuration, builder.Environment);
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ContentDbContext>("content-db");
 builder.Services.AddHisHopeRedisDataProtection(
@@ -59,8 +61,9 @@ if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
     return;
 }
 
-var uploadRoot = Path.Combine(app.Environment.ContentRootPath, "uploads");
-Directory.CreateDirectory(uploadRoot);
+// Fail before readiness if production has not received the OpenShip object-storage binding.
+_ = app.Services.GetRequiredService<IObjectStorage>();
+
 var allowedUploadTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 {
     ["image/jpeg"] = ".jpg",
@@ -68,11 +71,30 @@ var allowedUploadTypes = new Dictionary<string, string>(StringComparer.OrdinalIg
     ["image/webp"] = ".webp",
     ["image/avif"] = ".avif",
 };
-app.UseStaticFiles(new StaticFileOptions
+app.MapGet("/uploads/{fileName}", async (
+    string fileName,
+    HttpContext context,
+    IObjectStorage objectStorage,
+    CancellationToken cancellationToken) =>
 {
-    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadRoot),
-    RequestPath = "/uploads",
-});
+    var extension = Path.GetExtension(fileName).ToLowerInvariant();
+    var stem = Path.GetFileNameWithoutExtension(fileName);
+    if (!Guid.TryParseExact(stem, "N", out _)
+        || extension is not (".jpg" or ".png" or ".webp" or ".avif"))
+        return Results.NotFound();
+
+    var media = await objectStorage.GetAsync(fileName, cancellationToken);
+    if (media is null) return Results.NotFound();
+
+    await using (media)
+    {
+        context.Response.ContentType = media.ContentType;
+        if (media.ContentLength is long length)
+            context.Response.ContentLength = length;
+        await media.Content.CopyToAsync(context.Response.Body, cancellationToken);
+    }
+    return Results.Empty;
+}).AllowAnonymous();
 
 static IResult ContentProblem(int statusCode, string errorCode) =>
     Results.Problem(
@@ -390,6 +412,7 @@ content.MapGet("/media", (HttpContext context, PostgresContentStore store) =>
 content.MapPost("/media/upload", async (
     HttpContext context,
     PostgresContentStore store,
+    IObjectStorage objectStorage,
     IFormFile file) =>
 {
     var tenantKey = ContentHttpExtensions.ResolveManageTenant(context, isMutation: true);
@@ -403,9 +426,8 @@ content.MapPost("/media/upload", async (
         return ContentProblem(StatusCodes.Status400BadRequest, "unsupported_file_type");
 
     var safeName = $"{Guid.NewGuid():N}{extension}";
-    var path = Path.Combine(uploadRoot, safeName);
-    await using (var stream = File.Create(path))
-        await file.CopyToAsync(stream);
+    await using (var stream = file.OpenReadStream())
+        await objectStorage.PutAsync(safeName, stream, file.ContentType, context.RequestAborted);
 
     var publicUrl = $"{context.Request.Scheme}://{context.Request.Host}/uploads/{safeName}";
     var asset = store.RegisterMedia(tenantKey, file.FileName, file.ContentType, publicUrl, file.Length);
