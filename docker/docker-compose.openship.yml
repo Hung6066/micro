@@ -175,6 +175,7 @@ services:
       Jwt__ValidIssuers__1: his-hope-identity
       Jwt__Audience: ${CONTENT_JWT_AUDIENCE:-content-api}
     volumes:
+      - content_uploads:/app/uploads
       - identity_keys:/etc/hishop/certs
     depends_on:
       identityservice:
@@ -342,5 +343,7 @@ services:
       start_period: 15s
 
 volumes:
+  content_uploads:
+    name: micro-content-uploads
   identity_keys:
     name: micro-identity-keys
