@@ -2,6 +2,7 @@ using His.Hope.ContentService.Application;
 using His.Hope.ContentService.Domain;
 using His.Hope.Infrastructure.Configuration;
 using His.Hope.Infrastructure.DataLifecycle;
+using His.Hope.Persistence;
 using His.Hope.Persistence.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -300,8 +301,12 @@ public static class ContentInfrastructureServiceCollectionExtensions
         services.AddHisHopeTenantAwareDbContextFactory<ContentDbContext>(
             "content",
             (sp, builder, connectionString, connectionName) =>
-                builder.UseNpgsql(connectionString, npgsql =>
-                    npgsql.MigrationsAssembly(typeof(ContentDbContext).Assembly.GetName().Name))
+                builder.UseHisHopeNpgsql(
+                    sp,
+                    sp.GetRequiredService<IConfiguration>(),
+                    connectionString,
+                    connectionName,
+                    npgsql => npgsql.MigrationsAssembly(typeof(ContentDbContext).Assembly.GetName().Name))
                     .AddInterceptors(sp.GetRequiredService<SoftDeleteInterceptor>()));
         services.AddSingleton<IContentDbContextFactory>(sp =>
             new ContentDbContextFactoryBridge(sp.GetRequiredService<IHisHopeDbContextFactory<ContentDbContext>>()));
