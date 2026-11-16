@@ -309,15 +309,38 @@ public static class ContentInfrastructureServiceCollectionExtensions
         return services;
     }
 
-    public static void MigrateContentDatabase(this IServiceProvider services, bool initializeApplicationStore = true)
+    public static async Task MigrateContentDatabaseAsync(
+        this IServiceProvider services,
+        bool initializeApplicationStore = true,
+        CancellationToken cancellationToken = default)
     {
         using var scope = services.CreateScope();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IContentDbContextFactory>();
         foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
         {
-            using var db = dbFactory.CreateDbContextForConnection(connectionName);
-            db.Database.Migrate();
-            MigrationSchemaVerifier.Verify(db, "ContentService");
+            await using var db = dbFactory.CreateDbContextForConnection(connectionName);
+            await db.Database.OpenConnectionAsync(cancellationToken);
+            try
+            {
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT pg_advisory_lock(hashtext('His.Hope.ContentService.Migrations'), hashtext({connectionName}))",
+                    cancellationToken);
+                await db.Database.MigrateAsync(cancellationToken);
+                MigrationSchemaVerifier.Verify(db, "ContentService");
+            }
+            finally
+            {
+                try
+                {
+                    await db.Database.ExecuteSqlInterpolatedAsync(
+                        $"SELECT pg_advisory_unlock(hashtext('His.Hope.ContentService.Migrations'), hashtext({connectionName}))",
+                        cancellationToken);
+                }
+                finally
+                {
+                    await db.Database.CloseConnectionAsync();
+                }
+            }
         }
 
         if (initializeApplicationStore)
