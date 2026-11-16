@@ -154,6 +154,10 @@ services:
     build:
       context: ../src
       dockerfile: Services/ContentService/ContentService.Api/Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
     ports:
       - target: 5016
         published: "${MANUFACTURING_CONTENT_PORT:-5016}"
