@@ -6,6 +6,8 @@ using His.Hope.Persistence.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Text;
 using System.Xml.Linq;
 using System.Text.Json;
@@ -316,29 +318,102 @@ public static class ContentInfrastructureServiceCollectionExtensions
     {
         using var scope = services.CreateScope();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IContentDbContextFactory>();
+        var logger = services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("His.Hope.ContentService.DatabaseMigrations");
         foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
         {
             await using var db = dbFactory.CreateDbContextForConnection(connectionName);
-            await db.Database.OpenConnectionAsync(cancellationToken);
+            var elapsed = Stopwatch.StartNew();
+            var phase = "open_connection";
+            var connectionOpened = false;
+            logger.LogInformation(
+                "Content database migration started for connection {ConnectionName}",
+                connectionName);
             try
             {
+                logger.LogInformation(
+                    "Content database migration phase started: {Phase} for {ConnectionName}",
+                    phase,
+                    connectionName);
+                await db.Database.OpenConnectionAsync(cancellationToken);
+                connectionOpened = true;
+                logger.LogInformation(
+                    "Content database migration phase completed: {Phase} for {ConnectionName} after {ElapsedMilliseconds} ms",
+                    phase,
+                    connectionName,
+                    elapsed.ElapsedMilliseconds);
+
+                phase = "acquire_advisory_lock";
+                logger.LogInformation(
+                    "Content database migration phase started: {Phase} for {ConnectionName}",
+                    phase,
+                    connectionName);
+                elapsed.Restart();
                 await db.Database.ExecuteSqlInterpolatedAsync(
                     $"SELECT pg_advisory_lock(hashtext('His.Hope.ContentService.Migrations'), hashtext({connectionName}))",
                     cancellationToken);
+                logger.LogInformation(
+                    "Content database migration phase completed: {Phase} for {ConnectionName} after {ElapsedMilliseconds} ms",
+                    phase,
+                    connectionName,
+                    elapsed.ElapsedMilliseconds);
+
+                phase = "apply_migrations";
+                logger.LogInformation(
+                    "Content database migration phase started: {Phase} for {ConnectionName}",
+                    phase,
+                    connectionName);
+                elapsed.Restart();
                 await db.Database.MigrateAsync(cancellationToken);
+
+                logger.LogInformation(
+                    "Content database migration phase completed: {Phase} for {ConnectionName} after {ElapsedMilliseconds} ms",
+                    phase,
+                    connectionName,
+                    elapsed.ElapsedMilliseconds);
+
+                phase = "verify_schema";
+                logger.LogInformation(
+                    "Content database migration phase started: {Phase} for {ConnectionName}",
+                    phase,
+                    connectionName);
+                elapsed.Restart();
                 MigrationSchemaVerifier.Verify(db, "ContentService");
+                logger.LogInformation(
+                    "Content database migration phase completed: {Phase} for {ConnectionName} after {ElapsedMilliseconds} ms",
+                    phase,
+                    connectionName,
+                    elapsed.ElapsedMilliseconds);
+                logger.LogInformation(
+                    "Content database migration completed for connection {ConnectionName}",
+                    connectionName);
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    "Content database migration failed in phase {Phase} for {ConnectionName} after {ElapsedMilliseconds} ms; exception type {ExceptionType}, HRESULT {HResult}",
+                    phase,
+                    connectionName,
+                    elapsed.ElapsedMilliseconds,
+                    exception.GetType().Name,
+                    exception.HResult);
+                throw;
             }
             finally
             {
                 try
                 {
-                    await db.Database.ExecuteSqlInterpolatedAsync(
-                        $"SELECT pg_advisory_unlock(hashtext('His.Hope.ContentService.Migrations'), hashtext({connectionName}))",
-                        cancellationToken);
+                    if (connectionOpened)
+                    {
+                        await db.Database.ExecuteSqlInterpolatedAsync(
+                            $"SELECT pg_advisory_unlock(hashtext('His.Hope.ContentService.Migrations'), hashtext({connectionName}))",
+                            cancellationToken);
+                    }
                 }
                 finally
                 {
-                    await db.Database.CloseConnectionAsync();
+                    if (connectionOpened)
+                        await db.Database.CloseConnectionAsync();
                 }
             }
         }
