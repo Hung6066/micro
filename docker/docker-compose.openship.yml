@@ -7,15 +7,18 @@ name: micro
 # OpenShip/Vault secrets; never put them in this Compose file or Shared env.
 # Production telemetry is sent to the OpenShip-managed in-cluster collector.
 # OpenShip reads service build, ports, environment, volumes, dependencies,
-# restart policy and healthcheck from Compose. Replica counts and Kubernetes
-# resource requests/limits are configured on the OpenShip service, not with
-# Compose deploy.* fields.
+# restart policy and healthcheck from Compose. Kubernetes CPU requests and
+# limits are set together from Compose deploy.resources.limits.
 
 services:
   openfga:
     build:
       context: ..
       dockerfile: docker/openfga/Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
     ports:
       - target: 8080
         protocol: tcp
@@ -157,7 +160,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: "0.2"
     ports:
       - target: 5016
         published: "${MANUFACTURING_CONTENT_PORT:-5016}"
