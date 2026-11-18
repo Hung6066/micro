@@ -210,6 +210,10 @@ services:
     build:
       context: ../src
       dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
     ports:
       - target: 5050
         published: "${MANUFACTURING_API_PORT:-5050}"
