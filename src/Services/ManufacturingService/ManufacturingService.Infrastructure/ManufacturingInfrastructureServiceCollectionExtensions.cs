@@ -108,11 +108,12 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
             logger,
             cancellationToken);
 
-        if (!initializeApplicationStores) return;
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        if (!initializeApplicationStores || !configuration.GetValue<bool>("Manufacturing:SeedDemoData"))
+            return;
 
         scope.ServiceProvider.GetRequiredService<PostgresManufacturingStore>().Initialize();
-        if (scope.ServiceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Manufacturing:SeedDemoData"))
-            ManufacturingDemoSeeder.Seed(scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>());
+        ManufacturingDemoSeeder.Seed(scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>());
     }
 
     private static async Task MigrateWithAdvisoryLockAsync(

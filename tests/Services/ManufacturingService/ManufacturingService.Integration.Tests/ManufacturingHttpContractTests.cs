@@ -45,6 +45,7 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
             builder.UseSetting("ConnectionStrings:ManufacturingDb", connection);
             builder.UseSetting("ConnectionStrings:ManufacturingDb_customer_acme", connection);
             builder.UseSetting("Persistence:RunMigrationsOnStartup", "true");
+            builder.UseSetting("Manufacturing:SeedDemoData", "false");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IHostedService>();
@@ -84,6 +85,17 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
             }
             await db.SaveChangesAsync();
         }
+    }
+
+    [Fact]
+    public async Task Service_startup_does_not_seed_legacy_demo_lots_when_demo_seeding_is_disabled()
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        (await db.Lots.AnyAsync(x => x.TenantKey == "customer-factory-x" && x.LotCode.StartsWith("LOT-LEGACY-")))
+            .Should().BeFalse();
     }
 
     [Fact]
