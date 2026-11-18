@@ -45,25 +45,55 @@ public static class OpenshipBindingConfiguration
     /// <summary>Npgsql does not parse postgresql:// URLs, so the managed database URL is converted to key-value form.</summary>
     private static string ToNpgsqlConnectionString(string databaseUrl, string? caPem, string? clientCertificatePem, string? clientKeyPem)
     {
-        var uri = new Uri(databaseUrl);
-        var userInfo = uri.UserInfo.Split(':', 2);
-        if (uri.Scheme is not ("postgresql" or "postgres") || userInfo.Length != 2)
-            throw new InvalidOperationException("DATABASE_URL must be a PostgreSQL URL with a user and password.");
-        if (!HasQueryValue(uri.Query, "sslmode", "verify-full"))
-            throw new InvalidOperationException("DATABASE_URL must use sslmode=verify-full.");
         if (string.IsNullOrWhiteSpace(caPem))
             throw new InvalidOperationException("OPENSHIP_DATABASE_CA_PEM is required to verify the database certificate.");
 
-        var builder = new NpgsqlConnectionStringBuilder
+        var normalizedCaPem = caPem.Replace("\\n", "\n");
+        NpgsqlConnectionStringBuilder builder;
+        if (databaseUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            databaseUrl.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
-            Host = uri.Host,
-            Port = uri.Port > 0 ? uri.Port : 5432,
-            Database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')),
-            Username = Uri.UnescapeDataString(userInfo[0]),
-            Password = Uri.UnescapeDataString(userInfo[1]),
-            SslMode = SslMode.VerifyFull,
-            RootCertificate = WritePemFile("openship-postgres-ca.pem", caPem.Replace("\\n", "\n")),
-        };
+            if (!Uri.TryCreate(databaseUrl, UriKind.Absolute, out var uri) ||
+                uri.Scheme is not ("postgresql" or "postgres"))
+                throw InvalidDatabaseUrl();
+
+            var userInfo = uri.UserInfo.Split(':', 2);
+            if (userInfo.Length != 2 || string.IsNullOrWhiteSpace(uri.Host) ||
+                string.IsNullOrWhiteSpace(uri.AbsolutePath.TrimStart('/')))
+                throw InvalidDatabaseUrl();
+            if (!HasQueryValue(uri.Query, "sslmode", "verify-full"))
+                throw new InvalidOperationException("DATABASE_URL must use sslmode=verify-full.");
+
+            builder = new NpgsqlConnectionStringBuilder
+            {
+                Host = uri.Host,
+                Port = uri.IsDefaultPort ? 5432 : uri.Port,
+                Database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')),
+                Username = Uri.UnescapeDataString(userInfo[0]),
+                Password = Uri.UnescapeDataString(userInfo[1]),
+                SslMode = SslMode.VerifyFull,
+            };
+        }
+        else
+        {
+            try
+            {
+                builder = new NpgsqlConnectionStringBuilder(databaseUrl);
+            }
+            catch (ArgumentException)
+            {
+                throw InvalidDatabaseUrl();
+            }
+
+            if (string.IsNullOrWhiteSpace(builder.Host) || string.IsNullOrWhiteSpace(builder.Database) ||
+                string.IsNullOrWhiteSpace(builder.Username) || string.IsNullOrWhiteSpace(builder.Password))
+                throw InvalidDatabaseUrl();
+            if (builder.SslMode != SslMode.VerifyFull)
+                throw new InvalidOperationException("DATABASE_URL must use sslmode=verify-full.");
+        }
+
+        builder.SslMode = SslMode.VerifyFull;
+        builder.RootCertificate = WritePemFile("openship-postgres-ca.pem", normalizedCaPem);
         if (!string.IsNullOrWhiteSpace(clientCertificatePem) || !string.IsNullOrWhiteSpace(clientKeyPem))
         {
             if (string.IsNullOrWhiteSpace(clientCertificatePem) || string.IsNullOrWhiteSpace(clientKeyPem))
@@ -74,10 +104,15 @@ public static class OpenshipBindingConfiguration
         return builder.ConnectionString;
     }
 
+    private static InvalidOperationException InvalidDatabaseUrl() =>
+        new("DATABASE_URL must be a valid PostgreSQL URL or Npgsql connection string with host, database, user, and password.");
+
     private static bool HasQueryValue(string query, string key, string expected) =>
         query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
             .Select(part => part.Split('=', 2))
-            .Any(pair => pair.Length == 2 && pair[0] == key && pair[1] == expected);
+            .Any(pair => pair.Length == 2 &&
+                string.Equals(Uri.UnescapeDataString(pair[0]), key, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(Uri.UnescapeDataString(pair[1]), expected, StringComparison.OrdinalIgnoreCase));
 
     private static void Map(IConfiguration configuration, Dictionary<string, string> mapped, string targetKey, string? value)
     {
@@ -93,10 +128,16 @@ public static class OpenshipBindingConfiguration
         string pemKey)
     {
         var pem = configuration[pemKey];
-        if (string.IsNullOrWhiteSpace(pem) || !string.IsNullOrWhiteSpace(configuration[pathKey]))
+        if (string.IsNullOrWhiteSpace(pem))
+            return;
+
+        var configuredPath = configuration[pathKey];
+        if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath))
             return;
 
         // Binding values may carry escaped newlines when they come from a single-line env var.
+        // A configured path can outlive the file it named; materialize the bound PEM and point
+        // startup at the private fallback file instead of leaving a broken path in configuration.
         mapped[pathKey] = WritePemFile(fileName, pem.Replace("\\n", "\n"));
     }
 

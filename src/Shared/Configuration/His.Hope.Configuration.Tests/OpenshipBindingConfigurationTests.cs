@@ -114,6 +114,39 @@ public class OpenshipBindingConfigurationTests
         Assert.Equal("rediss://configured:pw@other:6379", configuration["REDIS_URL"]);
     }
 
+    [Fact]
+    public void RabbitMqPemBindings_MaterializeWhenConfiguredPathsDoNotExist()
+    {
+        var missingDirectory = Path.Combine(Path.GetTempPath(), "openship-pki-missing", Guid.NewGuid().ToString("N"));
+        var certificatePath = Path.Combine(missingDirectory, "rabbitmq-client-crt.pem");
+        var privateKeyPath = Path.Combine(missingDirectory, "rabbitmq-client-key.pem");
+        var caPath = Path.Combine(missingDirectory, "rabbitmq-ca.pem");
+        var certificatePem = "-----BEGIN CERTIFICATE-----\nclient\n-----END CERTIFICATE-----";
+        var privateKeyPem = "-----BEGIN PRIVATE KEY-----\nprivate\n-----END PRIVATE KEY-----";
+        var caPem = "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----";
+        var configuration = Build(new Dictionary<string, string?>
+        {
+            ["EventBus:ClientCertificatePath"] = certificatePath,
+            ["EventBus:ClientCertificatePem"] = certificatePem,
+            ["EventBus:ClientPrivateKeyPath"] = privateKeyPath,
+            ["EventBus:ClientPrivateKeyPem"] = privateKeyPem,
+            ["EventBus:CaCertificatePath"] = caPath,
+            ["EventBus:CaPem"] = caPem,
+        });
+
+        configuration.ApplyOpenshipBindings(databaseConnectionName: null);
+
+        var materializedCertificatePath = configuration["EventBus:ClientCertificatePath"]!;
+        var materializedPrivateKeyPath = configuration["EventBus:ClientPrivateKeyPath"]!;
+        var materializedCaPath = configuration["EventBus:CaCertificatePath"]!;
+        Assert.NotEqual(certificatePath, materializedCertificatePath);
+        Assert.NotEqual(privateKeyPath, materializedPrivateKeyPath);
+        Assert.NotEqual(caPath, materializedCaPath);
+        Assert.Equal(certificatePem.Replace("\\n", "\n", StringComparison.Ordinal), File.ReadAllText(materializedCertificatePath).TrimEnd());
+        Assert.Equal(privateKeyPem.Replace("\\n", "\n", StringComparison.Ordinal), File.ReadAllText(materializedPrivateKeyPath).TrimEnd());
+        Assert.Equal(caPem.Replace("\\n", "\n", StringComparison.Ordinal), File.ReadAllText(materializedCaPath).TrimEnd());
+    }
+
     private static ConfigurationManager Build(Dictionary<string, string?> values)
     {
         var configuration = new ConfigurationManager();
