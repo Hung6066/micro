@@ -44,8 +44,8 @@ public static class RabbitMqPlatformTls
         {
             var roots = new X509Certificate2Collection();
             roots.ImportFromPemFile(caPath);
-            factory.Ssl.CertificateValidationCallback = (_, certificate, _, errors) =>
-                ValidateAgainstPrivateCa(roots, certificate, errors);
+            factory.Ssl.CertificateValidationCallback = (_, certificate, peerChain, errors) =>
+                ValidateAgainstPrivateCa(roots, certificate, peerChain, errors);
         }
 
         return factory;
@@ -54,6 +54,7 @@ public static class RabbitMqPlatformTls
     private static bool ValidateAgainstPrivateCa(
         X509Certificate2Collection roots,
         X509Certificate? certificate,
+        X509Chain? peerChain,
         SslPolicyErrors errors)
     {
         if (errors == SslPolicyErrors.None) return true;
@@ -64,6 +65,11 @@ public static class RabbitMqPlatformTls
         using var chain = new X509Chain();
         chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
         chain.ChainPolicy.CustomTrustStore.AddRange(roots);
+        if (peerChain is not null)
+        {
+            foreach (var peerElement in peerChain.ChainElements.Cast<X509ChainElement>().Skip(1))
+                chain.ChainPolicy.ExtraStore.Add(peerElement.Certificate);
+        }
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
         return chain.Build(new X509Certificate2(certificate));
     }
