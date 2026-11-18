@@ -48,8 +48,9 @@ var runManufacturingMigrations = PersistenceMigrationStartupPolicy.ShouldRunMigr
     "ManufacturingService");
 if (runManufacturingMigrations)
 {
-    app.Services.MigrateManufacturingDatabase(
-        initializeApplicationStores: !builder.Configuration.GetValue("Persistence:MigrationOnly", false));
+    await app.Services.MigrateManufacturingDatabaseAsync(
+        initializeApplicationStores: !builder.Configuration.GetValue("Persistence:MigrationOnly", false),
+        cancellationToken: app.Lifetime.ApplicationStopping);
 }
 
 if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))

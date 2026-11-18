@@ -6,9 +6,11 @@ using His.Hope.Persistence.Tenancy;
 using His.Hope.Persistence;
 using His.Hope.Infrastructure.Saga;
 using His.Hope.ManufacturingService.Infrastructure.Saga;
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 public static class ManufacturingInfrastructureServiceCollectionExtensions
 {
@@ -74,25 +76,158 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         return services;
     }
 
-    public static void MigrateManufacturingDatabase(this IServiceProvider services, bool initializeApplicationStores = true)
+    public static async Task MigrateManufacturingDatabaseAsync(
+        this IServiceProvider services,
+        bool initializeApplicationStores = true,
+        CancellationToken cancellationToken = default)
     {
         using var scope = services.CreateScope();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IManufacturingDbContextFactory>();
+        var logger = services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("His.Hope.ManufacturingService.DatabaseMigrations");
         foreach (var connectionName in dbFactory.GetRegisteredConnectionNames())
         {
-            using var db = dbFactory.CreateDbContextForConnection(connectionName);
-            db.Database.Migrate();
-            MigrationSchemaVerifier.Verify(db, "ManufacturingService");
+            await using var db = dbFactory.CreateDbContextForConnection(connectionName);
+            await MigrateWithAdvisoryLockAsync(
+                db,
+                "His.Hope.ManufacturingService.Migrations",
+                "ManufacturingService",
+                connectionName,
+                logger,
+                cancellationToken);
         }
 
-        using var sagaDb = scope.ServiceProvider.GetRequiredService<IDbContextFactory<SagaDbContext>>().CreateDbContext();
-        sagaDb.Database.Migrate();
-        MigrationSchemaVerifier.Verify(sagaDb, "ManufacturingSaga");
+        await using var sagaDb = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<SagaDbContext>>()
+            .CreateDbContextAsync(cancellationToken);
+        await MigrateWithAdvisoryLockAsync(
+            sagaDb,
+            "His.Hope.ManufacturingService.Saga.Migrations",
+            "ManufacturingSaga",
+            "ManufacturingDb",
+            logger,
+            cancellationToken);
 
         if (!initializeApplicationStores) return;
 
         scope.ServiceProvider.GetRequiredService<PostgresManufacturingStore>().Initialize();
         if (scope.ServiceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Manufacturing:SeedDemoData"))
             ManufacturingDemoSeeder.Seed(scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>());
+    }
+
+    private static async Task MigrateWithAdvisoryLockAsync(
+        DbContext db,
+        string lockNamespace,
+        string schemaOwner,
+        string connectionName,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var elapsed = Stopwatch.StartNew();
+        var phase = "open_connection";
+        var connectionOpened = false;
+        var lockAcquired = false;
+        logger.LogInformation(
+            "Manufacturing database migration started for {SchemaOwner} connection {ConnectionName}",
+            schemaOwner,
+            connectionName);
+        try
+        {
+            logger.LogInformation(
+                "Manufacturing database migration phase started: {Phase} for {SchemaOwner} connection {ConnectionName}",
+                phase,
+                schemaOwner,
+                connectionName);
+            elapsed.Restart();
+            await db.Database.OpenConnectionAsync(cancellationToken);
+            connectionOpened = true;
+            logger.LogInformation(
+                "Manufacturing database migration phase completed: {Phase} for {SchemaOwner} connection {ConnectionName} after {ElapsedMilliseconds} ms",
+                phase,
+                schemaOwner,
+                connectionName,
+                elapsed.ElapsedMilliseconds);
+
+            phase = "acquire_advisory_lock";
+            logger.LogInformation(
+                "Manufacturing database migration phase started: {Phase} for {SchemaOwner} connection {ConnectionName}",
+                phase,
+                schemaOwner,
+                connectionName);
+            elapsed.Restart();
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_lock(hashtext({lockNamespace}), hashtext({connectionName}))",
+                cancellationToken);
+            lockAcquired = true;
+            logger.LogInformation(
+                "Manufacturing database migration phase completed: {Phase} for {SchemaOwner} connection {ConnectionName} after {ElapsedMilliseconds} ms",
+                phase,
+                schemaOwner,
+                connectionName,
+                elapsed.ElapsedMilliseconds);
+
+            phase = "apply_migrations";
+            logger.LogInformation(
+                "Manufacturing database migration phase started: {Phase} for {SchemaOwner} connection {ConnectionName}",
+                phase,
+                schemaOwner,
+                connectionName);
+            elapsed.Restart();
+            await db.Database.MigrateAsync(cancellationToken);
+            logger.LogInformation(
+                "Manufacturing database migration phase completed: {Phase} for {SchemaOwner} connection {ConnectionName} after {ElapsedMilliseconds} ms",
+                phase,
+                schemaOwner,
+                connectionName,
+                elapsed.ElapsedMilliseconds);
+
+            phase = "verify_schema";
+            logger.LogInformation(
+                "Manufacturing database migration phase started: {Phase} for {SchemaOwner} connection {ConnectionName}",
+                phase,
+                schemaOwner,
+                connectionName);
+            elapsed.Restart();
+            MigrationSchemaVerifier.Verify(db, schemaOwner);
+            logger.LogInformation(
+                "Manufacturing database migration phase completed: {Phase} for {SchemaOwner} connection {ConnectionName} after {ElapsedMilliseconds} ms",
+                phase,
+                schemaOwner,
+                connectionName,
+                elapsed.ElapsedMilliseconds);
+            logger.LogInformation(
+                "Manufacturing database migration completed for {SchemaOwner} connection {ConnectionName}",
+                schemaOwner,
+                connectionName);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                "Manufacturing database migration failed in phase {Phase} for {SchemaOwner} connection {ConnectionName} after {ElapsedMilliseconds} ms; exception type {ExceptionType}, HRESULT {HResult}",
+                phase,
+                schemaOwner,
+                connectionName,
+                elapsed.ElapsedMilliseconds,
+                exception.GetType().Name,
+                exception.HResult);
+            throw;
+        }
+        finally
+        {
+            try
+            {
+                if (lockAcquired)
+                {
+                    await db.Database.ExecuteSqlInterpolatedAsync(
+                        $"SELECT pg_advisory_unlock(hashtext({lockNamespace}), hashtext({connectionName}))",
+                        CancellationToken.None);
+                }
+            }
+            finally
+            {
+                if (connectionOpened)
+                    await db.Database.CloseConnectionAsync();
+            }
+        }
     }
 }

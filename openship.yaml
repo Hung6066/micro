@@ -3,8 +3,8 @@
 # The environment sync workflow reads this same path; do not duplicate it there.
 composePath: docker/docker-compose.openship.yml
 
-# Identity, Commerce, and Manufacturing migrations run as bounded, digest-pinned
-# Jobs before workload changes. ContentService migrates during startup before readiness.
+# Identity and Commerce migrations run as bounded, digest-pinned Jobs before workload changes.
+# ContentService and ManufacturingService migrate during startup before readiness.
 preDeploy:
   - kind: database-migration
     service: identityservice
@@ -13,8 +13,4 @@ preDeploy:
   - kind: database-migration
     service: commerceservice
     argv: [dotnet, CommerceService.Api.dll, --Persistence:MigrationOnly=true]
-    timeoutSeconds: 1800
-  - kind: database-migration
-    service: manufacturingservice
-    argv: [dotnet, ManufacturingService.Api.dll, --Persistence:MigrationOnly=true]
     timeoutSeconds: 1800

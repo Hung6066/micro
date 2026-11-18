@@ -44,6 +44,7 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         {
             builder.UseSetting("ConnectionStrings:ManufacturingDb", connection);
             builder.UseSetting("ConnectionStrings:ManufacturingDb_customer_acme", connection);
+            builder.UseSetting("Persistence:RunMigrationsOnStartup", "true");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IHostedService>();
@@ -61,7 +62,7 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         {
             var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
             await using var db = await dbFactory.CreateDbContextAsync();
-            await db.Database.MigrateAsync();
+            (await db.Database.GetPendingMigrationsAsync()).Should().BeEmpty();
             await db.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO manufacturing_uoms (id, code, name, dimension, active, created_at)
                 VALUES ({Guid.NewGuid()}, {"kg-http"}, {"Kilogram (HTTP tests)"}, {"Mass"}, {true}, {DateTimeOffset.UtcNow})
