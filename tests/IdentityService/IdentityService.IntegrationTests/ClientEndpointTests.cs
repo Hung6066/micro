@@ -123,6 +123,16 @@ public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
         Assert.Empty((System.Collections.IEnumerable)grantTypes.Invoke(null, [null])!);
         Assert.Equal(new[] { "authorization_code", "refresh_token" }, ((System.Collections.IEnumerable)grantTypes.Invoke(null, ["authorization_code refresh_token ignored"])!).Cast<string>());
         Assert.Contains("custom", ((System.Collections.IEnumerable)scopes.Invoke(null, ["scope:custom scope:custom openid roles"])!).Cast<string>());
+        // Stored OpenIddict permissions are a JSON array using the "scp:" prefix.
+        Assert.Equal(
+            new[] { "openid", "scim.read", "identity.clients.reconcile" },
+            ((System.Collections.IEnumerable)scopes.Invoke(null, ["[\"ept:token\",\"gt:client_credentials\",\"scp:openid\",\"scp:scim.read\",\"scope:identity.clients.reconcile\"]"])!).Cast<string>());
+        var build = type.GetMethod("BuildPermissions", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var request = new His.Hope.IdentityService.Application.DTOs.CreateClientRequest(
+            "m2m", "M2M", "confidential", ["client_credentials"], null, null, ["identity.clients.reconcile"], null);
+        var built = ((System.Collections.Generic.IEnumerable<string>)build.Invoke(null, [request])!).ToArray();
+        Assert.Contains("scp:identity.clients.reconcile", built);
+        Assert.DoesNotContain(built, permission => permission.StartsWith("scope:", StringComparison.Ordinal));
         Assert.Empty((System.Collections.IEnumerable)uris.Invoke(null, ["not-json"])!);
     }
 

@@ -141,6 +141,10 @@ public sealed class CustomHandleClientCredentialsRequest :
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(context.Request.GetScopes());
         principal.SetAudiences(workloadRole.Audience);
+        // OpenIddict omits claims without a destination from issued tokens.
+        // Workload policies read principal_type, client_id, permissions and
+        // tenant from the access token, so every workload claim goes there.
+        principal.SetDestinations(static _ => [OpenIddictConstants.Destinations.AccessToken]);
         context.SignIn(principal);
     }
 }
@@ -275,6 +279,9 @@ public sealed class CustomHandleTokenExchangeRequest :
         var principal = new ClaimsPrincipal(identity);
         principal.SetScopes(context.Request.GetScopes().Where(scope => !scope.Contains('.', StringComparison.Ordinal)));
         principal.SetAudiences(audience);
+        // See CustomHandleClientCredentialsRequest: claims need a destination
+        // to reach the exchanged access token.
+        principal.SetDestinations(static _ => [OpenIddictConstants.Destinations.AccessToken]);
         context.SignIn(principal);
     }
 

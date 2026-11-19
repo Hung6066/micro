@@ -127,6 +127,11 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             ["OpenIddict:AuthorizationCodeLifetime"] = "00:01:00",
             ["OpenIddict:AllowInsecureHttp"] = "true",
             ["Jwt:Issuer"] = "http://localhost:5001",
+            // Production accepts the public OIDC issuer for OpenIddict-issued
+            // access tokens (Jwt:ValidIssuers); mirror that so workload tokens
+            // from /connect/token can call bearer-protected endpoints in tests.
+            ["Jwt:ValidIssuers:0"] = "http://localhost:5001",
+            ["Jwt:ValidIssuers:1"] = "http://localhost/",
             ["Jwt:Audience"] = "His.Hope",
             ["Jwt:AllowHttp"] = "true",
             ["Jwt:Key"] = "integration-test-signing-key-32-bytes-long!",

@@ -417,12 +417,30 @@ public static class ClientEndpoints
         return result;
     }
 
+    // OpenIddict scope permissions use the "scp:" prefix. "scope:" is the legacy
+    // prefix this endpoint used to write; OpenIddict ignores it, so it is still
+    // read here only so affected clients display (and re-save) correctly.
+    private const string LegacyScopePermissionPrefix = "scope:";
+
     private static List<string> ParseScopes(string? permissions)
     {
         if (string.IsNullOrEmpty(permissions)) return new();
-        return permissions.Split('[', ']', ',', ' ')
-            .Where(s => s.StartsWith("scope:") || s == "openid" || s == "email" || s == "profile" || s == "roles")
-            .Select(s => s.StartsWith("scope:") ? s[6..] : s)
+        IEnumerable<string> entries;
+        try
+        {
+            entries = System.Text.Json.JsonSerializer.Deserialize<List<string>>(permissions) ?? new();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            entries = permissions.Split('[', ']', ',', ' ');
+        }
+        return entries
+            .Select(s => s.Trim().Trim('"'))
+            .Select(s => s.StartsWith(OpenIddictConstants.Permissions.Prefixes.Scope, StringComparison.Ordinal)
+                ? s[OpenIddictConstants.Permissions.Prefixes.Scope.Length..]
+                : s.StartsWith(LegacyScopePermissionPrefix, StringComparison.Ordinal)
+                    ? s[LegacyScopePermissionPrefix.Length..]
+                    : s is "openid" or "email" or "profile" or "roles" ? s : string.Empty)
             .Where(s => !string.IsNullOrEmpty(s))
             .Distinct()
             .ToList();
@@ -472,7 +490,7 @@ public static class ClientEndpoints
                 "email" => OpenIddictConstants.Permissions.Scopes.Email,
                 "profile" => OpenIddictConstants.Permissions.Scopes.Profile,
                 "roles" => OpenIddictConstants.Permissions.Scopes.Roles,
-                _ => $"scope:{scope}"
+                _ => OpenIddictConstants.Permissions.Prefixes.Scope + scope
             });
         }
 
