@@ -564,6 +564,9 @@ public class CustomPopulateTokenClaims :
         securityVersionClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
         identity.AddClaim(securityVersionClaim);
 
+        // A token must carry a single scalar email; replace any value added earlier.
+        foreach (var existingEmail in identity.FindAll(OpenIddictConstants.Claims.Email).ToArray())
+            identity.RemoveClaim(existingEmail);
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
             var emailClaim = new Claim(OpenIddictConstants.Claims.Email, user.Email);

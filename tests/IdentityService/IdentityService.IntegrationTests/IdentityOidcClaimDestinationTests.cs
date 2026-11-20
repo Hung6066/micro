@@ -20,14 +20,15 @@ public sealed class IdentityOidcClaimDestinationTests
     }
 
     [Fact]
-    public void Email_scope_emits_standard_email_claims_for_the_identity_token()
+    public void Email_scope_emits_one_email_verified_and_leaves_email_to_the_issuance_handler()
     {
-        // The Identity principal factory only provides the long ClaimTypes.Email URI.
-        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Email, "pilot@example.test")]);
+        // The sign-in handler adds the scalar email claim at issuance; adding it here
+        // too produced a JSON array that Headscale cannot decode.
+        var identity = new ClaimsIdentity([new Claim(OpenIddictConstants.Claims.EmailVerified, "false")]);
 
         IdentityOidcAuthorizeEndpoints.AddEmailScopeClaims(identity, " pilot@example.test ", emailConfirmed: true);
 
-        Assert.Equal("pilot@example.test", Assert.Single(identity.FindAll(OpenIddictConstants.Claims.Email)).Value);
+        Assert.Empty(identity.FindAll(OpenIddictConstants.Claims.Email));
         Assert.Equal("true", Assert.Single(identity.FindAll(OpenIddictConstants.Claims.EmailVerified)).Value);
         Assert.Contains(OpenIddictConstants.Destinations.IdentityToken,
             IdentityOidcAuthorizeEndpoints.ResolveClaimDestinations(OpenIddictConstants.Claims.Email));
@@ -40,9 +41,8 @@ public sealed class IdentityOidcClaimDestinationTests
         IdentityOidcAuthorizeEndpoints.AddEmailScopeClaims(unverified, "pilot@example.test", emailConfirmed: false);
         Assert.Equal("false", Assert.Single(unverified.FindAll(OpenIddictConstants.Claims.EmailVerified)).Value);
 
-        var missing = new ClaimsIdentity([new Claim(OpenIddictConstants.Claims.Email, "stale@example.test")]);
+        var missing = new ClaimsIdentity([new Claim(OpenIddictConstants.Claims.EmailVerified, "true")]);
         IdentityOidcAuthorizeEndpoints.AddEmailScopeClaims(missing, null, emailConfirmed: true);
-        Assert.Empty(missing.FindAll(OpenIddictConstants.Claims.Email));
         Assert.Empty(missing.FindAll(OpenIddictConstants.Claims.EmailVerified));
     }
 

@@ -80,23 +80,20 @@ public static class IdentityOidcAuthorizeEndpoints
     };
 
     /// <summary>
-    /// Emits the standard OIDC <c>email</c>/<c>email_verified</c> claims for the
-    /// <c>email</c> scope. ASP.NET Identity's principal factory only adds the
-    /// long <see cref="ClaimTypes.Email"/> URI, which is not routed to the ID
-    /// token, so relying parties (e.g. Headscale allowlists) never saw an email.
+    /// Emits exactly one <c>email_verified</c> claim for the <c>email</c> scope.
+    /// The standard <c>email</c> claim is added once at token issuance by the
+    /// OpenIddict sign-in handler; adding it here as well produced two values,
+    /// serialized as a JSON array, which relying parties (Headscale) reject.
     /// </summary>
     public static void AddEmailScopeClaims(ClaimsIdentity identity, string? email, bool emailConfirmed)
     {
         ArgumentNullException.ThrowIfNull(identity);
-        foreach (var existing in identity.FindAll(OpenIddictConstants.Claims.Email).ToArray())
-            identity.RemoveClaim(existing);
         foreach (var existing in identity.FindAll(OpenIddictConstants.Claims.EmailVerified).ToArray())
             identity.RemoveClaim(existing);
 
         if (string.IsNullOrWhiteSpace(email))
             return;
 
-        identity.AddClaim(new Claim(OpenIddictConstants.Claims.Email, email.Trim()));
         identity.AddClaim(new Claim(
             OpenIddictConstants.Claims.EmailVerified,
             emailConfirmed ? "true" : "false",
