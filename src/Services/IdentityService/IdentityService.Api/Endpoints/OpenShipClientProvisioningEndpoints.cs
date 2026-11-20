@@ -205,7 +205,9 @@ public static class OpenShipClientProvisioningEndpoints
             }
         }
 
-        foreach (var scope in normalized.Scopes.Where(scope => scope is not "openid" and not "profile" and not "email" and not "address" and not "phone" and not "offline_access"))
+        // Standard OIDC scopes (including "roles") are registered with the OpenIddict
+        // server options, not as scope rows, so only custom scopes need a row.
+        foreach (var scope in normalized.Scopes.Where(scope => scope is not "openid" and not "profile" and not "email" and not "roles" and not "address" and not "phone" and not "offline_access"))
         {
             if (await scopeManager.FindByNameAsync(scope, ct) is null)
                 return Problem(StatusCodes.Status400BadRequest, "unknown_scope", $"The requested scope '{scope}' is not registered by IdentityService.");
