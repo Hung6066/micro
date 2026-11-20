@@ -27,6 +27,7 @@ public class OidcFlowTests
         var supportedClaims = root.GetProperty("claims_supported").EnumerateArray()
             .Select(claim => claim.GetString())
             .ToHashSet(StringComparer.Ordinal);
+        Assert.Contains("email", supportedClaims);
         Assert.Contains("email_verified", supportedClaims);
         Assert.Contains("amr", supportedClaims);
         Assert.Contains("auth_time", supportedClaims);

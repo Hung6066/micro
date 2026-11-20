@@ -79,6 +79,30 @@ public static class IdentityOidcAuthorizeEndpoints
         _ => [OpenIddictConstants.Destinations.AccessToken]
     };
 
+    /// <summary>
+    /// Emits the standard OIDC <c>email</c>/<c>email_verified</c> claims for the
+    /// <c>email</c> scope. ASP.NET Identity's principal factory only adds the
+    /// long <see cref="ClaimTypes.Email"/> URI, which is not routed to the ID
+    /// token, so relying parties (e.g. Headscale allowlists) never saw an email.
+    /// </summary>
+    public static void AddEmailScopeClaims(ClaimsIdentity identity, string? email, bool emailConfirmed)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        foreach (var existing in identity.FindAll(OpenIddictConstants.Claims.Email).ToArray())
+            identity.RemoveClaim(existing);
+        foreach (var existing in identity.FindAll(OpenIddictConstants.Claims.EmailVerified).ToArray())
+            identity.RemoveClaim(existing);
+
+        if (string.IsNullOrWhiteSpace(email))
+            return;
+
+        identity.AddClaim(new Claim(OpenIddictConstants.Claims.Email, email.Trim()));
+        identity.AddClaim(new Claim(
+            OpenIddictConstants.Claims.EmailVerified,
+            emailConfirmed ? "true" : "false",
+            ClaimValueTypes.Boolean));
+    }
+
     public static void MapIdentityOidcAuthorizeEndpoints(this WebApplication app)
     {
         app.MapGet(IdentityApiRoutes.OidcAuthorize, async (
@@ -161,10 +185,7 @@ public static class IdentityOidcAuthorizeEndpoints
 
             if (request.HasScope(OpenIddictConstants.Scopes.Email) && principal.Identity is ClaimsIdentity emailIdentity)
             {
-                emailIdentity.AddClaim(new Claim(
-                    OpenIddictConstants.Claims.EmailVerified,
-                    user.EmailConfirmed ? "true" : "false",
-                    ClaimValueTypes.Boolean));
+                AddEmailScopeClaims(emailIdentity, user.Email, user.EmailConfirmed);
             }
 
             // Ensure sub claim is set (OpenIddict requires it on the principal directly)

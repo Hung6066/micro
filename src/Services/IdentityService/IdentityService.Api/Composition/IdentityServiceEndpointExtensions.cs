@@ -259,9 +259,13 @@ public static class IdentityServiceEndpointExtensions
                 protectedRequest,
                 state);
 
+            // Browsers enforce form-action on every hop of the form submission's
+            // redirect chain (Consent POST -> /connect/authorize -> client callback).
+            // Permit only the origin of this client's registered redirect URI.
+            var consentFormTarget = GetCspFormActionOrigin(redirectUri);
             context.Response.OnStarting(() =>
             {
-                SetIdentityHtmlSecurityHeaders(context);
+                SetIdentityHtmlSecurityHeaders(context, consentFormTarget);
                 return Task.CompletedTask;
             });
             return Results.Content(html, "text/html; charset=utf-8");
@@ -1307,8 +1311,27 @@ body{{
         });
     }
 
-    private static void SetIdentityHtmlSecurityHeaders(HttpContext context)
+    /// <summary>
+    /// Returns the CSP source (scheme://host[:port]) for an already validated,
+    /// registered redirect URI, or null when it cannot be expressed safely.
+    /// </summary>
+    public static string? GetCspFormActionOrigin(string redirectUri)
     {
+        if (!Uri.TryCreate(redirectUri, UriKind.Absolute, out var uri))
+            return null;
+        var isHttps = uri.Scheme == Uri.UriSchemeHttps;
+        var isLoopbackHttp = uri.Scheme == Uri.UriSchemeHttp && uri.IsLoopback;
+        if ((!isHttps && !isLoopbackHttp) || string.IsNullOrEmpty(uri.IdnHost))
+            return null;
+        var origin = uri.GetLeftPart(UriPartial.Authority);
+        return origin.IndexOfAny([';', ',', ' ', '\'', '"', '*']) >= 0 ? null : origin;
+    }
+
+    private static void SetIdentityHtmlSecurityHeaders(HttpContext context, string? additionalFormActionOrigin = null)
+    {
+        var formAction = additionalFormActionOrigin is null
+            ? "form-action 'self'; "
+            : $"form-action 'self' {additionalFormActionOrigin}; ";
         // The account pages are intentionally server-rendered and contain inline
         // styles. Keep that compatibility without removing CSP altogether:
         // scripts remain same-origin only and navigation/embed primitives are
@@ -1318,7 +1341,7 @@ body{{
             "base-uri 'self'; " +
             "object-src 'none'; " +
             "frame-ancestors 'none'; " +
-            "form-action 'self'; " +
+            formAction +
             "script-src 'self'; " +
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
             "font-src 'self' https://fonts.gstatic.com; " +

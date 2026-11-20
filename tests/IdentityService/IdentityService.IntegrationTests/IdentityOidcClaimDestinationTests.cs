@@ -20,6 +20,33 @@ public sealed class IdentityOidcClaimDestinationTests
     }
 
     [Fact]
+    public void Email_scope_emits_standard_email_claims_for_the_identity_token()
+    {
+        // The Identity principal factory only provides the long ClaimTypes.Email URI.
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Email, "pilot@example.test")]);
+
+        IdentityOidcAuthorizeEndpoints.AddEmailScopeClaims(identity, " pilot@example.test ", emailConfirmed: true);
+
+        Assert.Equal("pilot@example.test", Assert.Single(identity.FindAll(OpenIddictConstants.Claims.Email)).Value);
+        Assert.Equal("true", Assert.Single(identity.FindAll(OpenIddictConstants.Claims.EmailVerified)).Value);
+        Assert.Contains(OpenIddictConstants.Destinations.IdentityToken,
+            IdentityOidcAuthorizeEndpoints.ResolveClaimDestinations(OpenIddictConstants.Claims.Email));
+    }
+
+    [Fact]
+    public void Email_scope_reports_unverified_and_omits_missing_email()
+    {
+        var unverified = new ClaimsIdentity();
+        IdentityOidcAuthorizeEndpoints.AddEmailScopeClaims(unverified, "pilot@example.test", emailConfirmed: false);
+        Assert.Equal("false", Assert.Single(unverified.FindAll(OpenIddictConstants.Claims.EmailVerified)).Value);
+
+        var missing = new ClaimsIdentity([new Claim(OpenIddictConstants.Claims.Email, "stale@example.test")]);
+        IdentityOidcAuthorizeEndpoints.AddEmailScopeClaims(missing, null, emailConfirmed: true);
+        Assert.Empty(missing.FindAll(OpenIddictConstants.Claims.Email));
+        Assert.Empty(missing.FindAll(OpenIddictConstants.Claims.EmailVerified));
+    }
+
+    [Fact]
     public void Authentication_freshness_requires_a_recent_auth_time_claim()
     {
         var now = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
