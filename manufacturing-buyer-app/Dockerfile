@@ -15,7 +15,7 @@ RUN rm -rf /workspace/shared/frontend-foundation/dist && npm run build:shared
 WORKDIR /workspace/manufacturing-buyer-app
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
-FROM ghcr.io/nginx/nginx-unprivileged:1.30.6-alpine3.24-slim@sha256:984a21e29bb10d4c0e122374b97b89a2101823a9331e0f3c6c04bc285ccf447f AS final
+FROM ghcr.io/nginx/nginx-unprivileged:1.30.7-alpine3.24-slim@sha256:8432c57ac86f178741af2b89948bd9087cb9df1c415bc1ab4d23735c4f0e3e61 AS final
 USER 101
 COPY --from=build /workspace/manufacturing-buyer-app/dist/manufacturing-buyer-app/browser /usr/share/nginx/html
 COPY manufacturing-buyer-app/nginx.conf /etc/nginx/conf.d/default.conf

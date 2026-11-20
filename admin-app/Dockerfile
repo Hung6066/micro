@@ -20,7 +20,7 @@ COPY shared /workspace/shared
 COPY admin-app .
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
-FROM ghcr.io/nginx/nginx-unprivileged:1.30.6-alpine3.24-slim@sha256:984a21e29bb10d4c0e122374b97b89a2101823a9331e0f3c6c04bc285ccf447f AS final
+FROM ghcr.io/nginx/nginx-unprivileged:1.30.7-alpine3.24-slim@sha256:8432c57ac86f178741af2b89948bd9087cb9df1c415bc1ab4d23735c4f0e3e61 AS final
 USER root
 RUN mkdir -p /etc/nginx/templates
 COPY --from=build /workspace/admin-app/dist/admin-app/browser /usr/share/nginx/html
