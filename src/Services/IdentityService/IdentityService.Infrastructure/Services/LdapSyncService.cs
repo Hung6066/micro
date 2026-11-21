@@ -69,7 +69,7 @@ public sealed class LdapSyncService(
         }
         catch (Exception ex)
         {
-            logger.LogInformation("LDAP authentication failed for {UserName}: {Reason}", userName, ex.Message);
+            logger.LogInformation("LDAP authentication failed: {Reason}", ex.Message);
             return null;
         }
     }

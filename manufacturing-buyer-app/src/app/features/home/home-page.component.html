@@ -1,0 +1,158 @@
+<section class="hero-slider" [attr.aria-label]="'buyer.home.banner' | hhTranslate">
+  <div class="hero-slider__track">
+    @for (slide of heroSlides(); track slide.id; let i = $index) {
+      <article
+        class="hero-slide"
+        [class.hero-slide--active]="activeSlide() === i"
+        [style.background-image]="'url(' + slide.image + ')'"
+      >
+        <div class="hero-slide__overlay"></div>
+        <div class="fx-container hero-slide__content">
+          <p class="hero-slide__eyebrow">{{ slide.eyebrow | hhTranslate }}</p>
+          <h1>{{ slide.title | hhTranslate }}</h1>
+          <p class="hero-slide__subtitle">{{ slide.subtitle | hhTranslate }}</p>
+          <div class="hero-slide__actions">
+            <button type="button" class="fx-btn-primary" (click)="startOrdering()">
+              {{ 'buyer.home.orderNow' | hhTranslate }}
+            </button>
+            <button type="button" class="fx-btn-outline hero-slide__outline" (click)="scrollToStory()">
+              {{ 'buyer.home.story' | hhTranslate }}
+            </button>
+          </div>
+        </div>
+      </article>
+    }
+  </div>
+
+  <button type="button" class="hero-slider__arrow hero-slider__arrow--prev" (click)="prevSlide()" [attr.aria-label]="'buyer.home.previousSlide' | hhTranslate">
+    <mat-icon>chevron_left</mat-icon>
+  </button>
+  <button type="button" class="hero-slider__arrow hero-slider__arrow--next" (click)="nextSlide()" [attr.aria-label]="'buyer.home.nextSlide' | hhTranslate">
+    <mat-icon>chevron_right</mat-icon>
+  </button>
+
+  <div class="hero-slider__dots">
+    @for (slide of heroSlides(); track slide.id; let i = $index) {
+      <button
+        type="button"
+        class="hero-slider__dot"
+        [class.hero-slider__dot--active]="activeSlide() === i"
+        (click)="goToSlide(i)"
+        [attr.aria-label]="'buyer.home.slide' | hhTranslate : 'Slide {{number}}' : { number: i + 1 }"
+      ></button>
+    }
+  </div>
+</section>
+
+<section class="stats">
+  <div class="fx-container stats__grid">
+    @for (item of stats; track item.label) {
+      <article>
+        <strong>{{ item.value }}</strong>
+        <span>{{ item.label | hhTranslate }}</span>
+      </article>
+    }
+  </div>
+</section>
+
+<section class="featured" id="san-pham-chinh">
+  <div class="fx-container">
+    <p class="featured__eyebrow">{{ 'buyer.home.featured' | hhTranslate }}</p>
+    <h2 class="fx-section-title">{{ 'buyer.home.featuredTitle' | hhTranslate }}</h2>
+    <p class="fx-section-subtitle">{{ 'buyer.home.featuredSubtitle' | hhTranslate }}</p>
+    <div class="featured__grid">
+      @for (product of featuredProducts; track product.sku) {
+        <article class="featured-card fx-card">
+          <div class="featured-card__media">
+            <img [src]="productImage(product.sku)" [alt]="product.name" loading="lazy" />
+          </div>
+          <div class="featured-card__body">
+            <h3>{{ product.name }}</h3>
+            <strong>{{ i18n.formatCurrency(product.unitPrice, 'VND') }}</strong>
+            <button type="button" class="link-btn" (click)="startOrdering()">{{ 'buyer.home.viewDetail' | hhTranslate }}</button>
+          </div>
+        </article>
+      }
+    </div>
+    <div class="featured__cta">
+      <button type="button" class="fx-btn-primary" (click)="startOrdering()">
+        {{ 'buyer.home.viewAll' | hhTranslate }}
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="categories">
+  <div class="fx-container">
+    <h2 class="fx-section-title">{{ 'buyer.home.categories' | hhTranslate }}</h2>
+    <p class="fx-section-subtitle">{{ 'buyer.home.categorySubtitle' | hhTranslate }}</p>
+    <div class="categories__grid">
+      @for (story of stories; track story.id) {
+        <article class="category-card fx-card" [id]="story.id">
+          <div class="category-card__media">
+            <img [src]="story.image" [alt]="story.title" loading="lazy" />
+          </div>
+          <div class="category-card__body">
+            <span class="category-card__tag">{{ story.tag | hhTranslate }}</span>
+            <h3>{{ story.title | hhTranslate }}</h3>
+            <p>{{ story.body | hhTranslate }}</p>
+            <button type="button" class="link-btn" (click)="startOrdering()">{{ 'buyer.home.exploreProduct' | hhTranslate }}</button>
+          </div>
+        </article>
+      }
+    </div>
+  </div>
+</section>
+
+<section class="founder" id="cau-chuyen">
+  <div class="fx-container founder__inner fx-card">
+    <div class="founder__media">
+      <img [src]="founderStory().image" [alt]="'buyer.home.founderAlt' | hhTranslate" loading="lazy" />
+    </div>
+    <div class="founder__body">
+      <p class="founder__eyebrow">{{ 'buyer.home.founderEyebrow' | hhTranslate }}</p>
+      <h2 class="fx-section-title">{{ founderStory().title }}</h2>
+      <p>{{ founderStory().body }}</p>
+      <button type="button" class="fx-btn-outline" (click)="startOrdering()">
+        {{ 'buyer.home.discover' | hhTranslate }}
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="news">
+  <div class="fx-container">
+    <div class="news__head">
+      <h2 class="fx-section-title">{{ 'buyer.home.news' | hhTranslate }}</h2>
+      <a routerLink="/blog" class="link-btn">{{ 'buyer.blog.viewAll' | hhTranslate }}</a>
+    </div>
+    <div class="news__grid">
+      @for (item of blogPosts(); track item.slug) {
+        <article class="news-card fx-card">
+          <a [routerLink]="['/blog', item.slug]" class="news-card__link">
+            <div class="news-card__media">
+              <img [src]="item.imageUrl" [alt]="item.title" loading="lazy" />
+            </div>
+            <div class="news-card__body">
+              <span class="news-card__meta">{{ item.publishedAt | date: 'dd/MM/yyyy' }} · {{ item.category }}</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.excerpt }}</p>
+            </div>
+          </a>
+        </article>
+      }
+    </div>
+  </div>
+</section>
+
+<section class="cooperation" id="hop-tac">
+  <div class="fx-container cooperation__inner fx-card">
+    <div>
+      <h2 class="fx-section-title">{{ 'buyer.home.cooperation' | hhTranslate }}</h2>
+      <p class="fx-section-subtitle">{{ 'buyer.home.cooperationSubtitle' | hhTranslate }}</p>
+    </div>
+    <button type="button" class="fx-btn-primary" (click)="goToCooperation()">
+      {{ 'buyer.home.cooperationCta' | hhTranslate }}
+    </button>
+  </div>
+</section>

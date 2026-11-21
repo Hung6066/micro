@@ -35,6 +35,39 @@ describe('HisHopeAuthCoordinator', () => {
     expect(states).toEqual([false]);
   });
 
+  it('clears the server session when the portal client is forbidden', () => {
+    const oidc = { logoffLocal: jasmine.createSpy('logoffLocal') } as unknown as OidcSecurityService;
+    const http = {
+      get: jasmine.createSpy('get').and.returnValue(of({ authenticated: true })),
+      post: jasmine.createSpy('post').and.returnValue(
+        throwError(() => new HttpErrorResponse({ status: 403, statusText: 'Forbidden' })),
+      ),
+    } as unknown as HttpClient;
+    const router = {
+      url: '/auth/login',
+      navigate: jasmine.createSpy('navigate'),
+    } as unknown as Router;
+
+    new HisHopeAuthCoordinator(oidc, http, router, {
+      defaultReturnUrl: '/dashboard',
+      sessionStatusUrl: '/api/v1/auth/session-status',
+      sessionExchangeUrl: '/api/v1/auth/session/exchange',
+      logoutUrl: '/api/v1/auth/logout',
+      bffOnly: true,
+    }).isAuthenticated$.subscribe();
+
+    expect(http.post).toHaveBeenCalledWith(
+      '/api/v1/auth/session/exchange',
+      {},
+      { withCredentials: true },
+    );
+    expect(http.post).toHaveBeenCalledWith(
+      '/api/v1/auth/logout',
+      {},
+      { withCredentials: true },
+    );
+  });
+
   it('exchanges an authenticated BFF cookie after the SSO marker survives the redirect', (done) => {
     const oidc = { logoffLocal: jasmine.createSpy('logoffLocal') } as unknown as OidcSecurityService;
     const http = {
@@ -49,14 +82,47 @@ describe('HisHopeAuthCoordinator', () => {
       sessionStatusUrl: '/api/v1/auth/session-status',
       sessionExchangeUrl: '/api/v1/auth/session/exchange',
       logoutUrl: '/api/v1/auth/logout',
+      bffClientId: 'customer-factory-x-app',
       bffOnly: true,
     });
 
     coordinator.trySsoLogin('/dashboard').subscribe((exchanged) => {
       expect(exchanged).toBeTrue();
-      expect(http.post).toHaveBeenCalledWith('/api/v1/auth/session/exchange', {}, { withCredentials: true });
+      expect(http.post).toHaveBeenCalledWith(
+        '/api/v1/auth/session/exchange',
+        { clientId: 'customer-factory-x-app' },
+        { withCredentials: true },
+      );
       expect(router.navigateByUrl).toHaveBeenCalledWith('/dashboard');
       sessionStorage.removeItem('hishop_sso_login_in_progress_until');
+      done();
+    });
+  });
+
+  it('does not let a transient logout suppression block BFF exchange', (done) => {
+    const oidc = { logoffLocal: jasmine.createSpy('logoffLocal') } as unknown as OidcSecurityService;
+    const http = {
+      get: jasmine.createSpy('get').and.returnValue(of({ authenticated: true })),
+      post: jasmine.createSpy('post').and.returnValue(of(void 0)),
+    } as unknown as HttpClient;
+    const router = { url: '/auth/login', navigateByUrl: jasmine.createSpy('navigateByUrl') } as unknown as Router;
+    sessionStorage.setItem('hishop_sso_suppressed_until', String(Date.now() + 60_000));
+
+    const coordinator = new HisHopeAuthCoordinator(oidc, http, router, {
+      defaultReturnUrl: '/dashboard',
+      sessionStatusUrl: '/api/v1/auth/session-status',
+      sessionExchangeUrl: '/api/v1/auth/session/exchange',
+      logoutUrl: '/api/v1/auth/logout',
+      bffOnly: true,
+    });
+
+    coordinator.trySsoLogin('/dashboard').subscribe((exchanged) => {
+      expect(exchanged).toBeTrue();
+      expect(http.post).toHaveBeenCalledWith(
+        '/api/v1/auth/session/exchange',
+        {},
+        { withCredentials: true },
+      );
       done();
     });
   });

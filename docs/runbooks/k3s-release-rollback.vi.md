@@ -11,7 +11,7 @@
 1. Lưu Git SHA, image digest hiện tại, migration version và kết quả smoke test.
 2. Xác nhận backup PostgreSQL/etcd gần nhất có trạng thái `completed` và có checksum.
 3. Xác nhận Alertmanager/SLO không có active P0/P1.
-4. Tạo promotion PR thay đổi duy nhất trong `k8s/overlays/prod/image-digests.yaml`.
+4. Tạo promotion PR thay đổi digest trong `k8s/overlays/prod/image-digests/kustomization.yaml` và release metadata; không cập nhật file legacy `image-digests.yaml`.
 
 ## Rollback ứng dụng
 

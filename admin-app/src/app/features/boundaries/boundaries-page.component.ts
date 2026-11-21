@@ -9,7 +9,7 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
-import { catchError, forkJoin, of } from "rxjs";
+import { catchError, forkJoin, map, of } from "rxjs";
 import {
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,
@@ -28,6 +28,7 @@ import {
   User,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 import { BoundaryEditDialogComponent } from "./boundary-edit-dialog.component";
@@ -74,6 +75,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class BoundariesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -160,6 +162,7 @@ export class BoundariesPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   openCreate(): void {
     if (this.canWrite)
@@ -187,6 +190,10 @@ export class BoundariesPageComponent implements OnInit {
         workloadRoles: this.api.getIamWorkloadRoles(),
         permissions: this.api.getPermissions(),
       }).pipe(
+        map((result) => ({
+          ...result,
+          scopes: this.tenantContext.filterScopes(result.scopes),
+        })),
         catchError(() => {
           this.error = this.i18n.t(
             "admin.iamLoadFailed",

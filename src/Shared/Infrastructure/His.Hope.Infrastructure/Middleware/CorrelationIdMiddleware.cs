@@ -1,4 +1,5 @@
 using His.Hope.Infrastructure.Observability;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.Infrastructure.Middleware;
@@ -14,7 +15,7 @@ public class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault();
+        var correlationId = context.Request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault();
 
         if (string.IsNullOrEmpty(correlationId))
         {
@@ -25,9 +26,9 @@ public class CorrelationIdMiddleware
 
         context.Response.OnStarting(() =>
         {
-            if (!context.Response.Headers.ContainsKey("X-Correlation-Id"))
+            if (!context.Response.Headers.ContainsKey(HisHopeProtocolConstants.Headers.CorrelationId))
             {
-                context.Response.Headers["X-Correlation-Id"] = correlationId;
+                context.Response.Headers[HisHopeProtocolConstants.Headers.CorrelationId] = correlationId;
             }
             return Task.CompletedTask;
         });

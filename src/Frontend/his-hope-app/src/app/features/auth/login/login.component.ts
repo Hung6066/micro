@@ -180,12 +180,12 @@ export class LoginComponent implements OnInit, OnDestroy {
       .subscribe((providers) => {
         if (providers.length > 0) this.externalProviders = providers;
       });
+    const returnUrl = this.route.snapshot.queryParamMap.get("returnUrl") || undefined;
     this.authService
-      .isLoggedIn()
+      .isLoggedIn(returnUrl)
       .pipe(takeUntil(this.destroy$))
       .subscribe((isAuth) => {
         if (isAuth) {
-          const returnUrl = this.route.snapshot.queryParamMap.get("returnUrl");
           this.router.navigateByUrl(returnUrl || "/dashboard");
         }
       });

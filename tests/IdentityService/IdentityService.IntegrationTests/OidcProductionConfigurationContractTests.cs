@@ -8,6 +8,14 @@ namespace His.Hope.IdentityService.IntegrationTests;
 public sealed class OidcProductionConfigurationContractTests
 {
     [Fact]
+    public void ProductionConfiguration_UsesCanonicalApiIssuer()
+    {
+        var configuration = LoadProductionConfiguration();
+
+        configuration["OpenIddict:Issuer"].Should().Be("https://identity-api.nacoms.com.vn/");
+    }
+
+    [Fact]
     public void ProductionConfiguration_RequiresPersistentEncryptionAndHttpsClientUris()
     {
         var configuration = LoadProductionConfiguration();
@@ -19,8 +27,12 @@ public sealed class OidcProductionConfigurationContractTests
         configuration.GetSection("Dpop:RequiredClientIds").Get<string[]>()
             .Should().Contain("his-hope-mobile");
         configuration["Passkeys:RpId"].Should().Be("his-hope.vn");
-        configuration.GetSection("Passkeys:Origins").Get<string[]>()
-            .Should().Contain(new[] { "https://his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" });
+        var passkeyOrigins = configuration.GetSection("Passkeys:Origins").Get<string[]>();
+        passkeyOrigins
+            .Should().Contain(new[] { "https://his-hope.vn", "https://dashboard.nacoms.com.vn", "https://admin.nacoms.com.vn" });
+        passkeyOrigins.Should().OnlyContain(value => IsProductionHttpsUri(value));
+        configuration.GetSection("Authentication:RedirectWhitelist").Get<string[]>()
+            .Should().OnlyContain(value => IsProductionHttpsUri(value));
 
         var clients = IdentityDbInitializer.ResolveOidcClientUris(configuration, "Production");
 
@@ -31,9 +43,15 @@ public sealed class OidcProductionConfigurationContractTests
             .Should().OnlyContain(uri => uri.Scheme == Uri.UriSchemeHttps);
     }
 
+    private static bool IsProductionHttpsUri(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        !uri.IsLoopback;
+
     private static IConfiguration LoadProductionConfiguration() =>
         new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("IdentityService.appsettings.json", optional: false)
             .AddJsonFile("IdentityService.appsettings.Production.json", optional: false)
             .Build();
 }

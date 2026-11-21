@@ -9,8 +9,8 @@ using Microsoft.AspNetCore.Http;
 
 /// <summary>
 /// Custom OpenIddict server event handler that fixes the <see cref="BaseContext.BaseUri"/>
-/// used for discovery document endpoint URLs by reading the <c>X-Forwarded-Host</c>
-/// header directly from the ASP.NET Core request.
+/// used for discovery document endpoint URLs from the configured issuer, falling
+/// back to forwarded headers only when no issuer is configured.
 ///
 /// This bypasses the <c>ForwardedHeadersMiddleware</c>, which may skip processing
 /// when the Docker network source IP does not match the configured
@@ -57,6 +57,13 @@ public sealed class FixDiscoveryBaseUriHandler
             return default;
         }
 
+        var issuer = _configuration["OpenIddict:Issuer"];
+        if (Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri))
+        {
+            context.BaseUri = new Uri($"{issuerUri.Scheme}://{issuerUri.Authority}{request.PathBase}", UriKind.Absolute);
+            return default;
+        }
+
         // Read X-Forwarded-Host directly from the request headers.
         // Nginx sets this via `proxy_set_header X-Forwarded-Host $http_host`
         // in the /connect/ and /.well-known/ location blocks, so the value
@@ -70,11 +77,6 @@ public sealed class FixDiscoveryBaseUriHandler
             forwardedHosts.Count <= 0 ||
             string.IsNullOrEmpty(forwardedHosts[0]))
         {
-            var issuer = _configuration["OpenIddict:Issuer"];
-            if (Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri))
-            {
-                context.BaseUri = new Uri($"{issuerUri.Scheme}://{issuerUri.Authority}{request.PathBase}", UriKind.Absolute);
-            }
             return default;
         }
 

@@ -91,6 +91,22 @@ public sealed class SessionAuthMiddleware
             return;
         }
 
+        if (session.IdleExpiresAt is not null)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var refreshedIdle = now.Add(session.IsPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30));
+            if (session.AbsoluteExpiresAt is not null && refreshedIdle > session.AbsoluteExpiresAt)
+                refreshedIdle = session.AbsoluteExpiresAt.Value;
+            session = session with { IdleExpiresAt = refreshedIdle };
+            var protectedSession = session with { Jwt = _tokenProtector.Protect(session.Jwt) };
+            var sessionExpiry = new[] { session.ExpiresAt, session.IdleExpiresAt, session.AbsoluteExpiresAt }
+                .Where(value => value is not null)
+                .Select(value => value!.Value)
+                .Min() - now;
+            if (sessionExpiry > TimeSpan.Zero)
+                await db.StringSetAsync($"session:{cookieValue}", JsonSerializer.Serialize(protectedSession), sessionExpiry);
+        }
+
         context.Items["SessionJwt"] = session.Jwt;
         context.Items["Permissions"] = session.Permissions;
         context.Items["SessionId"] = cookieValue;

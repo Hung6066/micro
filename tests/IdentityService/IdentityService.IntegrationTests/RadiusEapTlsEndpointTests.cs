@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,7 +9,8 @@ using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
 
-public sealed class RadiusEapTlsEndpointTests : IClassFixture<IdentityServiceTestFixture>
+[Collection("IdentityServiceIntegration")]
+public sealed class RadiusEapTlsEndpointTests
 {
     private readonly IdentityServiceTestFixture _fixture;
 
@@ -23,7 +25,7 @@ public sealed class RadiusEapTlsEndpointTests : IClassFixture<IdentityServiceTes
 
         try
         {
-            using var response = await _fixture.AnonymousClient.GetAsync("/api/v1/auth/radius/eap-tls");
+            using var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.RadiusEapTls);
 
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
@@ -42,7 +44,7 @@ public sealed class RadiusEapTlsEndpointTests : IClassFixture<IdentityServiceTes
 
         try
         {
-            using var response = await _fixture.AnonymousClient.GetAsync("/api/v1/auth/radius/eap-tls");
+            using var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.RadiusEapTls);
 
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
@@ -55,7 +57,7 @@ public sealed class RadiusEapTlsEndpointTests : IClassFixture<IdentityServiceTes
     [Fact]
     public async Task EapTls_status_requires_human_admin_authorization()
     {
-        using var response = await _fixture.AnonymousClient.GetAsync("/api/v1/admin/radius/eap-tls/status");
+        using var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.AdminRadiusEapTlsStatus);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -77,7 +79,7 @@ public sealed class RadiusEapTlsEndpointTests : IClassFixture<IdentityServiceTes
             Assert.Equal(HttpStatusCode.OK,
                 (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
 
-            using var response = await session.GetWithCookiesAsync("/api/v1/admin/radius/eap-tls/status");
+            using var response = await session.GetWithCookiesAsync(IdentityApiRoutes.AdminRadiusEapTlsStatus);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             Assert.True(body.GetProperty("enabled").GetBoolean());
@@ -90,6 +92,41 @@ public sealed class RadiusEapTlsEndpointTests : IClassFixture<IdentityServiceTes
             configuration["Radius:EapTls:Enabled"] = previousEnabled;
             configuration["Mtls:TrustedCaFile"] = previousCa;
             File.Delete(caPath);
+        }
+    }
+
+    [Fact]
+    public async Task EapTls_status_reports_unconfigured_ca_without_leaking_shared_secret()
+    {
+        var configuration = _fixture.Services.GetRequiredService<IConfiguration>();
+        var previousEnabled = configuration["Radius:EapTls:Enabled"];
+        var previousCa = configuration["Mtls:TrustedCaFile"];
+        configuration["Radius:EapTls:Enabled"] = "true";
+        configuration["Mtls:TrustedCaFile"] = "";
+
+        try
+        {
+            using var session = _fixture.CreateSessionClient();
+            Assert.Equal(HttpStatusCode.OK,
+                (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+
+            using var response = await session.GetWithCookiesAsync(IdentityApiRoutes.AdminRadiusEapTlsStatus);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.True(body.GetProperty("enabled").GetBoolean());
+            Assert.False(body.GetProperty("trustedCaConfigured").GetBoolean());
+            Assert.False(body.GetProperty("trustedCaReachable").GetBoolean());
+            Assert.Equal("radius-outpost", body.GetProperty("sharedSecretManagedBy").GetString());
+            // The contract intentionally exposes only the owner label, never the
+            // configured shared-secret value itself.
+            var configuredSecret = configuration["Radius:EapTls:SharedSecret"];
+            if (!string.IsNullOrEmpty(configuredSecret))
+                Assert.DoesNotContain(configuredSecret, body.GetRawText(), StringComparison.Ordinal);
+        }
+        finally
+        {
+            configuration["Radius:EapTls:Enabled"] = previousEnabled;
+            configuration["Mtls:TrustedCaFile"] = previousCa;
         }
     }
 }

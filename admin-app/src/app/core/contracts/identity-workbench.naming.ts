@@ -26,6 +26,7 @@ export const IDENTITY_WORKBENCH_RESOURCES = {
   accessReviews: 'access-reviews',
   breakGlass: 'break-glass/requests',
   authorizationChanges: 'authorization-changes',
+  authorizationChangeRequests: 'authorization-change-requests',
   sessions: 'sessions',
   workloadSessions: 'workload-sessions',
   revocations: 'revocations',
@@ -52,6 +53,7 @@ export const IDENTITY_WORKBENCH_ACTIONS = {
   compile: 'compile',
   reconcile: 'reconcile',
   export: 'export',
+  members: 'members',
 } as const;
 
 export const identityWorkbenchPath = (resource: string, id?: string): string =>

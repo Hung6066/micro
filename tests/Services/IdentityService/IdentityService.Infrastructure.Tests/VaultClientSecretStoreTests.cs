@@ -64,7 +64,7 @@ public sealed class VaultClientSecretStoreTests
         (await store.GetSecretAsync("client/a")).Should().Be("vault-secret");
         (await store.GetSecretAsync("client/a")).Should().Be("vault-secret");
         handler.Requests.Should().ContainSingle();
-        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1/kv/data/identity/client-secrets/client%2Fa");
+        handler.Requests[0].RequestUri!.AbsolutePath.Should().Be("/v1/kv/data/his-hope/identity/client-secrets/client%2Fa");
         handler.Requests[0].Headers.GetValues("X-Vault-Token").Should().ContainSingle("vault-token");
     }
 
@@ -82,6 +82,66 @@ public sealed class VaultClientSecretStoreTests
         handler.Requests[0].Method.Should().Be(HttpMethod.Post);
         handler.Requests[1].Method.Should().Be(HttpMethod.Delete);
         (await store.GetSecretAsync("client-a")).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Shared_secret_provider_receives_relative_client_path_when_vault_path_settings_are_blank()
+    {
+        string? storedPath = null;
+        var secretProvider = new Mock<IVaultSecretProvider>();
+        secretProvider
+            .Setup(provider => provider.PutAsync(It.IsAny<string>(), "secret", "secret-a", It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, CancellationToken>((path, _, _, _) => storedPath = path)
+            .Returns(Task.CompletedTask);
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:SecretsMount"] = "",
+                ["Vault:SecretsPathPrefix"] = ""
+            })
+            .Build();
+        var store = new VaultClientSecretStore(
+            config,
+            NullLogger<VaultClientSecretStore>.Instance,
+            new TestHostEnvironment(Environments.Production),
+            Mock.Of<IVaultTokenProvider>(),
+            Mock.Of<IHttpClientFactory>(factory => factory.CreateClient("vault") == new HttpClient()),
+            secretProvider.Object);
+
+        await store.StoreSecretAsync("client-a", "secret-a");
+
+        storedPath.Should().Be("identity/client-secrets/client-a");
+    }
+
+    [Fact]
+    public async Task Shared_secret_provider_receives_only_client_id_when_configured_root_includes_client_path()
+    {
+        string? storedPath = null;
+        var secretProvider = new Mock<IVaultSecretProvider>();
+        secretProvider
+            .Setup(provider => provider.PutAsync(It.IsAny<string>(), "secret", "secret-a", It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, CancellationToken>((path, _, _, _) => storedPath = path)
+            .Returns(Task.CompletedTask);
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:Address"] = "https://vault.test",
+                ["Vault:SecretsMount"] = "secret",
+                ["Vault:SecretsPathPrefix"] = "his-hope/identity/client-secrets"
+            })
+            .Build();
+        var store = new VaultClientSecretStore(
+            config,
+            NullLogger<VaultClientSecretStore>.Instance,
+            new TestHostEnvironment(Environments.Production),
+            Mock.Of<IVaultTokenProvider>(),
+            Mock.Of<IHttpClientFactory>(factory => factory.CreateClient("vault") == new HttpClient()),
+            secretProvider.Object);
+
+        await store.StoreSecretAsync("client-a", "secret-a");
+
+        storedPath.Should().Be("client-a");
     }
 
     [Fact]
@@ -126,7 +186,7 @@ public sealed class VaultClientSecretStoreTests
             {
                 ["Vault:Address"] = "https://vault.test/",
                 ["Vault:SecretsMount"] = "kv",
-                ["Vault:SecretsPathPrefix"] = "identity/client-secrets"
+                ["Vault:SecretsPathPrefix"] = "his-hope/identity/client-secrets"
             })
             .Build();
         var factory = Mock.Of<IHttpClientFactory>(f =>

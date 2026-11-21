@@ -57,7 +57,11 @@ foreach ($file in $required) {
         $executed = [DateTime]::Parse([string]$doc.executedAtUtc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal)
         $verified = $doc.restoreVerified -eq $true
         $target = -not [string]::IsNullOrWhiteSpace([string]$doc.target)
-        $numericMeasurements = [double]::IsFinite($rpo) -and [double]::IsFinite($rto)
+        # Use IsNaN/IsInfinity instead of IsFinite for compatibility with the
+        # Windows PowerShell/.NET runtime used by local and CI validation.
+        $numericMeasurements =
+            -not [double]::IsNaN($rpo) -and -not [double]::IsInfinity($rpo) -and
+            -not [double]::IsNaN($rto) -and -not [double]::IsInfinity($rto)
         $ageHours = ([DateTime]::UtcNow - $executed).TotalHours
         $fresh = $executed -ne [DateTime]::MinValue -and $ageHours -ge -0.0833 -and $ageHours -le $MaxEvidenceAgeHours
         if ($doc.status -ne 'pass' -or -not $numericMeasurements -or $rpo -lt 0 -or $rto -lt 0 -or -not $fresh -or -not $verified -or -not $target) {

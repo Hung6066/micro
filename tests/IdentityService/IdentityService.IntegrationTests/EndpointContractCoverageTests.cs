@@ -135,9 +135,11 @@ public sealed class EndpointContractCoverageTests
             (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminSecuritySignalsStatus)).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
             (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminSecuritySignalsOutbox)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound,
-            (await session.PostWithCookiesAsync(
-                $"{IdentityApiRoutes.AdminSecuritySignalsOutbox}/{Guid.NewGuid():D}/retry", new { })).StatusCode);
+        using var replayResponse = await session.PostWithCookiesAsync(
+            $"{IdentityApiRoutes.AdminSecuritySignalsOutbox}/{Guid.NewGuid():D}/retry", new { });
+        var replayBody = await replayResponse.Content.ReadAsStringAsync();
+        Assert.True(replayResponse.StatusCode == HttpStatusCode.NotFound,
+            $"Unexpected replay response {(int)replayResponse.StatusCode}: {replayBody}");
     }
 
     [Fact]

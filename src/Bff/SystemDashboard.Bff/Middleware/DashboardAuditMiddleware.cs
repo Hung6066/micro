@@ -25,7 +25,7 @@ public sealed class DashboardAuditMiddleware
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var userName = context.User.FindFirstValue("name") ?? "";
+        var userName = context.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Name) ?? "";
         var role = context.User.FindFirstValue(ClaimTypes.Role) ?? "";
         var isAuthenticated = context.User.Identity?.IsAuthenticated == true;
 

@@ -1,7 +1,12 @@
 [CmdletBinding()]
-param([string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path)
+param([string]$RepoRoot)
 
 $ErrorActionPreference = 'Stop'
+$RepoRoot = if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+  (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+} else {
+  (Resolve-Path $RepoRoot).Path
+}
 $manifestPath = Join-Path $RepoRoot 'config\identity-workbench-12-parts.v1.json'
 if (-not (Test-Path -LiteralPath $manifestPath)) { throw 'missing_identity_workbench_manifest' }
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json

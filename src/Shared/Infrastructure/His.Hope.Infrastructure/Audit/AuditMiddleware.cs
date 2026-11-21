@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.Infrastructure.Audit;
 
@@ -87,12 +88,13 @@ public class AuditMiddleware
         if (match != null)
         {
             // Capture the time and user context before the request
-            var userId = context.User?.FindFirst("sub")?.Value ?? "anonymous";
+            var userId = context.User?.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value ?? "anonymous";
             var userRole = context.User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
                 ?? context.User?.FindFirst("role")?.Value
                 ?? "unknown";
             var correlationId = Activity.Current?.Id ?? context.TraceIdentifier;
-            var tenantId = context.User?.FindFirst("tenant")?.Value;
+            var tenantId = context.User?.FindFirst(HisHopeProtocolConstants.Claims.TenantId)?.Value
+                ?? context.User?.FindFirst("tenant")?.Value;
 
             // SECURITY: Extract client IP from trusted proxy headers
             var clientIp = GetClientIp(context);

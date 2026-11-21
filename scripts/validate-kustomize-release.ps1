@@ -25,6 +25,19 @@ if ([string]::IsNullOrWhiteSpace($yaml)) {
     throw "Kustomize rendered an empty manifest for [$Environment]."
 }
 
+if ($Environment -eq 'prod') {
+    $mutableTagged = @([regex]::Matches($yaml, '(?m)^\s*image:\s*(?<image>[^\s]+)') |
+        ForEach-Object { $_.Groups['image'].Value } |
+        Where-Object { $_ -match ':(latest|production)@sha256:[0-9a-f]{64}$' } |
+        Sort-Object -Unique)
+    if ($mutableTagged.Count -gt 0) {
+        throw "Production render contains mutable image tags despite digest pinning: $($mutableTagged -join ', ')"
+    }
+    if ($yaml -match '(?m)^\s*app\.kubernetes\.io/version:\s*latest\s*$') {
+        throw 'Production render contains a mutable app.kubernetes.io/version label.'
+    }
+}
+
 $output = if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     Join-Path $repoRoot "artifacts\k8s\$Environment.yaml"
 } else {

@@ -67,6 +67,15 @@ export interface HisHopePageResult<T> {
   nextCursor?: string;
   previousCursor?: string;
 }
+/** Cursor response used by mobile/infinite-scroll APIs without offset metadata. */
+export interface HisHopeCursorPageResult<T> {
+  items: T[];
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  nextCursor?: string;
+  previousCursor?: string;
+  totalCount?: number;
+}
 export interface HisHopeBulkAction<T = Record<string, unknown>> {
   id: string;
   label: string;
@@ -76,7 +85,7 @@ export interface HisHopeBulkAction<T = Record<string, unknown>> {
   execute?: (rows: T[]) => void;
   disabled?: boolean;
 }
-export interface HisHopeBulkActionRequest<T = Record<string, unknown>> {
+export interface HisHopeBulkActionRequest {
   actionId: string;
   rowKeys: string[];
   query: HisHopePageQuery;
@@ -190,7 +199,6 @@ export interface HisHopeTranslator {
     fallback?: string,
     params?: Record<string, string | number>,
   ): string;
-  locale: string;
 }
 /** Minimal i18n surface for resource controllers (compatible with `HisHopeI18nService`). */
 export interface HisHopeTranslateFn {

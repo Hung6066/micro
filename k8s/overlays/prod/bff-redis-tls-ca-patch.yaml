@@ -1,0 +1,177 @@
+# BFF sessions and Data Protection keys are stored in Redis. In production,
+# validate the Redis server certificate against the provisioned CA rather than
+# relying on the container trust store alone.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: billing-bff
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-bff
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard-bff
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: lab-bff
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-bff
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: pharmacy-bff
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: systemdashboard-bff
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt

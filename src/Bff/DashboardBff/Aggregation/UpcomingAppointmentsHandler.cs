@@ -58,7 +58,9 @@ public sealed class UpcomingAppointmentsHandler : IAggregationHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to fetch upcoming appointments");
-            return AggregationResult.Failed("Appointment service unavailable");
+            return AggregationResult.Partial(
+                new { items = Array.Empty<object>() },
+                new[] { new DegradedField("appointments", "Appointment service unavailable", "unknown") });
         }
     }
 

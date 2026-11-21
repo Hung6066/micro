@@ -7,11 +7,14 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="KubernetesClient" Version="15.0.1" />
+    <ProjectReference Include="../../Shared/Contracts/His.Hope.Contracts/His.Hope.Contracts.csproj" />
+    <ProjectReference Include="../../Shared/ServiceDefaults/His.Hope.ServiceDefaults/His.Hope.ServiceDefaults.csproj" />
+    <PackageReference Include="KubernetesClient" Version="19.0.2" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="Prometheus-net.AspNetCore" Version="8.2.1" />
-    <PackageReference Include="YamlDotNet" Version="16.2.1" />
+    <PackageReference Include="System.Text.Json" Version="8.0.6" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 </Project>

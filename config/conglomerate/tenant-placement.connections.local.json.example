@@ -1,0 +1,3 @@
+{
+  "ManufacturingDb_customer_acme": "Host=db-acme.example.com;Port=5432;Database=manufacturing_acme;Username=YOUR_USER;Password=YOUR_PASSWORD;SSL Mode=Require"
+}

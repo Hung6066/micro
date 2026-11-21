@@ -1,0 +1,11 @@
+.handover-page { display: grid; gap: 1rem; min-width: 0; }
+.eyebrow { color: var(--text-secondary); font-size: var(--font-size-overline, .7rem); font-weight: 800; letter-spacing: .12em; }
+h2 { margin: 0; font-size: var(--font-size-headline, 1.9rem); overflow-wrap: anywhere; }
+.lede, article p { color: var(--text-secondary); line-height: 1.5; }
+button { width: 100%; min-height: 2.5rem; border: 0; border-radius: .7rem; background: var(--color-primary); color: var(--color-on-primary); font-weight: 700; }
+.handover-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+article { display: grid; gap: .45rem; min-width: 0; padding: .9rem; border: 1px solid var(--border-default); border-radius: .9rem; background: var(--surface-white); }
+h3 { margin: 0; color: var(--text-secondary); font-size: var(--font-size-label, .8rem); }
+article strong { font-size: 1.8rem; color: var(--text-primary); }
+article span { overflow-wrap: anywhere; color: var(--text-primary); font-size: .85rem; }
+@media (max-width: 28rem) { .handover-grid { grid-template-columns: 1fr; } }

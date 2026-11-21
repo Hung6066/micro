@@ -36,6 +36,8 @@ public static class AssurancePolicyEvaluator
             ?? throw new InvalidOperationException("Assurance policy document is empty.");
         if (document.Journeys.Count == 0)
             throw new InvalidOperationException("Assurance policy must define at least one journey.");
+        if (document.Journeys.Any(journey => journey.StepUpRequired && journey.AllowedFactors.Count == 0))
+            throw new InvalidOperationException("Every step-up assurance journey must define allowed authentication factors.");
         return document;
     }
 
@@ -45,7 +47,9 @@ public static class AssurancePolicyEvaluator
         string? currentAssurance,
         string? recoveryMethod = null,
         bool devicePostureFresh = false,
-        bool isBreakGlass = false)
+        bool isBreakGlass = false,
+        bool authenticationFresh = true,
+        string? currentFactor = null)
     {
         var journey = policy.Journeys.FirstOrDefault(j =>
             string.Equals(j.Id, journeyId, StringComparison.OrdinalIgnoreCase));
@@ -58,6 +62,9 @@ public static class AssurancePolicyEvaluator
         if (isBreakGlass && !journey.AllowBreakGlass)
             return new AssuranceEvaluationResult(false, journey.Id, journey.MinimumAssurance, "Break-glass not permitted for journey.");
 
+        if (journey.StepUpRequired && !authenticationFresh)
+            return new AssuranceEvaluationResult(false, journey.Id, journey.MinimumAssurance, "Fresh step-up authentication required.");
+
         if (!string.IsNullOrWhiteSpace(recoveryMethod) &&
             policy.Recovery.ForbiddenRecoveryMethods.Any(method =>
                 string.Equals(method, recoveryMethod, StringComparison.OrdinalIgnoreCase)))
@@ -65,11 +72,24 @@ public static class AssurancePolicyEvaluator
             return new AssuranceEvaluationResult(false, journey.Id, journey.MinimumAssurance, "Recovery method forbidden by policy.");
         }
 
+        if (!string.IsNullOrWhiteSpace(recoveryMethod) &&
+            policy.Recovery.AllowedRecoveryMethods.Count > 0 &&
+            !policy.Recovery.AllowedRecoveryMethods.Any(method =>
+                string.Equals(method, recoveryMethod, StringComparison.OrdinalIgnoreCase)))
+        {
+            return new AssuranceEvaluationResult(false, journey.Id, journey.MinimumAssurance, "Recovery method is not allowed.");
+        }
+
         if (string.IsNullOrWhiteSpace(currentAssurance) ||
             !MeetsMinimumAssurance(currentAssurance, journey.MinimumAssurance))
         {
             return new AssuranceEvaluationResult(false, journey.Id, journey.MinimumAssurance, "Assurance below journey minimum.");
         }
+
+        if (string.IsNullOrWhiteSpace(recoveryMethod) && journey.AllowedFactors.Count > 0 &&
+            (string.IsNullOrWhiteSpace(currentFactor) ||
+             !journey.AllowedFactors.Any(factor => string.Equals(factor, currentFactor, StringComparison.OrdinalIgnoreCase))))
+            return new AssuranceEvaluationResult(false, journey.Id, journey.MinimumAssurance, "Authentication factor is not allowed for this journey.");
 
         return new AssuranceEvaluationResult(true, journey.Id, journey.MinimumAssurance, null);
     }

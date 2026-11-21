@@ -17,9 +17,14 @@ export default defineConfig({
       openMode: 0,
     },
     env: {
-      apiUrl: 'http://localhost:5011/api/v1',
-      testUsername: 'testadmin',
-      testPassword: 'Test@12345',
+      // The local gateway is the supported browser/API entry point. Port 5011
+      // was the retired standalone API mapping and makes token setup fail before
+      // any E2E assertion runs.
+      apiUrl: 'http://localhost:5000/api/v1',
+      // Keep the local E2E fixture aligned with Identity's seeded bootstrap
+      // account (the old testadmin/Test@12345 pair no longer exists).
+      testUsername: 'admin',
+      testPassword: 'Test@123456',
     },
   },
 });

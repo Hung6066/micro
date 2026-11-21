@@ -41,6 +41,7 @@
     <PackageReference Include="Google.Protobuf" Version="3.26.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.StackExchangeRedis" Version="8.0.7" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.4" />
     <PackageReference Include="Serilog" Version="3.1.1" />
     <PackageReference Include="Serilog.Enrichers.Span" Version="3.1.0" />
@@ -50,23 +51,23 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
     <PackageReference Include="Npgsql" Version="8.0.9" />
     <PackageReference Include="System.Formats.Asn1" Version="8.0.2" />
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.4" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.5" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.2" />
     <PackageReference Include="System.Text.Json" Version="8.0.6" />
     <PackageReference Include="Unleash.Client" Version="4.1.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\..\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
 <ProjectReference Include="..\..\EventBus\Src\His.Hope.EventBus\His.Hope.EventBus.csproj" />
     <ProjectReference Include="..\..\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Redis\His.Hope.Messaging.Redis.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Sql\His.Hope.Messaging.Sql.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.RabbitMq\His.Hope.Messaging.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
     <ProjectReference Include="..\..\Observability\His.Hope.Observability.OpenTelemetry\His.Hope.Observability.OpenTelemetry.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Infrastructure.Tests" />
-  </ItemGroup>
-  <ItemGroup>
-    <Protobuf Include="..\..\..\Shared\Protos\identity.proto" GrpcServices="Client" Link="Protos\identity.proto" />
   </ItemGroup>
 </Project>

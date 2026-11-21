@@ -32,6 +32,44 @@ public class OidcClientRegistrationTests
     }
 
     [Fact]
+    public void ResolveOidcClientUris_WhenProductionContainsUnlistedDevelopmentClient_IgnoresIt()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Authentication:OidcClients:his-hope-spa:RedirectUris:0"] = "https://app.example/auth/callback",
+                ["Authentication:OidcClients:his-hope-spa:PostLogoutRedirectUris:0"] = "https://app.example/auth/login",
+                ["Authentication:OidcClients:customer-acme-portal:RedirectUris:0"] = "http://localhost:4203/auth/callback",
+                ["Authentication:OidcClients:customer-acme-portal:PostLogoutRedirectUris:0"] = "http://localhost:4203/auth/login"
+            })
+            .Build();
+
+        var clients = IdentityDbInitializer.ResolveOidcClientUris(configuration, "Production");
+
+        clients.Keys.Should().ContainSingle().Which.Should().Be("his-hope-spa");
+    }
+
+    [Fact]
+    public void ResolveOidcClientUris_WhenProductionAdditionalClientIsExplicitlyAllowed_IncludesIt()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Authentication:OidcClients:his-hope-spa:RedirectUris:0"] = "https://app.example/auth/callback",
+                ["Authentication:OidcClients:his-hope-spa:PostLogoutRedirectUris:0"] = "https://app.example/auth/login",
+                ["Authentication:ProductionAdditionalOidcClientIds:0"] = "customer-acme-portal",
+                ["Authentication:OidcClients:customer-acme-portal:RedirectUris:0"] = "https://acme.example/auth/callback",
+                ["Authentication:OidcClients:customer-acme-portal:PostLogoutRedirectUris:0"] = "https://acme.example/auth/login"
+            })
+            .Build();
+
+        var clients = IdentityDbInitializer.ResolveOidcClientUris(configuration, "Production");
+
+        clients["customer-acme-portal"].RedirectUris.Should().ContainSingle()
+            .Which.Should().Be(new Uri("https://acme.example/auth/callback"));
+    }
+
+    [Fact]
     public void ResolveOidcClientUris_WhenDevelopmentContainsLocalhostUris_ShouldPreserveThem()
     {
         var configuration = BuildConfiguration("http://localhost:4200/auth/callback");

@@ -48,13 +48,39 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("correlation_id");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<DateTime?>("DeadLetteredOn")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Error")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("error");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime?>("LastRetryOn")
                         .HasColumnType("timestamp with time zone")
@@ -91,13 +117,32 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("type");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_outbox_messages");
 
                     b.HasIndex("Status", "OccurredOn")
                         .HasDatabaseName("ix_outbox_messages_status_occurred_on");
 
-                    b.ToTable("outbox_messages", (string)null);
+                    b.ToTable("outbox_messages", null, t =>
+                        {
+                            t.Property("ClaimedBy")
+                                .HasColumnName("claimed_by");
+
+                            t.Property("DeadLetteredOn")
+                                .HasColumnName("dead_lettered_on");
+
+                            t.Property("NextAttemptAt")
+                                .HasColumnName("next_attempt_at");
+                        });
                 });
 
             modelBuilder.Entity("His.Hope.PatientService.Domain.Aggregates.Patient", b =>
@@ -112,12 +157,31 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnName("blood_type");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<DateTime>("DateOfBirth")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("date_of_birth");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("EmergencyContactName")
                         .HasMaxLength(200)
@@ -149,6 +213,12 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("MaritalStatus")
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
@@ -170,8 +240,15 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnName("race");
 
                     b.Property<DateTime?>("UpdatedAt")
+                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -185,6 +262,8 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_patients_facility_active_id");
 
                     b.ToTable("patients", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.PatientService.Domain.Entities.Allergy", b =>
@@ -200,9 +279,35 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("allergen");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid?>("PatientId")
                         .HasColumnType("uuid")
@@ -221,6 +326,15 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("severity");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -242,6 +356,26 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)")
                         .HasColumnName("condition_name");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Icd10Code")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
@@ -254,6 +388,12 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsChronic")
                         .HasColumnType("boolean")
                         .HasColumnName("is_chronic");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
@@ -275,6 +415,15 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ResolvedDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("resolved_date");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -304,11 +453,40 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("country");
 
+                            b1.Property<DateTime?>("CreatedAt")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("created_at")
+                                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                            b1.Property<string>("CreatedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("created_by");
+
+                            b1.Property<DateTime?>("DeletedAt")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("deleted_at");
+
+                            b1.Property<string>("DeletedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("deleted_by");
+
                             b1.Property<string>("District")
                                 .IsRequired()
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("district");
+
+                            b1.Property<bool?>("IsDeleted")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("boolean")
+                                .HasDefaultValue(false)
+                                .HasColumnName("is_deleted");
 
                             b1.Property<string>("PostalCode")
                                 .IsRequired()
@@ -328,6 +506,17 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                                 .HasColumnType("character varying(200)")
                                 .HasColumnName("street");
 
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("updated_at");
+
+                            b1.Property<string>("UpdatedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("updated_by");
+
                             b1.HasKey("PatientId");
 
                             b1.ToTable("patients");
@@ -341,16 +530,56 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                             b1.Property<Guid>("PatientId")
                                 .HasColumnType("uuid");
 
+                            b1.Property<DateTime?>("CreatedAt")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("created_at")
+                                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                            b1.Property<string>("CreatedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("created_by");
+
+                            b1.Property<DateTime?>("DeletedAt")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("deleted_at");
+
+                            b1.Property<string>("DeletedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("deleted_by");
+
                             b1.Property<string>("Email")
                                 .HasMaxLength(200)
                                 .HasColumnType("character varying(200)")
                                 .HasColumnName("email");
+
+                            b1.Property<bool?>("IsDeleted")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("boolean")
+                                .HasDefaultValue(false)
+                                .HasColumnName("is_deleted");
 
                             b1.Property<string>("Phone")
                                 .IsRequired()
                                 .HasMaxLength(20)
                                 .HasColumnType("character varying(20)")
                                 .HasColumnName("phone");
+
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("updated_at");
+
+                            b1.Property<string>("UpdatedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("updated_by");
 
                             b1.HasKey("PatientId");
 
@@ -370,11 +599,40 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                             b1.Property<Guid>("PatientId")
                                 .HasColumnType("uuid");
 
+                            b1.Property<DateTime?>("CreatedAt")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("created_at")
+                                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                            b1.Property<string>("CreatedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("created_by");
+
+                            b1.Property<DateTime?>("DeletedAt")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("deleted_at");
+
+                            b1.Property<string>("DeletedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("deleted_by");
+
                             b1.Property<string>("FirstName")
                                 .IsRequired()
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("first_name");
+
+                            b1.Property<bool?>("IsDeleted")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("boolean")
+                                .HasDefaultValue(false)
+                                .HasColumnName("is_deleted");
 
                             b1.Property<string>("LastName")
                                 .IsRequired()
@@ -386,6 +644,17 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("middle_name");
+
+                            b1.Property<DateTime?>("UpdatedAt")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("updated_at");
+
+                            b1.Property<string>("UpdatedBy")
+                                .ValueGeneratedOnUpdateSometimes()
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("updated_by");
 
                             b1.HasKey("PatientId");
 

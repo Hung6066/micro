@@ -88,6 +88,7 @@ export class UsersApiService {
   }
 
   getTableViews(_resource: "users"): Observable<AdminTableView[]> {
+    void _resource;
     return this.tableApi.getViews("users");
   }
 

@@ -4,6 +4,7 @@ using FluentValidation;
 using His.Hope.Contracts;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.SharedKernel.Domain.Exceptions;
+using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Extensions.Logging;
@@ -37,7 +38,7 @@ public class GlobalExceptionMiddleware
     {
         var (statusCode, title, errorCode) = MapException(exception);
         var correlationId = CorrelationContext.CurrentId
-            ?? context.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+            ?? context.Request.Headers[HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
             ?? context.TraceIdentifier;
 
         if (statusCode >= 500)
@@ -104,10 +105,14 @@ public class GlobalExceptionMiddleware
         return exception switch
         {
             ValidationException => (400, "Bad Request", ApiErrorCodes.Validation),
+            ArgumentException => (400, "Bad Request", ApiErrorCodes.Validation),
             DomainException => (422, "Unprocessable Entity", ApiErrorCodes.UnprocessableEntity),
             NotFoundException => (404, "Not Found", ApiErrorCodes.NotFound),
+            KeyNotFoundException => (404, "Not Found", ApiErrorCodes.NotFound),
+            ConflictException => (409, "Conflict", ApiErrorCodes.Conflict),
             UnauthorizedException => (401, "Unauthorized", ApiErrorCodes.Unauthorized),
             ForbiddenException => (403, "Forbidden", ApiErrorCodes.Forbidden),
+            UnauthorizedAccessException => (403, "Forbidden", ApiErrorCodes.Forbidden),
             _ => (500, "Internal Server Error", ApiErrorCodes.Internal)
         };
     }

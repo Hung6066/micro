@@ -86,10 +86,17 @@ public static class RuntimeConfigurationExtensions
             // REDIS_URL is a URI, so passwords containing '+', '/', or '=' are
             // percent-encoded in UserInfo. Decode only after URI parsing and
             // before handing the value to StackExchange.Redis.
-            var credentials = Uri.UnescapeDataString(redisUrl.UserInfo).Split(':', 2);
-            if (credentials.Length == 2 && !string.IsNullOrWhiteSpace(credentials[1]))
+            var credentials = redisUrl.UserInfo.Split(':', 2);
+            var username = Uri.UnescapeDataString(credentials[0]);
+            if (!string.IsNullOrWhiteSpace(username))
             {
-                parts.Add($"password={credentials[1]}");
+                parts.Add($"user={username}");
+            }
+            if (credentials.Length == 2)
+            {
+                var password = Uri.UnescapeDataString(credentials[1]);
+                if (!string.IsNullOrWhiteSpace(password))
+                    parts.Add($"password={password}");
             }
         }
 

@@ -1,0 +1,190 @@
+<main class="operator-shell">
+  <hh-mobile-shell-security (signOut)="logout()" />
+  <header class="operator-shell__header">
+    <div>
+      <p class="operator-shell__eyebrow">HIS.HOPE OPERATIONS</p>
+      <h1>
+        {{ "mobile.operatorFieldOperations" | hhTranslate: "Field operations" }}
+      </h1>
+    </div>
+    <div class="operator-shell__tools">
+      <hh-language-switcher
+        [attr.aria-label]="'mobile.operatorLanguage' | hhTranslate: 'Language'"
+      />
+      <div class="operator-shell__menu">
+        <button
+          type="button"
+          class="operator-shell__icon-button"
+          [attr.aria-expanded]="menuOpen"
+          aria-haspopup="menu"
+          [attr.aria-label]="
+            'mobile.operatorAccountMenu' | hhTranslate: 'Account menu'
+          "
+          (click)="menuOpen = !menuOpen"
+        >
+          <hh-mobile-icon name="more" />
+        </button>
+        @if (menuOpen) {
+          <div class="hh-mobile-account-menu" role="menu">
+            <a
+              class="hh-mobile-account-menu__item"
+              role="menuitem"
+              routerLink="sync"
+              (click)="menuOpen = false"
+            >
+              <hh-mobile-icon name="refresh" size="small" />
+              <span>{{ "mobile.operatorSync" | hhTranslate: "Sync" }}</span>
+            </a>
+            <a
+              class="hh-mobile-account-menu__item"
+              role="menuitem"
+              routerLink="handover"
+              (click)="menuOpen = false"
+            >
+              <hh-mobile-icon name="consents" size="small" />
+              <span>{{
+                "mobile.operatorHandoverTitle" | hhTranslate: "Shift handover"
+              }}</span>
+            </a>
+            <a
+              class="hh-mobile-account-menu__item"
+              role="menuitem"
+              routerLink="notifications"
+              (click)="menuOpen = false"
+            >
+              <hh-mobile-icon name="notifications" size="small" />
+              <span>{{
+                "mobile.operatorNotificationsTitle"
+                  | hhTranslate: "Notifications"
+              }}</span>
+            </a>
+            @if (native.isNative && biometricAvailable) {
+              <button
+                type="button"
+                class="hh-mobile-account-menu__item"
+                role="menuitem"
+                (click)="menuOpen = false; unlock()"
+              >
+                <hh-mobile-icon name="biometric" size="small" />
+                <span>{{
+                  "mobile.unlockBiometrics"
+                    | hhTranslate: "Unlock with biometrics"
+                }}</span>
+              </button>
+            }
+            <button
+              type="button"
+              class="hh-mobile-account-menu__item"
+              role="menuitem"
+              (click)="menuOpen = false; toggleTheme()"
+            >
+              <hh-mobile-icon name="theme" size="small" />
+              <span>{{
+                "mobile.switchTheme" | hhTranslate: "Switch theme"
+              }}</span>
+            </button>
+            @if (native.isNative) {
+              <div
+                class="hh-mobile-account-menu__divider"
+                aria-hidden="true"
+              ></div>
+              <p class="hh-mobile-account-menu__section-label">
+                {{ "mobile.securitySection" | hhTranslate: "Security" }}
+              </p>
+              <hh-mobile-pin />
+            }
+            <div
+              class="hh-mobile-account-menu__divider"
+              aria-hidden="true"
+            ></div>
+            <button
+              type="button"
+              class="hh-mobile-account-menu__item hh-mobile-account-menu__item--danger"
+              role="menuitem"
+              (click)="menuOpen = false; logout()"
+            >
+              <hh-mobile-icon name="logout" size="small" />
+              <span>{{ "admin.logout" | hhTranslate: "Log out" }}</span>
+            </button>
+          </div>
+        }
+      </div>
+      <span
+        class="operator-shell__status"
+        [attr.aria-label]="
+          'mobile.operatorSyncStatus' | hhTranslate: 'Sync status'
+        "
+        >{{ "mobile.operatorOnline" | hhTranslate: "Online" }}</span
+      >
+    </div>
+  </header>
+  <section
+    class="operator-shell__context"
+    [attr.aria-label]="
+      'mobile.operatorTenantContext' | hhTranslate: 'Operational tenant context'
+    "
+  >
+    <label for="operator-tenant">{{
+      "mobile.operatorTenant" | hhTranslate: "Tenant"
+    }}</label>
+    <hh-select
+      id="operator-tenant"
+      [ngModel]="tenant.activeTenantKey() ?? ''"
+      (ngModelChange)="selectTenantValue($event)"
+      [disabled]="!tenant.tenantOptions().length"
+      label="mobile.operatorTenant"
+      placeholder="mobile.operatorNoTenantClaim"
+    >
+      @if (!tenant.tenantOptions().length) {
+        <option value="">
+          {{ "mobile.operatorNoTenantClaim" | hhTranslate: "No tenant claim" }}
+        </option>
+      }
+      @for (option of tenant.tenantOptions(); track option.key) {
+        <option [value]="option.key">{{ option.label }}</option>
+      }
+    </hh-select>
+    <small class="operator-shell__identity"
+      >{{ "mobile.operatorIdentity" | hhTranslate: "Operator" }}:
+      <span
+        [title]="
+          tenant.email() ??
+          tenant.subjectId() ??
+          ('mobile.operatorIdentityUnavailable' | hhTranslate: 'Not resolved')
+        "
+        >{{
+          tenant.email() ??
+            tenant.subjectId() ??
+            ("mobile.operatorIdentityUnavailable" | hhTranslate: "Not resolved")
+        }}</span
+      ></small
+    >
+    @if (readCache.stale()) {
+      <small class="operator-shell__stale" role="status"
+        >{{ "mobile.operatorStaleData" | hhTranslate: "Showing cached data" }} ·
+        {{ readCache.lastReadAt() }}</small
+      >
+    }
+  </section>
+  <section class="operator-shell__content hh-mobile-shell-content">
+    <router-outlet />
+  </section>
+  <nav
+    class="hh-mobile-bottom-nav"
+    [attr.aria-label]="
+      'mobile.operatorOperationalAreas' | hhTranslate: 'Operational areas'
+    "
+    [style.grid-template-columns]="
+      'repeat(' + visibleNavItems().length + ', 1fr)'
+    "
+  >
+    @for (item of visibleNavItems(); track item.route) {
+      <a [routerLink]="item.route" routerLinkActive="active">
+        <span class="material-symbols-rounded" aria-hidden="true">{{
+          item.icon
+        }}</span>
+        <span>{{ item.labelKey | hhTranslate: item.labelFallback }}</span>
+      </a>
+    }
+  </nav>
+</main>

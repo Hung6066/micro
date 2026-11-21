@@ -2,14 +2,15 @@ const { expect } = require('@playwright/test');
 const { getE2eCredentials } = require('../config/credentials');
 const { gotoCommittedDocument } = require('./sso-login');
 
-const { email: DEFAULT_EMAIL, password: DEFAULT_PASSWORD } = getE2eCredentials();
-
 /**
  * Signs into the mobile app through direct OIDC (Authorization Code + PKCE).
  * Unlike the clinical BFF flow, mobile exposes a single "Sign in securely"
  * button that redirects to Identity Service.
  */
 async function signInThroughMobileIdentity(page, baseUrl, options = {}) {
+  const credentials = options.email && options.password
+    ? { email: options.email, password: options.password }
+    : getE2eCredentials();
   const dashboardPath = options.dashboardPath || '/admin/dashboard';
   const loginPath = '/auth/login';
   const authenticatedRoute = (url) =>
@@ -50,8 +51,8 @@ async function signInThroughMobileIdentity(page, baseUrl, options = {}) {
   ]);
 
   if (await email.isVisible().catch(() => false)) {
-    await email.fill(options.email || DEFAULT_EMAIL);
-    await page.locator('input[type="password"]').first().fill(options.password || DEFAULT_PASSWORD);
+    await email.fill(credentials.email);
+    await page.locator('input[type="password"]').first().fill(credentials.password);
     await page.locator('button[type="submit"]').first().click({ noWaitAfter: true });
   } else if (await continueWorkspace.isVisible().catch(() => false)) {
     await continueWorkspace.click({ noWaitAfter: true });

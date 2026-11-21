@@ -23,7 +23,9 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         await _redis.StartAsync();
 
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redis.GetConnectionString());
-        Environment.SetEnvironmentVariable("Services__Pharmacy", "http://localhost:5599");
+        Environment.SetEnvironmentVariable("REDIS_URL", $"redis://{_redis.GetConnectionString()}");
+        Environment.SetEnvironmentVariable("SERVICE_PHARMACY_API_URL", "http://localhost:5599");
+        Environment.SetEnvironmentVariable("SERVICE_PHARMACY_GRPC_URL", "http://localhost:5599");
 
         _bff = new WebApplicationFactory<Program>();
         _client = _bff.CreateClient();
@@ -37,10 +39,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt-token",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.view" },
             CsrfToken = "csrf-test",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -63,10 +65,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt-token",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.view" },
             CsrfToken = "csrf-test",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -89,10 +91,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt-token",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.view" },
             CsrfToken = "csrf-test",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -115,10 +117,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt-token",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.view" },
             CsrfToken = "csrf-test",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -148,10 +150,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = Array.Empty<string>(),
             CsrfToken = "csrf",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow.AddHours(-2),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1)
         };
@@ -174,10 +176,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.write" },
             CsrfToken = "csrf-create-med",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -203,10 +205,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.write" },
             CsrfToken = "csrf-create-med-ok",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -233,10 +235,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.write" },
             CsrfToken = "csrf-fill-rx",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -260,10 +262,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.write" },
             CsrfToken = "csrf-cancel-rx",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -287,10 +289,10 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = new[] { "pharmacy.write" },
             CsrfToken = "csrf-upd-med",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -314,12 +316,14 @@ public class PharmacyBffEndToEndTests : IAsyncLifetime
         _client.Dispose();
         await _bff.DisposeAsync();
         await _redis.DisposeAsync();
+        Environment.SetEnvironmentVariable("REDIS_URL", null);
     }
 
     private static string ComputeSha256(string input)
     {
         var bytes = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
 }

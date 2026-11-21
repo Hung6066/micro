@@ -1,14 +1,17 @@
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.Infrastructure.DataLifecycle;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
+using His.Hope.IdentityService.Infrastructure.Provisioning;
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
 public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicationDbContext
 {
+    private const long AuditChainAdvisoryLockKey = 812345678901234567;
     // Custom entity sets for the extended identity model
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
@@ -29,8 +32,11 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<BreakGlassRequest> BreakGlassRequests => Set<BreakGlassRequest>();
     public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<AccessReview> AccessReviews => Set<AccessReview>();
+    public DbSet<SupportElevation> SupportElevations => Set<SupportElevation>();
     public DbSet<RoleTemplateVersion> RoleTemplateVersions => Set<RoleTemplateVersion>();
     public DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies => Set<AuthorizationPolicyDefinition>();
+    public DbSet<AuthorizationPolicyBundleArtifact> AuthorizationPolicyBundles => Set<AuthorizationPolicyBundleArtifact>();
+    public DbSet<AuthorizationChangeRequest> AuthorizationChangeRequests => Set<AuthorizationChangeRequest>();
     public DbSet<UserPasswordHistory> UserPasswordHistories => Set<UserPasswordHistory>();
     public DbSet<UserClientCertificate> UserClientCertificates => Set<UserClientCertificate>();
     public DbSet<DirectoryProvisioningOutbox> DirectoryProvisioningOutbox => Set<DirectoryProvisioningOutbox>();
@@ -48,6 +54,9 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<IamResourcePolicy> IamResourcePolicies => Set<IamResourcePolicy>();
     public DbSet<IamGroup> IamGroups => Set<IamGroup>();
     public DbSet<IamGroupMembership> IamGroupMemberships => Set<IamGroupMembership>();
+    public DbSet<TenantProvisioningEntity> TenantProvisionings => Set<TenantProvisioningEntity>();
+    public DbSet<TenantProvisioningOutboxEntity> TenantProvisioningOutbox => Set<TenantProvisioningOutboxEntity>();
+    public new DbSet<IdentityUserClaim<Guid>> UserClaims => Set<IdentityUserClaim<Guid>>();
 
     // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
     // Non-generic sets are for OpenIddict 5.7.0 EF Core store access
@@ -60,14 +69,190 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        if (HasAddedAuditLogs() && IsPostgres())
+        {
+            var sessionLock = AcquireAuditChainLock();
+            try
+            {
+                PrepareAuditIntegrity();
+                RejectAuditMutation();
+                return base.SaveChanges(acceptAllChangesOnSuccess);
+            }
+            finally
+            {
+                ReleaseAuditChainLock(sessionLock);
+            }
+        }
+
+        PrepareAuditIntegrity();
         RejectAuditMutation();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        return SaveChangesWithAuditIntegrityAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private async Task<int> SaveChangesWithAuditIntegrityAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken)
+    {
+        if (HasAddedAuditLogs() && IsPostgres())
+        {
+            var sessionLock = await AcquireAuditChainLockAsync(cancellationToken);
+            try
+            {
+                await PrepareAuditIntegrityAsync(cancellationToken);
+                RejectAuditMutation();
+                return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
+            finally
+            {
+                await ReleaseAuditChainLockAsync(sessionLock, cancellationToken);
+            }
+        }
+
+        await PrepareAuditIntegrityAsync(cancellationToken);
         RejectAuditMutation();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private bool HasAddedAuditLogs() => ChangeTracker.Entries<AuditLog>()
+        .Any(entry => entry.State == EntityState.Added);
+
+    private bool IsPostgres() => Database.ProviderName?.Contains(
+        "Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+
+    private bool AcquireAuditChainLock()
+    {
+        if (Database.CurrentTransaction is not null)
+        {
+            Database.ExecuteSqlRaw("SELECT pg_advisory_xact_lock({0})", AuditChainAdvisoryLockKey);
+            return false;
+        }
+
+        Database.OpenConnection();
+        try
+        {
+            Database.ExecuteSqlRaw("SELECT pg_advisory_lock({0})", AuditChainAdvisoryLockKey);
+            return true;
+        }
+        catch
+        {
+            Database.CloseConnection();
+            throw;
+        }
+    }
+
+    private async Task<bool> AcquireAuditChainLockAsync(CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is not null)
+        {
+            await Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock({0})", [AuditChainAdvisoryLockKey], cancellationToken);
+            return false;
+        }
+
+        await Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_lock({0})", [AuditChainAdvisoryLockKey], cancellationToken);
+            return true;
+        }
+        catch
+        {
+            await Database.CloseConnectionAsync();
+            throw;
+        }
+    }
+
+    private void ReleaseAuditChainLock(bool sessionLock)
+    {
+        if (!sessionLock)
+            return;
+
+        try
+        {
+            Database.ExecuteSqlRaw("SELECT pg_advisory_unlock({0})", AuditChainAdvisoryLockKey);
+        }
+        finally
+        {
+            Database.CloseConnection();
+        }
+    }
+
+    private async Task ReleaseAuditChainLockAsync(bool sessionLock, CancellationToken cancellationToken)
+    {
+        if (!sessionLock)
+            return;
+
+        try
+        {
+            await Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_unlock({0})", [AuditChainAdvisoryLockKey], cancellationToken);
+        }
+        finally
+        {
+            await Database.CloseConnectionAsync();
+        }
+    }
+
+    private void PrepareAuditIntegrity()
+    {
+        var entries = ChangeTracker.Entries<AuditLog>()
+            .Where(entry => entry.State == EntityState.Added)
+            .OrderBy(entry => entry.Entity.Timestamp)
+            .ThenBy(entry => entry.Entity.Id)
+            .Select(entry => entry.Entity)
+            .ToArray();
+
+        if (entries.Length == 0)
+            return;
+
+        var previousEntry = AuditLogs.AsNoTracking()
+            .Where(entry => entry.IntegritySequence != null)
+            .OrderByDescending(entry => entry.IntegritySequence)
+            .FirstOrDefault();
+        var previous = previousEntry?.IntegrityHash;
+        var nextSequence = previousEntry?.IntegritySequence ?? 0;
+
+        foreach (var entry in entries)
+        {
+            entry.IntegritySequence = ++nextSequence;
+            entry.PreviousIntegrityHash = previous;
+            entry.IntegrityHash = AuditLogIntegrity.ComputeHash(entry, previous);
+            previous = entry.IntegrityHash;
+        }
+    }
+
+    private async Task PrepareAuditIntegrityAsync(CancellationToken cancellationToken)
+    {
+        var entries = ChangeTracker.Entries<AuditLog>()
+            .Where(entry => entry.State == EntityState.Added)
+            .OrderBy(entry => entry.Entity.Timestamp)
+            .ThenBy(entry => entry.Entity.Id)
+            .Select(entry => entry.Entity)
+            .ToArray();
+
+        if (entries.Length == 0)
+            return;
+
+        var previousEntry = await AuditLogs.AsNoTracking()
+            .Where(entry => entry.IntegritySequence != null)
+            .OrderByDescending(entry => entry.IntegritySequence)
+            .FirstOrDefaultAsync(cancellationToken);
+        var previous = previousEntry?.IntegrityHash;
+        var nextSequence = previousEntry?.IntegritySequence ?? 0;
+
+        foreach (var entry in entries)
+        {
+            entry.IntegritySequence = ++nextSequence;
+            entry.PreviousIntegrityHash = previous;
+            entry.IntegrityHash = AuditLogIntegrity.ComputeHash(entry, previous);
+            previous = entry.IntegrityHash;
+        }
     }
 
     private void RejectAuditMutation()
@@ -209,6 +394,12 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(u => u.LockoutEnd);
             entity.Property(u => u.LastPasswordChangedAt);
             entity.Property(u => u.TrustedDeviceToken).HasMaxLength(256);
+            // Stable, bounded admin listing order. Keep the primary key as a
+            // tie-breaker so concurrent inserts cannot duplicate or skip rows.
+            entity.HasIndex(u => new { u.CreatedAt, u.Id })
+                .HasDatabaseName("ix_asp_net_users_created_at_id");
+            entity.HasIndex(u => new { u.IsActive, u.CreatedAt, u.Id })
+                .HasDatabaseName("ix_asp_net_users_active_created_at_id");
             entity.HasMany(u => u.FacilityMemberships)
                 .WithOne(membership => membership.User)
                 .HasForeignKey(membership => membership.UserId)
@@ -379,12 +570,43 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.PublishedBy).HasMaxLength(256);
             entity.HasIndex(item => new { item.Key, item.Version }).IsUnique();
         });
+        builder.Entity<TenantProvisioningEntity>(entity =>
+        {
+            entity.ToTable("tenant_provisioning"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.DataRegion).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.IdempotencyKey).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => x.IdempotencyKey).IsUnique();
+            entity.HasIndex(x => new { x.TenantKey, x.State });
+        });
+        builder.Entity<TenantProvisioningOutboxEntity>(entity =>
+        {
+            entity.ToTable("tenant_provisioning_outbox"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Type).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Content).IsRequired();
+            entity.HasIndex(x => x.ProcessedOn);
+        });
+
+        builder.Entity<AuthorizationPolicyBundleArtifact>(entity =>
+        {
+            entity.ToTable("authorization_policy_bundle_artifacts");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SchemaVersion).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Hash).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.PoliciesJson).HasMaxLength(120000).IsRequired();
+            entity.Property(item => item.Signature).HasMaxLength(12000).IsRequired();
+            entity.Property(item => item.KeyId).HasMaxLength(256);
+            entity.Property(item => item.CreatedBy).HasMaxLength(256).IsRequired();
+            entity.HasIndex(item => item.Hash).IsUnique();
+            entity.HasIndex(item => item.CreatedAt);
+        });
 
         // ──────────────────────────────────────────────
         // Permission configuration
         // ──────────────────────────────────────────────
         builder.Entity<Permission>(entity =>
         {
+            entity.ToTable(IdentityWorkbenchTableNames.Permissions);
             entity.HasKey(p => p.Code);
             entity.Property(p => p.Code).HasMaxLength(100).IsRequired();
             entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
@@ -458,6 +680,9 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(al => al.BeforeJson).HasMaxLength(8000);
             entity.Property(al => al.AfterJson).HasMaxLength(8000);
             entity.Property(al => al.Source).HasMaxLength(64);
+            entity.Property(al => al.PreviousIntegrityHash).HasMaxLength(64);
+            entity.Property(al => al.IntegrityHash).HasMaxLength(64);
+            entity.Property(al => al.IntegritySequence);
             entity.Property(al => al.Timestamp).IsRequired();
 
             entity.HasIndex(al => al.UserId);
@@ -465,6 +690,13 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(al => al.Action);
             entity.HasIndex(al => al.Timestamp);
             entity.HasIndex(al => al.CorrelationId);
+            entity.HasIndex(al => al.IntegritySequence)
+                .IsUnique()
+                .HasDatabaseName("ux_audit_logs_integrity_sequence");
+            entity.HasIndex(al => new { al.ResourceType, al.ResourceId, al.Timestamp })
+                .HasDatabaseName("ix_audit_logs_resource_lookup");
+            entity.HasIndex(al => new { al.UserId, al.Timestamp })
+                .HasDatabaseName("ix_audit_logs_user_timeline");
         });
 
         // ──────────────────────────────────────────────
@@ -521,7 +753,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         // ──────────────────────────────────────────────
         builder.Entity<ClientConsent>(entity =>
         {
-            entity.ToTable("openiddict_consents");
+            entity.ToTable("client_consents");
             entity.HasKey(c => c.Id);
             entity.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(c => c.ClientId).HasMaxLength(256).IsRequired();
@@ -533,7 +765,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
 
         builder.Entity<TableView>(entity =>
         {
-            entity.ToTable("admin_table_views");
+            entity.ToTable("user_table_views");
             entity.HasKey(view => view.Id);
             entity.Property(view => view.Resource).HasMaxLength(80).IsRequired();
             entity.Property(view => view.Name).HasMaxLength(80).IsRequired();
@@ -658,6 +890,20 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(item => new { item.SubjectUserId, item.Status, item.DueAt });
         });
 
+        builder.Entity<SupportElevation>(entity =>
+        {
+            entity.ToTable("support_elevations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SourceTenant).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.TargetTenant).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.PermissionsJson).HasMaxLength(4000).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.RequestedBy).HasMaxLength(256);
+            entity.Property(item => item.ApprovedBy).HasMaxLength(256);
+            entity.Property(item => item.Reason).HasMaxLength(2000).IsRequired();
+            entity.HasIndex(item => new { item.OperatorUserId, item.TargetTenant, item.Status, item.ExpiresAt });
+        });
+
         builder.Entity<InAppNotification>(entity =>
         {
             entity.ToTable("in_app_notifications");
@@ -697,12 +943,58 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
 
         // Configure OpenIddict tables (snake_case naming)
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>(entity =>
-            entity.ToTable("openiddict_applications"));
+        {
+            entity.ToTable("openiddict_applications");
+            entity.HasIndex(item => item.ClientId)
+                .IsUnique()
+                .HasDatabaseName("ix_openiddict_applications_client_id");
+        });
+
+        builder.Entity<AuthorizationChangeRequest>(entity =>
+        {
+            entity.ToTable("authorization_change_requests");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.ResourceType).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Action).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.RequestedBy).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(2000).IsRequired();
+            entity.Property(item => item.PayloadJson).HasMaxLength(16000).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.ApprovedBy).HasMaxLength(256);
+            entity.HasIndex(item => new { item.ResourceType, item.ResourceId, item.Action, item.Status });
+            entity.HasIndex(item => new { item.Status, item.ExpiresAt });
+        });
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>(entity =>
-            entity.ToTable("openiddict_authorizations"));
+        {
+            entity.ToTable("openiddict_authorizations");
+            entity.HasIndex(item => new { item.Subject, item.Status })
+                .HasDatabaseName("ix_openiddict_authorizations_subject_status");
+        });
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>(entity =>
-            entity.ToTable("openiddict_scopes"));
+        {
+            entity.ToTable("openiddict_scopes");
+            entity.HasIndex(item => item.Name)
+                .HasDatabaseName("ix_openiddict_scopes_name");
+        });
         builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>(entity =>
-            entity.ToTable("openiddict_tokens"));
+        {
+            entity.ToTable("openiddict_tokens");
+            entity.HasIndex(item => new { item.Subject, item.Status, item.ExpirationDate })
+                .HasDatabaseName("ix_openiddict_tokens_subject_status_expiration");
+            entity.HasIndex(item => new { item.Status, item.ExpirationDate })
+                .HasDatabaseName("ix_openiddict_tokens_status_expiration");
+        });
+
+        HisHopeDataConventions.Apply(
+            builder,
+            typeof(User), typeof(Role), typeof(Permission), typeof(RolePermission),
+            typeof(SystemSetting), typeof(UserMfa), typeof(ClientConsent), typeof(TableView),
+            typeof(UserFacility), typeof(UserPasswordHistory), typeof(UserClientCertificate),
+            typeof(RoleTemplateVersion), typeof(AuthorizationPolicyDefinition),
+            typeof(AuthorizationPolicyBundleArtifact),
+            typeof(IamScope), typeof(IamServiceDefinition), typeof(IamPermissionSet),
+            typeof(IamPermissionSetAssignment), typeof(IamWorkloadRole),
+            typeof(IamPermissionBoundary), typeof(IamResourcePolicy), typeof(IamGroup),
+            typeof(IamGroupMembership));
     }
 }

@@ -1,6 +1,7 @@
 using System.Reflection;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.LabService.Domain.Aggregates;
 using His.Hope.LabService.Domain.Entities;
 using His.Hope.SharedKernel.Domain.Common;
@@ -37,30 +38,32 @@ public class LabDbContext : DbContext, IUnitOfWork
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         modelBuilder.Entity<LabOrder>().HasQueryFilter(order =>
-            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
-            _facilityScope.FacilityIds.Contains(order.FacilityId!));
+            EF.Property<bool?>(order, "IsDeleted") != true &&
+            (!_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(order.FacilityId!)));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
-            entity.ToTable("OutboxMessages");
+            entity.ToTable("outbox_messages");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Type).HasColumnName("type").HasMaxLength(500).IsRequired();
             entity.Property(e => e.Content).HasColumnName("content").IsRequired();
-            entity.Property(e => e.CorrelationId).HasColumnName("correlationid").HasMaxLength(200);
-            entity.Property(e => e.CausationId).HasColumnName("causationid").HasMaxLength(200);
-            entity.Property(e => e.OccurredOn).HasColumnName("occurredon").IsRequired();
-            entity.Property(e => e.ProcessedOn).HasColumnName("processedon");
+            entity.Property(e => e.CorrelationId).HasColumnName("correlation_id").HasMaxLength(200);
+            entity.Property(e => e.CausationId).HasColumnName("causation_id").HasMaxLength(200);
+            entity.Property(e => e.OccurredOn).HasColumnName("occurred_on").IsRequired();
+            entity.Property(e => e.ProcessedOn).HasColumnName("processed_on");
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Error).HasColumnName("error").HasMaxLength(1000);
-            entity.Property(e => e.RetryCount).HasColumnName("retrycount");
-            entity.Property(e => e.LastRetryOn).HasColumnName("lastretryon");
-            entity.Property(e => e.LockExpiresAt).HasColumnName("lockexpiresat");
+            entity.Property(e => e.RetryCount).HasColumnName("retry_count");
+            entity.Property(e => e.LastRetryOn).HasColumnName("last_retry_on");
+            entity.Property(e => e.LockExpiresAt).HasColumnName("lock_expires_at");
             entity.Property(e => e.ClaimedBy).HasColumnName("claimed_by").HasMaxLength(100);
             entity.Property(e => e.NextAttemptAt).HasColumnName("next_attempt_at");
             entity.Property(e => e.DeadLetteredOn).HasColumnName("dead_lettered_on");
             entity.HasIndex(e => new { e.Status, e.OccurredOn });
         });
         base.OnModelCreating(modelBuilder);
+        HisHopeDataConventions.Apply(modelBuilder, typeof(LabOrder));
     }
 
     public override async Task<int> SaveChangesAsync(

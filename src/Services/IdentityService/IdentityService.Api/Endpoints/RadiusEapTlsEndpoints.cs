@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -15,7 +16,7 @@ public static class RadiusEapTlsEndpoints
 {
     public static void MapRadiusEapTlsEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/v1/admin/radius/eap-tls/status", (IConfiguration configuration) =>
+        app.MapGet(IdentityApiRoutes.AdminRadiusEapTlsStatus, (IConfiguration configuration) =>
         {
             var caPath = configuration["Mtls:TrustedCaFile"];
             return Results.Ok(new
@@ -28,7 +29,7 @@ public static class RadiusEapTlsEndpoints
         }).RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
           .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 
-        app.MapGet("/api/v1/auth/radius/eap-tls", async (
+        app.MapGet(IdentityApiRoutes.RadiusEapTls, async (
             HttpContext http,
             IdentityDbContext db,
             UserManager<User> users,

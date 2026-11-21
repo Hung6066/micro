@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router, UrlTree } from '@angular/router';
-import { Observable, catchError, map, of, switchMap } from 'rxjs';
+import { Observable, catchError, map, of } from 'rxjs';
 import { HisHopePermissionService } from '@his-hope/frontend-foundation/auth';
 import { environment } from '../../../environments/environment';
 

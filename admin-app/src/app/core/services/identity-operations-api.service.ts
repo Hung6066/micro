@@ -9,7 +9,6 @@ import {
   ProvisioningJob,
 } from "../contracts/admin.contracts";
 import {
-  IDENTITY_WORKBENCH_ACTIONS,
   IDENTITY_WORKBENCH_RESOURCES,
   identityWorkbenchActionPath,
   identityWorkbenchPath,

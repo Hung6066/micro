@@ -1,12 +1,19 @@
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.Contracts.Pagination;
 using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Application.UseCases.Roles.Queries;
 
-public record GetRolesQuery(int Page = 1, int PageSize = 20, string? Search = null, string? Sort = null) : IRequest<PagedResult<RoleDto>>;
+public record GetRolesQuery(
+    int Page = PaginationDefaults.DefaultPage,
+    int PageSize = PaginationDefaults.DefaultPageSize,
+    string? Search = null,
+    string? Sort = null,
+    IReadOnlyList<string>? TenantMembershipKeys = null)
+    : IRequest<PagedResult<RoleDto>>;
 
 public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<RoleDto>>
 {
@@ -19,11 +26,46 @@ public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<R
 
     public async Task<PagedResult<RoleDto>> Handle(GetRolesQuery request, CancellationToken cancellationToken)
     {
-        var query = _context.Roles.AsNoTracking().AsQueryable();
+        ValidatePagination(request.Page, request.PageSize);
+        var query = _context.Roles.AsNoTracking()
+            .TagWith("Identity.Roles.GetRoles")
+            .AsQueryable();
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim();
             query = query.Where(r => (r.Name ?? "").Contains(search) || (r.Description ?? "").Contains(search));
+        }
+
+        if (request.TenantMembershipKeys is { Count: > 0 } tenantKeys)
+        {
+            var normalizedKeys = tenantKeys
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key.Trim().ToLowerInvariant())
+                .Distinct()
+                .ToArray();
+            query = query.Where(role =>
+                // System roles are global catalog templates. Administrators
+                // must be able to discover and assign them even when the
+                // current tenant filter has no member assigned yet.
+                role.IsSystem ||
+                _context.UserRoles.Any(userRole =>
+                    userRole.RoleId == role.Id &&
+                    _context.UserClaims.Any(claim =>
+                        claim.UserId == userRole.UserId &&
+                        claim.ClaimType == "tenant_membership" &&
+                        claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()))) ||
+                _context.AccessRequests.Any(accessRequest =>
+                    accessRequest.RoleIdsJson.Contains(role.Id.ToString()) &&
+                    _context.UserClaims.Any(claim =>
+                        claim.UserId == accessRequest.SubjectUserId &&
+                        claim.ClaimType == "tenant_membership" &&
+                        claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()))) ||
+                _context.AccessReviews.Any(accessReview =>
+                    accessReview.RoleIdsJson.Contains(role.Id.ToString()) &&
+                    _context.UserClaims.Any(claim =>
+                        claim.UserId == accessReview.SubjectUserId &&
+                        claim.ClaimType == "tenant_membership" &&
+                        claim.ClaimValue != null && normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -31,12 +73,12 @@ public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<R
         var descending = sort?.Length > 1 && string.Equals(sort[1], "desc", StringComparison.OrdinalIgnoreCase);
         query = (sort?.FirstOrDefault()?.ToLowerInvariant(), descending) switch
         {
-            ("description", false) => query.OrderBy(r => r.Description),
-            ("description", true) => query.OrderByDescending(r => r.Description),
-            ("createdat", false) => query.OrderBy(r => r.CreatedAt),
-            ("createdat", true) => query.OrderByDescending(r => r.CreatedAt),
-            ("name", true) => query.OrderByDescending(r => r.Name),
-            _ => query.OrderBy(r => r.Name)
+            ("description", false) => query.OrderBy(r => r.Description).ThenBy(r => r.Id),
+            ("description", true) => query.OrderByDescending(r => r.Description).ThenByDescending(r => r.Id),
+            ("createdat", false) => query.OrderBy(r => r.CreatedAt).ThenBy(r => r.Id),
+            ("createdat", true) => query.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id),
+            ("name", true) => query.OrderByDescending(r => r.Name).ThenByDescending(r => r.Id),
+            _ => query.OrderBy(r => r.Name).ThenBy(r => r.Id)
         };
 
         var roles = await query
@@ -77,5 +119,13 @@ public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<R
             r.PublishedBy
         )).ToList();
         return new PagedResult<RoleDto>(items, totalCount, request.Page, request.PageSize);
+    }
+
+    private static void ValidatePagination(int page, int pageSize)
+    {
+        if (page < PaginationDefaults.DefaultPage || page > PaginationDefaults.MaxPageNumber)
+            throw new ArgumentOutOfRangeException(nameof(page), $"Page must be between {PaginationDefaults.DefaultPage} and {PaginationDefaults.MaxPageNumber}; use cursor pagination for deep navigation.");
+        if (pageSize < 1 || pageSize > PaginationDefaults.MaxPageSize)
+            throw new ArgumentOutOfRangeException(nameof(pageSize), $"PageSize must be between 1 and {PaginationDefaults.MaxPageSize}.");
     }
 }

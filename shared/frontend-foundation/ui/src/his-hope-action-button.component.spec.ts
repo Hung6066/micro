@@ -19,6 +19,17 @@ import { HisHopeActionButtonComponent } from "./his-hope-action-button.component
       icon="delete"
       label="Delete user"
     />
+    <hh-action-button
+      kind="primary"
+      icon="save"
+      label="Save"
+      type="submit"
+    />
+    <hh-action-button
+      kind="row"
+      icon="history"
+      label="View status history"
+    />
   `,
 })
 class HostComponent {
@@ -50,5 +61,17 @@ describe("HisHopeActionButtonComponent", () => {
       .query(By.css("hh-action-button button"))
       .nativeElement.click();
     expect(host.pressed).toBeTrue();
+  });
+
+  it("forwards the native button type for form actions", () => {
+    const buttons = fixture.nativeElement.querySelectorAll("button");
+    expect(buttons[2].getAttribute("type")).toBe("submit");
+  });
+
+  it("keeps labelled row actions usable while reserving compact sizing for icon-only rows", () => {
+    const buttons = fixture.nativeElement.querySelectorAll("button");
+    expect(buttons[3].textContent).toContain("View status history");
+    expect(buttons[3].classList.contains("hh-action--icon-only")).toBeFalse();
+    expect(buttons[1].classList.contains("hh-action--icon-only")).toBeTrue();
   });
 });

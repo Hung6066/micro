@@ -1,0 +1,68 @@
+<hh-page-layout data-testid="operator-rfqs">
+  <hh-page-header
+    hhPageHeader
+    [title]="'operator.rfq.title' | hhTranslate"
+    [subtitle]="pageSubtitle"
+  />
+
+  @if (loading()) {
+    <hh-state kind="loading" [message]="'operator.rfq.loading' | hhTranslate" />
+  } @else if (error()) {
+    <hh-state kind="error" [message]="error() | hhTranslate" />
+  } @else if (!rfqs().length) {
+    <hh-state kind="empty" [message]="'operator.rfq.empty' | hhTranslate" />
+  } @else {
+    <div class="rfq-list">
+      @for (rfq of rfqs(); track rfq.id) {
+        <article class="rfq-card" data-testid="operator-rfq-card">
+          <header>
+            <div>
+              <strong>{{ rfq.id.slice(0, 8) }}</strong>
+              <span>{{ rfq.createdAt | date: "medium" }}</span>
+            </div>
+            <span class="rfq-status">{{ ("operator.rfq.status." + rfq.status) | hhTranslate }}</span>
+          </header>
+          <p class="rfq-buyer">{{ "operator.rfq.buyer" | hhTranslate }}: {{ rfq.buyerUserId }}</p>
+          <p>{{ rfq.message }}</p>
+          <ul>
+            @for (line of rfq.lines; track line.productId) {
+              <li>{{ line.productId.slice(0, 8) }} × {{ line.quantity }}</li>
+            }
+          </ul>
+
+          <form class="rfq-respond" (ngSubmit)="respond(rfq)">
+            <label>
+              {{ "operator.rfq.quotedTotal" | hhTranslate }}
+              <input
+                type="number"
+                min="0"
+                [ngModel]="draftFor(rfq).quotedTotal"
+                (ngModelChange)="updateDraft(rfq.id, { quotedTotal: +$event })"
+                [name]="'quoted-' + rfq.id"
+                required
+              />
+            </label>
+            <label>
+              {{ "operator.rfq.operatorNotes" | hhTranslate }}
+              <textarea
+                rows="3"
+                [ngModel]="draftFor(rfq).operatorNotes"
+                (ngModelChange)="updateDraft(rfq.id, { operatorNotes: $event })"
+                [name]="'notes-' + rfq.id"
+              ></textarea>
+            </label>
+            <label for="rfq-status-{{ rfq.id }}">
+              {{ "operator.rfq.statusLabel" | hhTranslate }}
+              <hh-select [id]="'rfq-status-' + rfq.id" [ngModel]="draftFor(rfq).status" (ngModelChange)="updateDraft(rfq.id, { status: $event })">
+                <option value="quoted">{{ "operator.rfq.status.quoted" | hhTranslate }}</option>
+                <option value="accepted">{{ "operator.rfq.status.accepted" | hhTranslate }}</option>
+                <option value="declined">{{ "operator.rfq.status.declined" | hhTranslate }}</option>
+              </hh-select>
+            </label>
+            <hh-action-button kind="primary" icon="reply" type="submit" [label]="'operator.rfq.respond' | hhTranslate" />
+          </form>
+        </article>
+      }
+    </div>
+  }
+</hh-page-layout>

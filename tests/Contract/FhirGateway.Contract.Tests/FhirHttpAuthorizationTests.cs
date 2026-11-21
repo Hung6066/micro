@@ -70,6 +70,9 @@ public sealed class FhirHttpFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {
+        builder.UseSetting("REDIS_URL", "localhost:6379");
+        builder.UseSetting("SERVICE_PATIENT_GRPC_URL", "http://localhost:5006");
+        builder.UseSetting("SERVICE_CLINICAL_GRPC_URL", "http://localhost:5007");
         builder.UseSetting("Redis:ConnectionString", "localhost:6379");
         builder.ConfigureServices(services =>
         {

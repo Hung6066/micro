@@ -9,11 +9,13 @@ export interface IamServiceDefinition { id: string; key: string; displayName: st
 export interface IamPermissionSet { id: string; key: string; displayName: string; scopeId: string; permissionsJson: string; version: number; lifecycleStatus: string; publishedAt?: string; }
 export interface IamAssignment { id: string; permissionSetId: string; principalId: string; principalType: string; scopeId: string; status: string; expiresAt?: string; createdAt: string; }
 export interface IamWorkloadRole { id: string; key: string; displayName: string; scopeId: string; audience: string; trustPolicyJson: string; permissionsJson: string; maxSessionSeconds: number; }
+export interface IamServicePrincipal { id: string; key: string; displayName: string; principalType: string; audience: string; scopeId: string; isActive: boolean; lifecycleStatus?: string; }
 export interface IamWorkloadSession { sessionId: string; clientId: string; workloadRoleId: string; issuedAt: string; expiresAt: string; }
 export interface IamWorkloadSessionResponse { id: string; audience: string; sessions: IamWorkloadSession[]; }
 export interface IamPermissionBoundary { id: string; principalId: string; principalType: string; scopeId: string; allowedPermissionsJson: string; resourceConstraintsJson: string; isActive: boolean; }
 export interface IamResourcePolicy { id: string; scopeId: string; serviceKey: string; resourcePattern: string; statementsJson: string; lifecycleStatus: string; version: number; publishedAt?: string; }
 export interface IamGroup { id: string; key: string; displayName: string; scopeId: string; isActive: boolean; }
+export interface IamGroupMember { userId: string; email: string; displayName: string | null; createdAt: string; createdBy: string | null; }
 export interface IamAccessAnalyzerResult { schemaVersion: string; analyzedAt: string; findingCount: number; findings: Array<{ resourceType: string; resourceId: string; severity: string; code: string; message: string }>; }
 export interface IamNewAccessDiffResult { schemaVersion: string; added: string[]; removed: string[]; unchanged: string[]; evaluatedAt: string; }
 export interface IamUnusedPermissionsResult { schemaVersion: string; unusedPermissions: string[]; count: number; evaluatedAt: string; }

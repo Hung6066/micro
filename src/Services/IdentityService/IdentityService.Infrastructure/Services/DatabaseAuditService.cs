@@ -25,11 +25,22 @@ public class DatabaseAuditService : IAuditService
 
     public void LogPhiAccess(PhiAuditEntry entry)
     {
-        if (!_writer.TryWrite(entry))
+        if (_writer.TryWrite(entry))
+            return;
+
+        try
+        {
+            // The synchronous audit contract cannot drop a PHI event when the
+            // bounded channel is full. Block until the durable worker accepts
+            // it; a closed channel fails closed and is surfaced to the request.
+            _writer.WriteAsync(entry).AsTask().GetAwaiter().GetResult();
+        }
+        catch (ChannelClosedException)
         {
             _logger.LogWarning(
                 "Audit channel is closed; audit event could not be queued for {ResourceType}/{ResourceId}",
                 entry.ResourceType, entry.ResourceId);
+            throw;
         }
     }
 

@@ -53,7 +53,8 @@ public record MfaEnrollResponse(
     string[] RecoveryCodes);
 
 public record MfaVerifyRequest(
-    string Code);
+    string? Code,
+    string? RecoveryCode = null);
 
 public record MfaVerifyResponse(
     string AccessToken,

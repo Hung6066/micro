@@ -4,7 +4,7 @@
     "baseUrl": ".",
     "paths": {
       "@his-hope/frontend-foundation/auth": ["auth/src/public-api.ts"],
-      "@his-hope/frontend-foundation/contracts": ["contracts/src/public-api.ts"],
+      "@his-hope/frontend-foundation/contracts": ["src/contracts/public-api.ts"],
       "@his-hope/frontend-foundation/domain": ["domain/src/index.ts"],
       "@his-hope/frontend-foundation/forms": ["forms/src/index.ts"],
       "@his-hope/frontend-foundation/i18n": ["i18n/src/public-api.ts"],

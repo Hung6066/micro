@@ -9,7 +9,7 @@ public class CriticalAlertRuleConfiguration : IEntityTypeConfiguration<CriticalA
 {
     public void Configure(EntityTypeBuilder<CriticalAlertRule> builder)
     {
-        builder.ToTable("CriticalAlertRules");
+        builder.ToTable("critical_alert_rules");
 
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id).HasColumnName("id");

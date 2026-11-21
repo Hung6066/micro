@@ -32,11 +32,12 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                     b.Property<string>("CausationId")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
-                        .HasColumnName("causationid");
+                        .HasColumnName("causation_id");
 
                     b.Property<string>("ClaimedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("claimed_by");
 
                     b.Property<string>("Content")
                         .IsRequired()
@@ -46,38 +47,66 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
-                        .HasColumnName("correlationid");
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<DateTime?>("DeadLetteredOn")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dead_lettered_on");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Error")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("error");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<DateTime?>("LastRetryOn")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("lastretryon");
+                        .HasColumnName("last_retry_on");
 
                     b.Property<DateTime?>("LockExpiresAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("lockexpiresat");
+                        .HasColumnName("lock_expires_at");
 
                     b.Property<DateTime?>("NextAttemptAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
 
                     b.Property<DateTime>("OccurredOn")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurredon");
+                        .HasColumnName("occurred_on");
 
                     b.Property<DateTime?>("ProcessedOn")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("processedon");
+                        .HasColumnName("processed_on");
 
                     b.Property<int>("RetryCount")
                         .HasColumnType("integer")
-                        .HasColumnName("retrycount");
+                        .HasColumnName("retry_count");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -91,11 +120,20 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("type");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Status", "OccurredOn");
 
-                    b.ToTable("OutboxMessages", (string)null);
+                    b.ToTable("outbox_messages", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.PharmacyService.Domain.Aggregates.Medication", b =>
@@ -115,8 +153,24 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                         .HasColumnName("category");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("createdat");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DosageForm")
                         .IsRequired()
@@ -137,6 +191,12 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("isactive");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Manufacturer")
                         .HasMaxLength(200)
@@ -166,7 +226,12 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updatedat");
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -178,7 +243,34 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Name");
 
-                    b.ToTable("Medications", (string)null);
+                    b.ToTable("medications", null, t =>
+                        {
+                            t.Property("BrandName")
+                                .HasColumnName("brand_name");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("DosageForm")
+                                .HasColumnName("dosage_form");
+
+                            t.Property("FacilityId")
+                                .HasColumnName("facility_id");
+
+                            t.Property("GenericName")
+                                .HasColumnName("generic_name");
+
+                            t.Property("IsActive")
+                                .HasColumnName("is_active");
+
+                            t.Property("RequiresPrescription")
+                                .HasColumnName("requires_prescription");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.PharmacyService.Domain.Aggregates.Prescription", b =>
@@ -197,8 +289,24 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                         .HasColumnName("cancelleddate");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("createdat");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DosageForm")
                         .IsRequired()
@@ -224,6 +332,12 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("FilledDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("filleddate");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid?>("MedicationId")
                         .HasColumnType("uuid")
@@ -279,7 +393,12 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updatedat");
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -299,7 +418,52 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                     b.HasIndex("FacilityId", "Status", "PrescribedDate")
                         .HasDatabaseName("IX_Prescriptions_Facility_Status_Date_Id");
 
-                    b.ToTable("Prescriptions", (string)null);
+                    b.ToTable("prescriptions", null, t =>
+                        {
+                            t.Property("CancellationReason")
+                                .HasColumnName("cancellation_reason");
+
+                            t.Property("CancelledDate")
+                                .HasColumnName("cancelled_date");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("DosageForm")
+                                .HasColumnName("dosage_form");
+
+                            t.Property("DosageInstructions")
+                                .HasColumnName("dosage_instructions");
+
+                            t.Property("ExpiryDate")
+                                .HasColumnName("expiry_date");
+
+                            t.Property("FacilityId")
+                                .HasColumnName("facility_id");
+
+                            t.Property("FilledDate")
+                                .HasColumnName("filled_date");
+
+                            t.Property("MedicationId")
+                                .HasColumnName("medication_id");
+
+                            t.Property("MedicationName")
+                                .HasColumnName("medication_name");
+
+                            t.Property("PatientId")
+                                .HasColumnName("patient_id");
+
+                            t.Property("PrescribedDate")
+                                .HasColumnName("prescribed_date");
+
+                            t.Property("ProviderId")
+                                .HasColumnName("provider_id");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 #pragma warning restore 612, 618
         }

@@ -23,7 +23,6 @@ spec:
         app.kubernetes.io/managed-by: kustomize
         app.kubernetes.io/version: latest
     spec:
-      hostPID: true
       serviceAccountName: spire-oidc
       containers:
         - name: oidc-provider
