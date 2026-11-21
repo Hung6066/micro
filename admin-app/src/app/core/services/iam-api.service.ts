@@ -10,6 +10,7 @@ import {
   IamApiAudiencesResponse,
   IamAssignment,
   IamGroup,
+  IamGroupMember,
   IamOverview,
   IamPermissionBoundary,
   IamPermissionSet,
@@ -86,6 +87,27 @@ export class IamApiService {
 
   getIamGroups(): Observable<IamGroup[]> {
     return this.http.get<IamGroup[]>(`${this.baseUrl}/iam/groups`);
+  }
+
+  getGroupMembers(groupId: string): Observable<IamGroupMember[]> {
+    return this.http.get<IamGroupMember[]>(this.groupMembersUrl(groupId));
+  }
+
+  addGroupMember(groupId: string, userId: string): Observable<void> {
+    return this.http.post<void>(
+      `${this.groupMembersUrl(groupId)}/${encodeURIComponent(userId)}`,
+      {},
+    );
+  }
+
+  removeGroupMember(groupId: string, userId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.groupMembersUrl(groupId)}/${encodeURIComponent(userId)}`,
+    );
+  }
+
+  private groupMembersUrl(groupId: string): string {
+    return `${this.baseUrl}${identityWorkbenchActionPath(IDENTITY_WORKBENCH_RESOURCES.groups, groupId, IDENTITY_WORKBENCH_ACTIONS.members)}`;
   }
 
   getIamServicePrincipals(): Observable<IamServicePrincipal[]> {

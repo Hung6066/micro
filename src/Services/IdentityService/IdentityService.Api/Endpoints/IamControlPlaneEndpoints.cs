@@ -9,6 +9,7 @@ using His.Hope.Contracts.Identity;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Application.OpenIddict;
 using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -767,6 +768,28 @@ public static class IamControlPlaneEndpoints
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
 
+        group.MapGet("/groups/{id:guid}/members", async (Guid id, IdentityDbContext db, HttpContext http, CancellationToken ct) =>
+        {
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            var groupScopeId = await db.IamGroups.AsNoTracking().Where(x => x.Id == id).Select(x => (Guid?)x.ScopeId).SingleOrDefaultAsync(ct);
+            if (groupScopeId is null) return Results.NotFound("group_not_found");
+            if (IamTenantAccessGuard.EnsureScopeAccess(groupScopeId.Value, filter) is { } scopeError) return scopeError;
+            var rows = await db.IamGroupMemberships.AsNoTracking()
+                .Where(x => x.GroupId == id)
+                .Join(db.Users.AsNoTracking(), membership => membership.UserId, user => user.Id,
+                    (membership, user) => new { user.Id, user.Email, user.FirstName, user.MiddleName, user.LastName, membership.CreatedAt, membership.CreatedBy })
+                .OrderBy(x => x.Email)
+                .ToListAsync(ct);
+            // User.FullName is computed in memory; compose it after materialization.
+            var members = rows.Select(x =>
+            {
+                var displayName = string.Join(" ", new[] { x.LastName, x.MiddleName, x.FirstName }.Where(part => !string.IsNullOrWhiteSpace(part)));
+                return new GroupMemberResponse(x.Id, x.Email ?? string.Empty, displayName.Length > 0 ? displayName : null, x.CreatedAt, x.CreatedBy);
+            }).ToList();
+            return Results.Ok(members);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
+
         group.MapPost("/groups/{id:guid}/members/{userId:guid}", async (Guid id, Guid userId, IdentityDbContext db, HttpContext http, CancellationToken ct) =>
         {
             var filter = IamTenantHttpContext.RequireFilter(http);
@@ -775,17 +798,27 @@ public static class IamControlPlaneEndpoints
             if (IamTenantAccessGuard.EnsureScopeAccess(groupScopeId.Value, filter) is { } scopeError) return scopeError;
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, userId, filter, ct) is { } userError) return userError;
             if (await db.IamGroupMemberships.AnyAsync(x => x.GroupId == id && x.UserId == userId, ct)) return Results.Conflict("membership_exists");
-            var item = new IamGroupMembership { GroupId = id, UserId = userId, CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) }; db.IamGroupMemberships.Add(item); await db.SaveChangesAsync(ct); return Results.Created($"{IdentityApiRoutes.IamGroup(id)}/members/{userId:D}", item);
+            var item = new IamGroupMembership { GroupId = id, UserId = userId, CreatedBy = http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) }; db.IamGroupMemberships.Add(item); await db.SaveChangesAsync(ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "IAM_GROUP_MEMBER_ADD", "IamGroupMembership", item.Id.ToString(), "IAM group member added.",
+                null, JsonSerializer.Serialize(new { groupId = id, userId }), ct);
+            return Results.Created($"{IdentityApiRoutes.IamGroup(id)}/members/{userId:D}", item);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
 
-        group.MapDelete("/groups/{id:guid}/members/{userId:guid}", async (Guid id, Guid userId, IdentityDbContext db, HttpContext http, CancellationToken ct) =>
+        group.MapDelete("/groups/{id:guid}/members/{userId:guid}", async (Guid id, Guid userId, IdentityDbContext db, IOpenIddictSubjectRevoker subjectRevoker, HttpContext http, CancellationToken ct) =>
         {
             var filter = IamTenantHttpContext.RequireFilter(http);
             var groupScopeId = await db.IamGroups.AsNoTracking().Where(x => x.Id == id).Select(x => (Guid?)x.ScopeId).SingleOrDefaultAsync(ct);
             if (groupScopeId is not null && IamTenantAccessGuard.EnsureScopeAccess(groupScopeId.Value, filter) is { } scopeError) return scopeError;
             var item = await db.IamGroupMemberships.FirstOrDefaultAsync(x => x.GroupId == id && x.UserId == userId, ct); if (item is null) return Results.NotFound("membership_not_found");
-            db.IamGroupMemberships.Remove(item); await db.SaveChangesAsync(ct); return Results.NoContent();
+            db.IamGroupMemberships.Remove(item); await db.SaveChangesAsync(ct);
+            // SECURITY: group keys are issued as role claims (e.g. OpenShip
+            // console "groups"). Revoke the member's OpenIddict grants so a
+            // refresh cannot keep the removed role alive in an existing session.
+            await subjectRevoker.RevokeAllAsync(userId, ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "IAM_GROUP_MEMBER_REMOVE", "IamGroupMembership", item.Id.ToString(), "IAM group member removed.",
+                JsonSerializer.Serialize(new { groupId = id, userId }), null, ct);
+            return Results.NoContent();
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
 
@@ -987,6 +1020,7 @@ public static class IamControlPlaneEndpoints
     public sealed record WorkloadRoleRequest(string Key, string DisplayName, Guid ScopeId, string Audience, string TrustPolicyJson, IReadOnlyCollection<string>? Permissions, int MaxSessionSeconds = 900);
     public sealed record BoundaryRequest(Guid PrincipalId, string PrincipalType, Guid ScopeId, IReadOnlyCollection<string>? AllowedPermissions, string ResourceConstraintsJson = "{}", bool IsActive = true);
     public sealed record ResourcePolicyRequest(Guid ScopeId, string ServiceKey, string ResourcePattern, string StatementsJson);
+    public sealed record GroupMemberResponse(Guid UserId, string Email, string? DisplayName, DateTime CreatedAt, string? CreatedBy);
     public sealed record GroupRequest(string Key, string DisplayName, Guid ScopeId);
     public sealed record NewAccessDiffRequest(IReadOnlyCollection<string>? Before, IReadOnlyCollection<string>? After);
 

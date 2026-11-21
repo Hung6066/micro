@@ -11,6 +11,8 @@ public sealed class IdentityOidcClaimDestinationTests
     [InlineData("amr")]
     [InlineData("auth_time")]
     [InlineData("email_verified")]
+    // OpenShip console roles: Headscale/Grafana/Vault/Headplane read them from the ID token.
+    [InlineData("groups")]
     public void Authentication_assurance_claims_are_available_in_the_identity_token(string claimType)
     {
         var destinations = IdentityOidcAuthorizeEndpoints.ResolveClaimDestinations(claimType);

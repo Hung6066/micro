@@ -12,6 +12,8 @@ using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Contracts.Identity;
 using His.Hope.SharedKernel.Domain.Common;
+using His.Hope.IdentityService.Application.OpenIddict;
+using His.Hope.IdentityService.Domain.Entities;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -21,6 +23,9 @@ namespace His.Hope.IdentityService.Api.Endpoints;
 /// </summary>
 public static class UserEndpoints
 {
+    /// <summary>Shared Signals outbox event type emitted when an account is deactivated.</summary>
+    public const string UserDeactivatedSignal = "user-deactivated";
+
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder group)
     {
         group.MapGet(IdentityApiRoutes.UsersSegment, async (
@@ -157,6 +162,7 @@ public static class UserEndpoints
             IMediator mediator = null!,
             IdentityDbContext db = null!,
             ITokenBlacklistService tokenBlacklist = null!,
+            IOpenIddictSubjectRevoker subjectRevoker = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
@@ -167,6 +173,23 @@ public static class UserEndpoints
 
             await mediator.Send(new DeactivateUserCommand(id), ct);
             await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            // SECURITY (leavers): the blacklist only covers JWT access tokens.
+            // Revoke OpenIddict authorizations and refresh/reference tokens too,
+            // so OIDC relying parties (e.g. OpenShip consoles) cannot refresh.
+            await subjectRevoker.RevokeAllAsync(id, ct);
+            db.SecuritySignalOutbox.Add(new SecuritySignalOutbox
+            {
+                EventType = UserDeactivatedSignal,
+                Subject = id.ToString(),
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    eventType = UserDeactivatedSignal,
+                    subject = id.ToString(),
+                    severity = "info",
+                    occurredAt = DateTime.UtcNow
+                })
+            });
+            await db.SaveChangesAsync(ct);
             await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
             return Results.NoContent();
         })

@@ -72,6 +72,9 @@ namespace His.Hope.IdentityService.Api.Composition;
 
 public static class IdentityServiceRegistrationExtensions
 {
+    /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipConsoleAccess"/>.</summary>
+    public const string OpenShipConsoleAccessPolicy = "OpenShipConsoleAccess";
+
     public static void AddIdentityService(this WebApplicationBuilder builder)
     {
         builder.Services.AddOptions<PushProviderOptions>()
@@ -388,6 +391,26 @@ public static class IdentityServiceRegistrationExtensions
                         .Contains(IdentityApiRoutes.OpenShipClientReconcileScope, StringComparer.Ordinal);
                     return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
                 }));
+        // OpenShip console gateway: a workload principal with a client id and
+        // the dedicated console-access scope. Human tokens never qualify.
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(OpenShipConsoleAccessPolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipConsoleAccessScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy("ScimM2M", policy => policy
                 .RequireAuthenticatedUser()
@@ -591,6 +614,8 @@ public static class IdentityServiceRegistrationExtensions
                 options.OidcClientTenants[clientId] = tenantKey;
         });
         builder.Services.AddIdentityApplication();
+        builder.Services.AddOptions<His.Hope.IdentityService.Application.OpenShip.OpenShipConsoleOptions>()
+            .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.OpenShip.OpenShipConsoleOptions.SectionName));
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.DevicePosture.DevicePosturePolicyEvaluator>();
 
         // LDAP Sync service (disabled by default)
@@ -682,7 +707,8 @@ public static class IdentityServiceRegistrationExtensions
             .AddServer(options =>
             {
                 options.SetIssuer(new Uri(oidcConfig["Issuer"]!));
-                options.RegisterClaims("amr", "auth_time", "email", "email_verified");
+                options.RegisterClaims("amr", "auth_time", "email", "email_verified",
+                    His.Hope.IdentityService.Application.OpenShip.OpenShipConsoleClaims.Groups);
 
                 options.SetAuthorizationEndpointUris(IdentityApiRoutes.OidcAuthorize);
                 options.SetTokenEndpointUris(IdentityApiRoutes.OidcToken);
@@ -722,7 +748,9 @@ public static class IdentityServiceRegistrationExtensions
                     // unrestricted FHIR read surface.
                     "fhir.patient.read",
                     "fhir.encounter.read",
-                    "platform.continuity.write");
+                    "platform.continuity.write",
+                    // Workload scope for the OpenShip console-access lookup.
+                    IdentityApiRoutes.OpenShipConsoleAccessScope);
 
                 options.SetAccessTokenLifetime(TimeSpan.Parse(oidcConfig["AccessTokenLifetime"]!));
                 options.SetRefreshTokenLifetime(TimeSpan.Parse(oidcConfig["RefreshTokenLifetime"]!));

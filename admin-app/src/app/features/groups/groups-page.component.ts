@@ -28,6 +28,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
 import { GroupEditDialogComponent } from "./group-edit-dialog.component";
+import { GroupMembersDialogComponent } from "./group-members-dialog.component";
 @Component({
   selector: "app-groups-page",
   standalone: true,
@@ -56,6 +57,13 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
       (refresh)="load()"
     >
       <ng-template hhResourceRowActions let-row>
+        <hh-action-button
+          kind="row"
+          mode="icon-only"
+          icon="group"
+          [label]="'admin.groupMembers' | hhTranslate: 'Group members'"
+          (pressed)="openMembers(row)"
+        />
         <hh-action-button
           *ngIf="canWrite"
           kind="row"
@@ -140,8 +148,8 @@ export class GroupsPageComponent implements OnInit {
         label: this.i18n.t("admin.actions", "Actions"),
         sortable: false,
         hideable: false,
-        width: "128px",
-        minWidth: 128,
+        width: "168px", // token-lint-ignore: actions column fits three icon buttons, same pattern as clients-page
+        minWidth: 168,
         align: "center" as const,
       },
     ];
@@ -193,6 +201,14 @@ export class GroupsPageComponent implements OnInit {
       })
       .afterClosed()
       .subscribe((saved) => saved && this.load());
+  }
+  openMembers(row: Record<string, unknown>): void {
+    const group = this.groups.find((x) => x.id === String(row["id"]));
+    if (!group) return;
+    this.dialog.open(GroupMembersDialogComponent, {
+      width: "min(880px, calc(100vw - 32px))", // token-lint-ignore: dialog width matches clients-page dialogs (min(720px, ...)) with room for the members table
+      data: { group, canWrite: this.canWrite },
+    });
   }
   toggle(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

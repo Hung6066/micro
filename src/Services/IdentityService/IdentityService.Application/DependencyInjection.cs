@@ -3,8 +3,10 @@ using FluentValidation;
 using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.OpenIddict;
+using His.Hope.IdentityService.Application.OpenShip;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using His.Hope.Validation;
 
 namespace His.Hope.IdentityService.Application;
@@ -44,6 +46,14 @@ public static class DependencyInjection
 
         services.AddScoped<CustomValidateAuthorizationRequest>();
         services.AddScoped<CustomPopulateTokenClaims>();
+        services.AddScoped<IOpenIddictSubjectRevoker, OpenIddictSubjectRevoker>();
+
+        // OpenShip console access: options are bound by the host; defaults are
+        // applied here so an unconfigured host still behaves as documented.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddOptions<OpenShipConsoleOptions>()
+            .PostConfigure(options => options.ApplyDefaults());
+        services.AddScoped<IOpenShipConsoleAccessResolver, OpenShipConsoleAccessResolver>();
 
         return services;
     }

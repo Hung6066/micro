@@ -417,7 +417,7 @@ public class IdentityServiceTestFixture : IAsyncLifetime
         return session;
     }
 
-    public async Task<string> CreateFreshMfaAdminTokenAsync()
+    public async Task<string> CreateFreshMfaAdminTokenAsync(string[]? authenticationMethods = null)
     {
         await using var scope = _app!.Services.CreateAsyncScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
@@ -445,7 +445,7 @@ public class IdentityServiceTestFixture : IAsyncLifetime
                 .Cast<Claim>())
             .Append(new Claim("portal_class", His.Hope.IdentityService.Application.Conglomerate.ConglomerateConstants.PortalClassOperator))
             .Append(new Claim("auth_time", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        var token = tokenGenerator.GenerateAccessToken(user, roles, permissions, ["pwd", "mfa"], additionalClaims).token;
+        var token = tokenGenerator.GenerateAccessToken(user, roles, permissions, authenticationMethods ?? ["pwd", "mfa"], additionalClaims).token;
         var principal = tokenGenerator.GetPrincipalFromExpiredToken(token)
             ?? throw new InvalidOperationException("Fresh MFA test token contract failed: token could not be parsed.");
         if (!StepUpAuthenticationGuard.HasFreshMfa(principal))

@@ -681,6 +681,125 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
             (await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/revoke", new { })).StatusCode);
     }
 
+    [Fact]
+    public async Task Break_glass_requester_cannot_approve_their_own_request()
+    {
+        using var session = await LoginAsync();
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync(["pwd", "otp"]));
+        var subjectUserId = await CreateSubjectUserAsync();
+
+        var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminBreakGlassRequests, new
+        {
+            subjectUserId,
+            permissionCode = "openship.console.write",
+            facilityId = "facility-a",
+            reason = "Self-approval must be rejected by four-eyes rule",
+            durationMinutes = 10
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var approve = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/approve", new { });
+        Assert.Equal(HttpStatusCode.Forbidden, approve.StatusCode);
+        Assert.Equal(His.Hope.IdentityService.Api.Endpoints.AccessGovernanceEndpoints.BreakGlassSelfApprovalErrorCode,
+            (await approve.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errorCode").GetString());
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        Assert.Equal("pending", (await db.BreakGlassRequests.AsNoTracking().SingleAsync(item => item.Id == id)).Status);
+        Assert.True(await db.AuditLogs.AsNoTracking().AnyAsync(item =>
+            item.Action == "AUTHZ_BREAK_GLASS_REQUEST" && item.ResourceId == id.ToString() && item.AfterJson != null));
+    }
+
+    [Fact]
+    public async Task Break_glass_subject_cannot_approve_a_request_for_themselves()
+    {
+        using var session = await LoginAsync();
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync(["pwd", "otp"]));
+        var id = await SeedPendingBreakGlassAsync(IdentityTestData.AdminId, requestedBy: Guid.NewGuid().ToString());
+
+        var approve = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/approve", new { });
+
+        Assert.Equal(HttpStatusCode.Forbidden, approve.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("otp")]
+    [InlineData("passkey")]
+    public async Task Break_glass_approval_accepts_oidc_second_factor_amr(string secondFactor)
+    {
+        using var session = await LoginAsync();
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync(["pwd", secondFactor]));
+        var subjectUserId = await CreateSubjectUserAsync();
+        var id = await SeedPendingBreakGlassAsync(subjectUserId, requestedBy: Guid.NewGuid().ToString());
+
+        var approve = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/approve", new { });
+
+        Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
+        Assert.Equal("approved", (await approve.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var stored = await db.BreakGlassRequests.AsNoTracking().SingleAsync(item => item.Id == id);
+        Assert.Equal(IdentityTestData.AdminId.ToString(), stored.ApprovedBy, ignoreCase: true);
+        var audit = await db.AuditLogs.AsNoTracking().SingleAsync(item => item.Action == "AUTHZ_BREAK_GLASS_APPROVE" && item.ResourceId == id.ToString());
+        Assert.Contains("pending", audit.BeforeJson);
+        Assert.Contains("approved", audit.AfterJson);
+    }
+
+    [Fact]
+    public async Task Break_glass_duration_is_still_capped_at_thirty_minutes()
+    {
+        using var session = await LoginAsync();
+        var subjectUserId = await CreateSubjectUserAsync();
+
+        var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminBreakGlassRequests, new
+        {
+            subjectUserId,
+            permissionCode = "openship.console.write",
+            facilityId = "facility-a",
+            reason = "Duration cap regression coverage for console write",
+            durationMinutes = 240
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var stored = await db.BreakGlassRequests.AsNoTracking().SingleAsync(item => item.Id == id);
+        Assert.Equal(TimeSpan.FromMinutes(30), stored.ExpiresAt - stored.RequestedAt);
+    }
+
+    private async Task<Guid> CreateSubjectUserAsync()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var email = $"break-glass-{Guid.NewGuid():N}@example.test";
+        var subject = new User { UserName = email, Email = email, EmailConfirmed = true, FirstName = "Break", LastName = "Glass" };
+        Assert.True((await userManager.CreateAsync(subject, "BreakGlass!12345")).Succeeded);
+        return subject.Id;
+    }
+
+    private async Task<Guid> SeedPendingBreakGlassAsync(Guid subjectUserId, string requestedBy)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var item = new BreakGlassRequest
+        {
+            Id = Guid.NewGuid(),
+            SubjectUserId = subjectUserId,
+            PermissionCode = "openship.console.write",
+            FacilityId = "facility-a",
+            Reason = "Seeded pending request from another operator",
+            Status = "pending",
+            RequestedBy = requestedBy,
+            RequestedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10)
+        };
+        db.BreakGlassRequests.Add(item);
+        await db.SaveChangesAsync();
+        return item.Id;
+    }
+
     private async Task<SessionClient> LoginAsync()
     {
         var session = fixture.CreateSessionClient();

@@ -416,6 +416,7 @@ internal sealed class TestApplicationDbContext : DbContext, IApplicationDbContex
     public DbSet<IamPermissionSetAssignment> IamPermissionSetAssignments => Set<IamPermissionSetAssignment>();
     public DbSet<IamWorkloadRole> IamWorkloadRoles => Set<IamWorkloadRole>();
     public DbSet<IamPermissionBoundary> IamPermissionBoundaries => Set<IamPermissionBoundary>();
+    public DbSet<IamGroup> IamGroups => Set<IamGroup>();
     public DbSet<IamGroupMembership> IamGroupMemberships => Set<IamGroupMembership>();
     public DbSet<IamResourcePolicy> IamResourcePolicies => Set<IamResourcePolicy>();
 

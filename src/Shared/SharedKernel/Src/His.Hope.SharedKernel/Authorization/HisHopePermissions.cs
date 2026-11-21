@@ -184,6 +184,19 @@ public static class HisHopePermissions
     }
 
     // ──────────────────────────────────────────────
+    // OpenShip tailnet consoles (Headscale, Grafana, Vault, Headplane)
+    // ──────────────────────────────────────────────
+    public static class OpenShip
+    {
+        /// <summary>
+        /// Time-boxed console write. Granted only through an approved
+        /// break-glass request; IdentityService reports the expiry as
+        /// <c>writeUntil</c> in the OpenShip console-access lookup.
+        /// </summary>
+        public const string ConsoleWrite = "openship.console.write";
+    }
+
+    // ──────────────────────────────────────────────
     // All Permissions - for enumeration and seeding
     // ──────────────────────────────────────────────
 
@@ -248,6 +261,9 @@ public static class HisHopePermissions
         Manufacturing.SopApprove, Manufacturing.BusinessSign,
         Manufacturing.MaintenanceComplete,
         Manufacturing.CostManage,
+
+        // OpenShip consoles
+        OpenShip.ConsoleWrite,
     }.ToFrozenSet();
 
     /// <summary>
@@ -364,6 +380,9 @@ public static class HisHopePermissions
         new(Manufacturing.BusinessSign, "Ký nghiệp vụ", "Manufacturing", "Ký điện tử các hành động nghiệp vụ được ủy quyền"),
         new(Manufacturing.MaintenanceComplete, "Hoàn tất bảo trì", "Manufacturing", "Hoàn tất work order và bằng chứng bảo trì"),
         new(Manufacturing.CostManage, "Quản lý giá vốn", "Manufacturing", "Tính và điều chỉnh giá vốn theo batch"),
+
+        // OpenShip consoles
+        new(OpenShip.ConsoleWrite, "Ghi trên console OpenShip", "OpenShip", "Quyền ghi tạm thời trên console tailnet OpenShip, chỉ cấp qua break-glass"),
     }.ToFrozenSet();
 
     /// <summary>

@@ -108,7 +108,18 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   >{{ permission.name }} · {{ permission.code }}</mat-option
                 ></mat-select
               ></mat-form-field
-            ><mat-form-field appearance="outline"
+            >@if (
+              formGroup.controls.permissionCode.value ===
+              openshipConsoleWritePermission
+            ) {
+              <p class="hint">
+                {{
+                  "admin.breakGlassOpenshipConsoleWriteHint"
+                    | hhTranslate
+                      : "Grants write access to OpenShip consoles for at most 30 minutes; another administrator must approve."
+                }}
+              </p>
+            }<mat-form-field appearance="outline"
               ><mat-label>{{
                 "admin.facility" | hhTranslate: "Facility"
               }}</mat-label
@@ -174,7 +185,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     </hh-page-layout>
   `,
   styles: [
-    ":host{display:block}.form-grid{display:grid;gap:var(--space-md)}.warning{padding:var(--space-md);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-lg)}.action-cell{display:flex;gap:var(--space-sm)}",
+    ":host{display:block}.form-grid{display:grid;gap:var(--space-md)}.warning{padding:var(--space-md);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.hint{margin:0;color:var(--text-secondary)}.table-card{margin-top:var(--space-lg)}.action-cell{display:flex;gap:var(--space-sm)}",
   ],
 })
 export class BreakGlassPageComponent implements OnInit {
@@ -195,6 +206,7 @@ export class BreakGlassPageComponent implements OnInit {
     loadErrorMessageKey: "admin.loadAccessGovernanceFailed",
     loadErrorFallback: "Unable to load break-glass data.",
   });
+  readonly openshipConsoleWritePermission = "openship.console.write";
   users: User[] = [];
   permissions: PermissionDefinition[] = [];
   requests: BreakGlassRequest[] = [];

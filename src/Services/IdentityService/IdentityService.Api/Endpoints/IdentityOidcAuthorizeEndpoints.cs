@@ -4,6 +4,7 @@ using System.Text.Json;
 using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Application.OpenShip;
 using His.Hope.IdentityService.Application.Security;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -13,6 +14,7 @@ using His.Hope.SharedKernel.Protocol;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using OpenIddict.Validation.AspNetCore;
@@ -74,6 +76,10 @@ public static class IdentityOidcAuthorizeEndpoints
         // Identity claims go to access + identity token.
         "name" or "given_name" or "family_name" or "email" or "email_verified" =>
         [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
+        // OpenShip console roles. Only issued to configured console clients;
+        // relying parties such as Headscale/Grafana read them from the ID token.
+        OpenShipConsoleClaims.Groups =>
+        [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
         // Role claim goes to access token only.
         "role" or ClaimTypes.Role => [OpenIddictConstants.Destinations.AccessToken],
         _ => [OpenIddictConstants.Destinations.AccessToken]
@@ -108,7 +114,9 @@ public static class IdentityOidcAuthorizeEndpoints
             UserManager<User> userManager,
             IOpenIddictScopeManager scopeManager,
             IdentityDbContext db,
-            OidcLoginCompletionService completion) =>
+            OidcLoginCompletionService completion,
+            IOpenShipConsoleAccessResolver consoleAccess,
+            IOptions<OpenShipConsoleOptions> consoleOptions) =>
         {
             // Access the OpenIddict server transaction to get the validated request
             var feature = context.Features.Get<OpenIddictServerAspNetCoreFeature>();
@@ -260,6 +268,21 @@ public static class IdentityOidcAuthorizeEndpoints
             permissions = permissions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (permissions.Count > 0)
                 principal.SetClaim(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions, string.Join(",", permissions));
+
+            // OpenShip console roles come from IAM groups and are only issued to
+            // the configured console clients. The token endpoint recomputes them
+            // on code redemption and refresh (CustomPopulateTokenClaims).
+            if (principal.Identity is ClaimsIdentity groupsIdentity)
+            {
+                foreach (var existing in groupsIdentity.FindAll(OpenShipConsoleClaims.Groups).ToArray())
+                    groupsIdentity.RemoveClaim(existing);
+                if (consoleOptions.Value.IsConsoleClient(request.ClientId))
+                {
+                    var access = await consoleAccess.ResolveAsync(user.Id, context.RequestAborted);
+                    foreach (var group in access.Groups)
+                        groupsIdentity.AddClaim(new Claim(OpenShipConsoleClaims.Groups, group));
+                }
+            }
 
             var resources = new List<string>();
             await foreach (var resource in scopeManager.ListResourcesAsync(principal.GetScopes()))

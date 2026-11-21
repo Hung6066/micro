@@ -53,6 +53,7 @@ export const IDENTITY_WORKBENCH_ACTIONS = {
   compile: 'compile',
   reconcile: 'reconcile',
   export: 'export',
+  members: 'members',
 } as const;
 
 export const identityWorkbenchPath = (resource: string, id?: string): string =>

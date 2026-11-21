@@ -776,6 +776,8 @@ public static class AccessGovernanceEndpoints
             db.BreakGlassRequests.Add(item);
             await db.SaveChangesAsync(ct);
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_REQUEST", "BreakGlassRequest", item.Id.ToString(), ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "BREAK_GLASS_REQUEST", "BreakGlassRequest", item.Id.ToString(),
+                item.Reason, null, BreakGlassSnapshot(item), ct);
             return Results.Created($"/api/v1/admin/break-glass/requests/{item.Id}",
                 new { item.Id, item.Status, item.ExpiresAt });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
@@ -796,11 +798,14 @@ public static class AccessGovernanceEndpoints
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
             if (item.Status is "revoked" or "expired") return Results.Conflict(new { errorCode = "request_closed" });
+            var before = BreakGlassSnapshot(item);
             item.Status = "revoked";
             item.RevokedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await tokenBlacklist.RevokeAllUserTokensAsync(item.SubjectUserId.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_REVOKE", "BreakGlassRequest", id.ToString(), ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "BREAK_GLASS_REVOKE", "BreakGlassRequest", id.ToString(),
+                "Break-glass request revoked.", before, BreakGlassSnapshot(item), ct);
             return Results.NoContent();
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
             .WithTenantMutationScope();
@@ -814,21 +819,38 @@ public static class AccessGovernanceEndpoints
             ITokenBlacklistService tokenBlacklist,
             CancellationToken ct) =>
         {
-            if (!http.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod).Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
+            // SECURITY: OIDC-issued tokens carry the completed second factor as
+            // amr=otp/passkey (see IdentityOidcAuthorizeEndpoints), while legacy
+            // JWTs carry amr=mfa. Accept any MFA-grade method; password-only
+            // sessions are still rejected.
+            if (!HasBreakGlassApprovalMfa(http.User))
                 return Results.Forbid();
             var item = Guard.Against.NotFound(
                 await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct), "BreakGlassRequest", id);
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
                 return accessError;
+            // SECURITY (four-eyes): neither the requester nor the beneficiary may
+            // approve a break-glass request, regardless of the permission involved.
+            var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
+            if (string.Equals(approver, item.RequestedBy, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(approver, item.SubjectUserId.ToString(), StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Break-glass self-approval is not allowed",
+                    detail: "A break-glass request must be approved by someone other than the requester and the subject.",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = BreakGlassSelfApprovalErrorCode });
             if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
                 return Results.Conflict(new { errorCode = "request_not_pending" });
+            var before = BreakGlassSnapshot(item);
             item.Status = "approved";
-            item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "unknown";
+            item.ApprovedBy = approver;
             item.ApprovedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             await tokenBlacklist.RevokeAllUserTokensAsync(item.SubjectUserId.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_APPROVE", "BreakGlassRequest", id.ToString(), ct);
+            await AdminAudit.LogAuthorizationChangeAsync(db, http, "BREAK_GLASS_APPROVE", "BreakGlassRequest", id.ToString(),
+                "Break-glass request approved.", before, BreakGlassSnapshot(item), ct);
             return Results.Ok(new { item.Id, item.Status, item.ExpiresAt });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
             .WithTenantMutationScope();
@@ -889,6 +911,33 @@ public static class AccessGovernanceEndpoints
     public sealed record AccessRequestDto(Guid Id, Guid SubjectUserId, string RequestedBy, string RoleIdsJson, string Reason, string Status, string? ApprovedBy, DateTime RequestedAt, DateTime? DecidedAt, DateTime ExpiresAt);
     public sealed record AccessReviewCreateRequest(Guid SubjectUserId, string[] RoleIds, int DueDays = 30);
     public sealed record AccessReviewDto(Guid Id, Guid SubjectUserId, string Reviewer, string RoleIdsJson, string Status, string? DecisionReason, DateTime CreatedAt, DateTime DueAt, DateTime? DecidedAt);
+
+    /// <summary>Problem errorCode returned when a requester or subject tries to approve their own break-glass request.</summary>
+    public const string BreakGlassSelfApprovalErrorCode = "break_glass_self_approval";
+
+    private static readonly HashSet<string> BreakGlassApprovalMfaMethods =
+        new(["mfa", "otp", "passkey", "hwk"], StringComparer.OrdinalIgnoreCase);
+
+    internal static bool HasBreakGlassApprovalMfa(ClaimsPrincipal principal) =>
+        principal.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod)
+            .Any(claim => BreakGlassApprovalMfaMethods.Contains(claim.Value));
+
+    private static string BreakGlassSnapshot(BreakGlassRequest item) => JsonSerializer.Serialize(new
+    {
+        item.Id,
+        item.SubjectUserId,
+        item.PermissionCode,
+        item.ResourceType,
+        item.ResourceId,
+        item.FacilityId,
+        item.Status,
+        item.RequestedBy,
+        item.ApprovedBy,
+        item.RequestedAt,
+        item.ApprovedAt,
+        item.ExpiresAt,
+        item.RevokedAt
+    });
 
     private static string Actor(HttpContext http) => http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject) ?? "system";
     private static AuthorizationPolicyDto ToPolicyDto(AuthorizationPolicyDefinition item) => new(item.Id, item.Key, item.Description, item.Owner, item.Version, item.LifecycleStatus, item.RulesJson, item.CreatedBy, item.CreatedAt, item.PublishedAt, item.PublishedBy);

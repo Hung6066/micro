@@ -7,6 +7,7 @@ using His.Hope.Authorization;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Authorization;
+using His.Hope.IdentityService.Application.OpenShip;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -461,19 +462,25 @@ public class CustomPopulateTokenClaims :
     private readonly IConglomerateTenantRegistry _tenantRegistry;
     private readonly IConfiguration _configuration;
     private readonly ILogger<CustomPopulateTokenClaims> _logger;
+    private readonly IOpenShipConsoleAccessResolver _consoleAccess;
+    private readonly OpenShipConsoleOptions _consoleOptions;
 
     public CustomPopulateTokenClaims(
         UserManager<User> userManager,
         IApplicationDbContext dbContext,
         IConglomerateTenantRegistry tenantRegistry,
         IConfiguration configuration,
-        ILogger<CustomPopulateTokenClaims> logger)
+        ILogger<CustomPopulateTokenClaims> logger,
+        IOpenShipConsoleAccessResolver consoleAccess,
+        IOptions<OpenShipConsoleOptions> consoleOptions)
     {
         _userManager = userManager;
         _dbContext = dbContext;
         _tenantRegistry = tenantRegistry;
         _configuration = configuration;
         _logger = logger;
+        _consoleAccess = consoleAccess;
+        _consoleOptions = consoleOptions.Value;
     }
 
     public static OpenIddictServerHandlerDescriptor Descriptor { get; }
@@ -553,6 +560,15 @@ public class CustomPopulateTokenClaims :
                 }
             }
 
+            return;
+        }
+
+        // SECURITY (leavers): a deactivated account must not obtain new tokens
+        // through authorization-code or refresh-token redemption, even when the
+        // code/refresh token was issued before deactivation.
+        if (!user.IsActive)
+        {
+            context.Reject(OpenIddictConstants.Errors.InvalidGrant, "The user account is disabled.");
             return;
         }
 
@@ -736,8 +752,40 @@ public class CustomPopulateTokenClaims :
             identity.AddClaim(permissionsClaim);
         }
 
+        await IssueOpenShipConsoleGroupsAsync(identity, user.Id, context.Request.ClientId, context.CancellationToken);
+
         if (!await TryIssueTenantClaimsAsync(context, identity, user, context.CancellationToken))
             return;
+    }
+
+    /// <summary>
+    /// Emits one <c>groups</c> claim per active OpenShip console IAM group, only
+    /// for the configured console clients. Any <c>groups</c> claim carried over
+    /// from the authorization code or refresh token is discarded first so the
+    /// token always reflects current IAM membership (leavers lose roles on the
+    /// next refresh) and other clients never learn console group membership.
+    /// </summary>
+    private async Task IssueOpenShipConsoleGroupsAsync(
+        ClaimsIdentity identity,
+        Guid userId,
+        string? clientId,
+        CancellationToken cancellationToken)
+    {
+        foreach (var existing in identity.FindAll(OpenShipConsoleClaims.Groups).ToArray())
+            identity.RemoveClaim(existing);
+
+        if (!_consoleOptions.IsConsoleClient(clientId))
+            return;
+
+        var access = await _consoleAccess.ResolveAsync(userId, cancellationToken);
+        foreach (var group in access.Groups)
+        {
+            var groupClaim = new Claim(OpenShipConsoleClaims.Groups, group);
+            groupClaim.SetDestinations(
+                OpenIddictConstants.Destinations.AccessToken,
+                OpenIddictConstants.Destinations.IdentityToken);
+            identity.AddClaim(groupClaim);
+        }
     }
 
     private async Task IssueUserMembershipTenantClaimsAsync(

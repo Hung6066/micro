@@ -39,6 +39,7 @@ public interface IApplicationDbContext
     DbSet<IamPermissionSetAssignment> IamPermissionSetAssignments { get; }
     DbSet<IamWorkloadRole> IamWorkloadRoles { get; }
     DbSet<IamPermissionBoundary> IamPermissionBoundaries { get; }
+    DbSet<IamGroup> IamGroups { get; }
     DbSet<IamGroupMembership> IamGroupMemberships { get; }
     DbSet<IamResourcePolicy> IamResourcePolicies { get; }
 

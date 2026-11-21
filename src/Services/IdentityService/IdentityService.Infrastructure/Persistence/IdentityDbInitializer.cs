@@ -173,7 +173,11 @@ public static class IdentityDbInitializer
         // Mapping: role name -> set of permission codes
         var rolePermissionMap = new Dictionary<string, HashSet<string>>
         {
-            ["Admin"] = HisHopePermissions.All.ToHashSet(),
+            // OpenShip console write is time-boxed and only granted through an
+            // approved break-glass request; never seed it as a standing grant.
+            ["Admin"] = HisHopePermissions.All
+                .Where(code => code != HisHopePermissions.OpenShip.ConsoleWrite)
+                .ToHashSet(),
 
             ["Provider"] = new HashSet<string>
             {
@@ -708,7 +712,7 @@ public static class IdentityDbInitializer
             "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy",
             "hishop:admin", "fhir.patient.read", "fhir.encounter.read",
             "platform.continuity.write", "scim.read", "scim.write", "manufacturing.api",
-            "identity.clients.reconcile"
+            "identity.clients.reconcile", "openship.console.access"
         };
         foreach (var scopeName in scopeNames)
         {

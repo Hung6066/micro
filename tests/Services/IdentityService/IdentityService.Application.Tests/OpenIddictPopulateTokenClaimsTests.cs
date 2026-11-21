@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FluentAssertions;
 using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.OpenIddict;
+using His.Hope.IdentityService.Application.OpenShip;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.SharedKernel.Authorization;
@@ -398,6 +399,72 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         context.ErrorDescription.Should().Contain("not authorized for this tenant");
     }
 
+    [Fact]
+    public async Task Openship_console_client_receives_active_prefixed_groups_in_access_and_identity_tokens()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "ops@example.test", UserName = "ops@example.test" };
+        var readGroup = new IamGroup { Key = "openship-console-read", DisplayName = "Console read" };
+        var adminGroup = new IamGroup { Key = "openship-console-admin", DisplayName = "Console admin" };
+        var inactiveGroup = new IamGroup { Key = "openship-console-retired", DisplayName = "Retired", IsActive = false };
+        var otherGroup = new IamGroup { Key = "finance", DisplayName = "Finance" };
+        db.IamGroups.AddRange(readGroup, adminGroup, inactiveGroup, otherGroup);
+        db.IamGroupMemberships.AddRange(
+            new IamGroupMembership { GroupId = readGroup.Id, UserId = user.Id },
+            new IamGroupMembership { GroupId = adminGroup.Id, UserId = user.Id },
+            new IamGroupMembership { GroupId = inactiveGroup.Id, UserId = user.Id },
+            new IamGroupMembership { GroupId = otherGroup.Id, UserId = user.Id });
+        await db.SaveChangesAsync();
+        var identity = SubjectIdentity(user.Id);
+        // A groups claim carried over from the code/refresh token must not survive.
+        identity.AddClaim(new Claim("groups", "openship-console-stale"));
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.AuthorizationCode, new ClaimsPrincipal(identity), "openship-grafana"));
+
+        var groups = identity.FindAll("groups").ToArray();
+        groups.Select(claim => claim.Value).Should().BeEquivalentTo("openship-console-admin", "openship-console-read");
+        groups.Should().OnlyContain(claim =>
+            claim.GetDestinations().Contains(OpenIddictConstants.Destinations.AccessToken) &&
+            claim.GetDestinations().Contains(OpenIddictConstants.Destinations.IdentityToken));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("admin-app")]
+    public async Task Groups_claim_is_not_issued_to_clients_outside_the_openship_console_list(string? clientId)
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "ops@example.test", UserName = "ops@example.test" };
+        var group = new IamGroup { Key = "openship-console-read", DisplayName = "Console read" };
+        db.IamGroups.Add(group);
+        db.IamGroupMemberships.Add(new IamGroupMembership { GroupId = group.Id, UserId = user.Id });
+        await db.SaveChangesAsync();
+        var identity = SubjectIdentity(user.Id);
+        identity.AddClaim(new Claim("groups", "openship-console-read"));
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.RefreshToken, new ClaimsPrincipal(identity), clientId));
+
+        identity.FindAll("groups").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Inactive_user_is_rejected_at_the_token_endpoint()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "leaver@example.test", UserName = "leaver@example.test", IsActive = false };
+        var identity = SubjectIdentity(user.Id);
+        var context = Context(OpenIddictConstants.GrantTypes.RefreshToken, new ClaimsPrincipal(identity), "openship-headscale");
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object).HandleAsync(context);
+
+        context.IsRejected.Should().BeTrue();
+        context.Error.Should().Be(OpenIddictConstants.Errors.InvalidGrant);
+        context.ErrorDescription.Should().Be("The user account is disabled.");
+        identity.FindFirst(AuthorizationConstants.Claims.PrincipalType).Should().BeNull();
+    }
+
     private sealed class TestConglomerateTenantRegistry : IConglomerateTenantRegistry
     {
         private readonly Dictionary<string, string> _clientTenants;
@@ -440,14 +507,21 @@ public sealed class OpenIddictPopulateTokenClaimsTests
     }
 
     private static CustomPopulateTokenClaims Handler(IApplicationDbContext db) =>
-        new(CreateUserManager(), db, new DisabledConglomerateTenantRegistry(), new ConfigurationBuilder().Build(), NullLogger<CustomPopulateTokenClaims>.Instance);
+        Handler(db, new DisabledConglomerateTenantRegistry());
 
     private static CustomPopulateTokenClaims Handler(
         IApplicationDbContext db,
         IConglomerateTenantRegistry tenantRegistry,
         UserManager<User>? userManager = null,
-        IConfiguration? configuration = null) =>
-        new(userManager ?? CreateUserManager(), db, tenantRegistry, configuration ?? new ConfigurationBuilder().Build(), NullLogger<CustomPopulateTokenClaims>.Instance);
+        IConfiguration? configuration = null)
+    {
+        var consoleOptions = new OpenShipConsoleOptions();
+        consoleOptions.ApplyDefaults();
+        var options = Options.Create(consoleOptions);
+        return new(userManager ?? CreateUserManager(), db, tenantRegistry, configuration ?? new ConfigurationBuilder().Build(),
+            NullLogger<CustomPopulateTokenClaims>.Instance,
+            new OpenShipConsoleAccessResolver(db, options, TimeProvider.System), options);
+    }
 
     private static Mock<UserManager<User>> MockManager(User user, IEnumerable<Claim> claims)
     {
@@ -466,11 +540,11 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         return identity;
     }
 
-    private static OpenIddictServerEvents.HandleTokenRequestContext Context(string grantType, ClaimsPrincipal? principal)
+    private static OpenIddictServerEvents.HandleTokenRequestContext Context(string grantType, ClaimsPrincipal? principal, string? clientId = null)
     {
         var transaction = new OpenIddictServerTransaction
         {
-            Request = new OpenIddictRequest { GrantType = grantType }
+            Request = new OpenIddictRequest { GrantType = grantType, ClientId = clientId }
         };
         var context = new OpenIddictServerEvents.HandleTokenRequestContext(transaction);
         context.Principal = principal;
