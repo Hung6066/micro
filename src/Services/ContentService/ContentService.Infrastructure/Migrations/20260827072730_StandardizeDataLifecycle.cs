@@ -1,7 +1,11 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace His.Hope.ContentService.Infrastructure.Migrations;
 
+// Without [DbContext] EF never discovered this migration, so the content tables kept
+// PascalCase columns while the model reads snake_case ("column c.id does not exist").
+[DbContext(typeof(ContentDbContext))]
 [Migration("20260827072730_StandardizeDataLifecycle")]
 public partial class StandardizeDataLifecycle : Migration
 {
