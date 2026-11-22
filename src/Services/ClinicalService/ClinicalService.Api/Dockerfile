@@ -38,7 +38,7 @@ RUN dotnet publish "Services/ClinicalService/ClinicalService.Api/ClinicalService
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:7a6bf765edb270c1b1443d09a76f247948e1a019b1756ebf746bb3898eaed21d AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:4bb1156e9159281f49282278684a4d366d163672f0e159cd9b445a91382fba26 AS final
 WORKDIR /app
 EXPOSE 8080
 
