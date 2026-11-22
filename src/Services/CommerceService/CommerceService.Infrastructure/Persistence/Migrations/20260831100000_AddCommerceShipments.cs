@@ -1,14 +1,19 @@
+using His.Hope.CommerceService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace CommerceService.Infrastructure.Persistence.Migrations;
 
+// Without [DbContext] EF never discovered this migration, so commerce_shipments was never created.
+[DbContext(typeof(CommerceDbContext))]
 [Migration("20260831100000_AddCommerceShipments")]
 public partial class AddCommerceShipments : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.CreateTable(
-            name: "commerce_shipments", schema: "commerce",
+            name: "commerce_shipments",
             columns: table => new
             {
                 Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -20,9 +25,9 @@ public partial class AddCommerceShipments : Migration
                 CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
             }, constraints: table => table.PrimaryKey("PK_commerce_shipments", x => x.Id));
-        migrationBuilder.CreateIndex(name: "IX_commerce_shipments_TenantKey_OrderId", table: "commerce_shipments", columns: new[] { "TenantKey", "OrderId" }, schema: "commerce", unique: true);
-        migrationBuilder.CreateIndex(name: "IX_commerce_shipments_TenantKey_IdempotencyKey", table: "commerce_shipments", columns: new[] { "TenantKey", "IdempotencyKey" }, schema: "commerce", unique: true);
+        migrationBuilder.CreateIndex(name: "IX_commerce_shipments_TenantKey_OrderId", table: "commerce_shipments", columns: new[] { "TenantKey", "OrderId" }, unique: true);
+        migrationBuilder.CreateIndex(name: "IX_commerce_shipments_TenantKey_IdempotencyKey", table: "commerce_shipments", columns: new[] { "TenantKey", "IdempotencyKey" }, unique: true);
     }
 
-    protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropTable(name: "commerce_shipments", schema: "commerce");
+    protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropTable(name: "commerce_shipments");
 }

@@ -380,6 +380,51 @@ namespace CommerceService.Infrastructure.Persistence.Migrations
                     b.ToTable("commerce_rfq_lines", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.CommerceService.Infrastructure.Persistence.CommerceShipmentEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProviderShipmentId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantKey", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("TenantKey", "OrderId")
+                        .IsUnique();
+
+                    b.ToTable("commerce_shipments", (string)null);
+                });
+
             modelBuilder.Entity("His.Hope.CommerceService.Infrastructure.Persistence.CommerceCartLineEntity", b =>
                 {
                     b.HasOne("His.Hope.CommerceService.Infrastructure.Persistence.CommerceCartEntity", null)
