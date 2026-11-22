@@ -73,5 +73,8 @@ describe("ClientEditDialogComponent", () => {
         label: "identity.clients.reconcile",
       }),
     );
+    expect(component.scopeOptions).toContain(
+      jasmine.objectContaining({ value: "openship.console.access" }),
+    );
   });
 });
