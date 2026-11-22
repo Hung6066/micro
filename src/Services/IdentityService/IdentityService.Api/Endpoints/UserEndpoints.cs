@@ -14,6 +14,8 @@ using His.Hope.Contracts.Identity;
 using His.Hope.SharedKernel.Domain.Common;
 using His.Hope.IdentityService.Application.OpenIddict;
 using His.Hope.IdentityService.Domain.Entities;
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -25,6 +27,9 @@ public static class UserEndpoints
 {
     /// <summary>Shared Signals outbox event type emitted when an account is deactivated.</summary>
     public const string UserDeactivatedSignal = "user-deactivated";
+
+    /// <summary>Problem errorCode returned when an administrator tries to verify their own email.</summary>
+    public const string SelfEmailVerificationErrorCode = "self_email_verification";
 
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder group)
     {
@@ -213,6 +218,56 @@ public static class UserEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
             return Results.NoContent();
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
+        // Administrator-verified email. Production requires a confirmed email before a
+        // password sign-in succeeds, and accounts created by an administrator start
+        // unconfirmed with no way to receive the confirmation link before they can sign
+        // in. Another administrator (never the account itself) vouches for the address,
+        // with a fresh MFA step-up; the action is idempotent and audited.
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/verify-email", async (
+            Guid id,
+            IdentityDbContext db = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
+            CancellationToken ct = default) =>
+        {
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp)
+                return stepUp;
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            var caller = http.User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
+                ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
+            if (string.Equals(caller, id.ToString(), StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Self email verification is not allowed",
+                    detail: "Another administrator must verify this account's email address.",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = SelfEmailVerificationErrorCode });
+
+            var user = await db.Users.FirstOrDefaultAsync(item => item.Id == id, ct);
+            if (user is null)
+                return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(user.Email))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: "The account has no email address",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = "email_missing" });
+
+            var changed = !user.EmailConfirmed;
+            if (changed)
+            {
+                user.EmailConfirmed = true;
+                await db.SaveChangesAsync(ct);
+                await AdminAudit.LogAsync(audit, http, "VERIFY_EMAIL", "User", id.ToString(), ct);
+            }
+
+            return Results.Ok(new { id, emailConfirmed = true, changed });
         })
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
             .WithTenantMutationScope();

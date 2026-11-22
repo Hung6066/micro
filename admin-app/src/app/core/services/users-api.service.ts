@@ -119,6 +119,18 @@ export class UsersApiService {
     return this.setActive(id, false);
   }
 
+  /** Administrator-verified email (fresh MFA required; not for your own account). */
+  verifyUserEmail(
+    id: string,
+  ): Observable<{ id: string; emailConfirmed: boolean; changed: boolean }> {
+    return this.http
+      .put<{ id: string; emailConfirmed: boolean; changed: boolean }>(
+        `${this.baseUrl}/users/${encodeURIComponent(id)}/verify-email`,
+        {},
+      )
+      .pipe(tap(() => this.requestCache.invalidate("admin:users:")));
+  }
+
   private setActive(id: string, active: boolean): Observable<void> {
     const action = active ? "activate" : "deactivate";
     return this.http

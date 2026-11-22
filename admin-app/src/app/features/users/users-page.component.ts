@@ -127,6 +127,14 @@ import { downloadAdminTableExport } from "../../core/services/admin-query.util";
             icon="play_arrow"
             [label]="'admin.toggle' | hhTranslate: 'Toggle status'"
           />
+          <hh-action-button
+            *ngIf="canWrite"
+            (pressed)="verifyEmail(row)"
+            kind="row"
+            mode="icon-only"
+            icon="mark_email_read"
+            [label]="'admin.verifyEmail' | hhTranslate: 'Mark email verified'"
+          />
         </ng-template>
         <ng-template hhDataTableDetail let-row>
           <div class="hh-data-table-detail">
@@ -300,6 +308,45 @@ export class UsersPageComponent implements OnInit {
       error: () =>
         this.toast.error(
           this.i18n.t("admin.updateUserFailed", "Failed to update user."),
+        ),
+    });
+  }
+
+  /**
+   * Administrator-verified email: production refuses password sign-in for an
+   * unconfirmed email, and admin-created accounts start unconfirmed. The server
+   * requires a fresh MFA sign-in and refuses verifying your own account.
+   */
+  verifyEmail(row: Record<string, unknown>): void {
+    if (!this.canWrite) return;
+    const user = row["entity"] as User | undefined;
+    if (!user?.id) return;
+    this.api.verifyUserEmail(user.id).subscribe({
+      next: (result) =>
+        this.toast.success(
+          result.changed
+            ? this.i18n.t("admin.emailVerified", "Email marked as verified.")
+            : this.i18n.t(
+                "admin.emailAlreadyVerified",
+                "Email was already verified.",
+              ),
+        ),
+      error: (error: { error?: { errorCode?: string; detail?: string } }) =>
+        this.toast.error(
+          error?.error?.errorCode === "self_email_verification"
+            ? this.i18n.t(
+                "admin.selfEmailVerification",
+                "Another administrator must verify your email.",
+              )
+            : error?.error?.errorCode === "step_up_required"
+              ? this.i18n.t(
+                  "admin.stepUpRequired",
+                  "Sign in again with MFA to continue.",
+                )
+              : this.i18n.t(
+                  "admin.verifyEmailFailed",
+                  "Failed to verify the email address.",
+                ),
         ),
     });
   }
