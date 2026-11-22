@@ -11,7 +11,7 @@ public sealed class OpenShipConsoleOptions
     public const string SectionName = "OpenShip:Console";
 
     public static readonly string[] DefaultClients =
-        ["openship-headscale", "openship-grafana", "openship-vault", "openship-headplane"];
+        ["openship-headscale", "openship-grafana", "openship-vault", "openship-headplane", "openship-platform"];
 
     public const string DefaultGroupPrefix = "openship-console-";
     public const string DefaultWritePermission = "openship.console.write";

@@ -283,7 +283,22 @@ export class BreakGlassPageComponent implements OnInit {
       }).pipe(
         tap((state) => {
           this.users = state.users;
-          this.permissions = state.permissions;
+          // The server validates break-glass codes against the code catalog, not this
+          // table; keep the OpenShip console write grant selectable even where the
+          // permission row has not been seeded yet.
+          this.permissions = state.permissions.some(
+            (permission) => permission.code === this.openshipConsoleWritePermission,
+          )
+            ? state.permissions
+            : [
+                ...state.permissions,
+                {
+                  code: this.openshipConsoleWritePermission,
+                  name: "OpenShip console write",
+                  group: "OpenShip",
+                  isSystem: true,
+                },
+              ];
           this.requests = state.requests;
           this.cdr.markForCheck();
         }),
