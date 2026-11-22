@@ -5,7 +5,9 @@ resolver="$(awk '$1 == "nameserver" { print $2; exit }' /etc/resolv.conf)"
 : "${NGINX_DNS_RESOLVER:=${resolver}}"
 if [ -z "${OPENSHIP_API_GATEWAY_HOST:-}" ]; then
   if [ -n "${KUBERNETES_SERVICE_HOST:-}" ]; then
-    OPENSHIP_API_GATEWAY_HOST="micro-api-gateway"
+    # nginx resolvers ignore resolv.conf search domains: use the namespace FQDN.
+    search_domain="$(awk '$1 == "search" { print $2; exit }' /etc/resolv.conf)"
+    OPENSHIP_API_GATEWAY_HOST="micro-api-gateway${search_domain:+.${search_domain}}"
   else
     OPENSHIP_API_GATEWAY_HOST="api-gateway"
   fi
