@@ -30,6 +30,11 @@ export interface CreateUserRequest {
   role?: string;
 }
 
+export interface UserTenantMemberships {
+  memberships: string[];
+  tenants: { key: string; displayName: string; canManage: boolean }[];
+}
+
 export interface UpdateUserRequest {
   firstName?: string;
   lastName?: string;
@@ -141,6 +146,28 @@ export class UsersApiService {
         newPassword,
       })
       .pipe(tap(() => this.requestCache.invalidate("admin:users:")));
+  }
+
+  getTenantMemberships(id: string): Observable<UserTenantMemberships> {
+    return this.http.get<UserTenantMemberships>(
+      `${this.baseUrl}/users/${encodeURIComponent(id)}/tenant-memberships`,
+    );
+  }
+
+  /**
+   * Grant or revoke a tenant membership (fresh MFA required; not for your own
+   * account). Signs the user out everywhere so the change applies now.
+   */
+  setTenantMembership(
+    id: string,
+    tenantKey: string,
+    member: boolean,
+  ): Observable<{ changed: boolean }> {
+    const url = `${this.baseUrl}/users/${encodeURIComponent(id)}/tenant-memberships/${encodeURIComponent(tenantKey)}`;
+    const request = member
+      ? this.http.put<{ changed: boolean }>(url, {})
+      : this.http.delete<{ changed: boolean }>(url);
+    return request.pipe(tap(() => this.requestCache.invalidate("admin:users:")));
   }
 
   private setActive(id: string, active: boolean): Observable<void> {

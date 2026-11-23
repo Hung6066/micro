@@ -1,5 +1,6 @@
 import { Component, inject } from "@angular/core";
 import { FormGroup } from "@angular/forms";
+import { MatCheckboxModule } from "@angular/material/checkbox";
 import { User } from "../../core/contracts/admin.contracts";
 import { UsersApiService } from "../../core/services/users-api.service";
 import {
@@ -20,7 +21,11 @@ import { catchError, map, of, switchMap } from "rxjs";
 @Component({
   selector: "app-user-edit-dialog",
   standalone: true,
-  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormFieldComponent],
+  imports: [
+    HisHopeEntityDialogComponent,
+    HisHopeMaterialFormFieldComponent,
+    MatCheckboxModule,
+  ],
   template: `
     <hh-entity-dialog
       [title]="isEdit ? 'admin.editUser' : 'admin.createUser'"
@@ -65,6 +70,27 @@ import { catchError, map, of, switchMap } from "rxjs";
           [label]="fields[6].label"
         />
       </div>
+      @if (isEdit) {
+        <section class="tenant-section">
+          <h3>{{ tenantTitle }}</h3>
+          <p class="tenant-hint">{{ tenantHint }}</p>
+          @if (tenantsLoading) {
+            <p class="tenant-hint">…</p>
+          } @else if (tenantsError) {
+            <p class="tenant-error">{{ tenantsError }}</p>
+          } @else {
+            @for (tenant of tenants; track tenant.key) {
+              <mat-checkbox
+                [checked]="memberships.has(tenant.key.toLowerCase())"
+                [disabled]="!tenant.canManage || tenantBusy === tenant.key"
+                (change)="toggleTenant(tenant.key, $event.checked)"
+              >
+                {{ tenant.displayName }} ({{ tenant.key }})
+              </mat-checkbox>
+            }
+          }
+        </section>
+      }
     </hh-entity-dialog>
   `,
   styles: [
@@ -73,6 +99,23 @@ import { catchError, map, of, switchMap } from "rxjs";
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--space-lg);
+      }
+      .tenant-section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+        margin-top: var(--space-lg);
+      }
+      .tenant-section h3 {
+        margin: 0;
+      }
+      .tenant-hint {
+        margin: 0;
+        color: var(--color-text-secondary, inherit);
+      }
+      .tenant-error {
+        margin: 0;
+        color: var(--color-danger, #b3261e);
       }
       @media (max-width: 720px) {
         .form-grid {
@@ -93,6 +136,16 @@ export class UserEditDialogComponent {
   private readonly userId: string;
   private readonly concurrencyToken: string;
   saving = false;
+  tenants: { key: string; displayName: string; canManage: boolean }[] = [];
+  memberships = new Set<string>();
+  tenantsLoading = false;
+  tenantsError = "";
+  tenantBusy: string | null = null;
+  readonly tenantTitle = this.i18n.t("admin.tenantMemberships", "Tenants");
+  readonly tenantHint = this.i18n.t(
+    "admin.tenantMembershipsHint",
+    "Which tenant portals this user can open (admin-app needs nacoms-group). Changes apply immediately, need a fresh MFA sign-in, and sign the user out everywhere.",
+  );
 
   constructor() {
     const data = inject(HIS_HOPE_DIALOG_DATA) as User | null;
@@ -159,6 +212,63 @@ export class UserEditDialogComponent {
       return value.length > 0 && value.length < 12 ? { minlength: true } : null;
     });
     this.formGroup.get("password")?.updateValueAndValidity();
+    if (this.isEdit) this.loadTenants();
+  }
+
+  private loadTenants(): void {
+    this.tenantsLoading = true;
+    this.tenantsError = "";
+    this.api.getTenantMemberships(this.userId).subscribe({
+      next: (result) => {
+        this.tenants = result.tenants;
+        this.memberships = new Set(
+          result.memberships.map((key) => key.toLowerCase()),
+        );
+        this.tenantsLoading = false;
+      },
+      error: () => {
+        this.tenantsError = this.i18n.t(
+          "admin.tenantMembershipsLoadFailed",
+          "Could not load tenant memberships.",
+        );
+        this.tenantsLoading = false;
+      },
+    });
+  }
+
+  toggleTenant(tenantKey: string, member: boolean): void {
+    this.tenantBusy = tenantKey;
+    this.api.setTenantMembership(this.userId, tenantKey, member).subscribe({
+      next: () => {
+        const key = tenantKey.toLowerCase();
+        if (member) this.memberships.add(key);
+        else this.memberships.delete(key);
+        this.memberships = new Set(this.memberships);
+        this.tenantBusy = null;
+        this.toast.success(
+          this.i18n.t(
+            "admin.tenantMembershipSaved",
+            "Tenant membership saved. The user was signed out everywhere.",
+          ),
+        );
+      },
+      error: (error: { error?: { errorCode?: string; detail?: string } }) => {
+        this.tenantBusy = null;
+        // Re-render the checkbox back to the stored state.
+        this.memberships = new Set(this.memberships);
+        const code = error?.error?.errorCode;
+        this.toast.error(
+          code === "step_up_required"
+            ? this.i18n.t("admin.stepUpRequiredFull", "Sign in again with MFA, then retry.")
+            : code === "self_tenant_membership"
+              ? this.i18n.t("admin.tenantSelf", "Another administrator must change your own tenants.")
+              : code === "tenant_not_manageable"
+                ? this.i18n.t("admin.tenantNotManageable", "You cannot manage this tenant.")
+                : (error?.error?.detail ??
+                  this.i18n.t("admin.tenantMembershipFailed", "Could not change the tenant membership.")),
+        );
+      },
+    });
   }
 
   save(values: Record<string, unknown>): void {

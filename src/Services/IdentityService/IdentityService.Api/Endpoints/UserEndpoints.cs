@@ -390,6 +390,159 @@ public static class UserEndpoints
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
 
+        // Tenant memberships. A tenant_membership claim decides which tenant
+        // portals (e.g. admin-app → nacoms-group) a user may open a session for.
+        // Only the startup seeder granted it before, so accounts created in
+        // admin-app could sign in but got 403 at the BFF session exchange.
+        group.MapGet(IdentityApiRoutes.UsersSegment + "/{id:guid}/tenant-memberships", async (
+            Guid id,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
+            CancellationToken ct = default) =>
+        {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            var memberships = await db.UserClaims.AsNoTracking()
+                .Where(claim => claim.UserId == id &&
+                                claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                                claim.ClaimValue != null)
+                .Select(claim => claim.ClaimValue!)
+                .ToListAsync(ct);
+            var tenants = await db.IamScopes.AsNoTracking()
+                .Where(scope => scope.Kind == "tenant" && scope.IsActive)
+                .OrderBy(scope => scope.DisplayName)
+                .Select(scope => new { key = scope.Key, displayName = scope.DisplayName })
+                .ToListAsync(ct);
+            var manageable = tenantFilter.AllowedTenantKeys;
+
+            return Results.Ok(new
+            {
+                memberships = memberships.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(key => key).ToArray(),
+                tenants = tenants.Select(tenant => new
+                {
+                    tenant.key,
+                    tenant.displayName,
+                    canManage = manageable is null || manageable.Contains(tenant.key)
+                })
+            });
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/tenant-memberships/{tenantKey}", (
+            Guid id,
+            string tenantKey,
+            IdentityDbContext db,
+            IApplicationDbContext appDb,
+            ITokenBlacklistService tokenBlacklist,
+            IOpenIddictSubjectRevoker subjectRevoker,
+            IAuditService audit,
+            HttpContext http,
+            CancellationToken ct) =>
+            ChangeTenantMembershipAsync(id, tenantKey, add: true, db, appDb, tokenBlacklist, subjectRevoker, audit, http, ct))
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
+        group.MapDelete(IdentityApiRoutes.UsersSegment + "/{id:guid}/tenant-memberships/{tenantKey}", (
+            Guid id,
+            string tenantKey,
+            IdentityDbContext db,
+            IApplicationDbContext appDb,
+            ITokenBlacklistService tokenBlacklist,
+            IOpenIddictSubjectRevoker subjectRevoker,
+            IAuditService audit,
+            HttpContext http,
+            CancellationToken ct) =>
+            ChangeTenantMembershipAsync(id, tenantKey, add: false, db, appDb, tokenBlacklist, subjectRevoker, audit, http, ct))
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
         return group;
+    }
+
+    /// <summary>Problem errorCode returned when an administrator tries to change their own tenant memberships.</summary>
+    public const string SelfTenantMembershipErrorCode = "self_tenant_membership";
+
+    private static async Task<IResult> ChangeTenantMembershipAsync(
+        Guid id,
+        string tenantKey,
+        bool add,
+        IdentityDbContext db,
+        IApplicationDbContext appDb,
+        ITokenBlacklistService tokenBlacklist,
+        IOpenIddictSubjectRevoker subjectRevoker,
+        IAuditService audit,
+        HttpContext http,
+        CancellationToken ct)
+    {
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp)
+            return stepUp;
+
+        var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+        if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+            return accessError;
+
+        var caller = http.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
+        if (string.Equals(caller, id.ToString(), StringComparison.OrdinalIgnoreCase))
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Changing your own tenant memberships is not allowed",
+                detail: "Another administrator must change this account's tenant memberships.",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = SelfTenantMembershipErrorCode });
+
+        var tenant = await db.IamScopes.AsNoTracking()
+            .Where(scope => scope.Kind == "tenant" && scope.Key == tenantKey)
+            .Select(scope => new { scope.Key, scope.IsActive })
+            .FirstOrDefaultAsync(ct);
+        if (tenant is null || (add && !tenant.IsActive))
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Unknown or inactive tenant",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = "tenant_unknown" });
+
+        // A tenant-scoped administrator may only grant or revoke tenants they manage.
+        if (tenantFilter.AllowedTenantKeys is { } allowed && !allowed.Contains(tenant.Key))
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "You cannot manage this tenant",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = "tenant_not_manageable" });
+
+        if (!await db.Users.AnyAsync(user => user.Id == id, ct))
+            return Results.NotFound();
+
+        var existing = await db.UserClaims
+            .Where(claim => claim.UserId == id &&
+                            claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                            claim.ClaimValue != null &&
+                            claim.ClaimValue.ToLower() == tenant.Key.ToLower())
+            .ToListAsync(ct);
+
+        var changed = add ? existing.Count == 0 : existing.Count > 0;
+        if (changed)
+        {
+            if (add)
+                db.UserClaims.Add(new Microsoft.AspNetCore.Identity.IdentityUserClaim<Guid>
+                {
+                    UserId = id,
+                    ClaimType = IamTenantScopeResolver.TenantMembershipClaimType,
+                    ClaimValue = tenant.Key
+                });
+            else
+                db.UserClaims.RemoveRange(existing);
+            await db.SaveChangesAsync(ct);
+
+            // Claims are captured at sign-in: end every session so the change applies now.
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await subjectRevoker.RevokeAllAsync(id, ct);
+            await AdminAudit.LogAuthorizationChangeAsync(
+                appDb, http, add ? "TENANT_MEMBERSHIP_GRANT" : "TENANT_MEMBERSHIP_REVOKE", "User", id.ToString(),
+                "Tenant membership changed through admin control plane.",
+                null, JsonSerializer.Serialize(new { tenant = tenant.Key, member = add }), ct);
+            await AdminAudit.LogAsync(audit, http, add ? "ADD_TENANT_MEMBERSHIP" : "REMOVE_TENANT_MEMBERSHIP", "User", id.ToString(), ct);
+        }
+
+        return Results.Ok(new { id, tenant = tenant.Key, member = add, changed });
     }
 }
