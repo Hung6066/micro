@@ -125,6 +125,28 @@ public sealed class AssurancePolicyMiddlewareTests
         Assert.Equal(2, called);
     }
 
+    [Fact]
+    public async Task Admin_iam_break_glass_routes_use_the_break_glass_journey_not_admin_write()
+    {
+        var called = 0;
+        var middleware = new AssurancePolicyMiddleware(_ =>
+        {
+            called++;
+            return Task.CompletedTask;
+        }, Environment("Production"));
+
+        // Allowed by the break-glass journey (admin-write would refuse break-glass).
+        await middleware.InvokeAsync(
+            Context(HttpMethods.Post, "/api/v1/admin/iam/break-glass/requests", "mtls"), Policy(true));
+        Assert.Equal(1, called);
+
+        // Still held to the break-glass journey's own assurance minimum.
+        var weak = Context(HttpMethods.Post, "/api/v1/admin/iam/break-glass/requests", "pwd");
+        await middleware.InvokeAsync(weak, Policy(true));
+        Assert.Equal(StatusCodes.Status403Forbidden, weak.Response.StatusCode);
+        Assert.Equal(1, called);
+    }
+
     private static DefaultHttpContext Context(string method, string path, string? amr = null)
     {
         var context = new DefaultHttpContext();

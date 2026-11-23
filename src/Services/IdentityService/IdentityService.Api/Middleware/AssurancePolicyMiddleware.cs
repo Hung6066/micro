@@ -69,15 +69,19 @@ public sealed class AssurancePolicyMiddleware(RequestDelegate next, IHostEnviron
         await next(context);
     }
 
-    private static string? ResolveJourney(string path)
+    internal static string? ResolveJourney(string path)
     {
+        // Break-glass routes live under /api/v1/admin/iam, so they must be matched
+        // before the admin-write prefix: admin-write does not allow break-glass, and
+        // every break-glass request was refused with "Break-glass not permitted for
+        // journey". The break-glass journey still requires aal2 with MFA/passkey.
+        if (path.Contains("break-glass", StringComparison.OrdinalIgnoreCase))
+            return "break-glass";
+
         if (path.StartsWith("/api/v1/admin/iam", StringComparison.OrdinalIgnoreCase) ||
             (path.StartsWith("/api/v1/admin", StringComparison.OrdinalIgnoreCase) &&
              !path.Contains("/me", StringComparison.OrdinalIgnoreCase)))
             return "admin-write";
-
-        if (path.Contains("break-glass", StringComparison.OrdinalIgnoreCase))
-            return "break-glass";
 
         if (path.StartsWith("/api/v1/clinical", StringComparison.OrdinalIgnoreCase) ||
             path.Contains("/clinical/", StringComparison.OrdinalIgnoreCase))
