@@ -160,9 +160,43 @@ public static class IamTenantAccessGuard
         if (filter.AccessDenied)
             return (filter, Results.Forbid());
 
+        var error = EvaluateReadFilter(user, filter, permissionAction, crossTenantPolicy, registry);
+        if (error is not null && scopeId is null && filter.IsGroupHqOperator)
+        {
+            // No scope was requested, so the filter is the union of every tenant
+            // HQ can see. One tenant without a cross-tenant grant for this action
+            // used to refuse the whole read (an HQ operator who is only a member of
+            // nacoms-group could not open break-glass or scopes at all). Narrow to
+            // the HQ tenant's own subtree instead: strictly less data than the
+            // union, and always readable by an HQ member.
+            var hqScopeId = await db.IamScopes.AsNoTracking()
+                .Where(scope => scope.IsActive &&
+                                scope.Kind == "tenant" &&
+                                scope.Key == IamTenantScopeResolver.GroupHqTenantKey)
+                .Select(scope => (Guid?)scope.Id)
+                .FirstOrDefaultAsync(ct);
+            if (hqScopeId is Guid hqId)
+            {
+                var hqFilter = await IamTenantScopeResolver.ResolveAsync(db, user, hqId, registry, ct);
+                if (!hqFilter.AccessDenied &&
+                    EvaluateReadFilter(user, hqFilter, permissionAction, crossTenantPolicy, registry) is null)
+                    return (hqFilter, null);
+            }
+        }
+
+        return (filter, error);
+    }
+
+    private static IResult? EvaluateReadFilter(
+        ClaimsPrincipal user,
+        IamTenantScopeFilter filter,
+        string permissionAction,
+        ICrossTenantAccessPolicy crossTenantPolicy,
+        IConglomerateTenantRegistry? registry)
+    {
         var crossTenantError = EnsureCrossTenantRead(user, filter, permissionAction, crossTenantPolicy);
         if (crossTenantError is not null)
-            return (filter, crossTenantError);
+            return crossTenantError;
 
         if (registry?.IsEnabled == true &&
             filter.AllowedTenantKeys is { Count: > 0 } targetTenants &&
@@ -185,12 +219,12 @@ public static class IamTenantAccessGuard
                             targetTenant,
                             permissionAction,
                             requiresJit: false) is null)
-                        return (filter, Results.Forbid());
+                        return Results.Forbid();
                 }
             }
         }
 
-        return (filter, null);
+        return null;
     }
 
     public static async Task<(IamTenantScopeFilter Filter, IResult? Error)> ResolveForMutationAsync(

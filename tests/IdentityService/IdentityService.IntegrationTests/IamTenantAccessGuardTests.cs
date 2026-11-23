@@ -94,6 +94,66 @@ public sealed class IamTenantAccessGuardTests
         result.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult>();
     }
 
+    [Fact]
+    public async Task ResolveForReadAsync_narrows_unscoped_hq_read_to_the_hq_tenant_instead_of_forbidding()
+    {
+        var (db, hqId, manufacturingId) = await SeedTenantsAsync();
+        await using var _ = db;
+        var user = UserWithMemberships("nacoms-group");
+        var policy = new ConfigurableCrossTenantAccessPolicy(
+        [
+            new CrossTenantAllowedPair("nacoms-group", "manufacturing", "audit", ["admin.audit.read"])
+        ]);
+
+        var (filter, error) = await IamTenantAccessGuard.ResolveForReadAsync(
+            db, user, scopeId: null, "admin.breakglass.read", policy, EnabledRegistry().Object, CancellationToken.None);
+
+        error.Should().BeNull();
+        filter.AllowedTenantKeys.Should().BeEquivalentTo(["nacoms-group"]);
+        filter.AllowedScopeIds.Should().Contain(hqId).And.NotContain(manufacturingId);
+    }
+
+    [Fact]
+    public async Task ResolveForReadAsync_still_forbids_an_explicitly_requested_tenant_without_a_grant()
+    {
+        var (db, _, manufacturingId) = await SeedTenantsAsync();
+        await using var __ = db;
+        var user = UserWithMemberships("nacoms-group");
+        var policy = new ConfigurableCrossTenantAccessPolicy(
+        [
+            new CrossTenantAllowedPair("nacoms-group", "manufacturing", "audit", ["admin.audit.read"])
+        ]);
+
+        var (_, error) = await IamTenantAccessGuard.ResolveForReadAsync(
+            db, user, manufacturingId, "admin.breakglass.read", policy, EnabledRegistry().Object, CancellationToken.None);
+
+        error.Should().BeOfType<Microsoft.AspNetCore.Http.HttpResults.ForbidHttpResult>();
+    }
+
+    private static async Task<(IdentityDbContext Db, Guid HqId, Guid ManufacturingId)> SeedTenantsAsync()
+    {
+        var options = new DbContextOptionsBuilder<IdentityDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var db = new IdentityDbContext(options);
+        var hqId = Guid.NewGuid();
+        var manufacturingId = Guid.NewGuid();
+        db.IamScopes.Add(new IamScope { Id = hqId, Key = "nacoms-group", DisplayName = "Nacoms Group", Kind = "tenant", IsActive = true });
+        db.IamScopes.Add(new IamScope { Id = manufacturingId, Key = "manufacturing", DisplayName = "Manufacturing", Kind = "tenant", IsActive = true });
+        await db.SaveChangesAsync();
+        return (db, hqId, manufacturingId);
+    }
+
+    private static Moq.Mock<His.Hope.IdentityService.Application.Conglomerate.IConglomerateTenantRegistry> EnabledRegistry()
+    {
+        var registry = new Moq.Mock<His.Hope.IdentityService.Application.Conglomerate.IConglomerateTenantRegistry>();
+        registry.SetupGet(x => x.IsEnabled).Returns(true);
+        registry.SetupGet(x => x.HqCustomerVisibility).Returns("none");
+        registry.Setup(x => x.IsCustomerTenant(Moq.It.IsAny<string>())).Returns(false);
+        registry.Setup(x => x.GetClientIdsForTenant(Moq.It.IsAny<string>())).Returns([]);
+        return registry;
+    }
+
     private static ClaimsPrincipal UserWithMemberships(params string[] memberships)
     {
         var claims = memberships
