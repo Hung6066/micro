@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { EMPTY, Observable, ReplaySubject, of, throwError, timer } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, ReplaySubject, of, throwError, timer } from 'rxjs';
 import { catchError, exhaustMap, finalize, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
@@ -49,6 +49,15 @@ export class HisHopeAuthCoordinator {
   private exchangeBffSessionInFlight$?: Observable<void>;
 
   readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
+
+  /**
+   * True after the BFF session exchange answered 403: the signed-in Identity
+   * account may not use this portal (e.g. not a member of its tenant). The app
+   * stays signed out locally and stops retrying, but keeps the shared Identity
+   * session so other portals in the same browser are not signed out.
+   */
+  private readonly portalAccessDeniedSubject = new BehaviorSubject<boolean>(false);
+  readonly portalAccessDenied$: Observable<boolean> = this.portalAccessDeniedSubject.asObservable();
 
   constructor(
     private readonly oidcSecurityService: OidcSecurityService,
@@ -110,6 +119,8 @@ export class HisHopeAuthCoordinator {
   }
 
   login(returnUrl?: string): void {
+    // An explicit sign-in (possibly as another account) clears a prior denial.
+    this.portalAccessDeniedSubject.next(false);
     const safeReturnUrl = this.safeReturnUrl(returnUrl);
     if (safeReturnUrl) sessionStorage.setItem(RETURN_URL_KEY, safeReturnUrl);
     else sessionStorage.removeItem(RETURN_URL_KEY);
@@ -167,6 +178,11 @@ export class HisHopeAuthCoordinator {
     // exchanged into the local hishop session. Suppression remains relevant
     // only to token-based OIDC flows to prevent redirect loops.
     if (!this.bffOnly && (this.isSsoLoginInProgress() || this.isSsoSuppressed())) {
+      return of(false);
+    }
+    // The same account was already refused by this portal: polling would only
+    // replay the forbidden exchange.
+    if (this.portalAccessDeniedSubject.value) {
       return of(false);
     }
 
@@ -348,12 +364,15 @@ export class HisHopeAuthCoordinator {
           // A restarted Identity service can invalidate development tokens (or
           // a revoked session can reach this path). Never leave the UI marked
           // authenticated while every API request is guaranteed to return 401.
-          if (error instanceof HttpErrorResponse && (error.status === 401 || error.status === 403)) {
-            // A 403 during exchange means the authenticated Identity account
-            // is not allowed to use this portal client (for example, a HQ or
-            // tech account opening the manufacturing console). Clear the
-            // server cookie as well as local state; otherwise login polling
-            // keeps replaying the same forbidden exchange every few seconds.
+          if (error instanceof HttpErrorResponse && error.status === 403) {
+            // The authenticated Identity account may not use this portal client
+            // (for example, a HQ or tech account opening the manufacturing
+            // console). Sign out of this app only and stop retrying. Never call
+            // /auth/logout here: it ends the shared Identity session and signs
+            // the user out of every other portal open in the browser.
+            this.denyPortalAccess();
+          } else if (error instanceof HttpErrorResponse && error.status === 401) {
+            // The Identity session itself is gone or revoked: end it everywhere.
             this.logout();
           }
           // Preserve the failure so the surrounding auth flow publishes
@@ -391,6 +410,18 @@ export class HisHopeAuthCoordinator {
   private forceLocalLogout(): void {
     this.markSsoLogout();
     this.broadcastLogout();
+    sessionStorage.removeItem(RETURN_URL_KEY);
+    if (!this.bffOnly) this.oidcSecurityService.logoffLocal();
+    this.lastAuthenticated = false;
+    this.authenticatedSubject.next(false);
+    if (!this.router.url.includes(this.loginRoute)) {
+      this.router.navigate([this.loginRoute]);
+    }
+  }
+
+  private denyPortalAccess(): void {
+    this.portalAccessDeniedSubject.next(true);
+    this.clearSsoLoginInProgress();
     sessionStorage.removeItem(RETURN_URL_KEY);
     if (!this.bffOnly) this.oidcSecurityService.logoffLocal();
     this.lastAuthenticated = false;

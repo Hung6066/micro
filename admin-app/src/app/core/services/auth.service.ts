@@ -25,6 +25,10 @@ export class AuthService {
   readonly isAuthenticated$: Observable<boolean> =
     this.coordinator.isAuthenticated$;
 
+  /** The signed-in Identity account is not allowed to use admin-app (exchange 403). */
+  readonly portalAccessDenied$: Observable<boolean> =
+    this.coordinator.portalAccessDenied$;
+
   /** Wait for initial OIDC checkAuth to complete (used by guards) */
   checkAuth(): Observable<void> {
     return this.coordinator.checkAuth();

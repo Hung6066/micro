@@ -35,7 +35,7 @@ describe('HisHopeAuthCoordinator', () => {
     expect(states).toEqual([false]);
   });
 
-  it('clears the server session when the portal client is forbidden', () => {
+  it('signs out locally but keeps the shared Identity session when the portal client is forbidden', () => {
     const oidc = { logoffLocal: jasmine.createSpy('logoffLocal') } as unknown as OidcSecurityService;
     const http = {
       get: jasmine.createSpy('get').and.returnValue(of({ authenticated: true })),
@@ -48,24 +48,38 @@ describe('HisHopeAuthCoordinator', () => {
       navigate: jasmine.createSpy('navigate'),
     } as unknown as Router;
 
-    new HisHopeAuthCoordinator(oidc, http, router, {
+    const coordinator = new HisHopeAuthCoordinator(oidc, http, router, {
       defaultReturnUrl: '/dashboard',
       sessionStatusUrl: '/api/v1/auth/session-status',
       sessionExchangeUrl: '/api/v1/auth/session/exchange',
       logoutUrl: '/api/v1/auth/logout',
       bffOnly: true,
-    }).isAuthenticated$.subscribe();
+    });
+    const states: boolean[] = [];
+    const denied: boolean[] = [];
+    coordinator.isAuthenticated$.subscribe((state) => states.push(state));
+    coordinator.portalAccessDenied$.subscribe((value) => denied.push(value));
 
     expect(http.post).toHaveBeenCalledWith(
       '/api/v1/auth/session/exchange',
       {},
       { withCredentials: true },
     );
-    expect(http.post).toHaveBeenCalledWith(
+    // /auth/logout would end the Identity session for every other portal.
+    expect(http.post).not.toHaveBeenCalledWith(
       '/api/v1/auth/logout',
-      {},
-      { withCredentials: true },
+      jasmine.anything(),
+      jasmine.anything(),
     );
+    expect(states).toEqual([false]);
+    expect(denied[denied.length - 1]).toBeTrue();
+
+    // Polling must not replay the forbidden exchange.
+    (http.post as jasmine.Spy).calls.reset();
+    let result: boolean | undefined;
+    coordinator.trySsoLogin().subscribe((value) => (result = value));
+    expect(result).toBeFalse();
+    expect(http.post).not.toHaveBeenCalled();
   });
 
   it('exchanges an authenticated BFF cookie after the SSO marker survives the redirect', (done) => {
