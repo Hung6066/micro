@@ -410,6 +410,24 @@ public static class IdentityServiceEndpointExtensions
         })
         .AllowAnonymous();
 
+        // The identity host has no home page. A sign-in that started without a
+        // returnUrl (e.g. /Account/Login opened directly, then password or passkey)
+        // completes by redirecting to "/", which used to be a JSON 404. Send it to
+        // the configured portal instead, only when that URL is redirect-whitelisted.
+        app.MapGet("/", (IConfiguration configuration) =>
+        {
+            var target = configuration["Identity:DefaultPostLoginRedirect"];
+            if (!string.IsNullOrWhiteSpace(target) &&
+                Uri.TryCreate(target, UriKind.Absolute, out _) &&
+                string.Equals(
+                    AuthenticationRedirectValidator.ResolveSafeReturnUrl(target, configuration),
+                    target,
+                    StringComparison.Ordinal))
+                return Results.Redirect(target);
+
+            return Results.Redirect("/Account/Login");
+        }).AllowAnonymous().ExcludeFromDescription();
+
         app.MapGet("/auth/login", (HttpContext httpContext, IConfiguration configuration) =>
         {
             var spaOriginHint = httpContext.Request.Query["spaOrigin"].FirstOrDefault();
