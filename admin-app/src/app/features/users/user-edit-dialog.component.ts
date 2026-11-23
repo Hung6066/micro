@@ -64,6 +64,7 @@ import { catchError, map, of, switchMap } from "rxjs";
           [control]="formGroup.controls['password']"
           [label]="fields[5].label"
           type="password"
+          autocomplete="new-password"
         />
         <hh-mat-form-field
           [control]="formGroup.controls['role']"
@@ -187,7 +188,12 @@ export class UserEditDialogComponent {
         },
         password: {
           key: "password",
-          label: this.i18n.t("admin.password", "Password"),
+          label: this.isEdit
+            ? this.i18n.t(
+                "admin.newPasswordOptional",
+                "New password (leave empty to keep)",
+              )
+            : this.i18n.t("admin.password", "Password"),
           initialValue: "",
           type: "password",
           required: !this.isEdit,
