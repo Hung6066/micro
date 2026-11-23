@@ -428,7 +428,8 @@ public static class UserEndpoints
                 })
             });
         })
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
 
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/tenant-memberships/{tenantKey}", (
             Guid id,
