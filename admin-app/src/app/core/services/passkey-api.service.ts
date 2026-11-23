@@ -24,13 +24,21 @@ export interface PasskeyRegistrationResponse {
   };
 }
 
+export interface PasskeyStatus {
+  registered: boolean;
+  count?: number;
+  /** Passkeys needed to count as MFA on their own (e.g. for super-admins). */
+  minimumRequired?: number;
+  meetsMinimum?: boolean;
+}
+
 @Injectable({ providedIn: "root" })
 export class PasskeyApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.authApiUrl;
 
-  getStatus(): Observable<{ registered: boolean }> {
-    return this.http.get<{ registered: boolean }>(`${this.baseUrl}/passkeys/status`);
+  getStatus(): Observable<PasskeyStatus> {
+    return this.http.get<PasskeyStatus>(`${this.baseUrl}/passkeys/status`);
   }
 
   getRegistrationOptions(): Observable<PublicKeyCredentialCreationOptions> {
