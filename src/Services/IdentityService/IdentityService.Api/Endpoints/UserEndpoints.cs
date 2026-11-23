@@ -31,6 +31,12 @@ public static class UserEndpoints
     /// <summary>Problem errorCode returned when an administrator tries to verify their own email.</summary>
     public const string SelfEmailVerificationErrorCode = "self_email_verification";
 
+    /// <summary>Problem errorCode returned when an administrator tries to set their own password.</summary>
+    public const string SelfPasswordSetErrorCode = "self_password_set";
+
+    /// <summary>Body of PUT /users/{id}/password.</summary>
+    public sealed record AdminSetPasswordRequest(string NewPassword);
+
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder group)
     {
         group.MapGet(IdentityApiRoutes.UsersSegment, async (
@@ -268,6 +274,77 @@ public static class UserEndpoints
             }
 
             return Results.Ok(new { id, emailConfirmed = true, changed });
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
+        // Administrator-set password. Accounts created in admin-app had no way to get a
+        // usable password (the edit dialog's password field was never sent). Another
+        // administrator (never the account itself: that is Change password) sets one with
+        // a fresh MFA step-up. The reset path enforces the password policy and the recent
+        // password history; afterwards every session and token of the user is revoked.
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/password", async (
+            Guid id,
+            AdminSetPasswordRequest request,
+            IdentityDbContext db = null!,
+            IIdentityService identityService = null!,
+            ITokenBlacklistService tokenBlacklist = null!,
+            IOpenIddictSubjectRevoker subjectRevoker = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
+            CancellationToken ct = default) =>
+        {
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp)
+                return stepUp;
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            var caller = http.User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
+                ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
+            if (string.Equals(caller, id.ToString(), StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Setting your own password is not allowed",
+                    detail: "Use Change password for your own account.",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = SelfPasswordSetErrorCode });
+
+            if (string.IsNullOrWhiteSpace(request?.NewPassword))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "A new password is required",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = "password_required" });
+
+            var email = await db.Users.AsNoTracking()
+                .Where(item => item.Id == id)
+                .Select(item => item.Email)
+                .FirstOrDefaultAsync(ct);
+            if (email is null)
+                return Results.NotFound();
+
+            try
+            {
+                var token = await identityService.GeneratePasswordResetTokenAsync(email, ct);
+                await identityService.ResetPasswordAsync(email, token, request.NewPassword, ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                var reused = ex.Message.Contains("reuse", StringComparison.OrdinalIgnoreCase);
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: reused ? "The password was used recently" : "The password does not meet the policy",
+                    detail: ex.Message,
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["errorCode"] = reused ? "password_reused" : "password_policy"
+                    });
+            }
+
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await subjectRevoker.RevokeAllAsync(id, ct);
+            await AdminAudit.LogAsync(audit, http, "SET_PASSWORD", "User", id.ToString(), ct);
+            return Results.NoContent();
         })
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
             .WithTenantMutationScope();

@@ -131,6 +131,18 @@ export class UsersApiService {
       .pipe(tap(() => this.requestCache.invalidate("admin:users:")));
   }
 
+  /**
+   * Administrator-set password (fresh MFA required; not for your own account).
+   * Enforces the password policy and history, then signs the user out everywhere.
+   */
+  setUserPassword(id: string, newPassword: string): Observable<void> {
+    return this.http
+      .put<void>(`${this.baseUrl}/users/${encodeURIComponent(id)}/password`, {
+        newPassword,
+      })
+      .pipe(tap(() => this.requestCache.invalidate("admin:users:")));
+  }
+
   private setActive(id: string, active: boolean): Observable<void> {
     const action = active ? "activate" : "deactivate";
     return this.http

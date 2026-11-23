@@ -15,7 +15,7 @@ import {
   HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
-import { catchError, of } from "rxjs";
+import { catchError, map, of, switchMap } from "rxjs";
 
 @Component({
   selector: "app-user-edit-dialog",
@@ -182,6 +182,7 @@ export class UserEditDialogComponent {
           phoneNumber: String(values["phoneNumber"] ?? ""),
           role: String(values["role"] ?? ""),
         });
+    const newPassword = String(values["password"] ?? "");
     request
       .pipe(
         catchError(() => {
@@ -191,9 +192,55 @@ export class UserEditDialogComponent {
           this.saving = false;
           return of(null);
         }),
+        // Editing never sends the password with the profile: it goes through the
+        // administrator set-password endpoint (fresh MFA, policy, history, sign-out).
+        switchMap((result) => {
+          if (!result || !this.isEdit || newPassword.length === 0) {
+            return of(result ? "saved" : null);
+          }
+          return this.api.setUserPassword(this.userId, newPassword).pipe(
+            map(() => "saved" as const),
+            catchError((error: { error?: { errorCode?: string; detail?: string } }) => {
+              this.toast.error(this.passwordErrorMessage(error));
+              this.saving = false;
+              return of(null);
+            }),
+          );
+        }),
       )
       .subscribe((result) => {
-        if (result) this.dialogRef.close(true);
+        if (result) {
+          if (this.isEdit && newPassword.length > 0) {
+            this.toast.success(
+              this.i18n.t(
+                "admin.passwordSet",
+                "Password set. The user was signed out everywhere.",
+              ),
+            );
+          }
+          this.dialogRef.close(true);
+        }
       });
+  }
+
+  private passwordErrorMessage(error: {
+    error?: { errorCode?: string; detail?: string };
+  }): string {
+    const prefix = this.i18n.t(
+      "admin.passwordNotSet",
+      "Profile saved, but the password was NOT set:",
+    );
+    switch (error?.error?.errorCode) {
+      case "self_password_set":
+        return `${prefix} ${this.i18n.t("admin.passwordSelf", "use Change password for your own account.")}`;
+      case "step_up_required":
+        return `${prefix} ${this.i18n.t("admin.stepUpRequired", "sign in again with MFA, then retry.")}`;
+      case "password_reused":
+        return `${prefix} ${this.i18n.t("admin.passwordReused", "it matches one of the last 5 passwords.")}`;
+      case "password_policy":
+        return `${prefix} ${error.error?.detail ?? this.i18n.t("admin.passwordPolicy", "it does not meet the password policy.")}`;
+      default:
+        return `${prefix} ${error?.error?.detail ?? this.i18n.t("admin.unexpectedError", "unexpected error.")}`;
+    }
   }
 }
