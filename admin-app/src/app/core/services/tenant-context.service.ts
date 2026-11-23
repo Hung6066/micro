@@ -2,6 +2,7 @@ import { DestroyRef, inject, Injectable } from "@angular/core";
 import {
   BehaviorSubject,
   Observable,
+  catchError,
   combineLatest,
   forkJoin,
   map,
@@ -55,7 +56,10 @@ export class TenantContextService {
   initialize(): Observable<void> {
     return forkJoin({
       permissions: this.permissionsApi.getCurrent(),
-      scopes: this.iamApi.getIamScopes(),
+      // Reading IAM scopes needs admin.scopes.read, which not every operator has.
+      // A 403 here must not fail the whole bootstrap: the permission snapshot
+      // (and every canWrite check built on it) would never load.
+      scopes: this.iamApi.getIamScopes().pipe(catchError(() => of([] as IamScope[]))),
     }).pipe(
       tap(({ permissions, scopes }) => {
         this.scopesSubject.next(scopes);
