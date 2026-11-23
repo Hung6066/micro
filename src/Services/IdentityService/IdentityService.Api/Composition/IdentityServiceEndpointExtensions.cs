@@ -352,7 +352,8 @@ public static class IdentityServiceEndpointExtensions
 
         // ─── OIDC Login Page (server-rendered for authorization flow) ───
         app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User> signInManager,
-            ExternalIdentityProviderRuntime externalIdentityRuntime, IConfiguration configuration) =>
+            ExternalIdentityProviderRuntime externalIdentityRuntime, IConfiguration configuration,
+            IOidcConsentService consentService) =>
         {
             var spaOriginHint = httpContext.Request.Query["spaOrigin"].FirstOrDefault();
             var returnUrl = AuthenticationRedirectValidator.ResolveSafeReturnUrl(
@@ -395,10 +396,11 @@ public static class IdentityServiceEndpointExtensions
             var samlSettings = await externalIdentityRuntime.GetSamlAsync(httpContext.RequestAborted);
             var samlAvailable = samlSettings.Enabled && !string.IsNullOrWhiteSpace(samlSettings.IdpMetadata);
             var html = BuildLoginPage(hasError, errorMessage, encodedReturnUrl, encodedSpaOrigin, externalProviders, samlAvailable);
+            var loginFormTarget = await ResolveSignInFormActionOriginAsync(returnUrl, consentService, httpContext.RequestAborted);
 
             httpContext.Response.OnStarting(() =>
             {
-                SetIdentityHtmlSecurityHeaders(httpContext);
+                SetIdentityHtmlSecurityHeaders(httpContext, loginFormTarget);
                 httpContext.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
                 httpContext.Response.Headers.Pragma = "no-cache";
                 return Task.CompletedTask;
@@ -444,14 +446,16 @@ public static class IdentityServiceEndpointExtensions
         }).AllowAnonymous();
 
         app.MapGet("/Account/Mfa", async (HttpContext httpContext, string? error, OidcLoginCompletionService completion,
-            CancellationToken ct) =>
+            IOidcConsentService consentService, CancellationToken ct) =>
         {
             var methods = await completion.GetPendingMfaMethodsAsync(httpContext, ct);
             var html = BuildMfaPage(error, methods);
+            var mfaFormTarget = await ResolveSignInFormActionOriginAsync(
+                completion.TryGetPendingMfaContext(httpContext)?.ReturnUrl, consentService, ct);
 
             httpContext.Response.OnStarting(() =>
             {
-                SetIdentityHtmlSecurityHeaders(httpContext);
+                SetIdentityHtmlSecurityHeaders(httpContext, mfaFormTarget);
                 httpContext.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
                 httpContext.Response.Headers.Pragma = "no-cache";
                 return Task.CompletedTask;
@@ -544,6 +548,33 @@ public static class IdentityServiceEndpointExtensions
             return !string.IsNullOrWhiteSpace(clientId) &&
                    Uri.TryCreate(redirectUri, UriKind.Absolute, out _) &&
                    scopes.Count > 0;
+        }
+
+        // Browsers enforce CSP form-action on every hop of a form submission's
+        // redirect chain. A password/TOTP/LDAP sign-in POST redirects to its
+        // return URL: either a whitelisted SPA URL (already validated by
+        // ResolveSafeReturnUrl) or /connect/authorize, which can redirect straight
+        // to the client's callback when consent exists. Permit exactly that one
+        // origin; otherwise the browser silently cancels the post-login redirect.
+        static async Task<string?> ResolveSignInFormActionOriginAsync(
+            string? returnUrl,
+            IOidcConsentService consentService,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(returnUrl))
+                return null;
+
+            if (Uri.TryCreate(returnUrl, UriKind.Absolute, out var absolute) &&
+                (absolute.Scheme == Uri.UriSchemeHttps || absolute.Scheme == Uri.UriSchemeHttp))
+                return GetCspFormActionOrigin(returnUrl);
+
+            if (!TryReadAuthorizeRequest(returnUrl, out var clientId, out var redirectUri, out _, out _))
+                return null;
+
+            var application = await consentService.GetClientAsync(clientId, cancellationToken);
+            return application is not null && application.RedirectUris.Contains(redirectUri, StringComparer.Ordinal)
+                ? GetCspFormActionOrigin(redirectUri)
+                : null;
         }
 
         static string BuildAuthorizationErrorRedirect(string returnUrl, string error, string description)

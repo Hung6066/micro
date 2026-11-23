@@ -16,6 +16,8 @@ public sealed class ConsentCspFormActionTests
     [InlineData("https://dashboard.nacoms.com.vn:8443/api/auth/cb?x=1", "https://dashboard.nacoms.com.vn:8443")]
     [InlineData("http://localhost:8250/oidc/callback", "http://localhost:8250")]
     [InlineData("http://127.0.0.1:4200/cb", "http://127.0.0.1:4200")]
+    // Login/MFA pages: a BFF SPA return URL (already whitelisted) maps to the SPA origin.
+    [InlineData("https://identity.nacoms.com.vn/auth/login?returnUrl=%2Fclients", "https://identity.nacoms.com.vn")]
     public void Registered_https_or_loopback_callbacks_map_to_their_origin(string redirectUri, string expected)
     {
         IdentityServiceEndpointExtensions.GetCspFormActionOrigin(redirectUri).Should().Be(expected);
