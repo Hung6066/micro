@@ -450,6 +450,57 @@ public sealed class OpenIddictPopulateTokenClaimsTests
     }
 
     [Fact]
+    public async Task Kubectl_client_gets_a_short_access_token_and_other_console_clients_keep_the_default()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "ops@example.test", UserName = "ops@example.test" };
+        var serverOptions = new OpenIddictServerOptions { AccessTokenLifetime = TimeSpan.FromHours(1) };
+
+        var kubectl = new ClaimsPrincipal(SubjectIdentity(user.Id));
+        await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.AuthorizationCode, kubectl, "openship-kubectl", serverOptions));
+        kubectl.GetAccessTokenLifetime().Should().Be(TimeSpan.FromMinutes(10));
+
+        var grafana = new ClaimsPrincipal(SubjectIdentity(user.Id));
+        await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.AuthorizationCode, grafana, "openship-grafana", serverOptions));
+        grafana.GetAccessTokenLifetime().Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Break_glass_elevation_adds_the_group_and_caps_tokens_at_the_grant_expiry()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "ops@example.test", UserName = "ops@example.test" };
+        db.BreakGlassRequests.Add(new BreakGlassRequest
+        {
+            Id = Guid.NewGuid(),
+            SubjectUserId = user.Id,
+            PermissionCode = HisHopePermissions.OpenShip.NodeRoot,
+            FacilityId = "facility-a",
+            Reason = "Node incident",
+            Status = "approved",
+            RequestedBy = Guid.NewGuid().ToString(),
+            RequestedAt = DateTime.UtcNow.AddMinutes(-5),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(7)
+        });
+        await db.SaveChangesAsync();
+        var serverOptions = new OpenIddictServerOptions
+        {
+            AccessTokenLifetime = TimeSpan.FromHours(1),
+            IdentityTokenLifetime = TimeSpan.FromMinutes(20)
+        };
+        var principal = new ClaimsPrincipal(SubjectIdentity(user.Id));
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.RefreshToken, principal, "openship-warpgate", serverOptions));
+
+        principal.FindAll("groups").Select(claim => claim.Value).Should().Contain("openship-breakglass-node-admin");
+        principal.GetAccessTokenLifetime().Should().BeCloseTo(TimeSpan.FromMinutes(7), TimeSpan.FromSeconds(30));
+        principal.GetIdentityTokenLifetime().Should().BeCloseTo(TimeSpan.FromMinutes(7), TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
     public async Task Inactive_user_is_rejected_at_the_token_endpoint()
     {
         await using var db = TestApplicationDbContext.Create();
@@ -540,12 +591,18 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         return identity;
     }
 
-    private static OpenIddictServerEvents.HandleTokenRequestContext Context(string grantType, ClaimsPrincipal? principal, string? clientId = null)
+    private static OpenIddictServerEvents.HandleTokenRequestContext Context(
+        string grantType,
+        ClaimsPrincipal? principal,
+        string? clientId = null,
+        OpenIddictServerOptions? options = null)
     {
         var transaction = new OpenIddictServerTransaction
         {
             Request = new OpenIddictRequest { GrantType = grantType, ClientId = clientId }
         };
+        if (options is not null)
+            transaction.Options = options;
         var context = new OpenIddictServerEvents.HandleTokenRequestContext(transaction);
         context.Principal = principal;
         return context;

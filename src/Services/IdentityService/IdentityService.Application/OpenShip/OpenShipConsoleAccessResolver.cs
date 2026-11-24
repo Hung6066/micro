@@ -4,10 +4,20 @@ using Microsoft.Extensions.Options;
 
 namespace His.Hope.IdentityService.Application.OpenShip;
 
-/// <summary>Console access derived from IAM state for one user.</summary>
-/// <param name="Groups">Active IAM group keys that start with the configured console prefix.</param>
+/// <summary>Console and infrastructure access derived from IAM state for one user.</summary>
+/// <param name="Groups">
+/// Active IAM group keys with a configured prefix, plus the dynamic break-glass
+/// groups of every approved, unexpired elevation grant.
+/// </param>
 /// <param name="WriteUntil">End of the latest active, approved console-write break-glass window, if any.</param>
-public sealed record OpenShipConsoleAccess(IReadOnlyList<string> Groups, DateTime? WriteUntil);
+/// <param name="ElevatedUntil">
+/// Earliest expiry among the grants behind the dynamic break-glass groups, if
+/// any. A token carrying those groups must not live past this instant.
+/// </param>
+public sealed record OpenShipConsoleAccess(
+    IReadOnlyList<string> Groups,
+    DateTime? WriteUntil,
+    DateTime? ElevatedUntil = null);
 
 public interface IOpenShipConsoleAccessResolver
 {
@@ -15,10 +25,10 @@ public interface IOpenShipConsoleAccessResolver
 }
 
 /// <summary>
-/// Resolves OpenShip console roles (IAM groups) and time-boxed write
-/// (approved break-glass) for a user. Both are evaluated server-side on every
-/// call so revoking a membership or a break-glass request takes effect on the
-/// next token issuance or console-access lookup.
+/// Resolves OpenShip console roles (IAM groups), time-boxed console write and
+/// infrastructure elevation (approved break-glass) for a user. Everything is
+/// evaluated server-side on every call so revoking a membership or a
+/// break-glass request takes effect on the next token issuance or lookup.
 /// </summary>
 public sealed class OpenShipConsoleAccessResolver : IOpenShipConsoleAccessResolver
 {
@@ -38,7 +48,6 @@ public sealed class OpenShipConsoleAccessResolver : IOpenShipConsoleAccessResolv
 
     public async Task<OpenShipConsoleAccess> ResolveAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var prefix = _options.GroupPrefix;
         var groupKeys = await _db.IamGroupMemberships.AsNoTracking()
             .TagWith("Identity.OpenShip.ResolveConsoleGroups")
             .Where(membership => membership.UserId == userId)
@@ -51,23 +60,45 @@ public sealed class OpenShipConsoleAccessResolver : IOpenShipConsoleAccessResolv
         // Prefix filtering is done in memory with an ordinal comparison so the
         // result does not depend on database collation or LIKE escaping.
         var groups = groupKeys
-            .Where(key => !string.IsNullOrWhiteSpace(key) && key.StartsWith(prefix, StringComparison.Ordinal))
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
+            .Where(_options.IsIssuedGroup)
+            .ToHashSet(StringComparer.Ordinal);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var permission = _options.WritePermission;
-        var writeUntil = await _db.BreakGlassRequests.AsNoTracking()
-            .TagWith("Identity.OpenShip.ResolveConsoleWrite")
+        var writePermission = _options.WritePermission;
+        var elevationPermissions = _options.BreakGlassGroups.Select(item => item.Permission).ToArray();
+        var grants = await _db.BreakGlassRequests.AsNoTracking()
+            .TagWith("Identity.OpenShip.ResolveBreakGlass")
             .Where(item => item.SubjectUserId == userId &&
-                item.PermissionCode == permission &&
+                (item.PermissionCode == writePermission || elevationPermissions.Contains(item.PermissionCode)) &&
                 item.Status == "approved" &&
                 item.RevokedAt == null &&
                 item.ExpiresAt > now)
-            .Select(item => (DateTime?)item.ExpiresAt)
-            .MaxAsync(cancellationToken);
+            .Select(item => new { item.PermissionCode, item.ExpiresAt })
+            .ToListAsync(cancellationToken);
 
-        return new OpenShipConsoleAccess(groups, writeUntil);
+        DateTime? writeUntil = grants
+            .Where(grant => grant.PermissionCode == writePermission)
+            .Select(grant => (DateTime?)grant.ExpiresAt)
+            .Max();
+
+        DateTime? elevatedUntil = null;
+        foreach (var mapping in _options.BreakGlassGroups)
+        {
+            // The token must end with the first grant that lapses, but a group
+            // stays as long as any of its own grants is still active.
+            var latest = grants
+                .Where(grant => string.Equals(grant.PermissionCode, mapping.Permission, StringComparison.Ordinal))
+                .Select(grant => (DateTime?)grant.ExpiresAt)
+                .Max();
+            if (latest is null)
+                continue;
+            groups.Add(mapping.Group);
+            elevatedUntil = elevatedUntil is null || latest < elevatedUntil ? latest : elevatedUntil;
+        }
+
+        return new OpenShipConsoleAccess(
+            groups.Order(StringComparer.Ordinal).ToArray(),
+            writeUntil,
+            elevatedUntil);
     }
 }

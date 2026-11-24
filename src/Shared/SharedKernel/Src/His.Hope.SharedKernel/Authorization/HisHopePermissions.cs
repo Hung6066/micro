@@ -194,6 +194,24 @@ public static class HisHopePermissions
         /// <c>writeUntil</c> in the OpenShip console-access lookup.
         /// </summary>
         public const string ConsoleWrite = "openship.console.write";
+
+        /// <summary>
+        /// Time-boxed root SSH on OpenShip K3s nodes. Break-glass only; while
+        /// active, OpenShip access tokens carry the
+        /// <c>openship-breakglass-node-admin</c> group.
+        /// </summary>
+        public const string NodeRoot = "openship.node.root";
+
+        /// <summary>
+        /// Time-boxed Kubernetes cluster-admin on the OpenShip cluster.
+        /// Break-glass only; while active, OpenShip access tokens carry the
+        /// <c>openship-breakglass-cluster-admin</c> group.
+        /// </summary>
+        public const string ClusterAdmin = "openship.cluster.admin";
+
+        /// <summary>Permissions that may only ever be granted through break-glass.</summary>
+        public static readonly IReadOnlySet<string> BreakGlassOnly =
+            new HashSet<string>(StringComparer.Ordinal) { ConsoleWrite, NodeRoot, ClusterAdmin };
     }
 
     // ──────────────────────────────────────────────
@@ -262,8 +280,10 @@ public static class HisHopePermissions
         Manufacturing.MaintenanceComplete,
         Manufacturing.CostManage,
 
-        // OpenShip consoles
+        // OpenShip consoles and infrastructure (break-glass only)
         OpenShip.ConsoleWrite,
+        OpenShip.NodeRoot,
+        OpenShip.ClusterAdmin,
     }.ToFrozenSet();
 
     /// <summary>
@@ -383,6 +403,8 @@ public static class HisHopePermissions
 
         // OpenShip consoles
         new(OpenShip.ConsoleWrite, "Ghi trên console OpenShip", "OpenShip", "Quyền ghi tạm thời trên console tailnet OpenShip, chỉ cấp qua break-glass"),
+        new(OpenShip.NodeRoot, "Root trên node OpenShip", "OpenShip", "Quyền SSH root tạm thời trên node K3s OpenShip, chỉ cấp qua break-glass"),
+        new(OpenShip.ClusterAdmin, "Cluster-admin K3s OpenShip", "OpenShip", "Quyền cluster-admin Kubernetes tạm thời trên cluster OpenShip, chỉ cấp qua break-glass"),
     }.ToFrozenSet();
 
     /// <summary>

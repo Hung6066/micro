@@ -173,10 +173,11 @@ public static class IdentityDbInitializer
         // Mapping: role name -> set of permission codes
         var rolePermissionMap = new Dictionary<string, HashSet<string>>
         {
-            // OpenShip console write is time-boxed and only granted through an
-            // approved break-glass request; never seed it as a standing grant.
+            // OpenShip console write, node root and cluster admin are time-boxed
+            // and only granted through an approved break-glass request; never
+            // seed them as standing grants.
             ["Admin"] = HisHopePermissions.All
-                .Where(code => code != HisHopePermissions.OpenShip.ConsoleWrite)
+                .Where(code => !HisHopePermissions.OpenShip.BreakGlassOnly.Contains(code))
                 .ToHashSet(),
 
             ["Provider"] = new HashSet<string>

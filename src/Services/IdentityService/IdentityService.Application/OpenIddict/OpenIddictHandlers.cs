@@ -752,28 +752,33 @@ public class CustomPopulateTokenClaims :
             identity.AddClaim(permissionsClaim);
         }
 
-        await IssueOpenShipConsoleGroupsAsync(identity, user.Id, context.Request.ClientId, context.CancellationToken);
+        await IssueOpenShipConsoleGroupsAsync(context, principal, identity, user.Id, context.CancellationToken);
 
         if (!await TryIssueTenantClaimsAsync(context, identity, user, context.CancellationToken))
             return;
     }
 
     /// <summary>
-    /// Emits one <c>groups</c> claim per active OpenShip console IAM group, only
-    /// for the configured console clients. Any <c>groups</c> claim carried over
-    /// from the authorization code or refresh token is discarded first so the
-    /// token always reflects current IAM membership (leavers lose roles on the
-    /// next refresh) and other clients never learn console group membership.
+    /// Emits one <c>groups</c> claim per active OpenShip IAM group (and per
+    /// active break-glass elevation group), only for the configured console
+    /// clients. Any <c>groups</c> claim carried over from the authorization code
+    /// or refresh token is discarded first so the token always reflects current
+    /// IAM membership (leavers lose roles on the next refresh) and other clients
+    /// never learn group membership. Short-lived clients (kubectl) get capped
+    /// access tokens, and a token carrying an elevation group never outlives
+    /// the grant behind it.
     /// </summary>
     private async Task IssueOpenShipConsoleGroupsAsync(
+        OpenIddictServerEvents.HandleTokenRequestContext context,
+        ClaimsPrincipal principal,
         ClaimsIdentity identity,
         Guid userId,
-        string? clientId,
         CancellationToken cancellationToken)
     {
         foreach (var existing in identity.FindAll(OpenShipConsoleClaims.Groups).ToArray())
             identity.RemoveClaim(existing);
 
+        var clientId = context.Request.ClientId;
         if (!_consoleOptions.IsConsoleClient(clientId))
             return;
 
@@ -786,6 +791,28 @@ public class CustomPopulateTokenClaims :
                 OpenIddictConstants.Destinations.IdentityToken);
             identity.AddClaim(groupClaim);
         }
+
+        var lifetime = context.Transaction.Options?.AccessTokenLifetime;
+        if (_consoleOptions.IsShortLivedClient(clientId) &&
+            (lifetime is null || _consoleOptions.ShortLivedAccessTokenLifetime < lifetime))
+            lifetime = _consoleOptions.ShortLivedAccessTokenLifetime;
+
+        if (access.ElevatedUntil is { } elevatedUntil)
+        {
+            var remaining = elevatedUntil - DateTime.UtcNow;
+            if (remaining < TimeSpan.FromSeconds(1))
+                remaining = TimeSpan.FromSeconds(1);
+            if (lifetime is null || remaining < lifetime)
+                lifetime = remaining;
+            // The identity token carries the same groups, so it is capped too
+            // (never lengthened past the server default).
+            var identityLifetime = context.Transaction.Options?.IdentityTokenLifetime;
+            if (identityLifetime is null || remaining < identityLifetime)
+                principal.SetIdentityTokenLifetime(remaining);
+        }
+
+        if (lifetime is not null && lifetime != context.Transaction.Options?.AccessTokenLifetime)
+            principal.SetAccessTokenLifetime(lifetime);
     }
 
     private async Task IssueUserMembershipTenantClaimsAsync(
