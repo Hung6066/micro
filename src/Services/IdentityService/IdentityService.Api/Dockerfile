@@ -95,7 +95,7 @@ ENV ASPNETCORE_URLS=http://+:8080 \
 ENV OpenIddict__Issuer=https://identity.his-hope.local \
     OpenIddict__AccessTokenLifetime=01:00:00 \
     OpenIddict__RefreshTokenLifetime=7.00:00:00 \
-    OpenIddict__AuthorizationCodeLifetime=00:01:00
+    OpenIddict__AuthorizationCodeLifetime=00:05:00
 
 # Install curl for Docker HEALTHCHECK
 COPY --from=build /app/publish .
