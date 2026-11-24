@@ -63,7 +63,7 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     clientDisplayNameRequired: "Display name is required.",
     clientRedirectUriRequired:
       "At least one redirect URI is required for the authorization code grant.",
-    clientRedirectUrisHttpsInvalid: "Use HTTPS redirect URIs.",
+    clientRedirectUrisHttpsInvalid: "Use HTTPS redirect URIs (HTTP only for localhost / 127.0.0.1 in CLI clients).",
     clientRedirectUrisInvalid:
       "Use HTTPS redirect URIs; authorization code requires one.",
     clientPostLogoutUrisInvalid: "Use HTTPS post-logout redirect URIs.",

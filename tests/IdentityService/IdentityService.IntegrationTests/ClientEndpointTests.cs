@@ -94,6 +94,82 @@ public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
             (await session.DeleteWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}")).StatusCode);
     }
 
+    [Theory]
+    [InlineData("https://app.example/callback", true)]
+    [InlineData("http://localhost:8000", true)]
+    [InlineData("http://LOCALHOST:18000/", true)]
+    [InlineData("http://127.0.0.1:8250/oidc/callback", true)]
+    [InlineData("http://[::1]:8000", true)]
+    [InlineData("http://app.example/callback", false)]
+    [InlineData("http://localhost.example.com/callback", false)]
+    [InlineData("http://127.0.0.2/callback", false)]
+    [InlineData("https://app.example/callback#fragment", false)]
+    [InlineData("https://user:pass@app.example/callback", false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("not a uri", false)]
+    public void Admin_client_uris_must_be_https_or_http_loopback(string uri, bool allowed) =>
+        Assert.Equal(allowed, ClientEndpoints.IsAllowedClientUri(uri));
+
+    [Fact]
+    public async Task Admin_client_create_and_update_enforce_redirect_uris_and_update_persists_them()
+    {
+        using var session = await LoginAsync();
+        var clientId = $"integration-cli-{Guid.NewGuid():N}";
+
+        var rejected = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId,
+            displayName = "Clear-text callback",
+            type = "public",
+            grantTypes = new[] { "authorization_code", "refresh_token" },
+            redirectUris = new[] { "http://app.example/callback" },
+            scopes = new[] { "openid" }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+
+        var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId,
+            displayName = "CLI client",
+            type = "public",
+            grantTypes = new[] { "authorization_code", "refresh_token" },
+            redirectUris = new[] { "http://localhost:8000" },
+            scopes = new[] { "openid", "email", "profile", "offline_access" }
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        var list = await (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminClients))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var id = list.GetProperty("items").EnumerateArray()
+            .First(value => value.GetProperty("clientId").GetString() == clientId)
+            .GetProperty("id").GetString()!;
+
+        var current = await (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var badUpdate = await session.PutWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}", new
+        {
+            redirectUris = new[] { "http://localhost:8000", "http://evil.example/callback" },
+            concurrencyToken = current.GetProperty("concurrencyToken").GetString()
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, badUpdate.StatusCode);
+
+        var update = await session.PutWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}", new
+        {
+            redirectUris = new[] { "http://localhost:8000", "http://localhost:18000" },
+            concurrencyToken = current.GetProperty("concurrencyToken").GetString()
+        });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+
+        var saved = await (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(
+            new[] { "http://localhost:8000", "http://localhost:18000" },
+            saved.GetProperty("redirectUris").EnumerateArray().Select(uri => uri.GetString()!).ToArray());
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await session.DeleteWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}")).StatusCode);
+    }
+
     [Fact]
     public async Task Dynamic_registration_requires_a_configured_registration_token()
     {

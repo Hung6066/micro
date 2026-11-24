@@ -33,6 +33,25 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * A redirect URI must be HTTPS, except a loopback address over HTTP, which
+ * native and CLI clients (kubelogin, the Vault CLI) listen on per RFC 8252
+ * section 7.3. Fragments and embedded credentials are never allowed.
+ */
+export function isAllowedRedirectUri(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.hash || url.username || url.password) return false;
+  if (url.protocol === "https:") return true;
+  return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname.toLowerCase());
+}
+
 function httpsUriLinesValidator(
   control: AbstractControl,
 ): ValidationErrors | null {
@@ -40,13 +59,7 @@ function httpsUriLinesValidator(
     .split("\n")
     .map((value) => value.trim())
     .filter(Boolean);
-  const invalid = values.some((value) => {
-    try {
-      return new URL(value).protocol !== "https:";
-    } catch {
-      return true;
-    }
-  });
+  const invalid = values.some((value) => !isAllowedRedirectUri(value));
   return invalid ? { httpsUri: true } : null;
 }
 
@@ -170,7 +183,8 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
                 [messages]="{
                   httpsUri:
                     ('admin.clientRedirectUrisHttpsInvalid'
-                    | hhTranslate: 'Use HTTPS redirect URIs.'),
+                    | hhTranslate
+                      : 'Use HTTPS redirect URIs (HTTP only for localhost / 127.0.0.1 in CLI clients).'),
                   redirectUriRequired:
                     ('admin.clientRedirectUriRequired'
                     | hhTranslate

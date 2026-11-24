@@ -173,6 +173,9 @@ public static class ClientEndpoints
         if (normalizedType is not ("public" or "confidential"))
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation });
 
+        if (!AreAllowedClientUris(request.RedirectUris) || !AreAllowedClientUris(request.PostLogoutRedirectUris))
+            return InvalidRedirectUris();
+
         var isConfidential = normalizedType == "confidential";
         var descriptor = new OpenIddictApplicationDescriptor
         {
@@ -236,8 +239,19 @@ public static class ClientEndpoints
             !string.Equals(expectedToken, client.ConcurrencyToken, StringComparison.Ordinal))
             return TypedResults.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ConcurrencyConflict });
 
+        if (!AreAllowedClientUris(request.RedirectUris) || !AreAllowedClientUris(request.PostLogoutRedirectUris))
+            return InvalidRedirectUris();
+
         if (request.DisplayName is not null)
             client.DisplayName = request.DisplayName;
+
+        // Redirect URIs used to be ignored on update, so an edit in admin-app
+        // (for example adding a CLI loopback callback) was silently dropped.
+        // Grant types and scopes are still changed only through re-creation.
+        if (request.RedirectUris is not null)
+            client.RedirectUris = SerializeUris(request.RedirectUris);
+        if (request.PostLogoutRedirectUris is not null)
+            client.PostLogoutRedirectUris = SerializeUris(request.PostLogoutRedirectUris);
 
         client.ConcurrencyToken = Guid.NewGuid().ToString("N");
 
@@ -444,6 +458,48 @@ public static class ClientEndpoints
             .Where(s => !string.IsNullOrEmpty(s))
             .Distinct()
             .ToList();
+    }
+
+    /// <summary>
+    /// Admin-managed client URIs must be HTTPS, except an HTTP loopback address
+    /// (localhost, 127.0.0.1, [::1]) for native and CLI clients such as
+    /// kubelogin and the Vault CLI (RFC 8252 section 7.3). Fragments and
+    /// embedded credentials are never allowed.
+    /// </summary>
+    public static bool IsAllowedClientUri(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) ||
+            !Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri) ||
+            uri.Fragment.Length > 0 ||
+            uri.UserInfo.Length > 0)
+            return false;
+
+        if (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+            (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+             uri.Host == "127.0.0.1" ||
+             uri.Host == "[::1]");
+    }
+
+    private static bool AreAllowedClientUris(IEnumerable<string>? values) =>
+        values is null || values.All(IsAllowedClientUri);
+
+    private static ProblemHttpResult InvalidRedirectUris() =>
+        TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?>
+        {
+            [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidRedirectUris
+        });
+
+    private static string? SerializeUris(IEnumerable<string> uris)
+    {
+        var list = uris
+            .Where(uri => !string.IsNullOrWhiteSpace(uri))
+            .Select(uri => uri.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        return list.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(list);
     }
 
     private static List<string> ParseUris(string? uris)

@@ -9,7 +9,30 @@ import {
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { ClientsApiService } from "../../core/services/clients-api.service";
-import { ClientEditDialogComponent } from "./client-edit-dialog.component";
+import {
+  ClientEditDialogComponent,
+  isAllowedRedirectUri,
+} from "./client-edit-dialog.component";
+
+describe("isAllowedRedirectUri", () => {
+  it("accepts HTTPS and HTTP loopback callbacks used by CLI clients", () => {
+    expect(isAllowedRedirectUri("https://console.example/callback")).toBeTrue();
+    expect(isAllowedRedirectUri("http://localhost:8000")).toBeTrue();
+    expect(isAllowedRedirectUri("http://localhost:18000")).toBeTrue();
+    expect(isAllowedRedirectUri("http://127.0.0.1:8250/oidc/callback")).toBeTrue();
+    expect(isAllowedRedirectUri("http://[::1]:8000/")).toBeTrue();
+  });
+
+  it("rejects clear-text non-loopback, fragments, credentials and junk", () => {
+    expect(isAllowedRedirectUri("http://console.example/callback")).toBeFalse();
+    expect(isAllowedRedirectUri("http://localhost.example.com/cb")).toBeFalse();
+    expect(isAllowedRedirectUri("http://127.0.0.2/cb")).toBeFalse();
+    expect(isAllowedRedirectUri("https://console.example/cb#frag")).toBeFalse();
+    expect(isAllowedRedirectUri("https://user:pass@console.example/cb")).toBeFalse();
+    expect(isAllowedRedirectUri("javascript:alert(1)")).toBeFalse();
+    expect(isAllowedRedirectUri("not a url")).toBeFalse();
+  });
+});
 
 describe("ClientEditDialogComponent", () => {
   it("re-enables Save after an asynchronous client creation failure", async () => {

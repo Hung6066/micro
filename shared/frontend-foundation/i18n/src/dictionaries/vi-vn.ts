@@ -62,7 +62,7 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     clientDisplayNameRequired: "Tên hiển thị là bắt buộc.",
     clientRedirectUriRequired:
       "Authorization code yêu cầu ít nhất một URI chuyển hướng.",
-    clientRedirectUrisHttpsInvalid: "Chỉ dùng URI chuyển hướng HTTPS.",
+    clientRedirectUrisHttpsInvalid: "Chỉ dùng URI chuyển hướng HTTPS (HTTP chỉ cho localhost / 127.0.0.1 với client CLI).",
     clientRedirectUrisInvalid:
       "Chỉ dùng URI chuyển hướng HTTPS; authorization code yêu cầu ít nhất một URI.",
     clientPostLogoutUrisInvalid:
