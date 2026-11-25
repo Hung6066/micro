@@ -783,14 +783,20 @@ public class CustomPopulateTokenClaims :
             return;
 
         var access = await _consoleAccess.ResolveAsync(userId, cancellationToken);
-        foreach (var group in access.Groups)
+        // One JSON array claim, not one claim per group: a single value would
+        // otherwise serialize as a bare string, which strict relying parties
+        // (Warpgate role mapping) ignore.
+        if (access.Groups.Count > 0)
         {
-            var groupClaim = new Claim(OpenShipConsoleClaims.Groups, group);
+            var groupClaim = new Claim(OpenShipConsoleClaims.Groups,
+                JsonSerializer.Serialize(access.Groups), JsonArrayClaimValueType);
             groupClaim.SetDestinations(
                 OpenIddictConstants.Destinations.AccessToken,
                 OpenIddictConstants.Destinations.IdentityToken);
             identity.AddClaim(groupClaim);
         }
+
+        NormalizeAmrForStrictRelyingParties(identity);
 
         var lifetime = context.Transaction.Options?.AccessTokenLifetime;
         if (_consoleOptions.IsShortLivedClient(clientId) &&
@@ -813,6 +819,37 @@ public class CustomPopulateTokenClaims :
 
         if (lifetime is not null && lifetime != context.Transaction.Options?.AccessTokenLifetime)
             principal.SetAccessTokenLifetime(lifetime);
+    }
+
+    /// <summary>Claim value type that token serializers emit as a JSON array.</summary>
+    internal const string JsonArrayClaimValueType = "JSON_ARRAY";
+
+    /// <summary>
+    /// OIDC Core requires <c>amr</c> to be a JSON array. IdentityService keeps it a
+    /// scalar on purpose for its own apps (see the authorize endpoint), which strict
+    /// OIDC libraries reject ("expected a sequence"; Warpgate on 2026-11-25). For the
+    /// OpenShip clients only, the access token keeps the scalar claims while the
+    /// identity token gets one array claim with the same values.
+    /// </summary>
+    internal static void NormalizeAmrForStrictRelyingParties(ClaimsIdentity identity)
+    {
+        var amrType = His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod;
+        var existing = identity.FindAll(amrType).Where(claim => claim.ValueType != JsonArrayClaimValueType).ToArray();
+        if (existing.Length == 0)
+            return;
+        foreach (var claim in identity.FindAll(amrType).Where(claim => claim.ValueType == JsonArrayClaimValueType).ToArray())
+            identity.RemoveClaim(claim);
+
+        foreach (var claim in existing)
+            claim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+
+        var values = existing.Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var arrayClaim = new Claim(amrType, JsonSerializer.Serialize(values), JsonArrayClaimValueType);
+        arrayClaim.SetDestinations(OpenIddictConstants.Destinations.IdentityToken);
+        identity.AddClaim(arrayClaim);
     }
 
     private async Task IssueUserMembershipTenantClaimsAsync(

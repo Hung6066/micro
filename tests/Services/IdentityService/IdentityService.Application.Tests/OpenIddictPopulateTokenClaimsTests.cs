@@ -422,11 +422,72 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
             .HandleAsync(Context(OpenIddictConstants.GrantTypes.AuthorizationCode, new ClaimsPrincipal(identity), "openship-grafana"));
 
-        var groups = identity.FindAll("groups").ToArray();
-        groups.Select(claim => claim.Value).Should().BeEquivalentTo("openship-console-admin", "openship-console-read");
-        groups.Should().OnlyContain(claim =>
-            claim.GetDestinations().Contains(OpenIddictConstants.Destinations.AccessToken) &&
-            claim.GetDestinations().Contains(OpenIddictConstants.Destinations.IdentityToken));
+        var groups = identity.FindAll("groups").Should().ContainSingle().Subject;
+        groups.ValueType.Should().Be("JSON_ARRAY");
+        System.Text.Json.JsonSerializer.Deserialize<string[]>(groups.Value)
+            .Should().BeEquivalentTo("openship-console-admin", "openship-console-read");
+        groups.GetDestinations().Should().Contain(OpenIddictConstants.Destinations.AccessToken)
+            .And.Contain(OpenIddictConstants.Destinations.IdentityToken);
+    }
+
+    [Fact]
+    public async Task Single_group_is_still_a_json_array_for_strict_relying_parties()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "ops@example.test", UserName = "ops@example.test" };
+        var group = new IamGroup { Key = "openship-ops-engineer", DisplayName = "Ops" };
+        db.IamGroups.Add(group);
+        db.IamGroupMemberships.Add(new IamGroupMembership { GroupId = group.Id, UserId = user.Id });
+        await db.SaveChangesAsync();
+        var identity = SubjectIdentity(user.Id);
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.AuthorizationCode, new ClaimsPrincipal(identity), "openship-warpgate"));
+
+        var groups = identity.FindAll("groups").Should().ContainSingle().Subject;
+        groups.ValueType.Should().Be("JSON_ARRAY");
+        groups.Value.Should().Be("[\"openship-ops-engineer\"]");
+    }
+
+    [Fact]
+    public void Json_array_claims_serialize_as_arrays_in_the_jwt_payload()
+    {
+        // OpenIddict hands the filtered identity to JsonWebTokenHandler; prove the
+        // JSON_ARRAY value type ends up as a real array (OIDC Core: amr is an array).
+        var identity = new ClaimsIdentity();
+        identity.AddClaim(new Claim("sub", "u-1"));
+        identity.AddClaim(new Claim("amr", "[\"otp\"]", CustomPopulateTokenClaims.JsonArrayClaimValueType));
+        identity.AddClaim(new Claim("groups", "[\"openship-ops-engineer\"]", CustomPopulateTokenClaims.JsonArrayClaimValueType));
+        var handler = new Microsoft.IdentityModel.JsonWebTokens.JsonWebTokenHandler();
+        var jwt = handler.CreateToken(new Microsoft.IdentityModel.Tokens.SecurityTokenDescriptor { Subject = identity });
+
+        var payload = System.Text.Json.JsonDocument.Parse(
+            Microsoft.IdentityModel.Tokens.Base64UrlEncoder.Decode(jwt.Split('.')[1])).RootElement;
+
+        payload.GetProperty("amr").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Array);
+        payload.GetProperty("amr")[0].GetString().Should().Be("otp");
+        payload.GetProperty("groups").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Array);
+    }
+
+    [Fact]
+    public void Amr_becomes_an_array_in_the_identity_token_and_stays_scalar_in_the_access_token()
+    {
+        var identity = new ClaimsIdentity();
+        identity.AddClaim(new Claim("amr", "pwd"));
+        identity.AddClaim(new Claim("amr", "otp"));
+
+        CustomPopulateTokenClaims.NormalizeAmrForStrictRelyingParties(identity);
+        // Idempotent: a second pass (refresh) must not duplicate the array claim.
+        CustomPopulateTokenClaims.NormalizeAmrForStrictRelyingParties(identity);
+
+        var claims = identity.FindAll("amr").ToArray();
+        var scalars = claims.Where(claim => claim.ValueType != "JSON_ARRAY").ToArray();
+        scalars.Should().HaveCount(2);
+        foreach (var scalar in scalars)
+            scalar.GetDestinations().Should().Equal(OpenIddictConstants.Destinations.AccessToken);
+        var array = claims.Should().ContainSingle(claim => claim.ValueType == "JSON_ARRAY").Subject;
+        array.Value.Should().Be("[\"pwd\",\"otp\"]");
+        array.GetDestinations().Should().Equal(OpenIddictConstants.Destinations.IdentityToken);
     }
 
     [Theory]
@@ -495,7 +556,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         await Handler(db, new DisabledConglomerateTenantRegistry(), MockManager(user, []).Object)
             .HandleAsync(Context(OpenIddictConstants.GrantTypes.RefreshToken, principal, "openship-warpgate", serverOptions));
 
-        principal.FindAll("groups").Select(claim => claim.Value).Should().Contain("openship-breakglass-node-admin");
+        principal.FindAll("groups").Should().ContainSingle().Which.Value.Should().Contain("\"openship-breakglass-node-admin\"");
         principal.GetAccessTokenLifetime().Should().BeCloseTo(TimeSpan.FromMinutes(7), TimeSpan.FromSeconds(30));
         principal.GetIdentityTokenLifetime().Should().BeCloseTo(TimeSpan.FromMinutes(7), TimeSpan.FromSeconds(30));
     }
