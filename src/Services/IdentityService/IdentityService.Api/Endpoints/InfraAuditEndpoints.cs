@@ -84,7 +84,7 @@ public static class InfraAuditEndpoints
         return await Guarded(async () =>
         {
             var rows = await service.ExportAsync(filter, ct);
-            await AdminAudit.LogAsync(audit, http, "EXPORT", "InfraAudit", $"{Describe(filter)} rows={rows.Count}", ct);
+            await AdminAudit.LogAsync(audit, http, "EXPORT", "InfraAudit", Fit($"rows={rows.Count} {Describe(filter)}"), ct);
             var name = $"infra-audit-{filter.From:yyyyMMddHHmm}-{filter.To:yyyyMMddHHmm}.csv";
             return Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(ToCsv(rows))).ToArray(),
                 "text/csv; charset=utf-8", name);
@@ -168,9 +168,15 @@ public static class InfraAuditEndpoints
         Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid infrastructure audit query",
             extensions: new Dictionary<string, object?> { ["errorCode"] = "invalid_infra_audit_query", ["reason"] = code });
 
-    private static string Describe(InfraAuditFilter filter) =>
-        string.Create(CultureInfo.InvariantCulture,
-            $"from={filter.From:O} to={filter.To:O} sources={string.Join('|', filter.Sources)} actor={filter.Actor} text={filter.Text} result={filter.Result}");
+    /// <summary>Compact filter description for the audit row; audit_logs.resource_id is varchar(100).</summary>
+    internal static string Describe(InfraAuditFilter filter)
+    {
+        var value = string.Create(CultureInfo.InvariantCulture,
+            $"{filter.From.UtcDateTime:yyyyMMdd'T'HHmm}-{filter.To.UtcDateTime:yyyyMMdd'T'HHmm} s={string.Join('|', filter.Sources)} a={filter.Actor} t={filter.Text} r={filter.Result}");
+        return Fit(value);
+    }
+
+    private static string Fit(string value) => value.Length <= 100 ? value : value[..100];
 
     /// <summary>RFC 4180 CSV; cells starting with = + - @ are prefixed to stop formula injection.</summary>
     public static string ToCsv(IEnumerable<InfraAuditEvent> rows)
