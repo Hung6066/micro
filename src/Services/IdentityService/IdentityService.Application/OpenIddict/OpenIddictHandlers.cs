@@ -828,28 +828,54 @@ public class CustomPopulateTokenClaims :
     /// OIDC Core requires <c>amr</c> to be a JSON array. IdentityService keeps it a
     /// scalar on purpose for its own apps (see the authorize endpoint), which strict
     /// OIDC libraries reject ("expected a sequence"; Warpgate on 2026-11-25). For the
-    /// OpenShip clients only, the access token keeps the scalar claims while the
-    /// identity token gets one array claim with the same values.
+    /// OpenShip clients only, all amr claims are replaced by ONE array claim sent to
+    /// both tokens: OpenIddict refuses to sign when claims of one type have different
+    /// destinations, so the access token cannot keep scalars while the identity token
+    /// gets an array. Token validation expands the array back into one claim per value.
     /// </summary>
     internal static void NormalizeAmrForStrictRelyingParties(ClaimsIdentity identity)
     {
         var amrType = His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod;
-        var existing = identity.FindAll(amrType).Where(claim => claim.ValueType != JsonArrayClaimValueType).ToArray();
+        var existing = identity.FindAll(amrType).ToArray();
         if (existing.Length == 0)
             return;
-        foreach (var claim in identity.FindAll(amrType).Where(claim => claim.ValueType == JsonArrayClaimValueType).ToArray())
-            identity.RemoveClaim(claim);
 
-        foreach (var claim in existing)
-            claim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
-
-        var values = existing.Select(claim => claim.Value)
+        var values = existing
+            .SelectMany(claim => claim.ValueType == JsonArrayClaimValueType
+                ? JsonSerializer.Deserialize<string[]>(claim.Value) ?? []
+                : [claim.Value])
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        foreach (var claim in existing)
+            identity.RemoveClaim(claim);
+
         var arrayClaim = new Claim(amrType, JsonSerializer.Serialize(values), JsonArrayClaimValueType);
-        arrayClaim.SetDestinations(OpenIddictConstants.Destinations.IdentityToken);
+        arrayClaim.SetDestinations(
+            OpenIddictConstants.Destinations.AccessToken,
+            OpenIddictConstants.Destinations.IdentityToken);
         identity.AddClaim(arrayClaim);
+    }
+
+    /// <summary>
+    /// Tenant claims are recomputed from the database at the token endpoint. Copies
+    /// carried over from the authorization code (access-token destination only) must be
+    /// dropped first: OpenIddict refuses to sign when claims of one type have different
+    /// destinations ("Conflicting destinations for the claim 'tenant_membership'"), which
+    /// made the code exchange fail with 500 for users with a tenant membership.
+    /// </summary>
+    internal static void RemoveTenantClaims(ClaimsIdentity identity)
+    {
+        foreach (var type in new[]
+                 {
+                     HisHopeProtocolConstants.Claims.TenantId,
+                     HisHopeProtocolConstants.Claims.TenantMembership,
+                     "tenant_memberships",
+                 })
+        {
+            foreach (var claim in identity.FindAll(type).ToArray())
+                identity.RemoveClaim(claim);
+        }
     }
 
     private async Task IssueUserMembershipTenantClaimsAsync(
@@ -867,6 +893,7 @@ public class CustomPopulateTokenClaims :
         if (memberships.Count == 0)
             return;
 
+        RemoveTenantClaims(identity);
         var primaryTenant = memberships[0];
         var tenantClaim = new Claim(HisHopeProtocolConstants.Claims.TenantId, primaryTenant);
         tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
@@ -936,6 +963,7 @@ public class CustomPopulateTokenClaims :
             return false;
         }
 
+        RemoveTenantClaims(identity);
         var tenantClaim = new Claim(HisHopeProtocolConstants.Claims.TenantId, clientTenant);
         tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
         identity.AddClaim(tenantClaim);

@@ -428,6 +428,32 @@ public sealed class OpenIddictPopulateTokenClaimsTests
             .Should().BeEquivalentTo("openship-console-admin", "openship-console-read");
         groups.GetDestinations().Should().Contain(OpenIddictConstants.Destinations.AccessToken)
             .And.Contain(OpenIddictConstants.Destinations.IdentityToken);
+        // The whole principal must be signable (no claim type with conflicting destinations).
+        new ClaimsPrincipal(identity).Invoking(principal => principal.GetDestinations()).Should().NotThrow();
+    }
+
+    [Fact]
+    public async Task Tenant_claims_carried_from_the_code_do_not_conflict_with_reissued_ones()
+    {
+        // Regression (2026-11-25, kubectl via openship-kubectl): the code principal already
+        // held tenant_membership for the access token only; reissuing it for both tokens
+        // made OpenIddict throw "Conflicting destinations" and the token endpoint answer 500.
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), Email = "ops@example.test", UserName = "ops@example.test" };
+        var identity = SubjectIdentity(user.Id);
+        var carried = new Claim("tenant_membership", "nacoms-group");
+        carried.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(carried);
+        var principal = new ClaimsPrincipal(identity);
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(),
+                MockManager(user, [new Claim("tenant_membership", "nacoms-group")]).Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.AuthorizationCode, principal, "openship-kubectl"));
+
+        var destinations = principal.GetDestinations();
+        destinations["tenant_membership"].Should().BeEquivalentTo(
+            OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+        identity.FindAll("tenant_membership").Should().ContainSingle().Which.Value.Should().Be("nacoms-group");
     }
 
     [Fact]
@@ -470,24 +496,25 @@ public sealed class OpenIddictPopulateTokenClaimsTests
     }
 
     [Fact]
-    public void Amr_becomes_an_array_in_the_identity_token_and_stays_scalar_in_the_access_token()
+    public void Amr_becomes_one_array_claim_for_both_tokens_without_conflicting_destinations()
     {
         var identity = new ClaimsIdentity();
-        identity.AddClaim(new Claim("amr", "pwd"));
+        var pwd = new Claim("amr", "pwd");
+        pwd.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
+        identity.AddClaim(pwd);
         identity.AddClaim(new Claim("amr", "otp"));
+        var principal = new ClaimsPrincipal(identity);
 
         CustomPopulateTokenClaims.NormalizeAmrForStrictRelyingParties(identity);
-        // Idempotent: a second pass (refresh) must not duplicate the array claim.
+        // Idempotent: a second pass (refresh) keeps exactly one array claim.
         CustomPopulateTokenClaims.NormalizeAmrForStrictRelyingParties(identity);
 
-        var claims = identity.FindAll("amr").ToArray();
-        var scalars = claims.Where(claim => claim.ValueType != "JSON_ARRAY").ToArray();
-        scalars.Should().HaveCount(2);
-        foreach (var scalar in scalars)
-            scalar.GetDestinations().Should().Equal(OpenIddictConstants.Destinations.AccessToken);
-        var array = claims.Should().ContainSingle(claim => claim.ValueType == "JSON_ARRAY").Subject;
+        var array = identity.FindAll("amr").Should().ContainSingle().Subject;
+        array.ValueType.Should().Be("JSON_ARRAY");
         array.Value.Should().Be("[\"pwd\",\"otp\"]");
-        array.GetDestinations().Should().Equal(OpenIddictConstants.Destinations.IdentityToken);
+        // OpenIddict signs only when every claim type has one set of destinations.
+        principal.GetDestinations()["amr"].Should().BeEquivalentTo(
+            OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
     }
 
     [Theory]
@@ -557,6 +584,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
             .HandleAsync(Context(OpenIddictConstants.GrantTypes.RefreshToken, principal, "openship-warpgate", serverOptions));
 
         principal.FindAll("groups").Should().ContainSingle().Which.Value.Should().Contain("\"openship-breakglass-node-admin\"");
+        principal.Invoking(item => item.GetDestinations()).Should().NotThrow();
         principal.GetAccessTokenLifetime().Should().BeCloseTo(TimeSpan.FromMinutes(7), TimeSpan.FromSeconds(30));
         principal.GetIdentityTokenLifetime().Should().BeCloseTo(TimeSpan.FromMinutes(7), TimeSpan.FromSeconds(30));
     }
