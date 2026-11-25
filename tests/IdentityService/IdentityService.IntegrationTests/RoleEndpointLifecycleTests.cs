@@ -86,6 +86,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
     {
         using var session = fixture.CreateSessionClient();
         Assert.Equal(HttpStatusCode.OK, (await session.LoginAsAdminAsync()).StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
         var id = Guid.NewGuid();
 
         var update = await session.PutWithCookiesAsync(IdentityApiRoutes.Role(id), new
@@ -106,6 +107,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
     {
         using var session = fixture.CreateSessionClient();
         Assert.Equal(HttpStatusCode.OK, (await session.LoginAsAdminAsync()).StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
 
         var name = $"integration-role-concurrency-{Guid.NewGuid():N}";
         var create = await session.PostWithCookiesAsync(IdentityApiRoutes.Roles, new
@@ -182,6 +184,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
     {
         using var session = fixture.CreateSessionClient();
         Assert.Equal(HttpStatusCode.OK, (await session.LoginAsAdminAsync()).StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
         var create = await session.PostWithCookiesAsync(IdentityApiRoutes.Roles, new
         {
             name = $"integration-role-assigned-{Guid.NewGuid():N}",
@@ -217,6 +220,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
     {
         using var session = fixture.CreateSessionClient();
         Assert.Equal(HttpStatusCode.OK, (await session.LoginAsAdminAsync()).StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
 
         var roles = await session.GetWithCookiesAsync(IdentityApiRoutes.Roles);
         Assert.Equal(HttpStatusCode.OK, roles.StatusCode);
@@ -261,7 +265,20 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.Role(id))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync($"{IdentityApiRoutes.Role(id)}/versions")).StatusCode);
 
-        var update = await session.PutWithCookiesAsync(IdentityApiRoutes.Role(id), new
+        // Changing or deleting a role definition needs a fresh MFA step-up; the
+        // password-only session above must be refused.
+        Assert.Equal(HttpStatusCode.Forbidden, (await session.PutWithCookiesAsync(IdentityApiRoutes.Role(id), new
+        {
+            name = name + "-password-only",
+            description = "Must be refused without step-up",
+            permissions = Array.Empty<string>(),
+            concurrencyToken = token,
+            owner = "identity-service"
+        })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await session.DeleteWithCookiesAsync(IdentityApiRoutes.Role(id))).StatusCode);
+        using var stepUp = await fixture.CreateAuthenticatedSessionAsync();
+
+        var update = await stepUp.PutWithCookiesAsync(IdentityApiRoutes.Role(id), new
         {
             name = name + "-updated",
             description = "Updated integration role",
@@ -274,7 +291,7 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
         var publish = await session.PostWithCookiesAsync($"{IdentityApiRoutes.Role(id)}/publish", new { });
         Assert.Equal(HttpStatusCode.Forbidden, publish.StatusCode);
 
-        var delete = await session.DeleteWithCookiesAsync(IdentityApiRoutes.Role(id));
+        var delete = await stepUp.DeleteWithCookiesAsync(IdentityApiRoutes.Role(id));
         Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await session.GetWithCookiesAsync(IdentityApiRoutes.Role(id))).StatusCode);
     }

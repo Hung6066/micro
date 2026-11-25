@@ -9,7 +9,16 @@ public sealed record OidcSecurityOptions(
     SecurityKey? EncryptionKey,
     IReadOnlyList<SecurityKey> EncryptionKeys,
     bool UseEphemeralDevelopmentKeys,
-    bool AllowInsecureHttp);
+    bool AllowInsecureHttp)
+{
+    /// <summary>
+    /// Extra signing keys published in the JWKS and accepted for validation: the
+    /// previous key while its tokens are still valid, or the next key before it
+    /// becomes active. Rotation = add the new key here, deploy, then swap it with
+    /// <see cref="SigningKey"/> and keep the old one here until its tokens expire.
+    /// </summary>
+    public IReadOnlyList<SecurityKey> AdditionalSigningKeys { get; init; } = [];
+}
 
 public static class OidcSecurityConfiguration
 {
@@ -47,7 +56,34 @@ public static class OidcSecurityConfiguration
             encryptionKey,
             encryptionKeys,
             UseEphemeralDevelopmentKeys: signingKey is null && encryptionKey is null,
-            AllowInsecureHttp: allowInsecureHttp);
+            AllowInsecureHttp: allowInsecureHttp)
+        {
+            AdditionalSigningKeys = LoadAdditionalSigningKeys(configuration, signingKey?.KeyId)
+        };
+    }
+
+    private static IReadOnlyList<SecurityKey> LoadAdditionalSigningKeys(IConfiguration configuration, string? activeKeyId)
+    {
+        var keys = new List<SecurityKey>();
+        foreach (var section in configuration.GetSection("OpenIddict:Signing:AdditionalKeys").GetChildren())
+        {
+            var path = FirstNonPlaceholder(section["PrivateKeyPath"]);
+            var keyId = FirstNonPlaceholder(section["KeyId"]);
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                continue;
+            // Every published key needs its own kid, otherwise relying parties
+            // cannot tell which key signed a token during the overlap.
+            if (string.IsNullOrWhiteSpace(keyId) ||
+                string.Equals(keyId, activeKeyId, StringComparison.Ordinal) ||
+                keys.Any(existing => string.Equals(existing.KeyId, keyId, StringComparison.Ordinal)))
+                throw new InvalidOperationException(
+                    "Each OpenIddict:Signing:AdditionalKeys entry needs a KeyId that differs from every other signing key.");
+
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(File.ReadAllText(path));
+            keys.Add(new RsaSecurityKey(rsa) { KeyId = keyId });
+        }
+        return keys;
     }
 
     private static SecurityKey? TryLoadRsaSigningKey(IConfiguration configuration)
@@ -89,10 +125,12 @@ public static class OidcSecurityConfiguration
             var rsa = RSA.Create();
             rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
 
+            // The first key keeps the configured id; older keys kept for decryption
+            // get a suffix so no two keys share a kid.
+            var encryptionKeyId = configuration["OpenIddict:Encryption:KeyId"] ?? "oidc-encryption";
             keys.Add(new RsaSecurityKey(rsa)
             {
-                KeyId = configuration["OpenIddict:Encryption:KeyId"]
-                    ?? "oidc-encryption"
+                KeyId = keys.Count == 0 ? encryptionKeyId : $"{encryptionKeyId}-{keys.Count + 1}"
             });
         }
 

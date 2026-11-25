@@ -57,7 +57,47 @@ public sealed class HrWebhookEndpointTests(IdentityServiceTestFixture fixture)
         var result = await response.Content.ReadFromJsonAsync<HrWebhookResponse>();
         Assert.NotNull(result);
         Assert.Equal("acknowledged", result.Status);
-        Assert.Equal("User deactivation handled via SCIM PATCH", result.Error);
+        Assert.Equal("No matching account.", result.Error);
+    }
+
+    [Fact]
+    public async Task Terminated_event_deactivates_the_account_and_updated_event_does_not_change_its_state()
+    {
+        var email = $"leaver-{Guid.NewGuid():N}@example.test";
+        var hired = $"hired-{Guid.NewGuid():N}";
+        Assert.Equal(HttpStatusCode.OK, (await SendSignedAsync(JsonSerializer.Serialize(new
+        {
+            eventType = "employee.hired", eventId = hired, timestamp = "2026-07-23T00:00:00Z",
+            employee = new { employeeId = hired, email, firstName = "Leaver", lastName = "Test", department = "nursing" }
+        }), hired)).StatusCode);
+
+        // A profile update must leave the account enabled.
+        var updated = $"updated-{Guid.NewGuid():N}";
+        Assert.Equal(HttpStatusCode.OK, (await SendSignedAsync(JsonSerializer.Serialize(new
+        {
+            eventType = "employee.updated", eventId = updated, timestamp = "2026-07-23T00:00:00Z",
+            employee = new { employeeId = hired, email, firstName = "Leaver", lastName = "Renamed", department = "nursing" }
+        }), updated)).StatusCode);
+        Assert.True(await IsActiveAsync(email));
+
+        var terminated = $"terminated-{Guid.NewGuid():N}";
+        var response = await SendSignedAsync(JsonSerializer.Serialize(new
+        {
+            eventType = "employee.terminated", eventId = terminated, timestamp = "2026-07-23T00:00:00Z",
+            employee = new { employeeId = hired, email }
+        }), terminated);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("deactivated", (await response.Content.ReadFromJsonAsync<HrWebhookResponse>())!.Status);
+        Assert.False(await IsActiveAsync(email));
+
+        // A later "hired" for the same person must not silently re-enable the account.
+        var rehired = $"rehired-{Guid.NewGuid():N}";
+        Assert.Equal(HttpStatusCode.OK, (await SendSignedAsync(JsonSerializer.Serialize(new
+        {
+            eventType = "employee.hired", eventId = rehired, timestamp = "2026-07-23T00:00:00Z",
+            employee = new { employeeId = hired, email, firstName = "Leaver", lastName = "Test", department = "nursing" }
+        }), rehired)).StatusCode);
+        Assert.False(await IsActiveAsync(email));
     }
 
     [Fact]
@@ -98,6 +138,13 @@ public sealed class HrWebhookEndpointTests(IdentityServiceTestFixture fixture)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadAsStringAsync();
         Assert.Contains("invalid_hr_webhook_payload", problem, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<bool> IsActiveAsync(string email)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<His.Hope.IdentityService.Domain.Entities.User>>();
+        return (await users.FindByEmailAsync(email))!.IsActive;
     }
 
     private async Task<HttpResponseMessage> SendSignedAsync(string body, string headerEventId)

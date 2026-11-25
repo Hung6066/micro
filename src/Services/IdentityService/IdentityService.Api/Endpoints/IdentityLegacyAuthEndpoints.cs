@@ -22,6 +22,8 @@ internal static class IdentityLegacyAuthEndpoints
                 return Results.Unauthorized();
 
             var completed = await completion.CompletePrimaryAsync(context, user, "/", ["ldap"], ct);
+            if (completed.Rejected)
+                return Results.Unauthorized();
             return Results.Ok(new { authenticated = !completed.RequiresMfa, requiresMfa = completed.RequiresMfa, mfaUrl = completed.RedirectUrl, userId = user.Id });
         })
         .WithDeprecationNotice()
@@ -29,8 +31,18 @@ internal static class IdentityLegacyAuthEndpoints
         .RequireRateLimiting("auth")
         .AllowAnonymous();
 
-        auth.MapPost("/register", async (RegisterRequest request, IIdentityService identityService, CancellationToken ct) =>
+        auth.MapPost("/register", async (RegisterRequest request, IIdentityService identityService,
+            IConfiguration configuration, IHostEnvironment environment, CancellationToken ct) =>
         {
+            // SECURITY: self-registration issues tokens for a clinical role, so it is
+            // closed unless explicitly enabled. Accounts are created by administrators,
+            // SCIM or directory provisioning in production.
+            var selfRegistrationEnabled = configuration.GetValue(
+                "Identity:SelfRegistration:Enabled",
+                environment.IsDevelopment() || environment.IsEnvironment("Testing"));
+            if (!selfRegistrationEnabled)
+                return Results.NotFound();
+
             try
             {
                 var result = await identityService.RegisterAsync(request, ct);

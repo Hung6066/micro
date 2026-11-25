@@ -572,6 +572,34 @@ public class CustomPopulateTokenClaims :
             return;
         }
 
+        // SECURITY: the authorization code and refresh token carry every claim of
+        // the previous principal. Everything this handler recomputes is removed
+        // first, so a removed role, revoked permission set, expired break-glass
+        // grant or lifted boundary cannot survive in tokens minted by refresh, and
+        // the unbounded permission list written at authorization time is replaced
+        // by the bounded one below instead of being issued next to it.
+        string[] recomputedClaimTypes =
+        [
+            AuthorizationConstants.Claims.PrincipalType,
+            "securityVersion",
+            "fullName",
+            "licenseNumber",
+            "license_number",
+            OpenIddictConstants.Claims.Role,
+            HisHopeProtocolConstants.Claims.SuperAdmin,
+            PortalClassConstants.Claim,
+            HisHopeProtocolConstants.Claims.Permissions,
+            "resource_policies",
+            "authorization_constraints",
+            "facility_id",
+            "facility_ids"
+        ];
+        foreach (var stale in identity.Claims
+                     .Where(claim => recomputedClaimTypes.Contains(claim.Type, StringComparer.Ordinal) ||
+                                     (claim.Type == "scope" && claim.Value == "hishop:permissions"))
+                     .ToArray())
+            identity.RemoveClaim(stale);
+
         var principalTypeClaim = new Claim(AuthorizationConstants.Claims.PrincipalType, AuthorizationConstants.PrincipalTypes.Human);
         principalTypeClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
         identity.AddClaim(principalTypeClaim);
@@ -596,6 +624,12 @@ public class CustomPopulateTokenClaims :
         identity.AddClaim(new Claim("license_number", user.LicenseNumber ?? ""));
 
         var roles = await _userManager.GetRolesAsync(user);
+        // Role claims copied from the sign-in cookie use the long claim type; drop
+        // the ones the user no longer holds.
+        foreach (var staleRole in identity.FindAll(ClaimTypes.Role)
+                     .Where(claim => !roles.Contains(claim.Value, StringComparer.OrdinalIgnoreCase))
+                     .ToArray())
+            identity.RemoveClaim(staleRole);
         foreach (var role in roles)
         {
             var roleClaim = new Claim(OpenIddictConstants.Claims.Role, role);

@@ -173,6 +173,14 @@ public static class AdminIncidentEndpoints
         {
             if (string.IsNullOrWhiteSpace(request.Reason)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["reason"] = ["A reason is required."] });
             if (!request.ResetMfa && !request.RevokePasskeys) return Results.ValidationProblem(new Dictionary<string, string[]> { ["credentials"] = ["Select MFA or passkeys to reset."] });
+            // SECURITY: removing someone's second factor is as sensitive as setting
+            // their password: fresh MFA, and never on the caller's own account (a
+            // hijacked admin session must not be able to strip its own MFA).
+            if (His.Hope.IdentityService.Api.Authorization.StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var actorId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
+                ?? http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.Equals(actorId, id.ToString(), StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { ["errorCode"] = "self_credential_reset" });
             var filter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, filter, ct) is { } userError) return userError;
             if (!await HasFacilityAccessAsync(db, facility, id, ct)) return Results.Forbid();
@@ -191,6 +199,12 @@ public static class AdminIncidentEndpoints
 
             await db.SaveChangesAsync(ct);
             await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await His.Hope.IdentityService.Api.Services.UserSessionRevocation.RevokeAllAsync(http.RequestServices, id, ct);
+            await AdminAudit.LogAuthorizationChangeAsync(
+                db, http, "CREDENTIAL_RESET", "User", id.ToString(), request.Reason.Trim(),
+                null,
+                System.Text.Json.JsonSerializer.Serialize(new { request.ResetMfa, request.RevokePasskeys, removedMfa, removedPasskeys }),
+                ct);
             await AdminAudit.LogAsync(audit, http, "RESET_CREDENTIALS", "User", id.ToString(), ct);
             return Results.Ok(new { userId = id, removedMfa, removedPasskeys, tokensRevoked = true });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminCredentialsReset)

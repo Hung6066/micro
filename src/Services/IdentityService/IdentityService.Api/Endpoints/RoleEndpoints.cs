@@ -130,9 +130,47 @@ public static class RoleEndpoints
             ITokenBlacklistService tokenBlacklist = null!,
             CancellationToken ct = default) =>
         {
+            // SECURITY: this rewrites what every holder of the role may do.
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUpRequired) return stepUpRequired;
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(db, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
+
+            // SECURITY (four-eyes): a role that users already hold changes what
+            // those users can do the moment it is saved. When the control is on,
+            // the edit becomes a change request that a second administrator
+            // approves and applies through POST /roles/{id}/apply-update.
+            if (http.RequestServices.GetRequiredService<IConfiguration>()
+                    .GetValue("Identity:RoleGovernance:RequireApprovalForAssignedRoles", false) &&
+                await db.UserRoles.AnyAsync(link => link.RoleId == id, ct))
+            {
+                if (!IsKnownRoleOwner(request.Owner))
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["owner"] = ["Owner must be selected from the server catalog."] });
+                if (await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(db, http.User, request.Permissions, ct) is not null)
+                    return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
+
+                var payload = JsonSerializer.Serialize(new RoleUpdatePayload(
+                    request.Name,
+                    request.Description,
+                    (request.Permissions ?? []).OrderBy(code => code, StringComparer.Ordinal).ToArray(),
+                    request.Owner));
+                var pending = await AuthorizationChangeRequestWorkflow.CreatePendingAsync(
+                    auditDb, http, "Role", id, "role.update", payload,
+                    "Changing a role that is assigned to users requires independent approval.", ct);
+                if (!string.Equals(pending.PayloadJson, payload, StringComparison.Ordinal))
+                {
+                    // Same requester edited again before approval: the request
+                    // always carries the latest proposed definition.
+                    pending.PayloadJson = payload;
+                    await auditDb.SaveChangesAsync(ct);
+                }
+                return Results.Accepted($"/api/v1/admin/authorization-change-requests/{pending.Id:D}", new
+                {
+                    changeRequestId = pending.Id,
+                    pending.Status,
+                    pending.ExpiresAt
+                });
+            }
 
             try
             {
@@ -156,6 +194,56 @@ public static class RoleEndpoints
                 return Results.Problem(statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400,
                     detail: ex.Message,
                     extensions: new Dictionary<string, object?> { ["errorCode"] = ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? ApiErrorCodes.ConcurrencyConflict : ApiErrorCodes.RoleRequestRejected });
+            }
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
+
+        // POST /api/v1/auth/roles/{id}/apply-update?changeRequestId= - apply an approved role change
+        group.MapPost(IdentityApiRoutes.RolesSegment + "/{id:guid}/apply-update", async (
+            Guid id,
+            IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
+            IdentityDbContext db = null!,
+            IApplicationDbContext auditDb = null!,
+            ITokenBlacklistService tokenBlacklist = null!,
+            CancellationToken ct = default) =>
+        {
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp) return stepUp;
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(db, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+            if (!AuthorizationChangeRequestWorkflow.TryGetRequestId(http, out var changeRequestId))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["changeRequestId"] = ["changeRequestId must be a valid GUID."] });
+
+            // Only the administrator who approved the request may apply it, and
+            // exactly the definition that was approved is applied.
+            var approved = await AuthorizationChangeRequestWorkflow.FindApprovedAsync(
+                auditDb, changeRequestId, "Role", id, "role.update", AuthorizationChangeRequestWorkflow.Actor(http), ct);
+            if (approved is null)
+                return Results.Conflict(new { errorCode = "authorization_change_not_approved" });
+            var change = JsonSerializer.Deserialize<RoleUpdatePayload>(approved.PayloadJson);
+            if (change is null)
+                return Results.Conflict(new { errorCode = "authorization_change_stale" });
+            if (await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(db, http.User, change.Permissions, ct) is not null)
+                return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
+
+            try
+            {
+                var role = await mediator.Send(
+                    new UpdateRoleCommand(id, change.Name, change.Description, change.Permissions, null, change.Owner), ct);
+                await RevokeRoleUsersAsync(db, tokenBlacklist, id, ct);
+                await CaptureTemplateVersionAsync(auditDb, id, "published", http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value, ct);
+                await AdminAudit.LogAuthorizationChangeAsync(auditDb, http, "ROLE_UPDATE", "Role", id.ToString(),
+                    "Approved role change applied through admin control plane.", null, approved.PayloadJson, ct);
+                await AuthorizationChangeRequestWorkflow.MarkExecutedAsync(auditDb, approved, http, ct);
+                await AdminAudit.LogAsync(audit, http, "UPDATE", "Role", id.ToString(), ct);
+                return Results.Ok(role);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.RoleRequestRejected });
             }
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
             .WithTenantMutationScope();
@@ -363,6 +451,8 @@ public static class RoleEndpoints
             IdentityDbContext identityDb = null!,
             CancellationToken ct = default) =>
         {
+            // SECURITY: this rewrites what every holder of the role may do.
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUpRequired) return stepUpRequired;
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
                 return visibilityError;
@@ -485,3 +575,6 @@ public static class RoleEndpoints
 
     public sealed record RoleOwnerDto(string Key, string Name);
 }
+
+/// <summary>The role definition carried by a "role.update" change request.</summary>
+internal sealed record RoleUpdatePayload(string Name, string? Description, string[] Permissions, string? Owner);

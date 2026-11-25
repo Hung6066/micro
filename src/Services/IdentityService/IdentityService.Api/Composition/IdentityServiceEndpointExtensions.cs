@@ -151,8 +151,15 @@ public static class IdentityServiceEndpointExtensions
                 : Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.LanguagePreferenceSaveFailed });
         });
-        secured.MapUserEndpoints();
-        secured.MapRoleEndpoints();
+        // SECURITY: these are the same handlers as /api/v1/admin/users|roles. They
+        // used to hang off the plain "authenticated" group, which skipped the
+        // human-admin policy and the portal restrictions applied to /api/v1/admin.
+        var securedAdmin = app.MapGroup("/api/v1/auth")
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .BlockEndUserPortal()
+            .RestrictCustomerOperatorPaths();
+        securedAdmin.MapUserEndpoints();
+        securedAdmin.MapRoleEndpoints();
 
         app.MapIdentityAdminEndpoints();
 
@@ -179,7 +186,13 @@ public static class IdentityServiceEndpointExtensions
 
 
         // gRPC endpoints
-        app.MapGrpcService<His.Hope.IdentityService.Api.Services.GrpcIdentityService>();
+        // SECURITY: the gRPC surface exposes user, role and permission lookups and
+        // can rotate a user's security stamp. It is service-to-service only, so it
+        // requires an authenticated workload principal (FallbackPolicy is null).
+        app.MapGrpcService<His.Hope.IdentityService.Api.Services.GrpcIdentityService>()
+            .RequireAuthorization(policy => policy
+                .RequireAuthenticatedUser()
+                .RequireClaim(AuthorizationConstants.Claims.PrincipalType, AuthorizationConstants.PrincipalTypes.Workload));
 
         if (app.Environment.IsDevelopment())
         {
@@ -555,10 +568,14 @@ public static class IdentityServiceEndpointExtensions
                 return false;
 
             var query = QueryHelpers.ParseQuery(uri.Query);
-            clientId = query["client_id"].FirstOrDefault() ?? string.Empty;
-            redirectUri = query["redirect_uri"].FirstOrDefault() ?? string.Empty;
-            state = query["state"].FirstOrDefault() ?? string.Empty;
-            scopes = (query["scope"].FirstOrDefault() ?? string.Empty)
+            // The parsed query is a dictionary: indexing a missing parameter throws,
+            // which turned an incomplete authorize URL into an error page.
+            string Read(string key) =>
+                query.TryGetValue(key, out var values) ? values.FirstOrDefault() ?? string.Empty : string.Empty;
+            clientId = Read("client_id");
+            redirectUri = Read("redirect_uri");
+            state = Read("state");
+            scopes = Read("scope")
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -1248,7 +1265,7 @@ body{{
 </html>";
         }
 
-        app.MapPost("/Account/Login", async (HttpContext httpContext, SignInManager<User> signInManager, UserManager<User> userManager, OidcLoginCompletionService completion, IConfiguration configuration) =>
+        app.MapPost("/Account/Login", async (HttpContext httpContext, SignInManager<User> signInManager, UserManager<User> userManager, OidcLoginCompletionService completion, LoginAttemptGuard loginGuard, IConfiguration configuration) =>
         {
             var form = await httpContext.Request.ReadFormAsync();
             var identifier = form["email"].FirstOrDefault()?.Trim();
@@ -1270,20 +1287,30 @@ body{{
 
             var user = await userManager.FindByEmailAsync(identifier)
                 ?? await userManager.FindByNameAsync(identifier);
-            if (user == null)
+            // SECURITY: unknown, disabled and locked accounts spend the same hashing
+            // time as a wrong password, and all of them produce the same response.
+            if (user == null || !user.IsActive || LoginAttemptGuard.IsLockedOut(user))
+            {
+                LoginAttemptGuard.VerifyDummyPassword(password);
                 return Results.Redirect(LoginErrorRedirect());
+            }
 
-            if (!user.IsActive)
-                return Results.Redirect(LoginErrorRedirect());
-
+            // SignInManager lockout cannot be used here: User.LockoutEnd hides the
+            // Identity property, so its lockout state is never persisted.
             var result = await signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: false);
             if (!result.Succeeded)
+            {
+                if (!result.IsNotAllowed)
+                    await loginGuard.RecordFailureAsync(user, httpContext.RequestAborted);
                 return Results.Redirect(LoginErrorRedirect());
+            }
+            await loginGuard.RecordSuccessAsync(user, httpContext.RequestAborted);
 
             var completed = await completion.CompletePrimaryAsync(httpContext, user, returnUrl, ["pwd"]);
             return Results.Redirect(completed.RedirectUrl);
         })
-        .AllowAnonymous();
+        .AllowAnonymous()
+        .RequireRateLimiting("login");
 
         app.MapPost("/Account/LdapLogin", async (HttpContext httpContext, LdapSyncService ldap,
             OidcLoginCompletionService completion, ExternalIdentityProviderRuntime runtime, IConfiguration configuration, CancellationToken ct) =>
@@ -1352,7 +1379,8 @@ body{{
             var form = await httpContext.Request.ReadFormAsync();
             var returnUrl = form["returnUrl"].FirstOrDefault() ?? "/Account/Login";
 
-            if (!returnUrl.StartsWith('/'))
+            // SECURITY: "//host" and "/" + backslash + "host" are scheme-relative, not local.
+            if (!returnUrl.StartsWith('/') || returnUrl.StartsWith("//", StringComparison.Ordinal) || returnUrl.Contains((char)92))
                 returnUrl = "/Account/Login";
 
             await signInManager.SignOutAsync();

@@ -402,6 +402,18 @@ public partial class IdentityService : IIdentityService
         if (user is null || !user.IsActive)
             throw new UnauthorizedAccessException("User not found or deactivated.");
 
+        // SECURITY: a refresh token issued before the security stamp changed
+        // (password change/reset, MFA change, forced sign-out) must not mint new
+        // access tokens. The presented access token carries the stamp it was
+        // issued under.
+        var presentedSecurityVersion = principal.FindFirst("securityVersion")?.Value;
+        if (!string.Equals(presentedSecurityVersion, user.SecurityStamp ?? "1", StringComparison.Ordinal))
+        {
+            if (familyId is not null)
+                await _refreshTokenStore.RevokeFamilyAsync(familyId, cancellationToken);
+            throw new UnauthorizedAccessException("Credentials changed. Please login again.");
+        }
+
         // Token rotation: the old token was atomically consumed above; issue a new one.
         var roles = await _userManager.GetRolesAsync(user);
         var permissions = await GetPermissionsForRolesAsync(roles, user.Id, cancellationToken);
@@ -459,6 +471,17 @@ public partial class IdentityService : IIdentityService
     {
         var user = await _userManager.FindByEmailAsync(email)
             ?? Guard.Against.NotFound<User>(null, nameof(User), email);
+
+        // SECURITY: prove possession of the reset token before the password
+        // history is consulted. Otherwise an anonymous caller with a junk token
+        // could test candidate passwords against a user's former passwords.
+        var tokenIsValid = await _userManager.VerifyUserTokenAsync(
+            user,
+            _userManager.Options.Tokens.PasswordResetTokenProvider,
+            UserManager<User>.ResetPasswordTokenPurpose,
+            token);
+        if (!tokenIsValid)
+            throw new InvalidOperationException("Password reset failed: Invalid token.");
 
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {

@@ -18,7 +18,7 @@ public static class HrWebhookEndpoints
 {
     public static RouteGroupBuilder MapHrWebhookEndpoints(this RouteGroupBuilder group)
     {
-        group.MapPost("/webhook/hr", ProcessHrWebhook);
+        group.MapPost("/webhook/hr", ProcessHrWebhook).RequireRateLimiting("webhook");
         return group;
     }
 
@@ -28,6 +28,14 @@ public static class HrWebhookEndpoints
         BulkUserImportService importService,
         CancellationToken ct)
     {
+        // The body is read before it can be authenticated, so bound it first.
+        const long maxBodyBytes = 256 * 1024;
+        if (httpContext.Request.ContentLength is > maxBodyBytes)
+            return TypedResults.Problem(statusCode: StatusCodes.Status413PayloadTooLarge,
+                extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ForStatus(StatusCodes.Status413PayloadTooLarge) });
+        if (httpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } bodyLimit)
+            bodyLimit.MaxRequestBodySize = maxBodyBytes;
+
         using var reader = new StreamReader(httpContext.Request.Body, Encoding.UTF8);
         var rawBody = await reader.ReadToEndAsync(ct);
 
@@ -80,7 +88,16 @@ public static class HrWebhookEndpoints
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.HrWebhookEventMismatch });
         }
 
-        switch (hrEvent.EventType.ToLowerInvariant())
+        var eventType = hrEvent.EventType.Trim().ToLowerInvariant();
+        var employeeId = hrEvent.Employee.EmployeeId ?? "";
+        var users = httpContext.RequestServices
+            .GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<His.Hope.IdentityService.Domain.Entities.User>>();
+        var audit = httpContext.RequestServices.GetRequiredService<His.Hope.Infrastructure.Audit.IAuditService>();
+        var existingUser = string.IsNullOrWhiteSpace(hrEvent.Employee.Email)
+            ? null
+            : await users.FindByNameAsync(hrEvent.Employee.Email) ?? await users.FindByEmailAsync(hrEvent.Employee.Email);
+
+        switch (eventType)
         {
             case "employee.hired":
             case "employee.updated":
@@ -94,7 +111,10 @@ public static class HrWebhookEndpoints
                     Specialty: hrEvent.Employee.Department,
                     Role: MapDepartmentToRole(hrEvent.Employee.Department),
                     FacilityId: hrEvent.Employee.FacilityId,
-                    IsActive: hrEvent.EventType == "employee.hired"
+                    // SECURITY: a profile event never changes whether an existing
+                    // account is enabled. "updated" used to disable the account and
+                    // "hired" used to re-enable one an administrator had disabled.
+                    IsActive: existingUser?.IsActive ?? eventType == "employee.hired"
                 );
 
                 var importRequest = new BulkImportRequest(
@@ -103,14 +123,27 @@ public static class HrWebhookEndpoints
                 );
 
                 var result = await importService.ImportAsync(importRequest, ct);
+                await AdminAudit.LogAsync(audit, httpContext, "HR_PROVISION", "User", employeeId, ct);
                 return TypedResults.Ok(new HrWebhookResponse(
                     result.Succeeded > 0 ? "provisioned" : "error",
                     hrEvent.Employee.EmployeeId ?? "",
                     result.Errors.FirstOrDefault()?.Error));
 
             case "employee.terminated":
-                return TypedResults.Ok(new HrWebhookResponse("acknowledged",
-                    hrEvent.Employee.EmployeeId ?? "", "User deactivation handled via SCIM PATCH"));
+                // A leaver is disabled here and loses every session immediately; the
+                // event used to be acknowledged without doing anything.
+                if (existingUser is null)
+                    return TypedResults.Ok(new HrWebhookResponse("acknowledged", employeeId, "No matching account."));
+                if (existingUser.IsActive)
+                {
+                    existingUser.IsActive = false;
+                    await users.UpdateAsync(existingUser);
+                    await users.UpdateSecurityStampAsync(existingUser);
+                }
+                await His.Hope.IdentityService.Api.Services.UserSessionRevocation.RevokeAllAsync(
+                    httpContext.RequestServices, existingUser.Id, ct);
+                await AdminAudit.LogAsync(audit, httpContext, "HR_DEACTIVATE", "User", existingUser.Id.ToString(), ct);
+                return TypedResults.Ok(new HrWebhookResponse("deactivated", employeeId, null));
 
             default:
                 return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedHrEventType });
@@ -207,6 +240,12 @@ public static class HrWebhookAuthenticator
         var replayTtl = tolerance + TimeSpan.FromMinutes(1);
         if (!await replayStore.TryMarkSeenAsync(eventId, replayTtl, ct))
             return HrWebhookAuthenticationResult.BadRequest("Duplicate HR webhook event id.");
+
+        // The event id header is not covered by the signature, so a captured
+        // request could be replayed under a new id. The signature covers the
+        // timestamp and body; remembering it makes each signed delivery single-use.
+        if (!await replayStore.TryMarkSeenAsync("sig:" + ComputeSignature(secret, timestampValue, rawBody), replayTtl, ct))
+            return HrWebhookAuthenticationResult.BadRequest("Duplicate HR webhook delivery.");
 
         return HrWebhookAuthenticationResult.Success(eventId);
     }

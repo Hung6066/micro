@@ -13,8 +13,12 @@ internal static class IdentityExternalLoginEndpoints
 {
     public static void MapIdentityExternalLoginEndpoints(this RouteGroupBuilder auth)
     {
-        auth.MapGet("/external-login/{provider}", (string provider, HttpContext httpContext) =>
+        auth.MapGet("/external-login/{provider}", (string provider, HttpContext httpContext, IConfiguration configuration) =>
         {
+            // Never challenge an arbitrary authentication scheme chosen by the caller.
+            if (!IsSupportedProvider(provider, configuration))
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedExternalProvider });
+
             var properties = new AuthenticationProperties
             {
                 RedirectUri = $"/api/v1/auth/external-callback/{provider}"
@@ -32,16 +36,29 @@ internal static class IdentityExternalLoginEndpoints
             IConfiguration configuration,
             UserManager<User> userManager,
             OidcLoginCompletionService completion,
+            IHostEnvironment environment,
             CancellationToken ct) =>
         {
-            var configuredExternal = configuration.GetSection("Authentication:ExternalSources").GetChildren()
-                .Select(section => section["Name"])
-                .Where(name => !string.IsNullOrWhiteSpace(name));
-            if (provider is not ("Google" or "Microsoft" or "Entra") && !configuredExternal.Contains(provider, StringComparer.Ordinal))
+            if (!IsSupportedProvider(provider, configuration))
                 return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedExternalProvider });
 
             var result = await httpContext.AuthenticateAsync(IdentityConstants.ExternalScheme);
             if (!result.Succeeded)
+                return Results.Redirect("/login?error=external_failed");
+
+            // The external ticket is single-use: drop it before doing anything else
+            // so the callback cannot be replayed to re-establish a session.
+            await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+
+            // SECURITY: the provider in the route selects which linked account is
+            // looked up. It must be the provider that actually issued the ticket,
+            // otherwise one IdP could assert subjects on behalf of another, and a
+            // ticket created for account linking must not sign anyone in.
+            var ticketItems = result.Properties?.Items;
+            if (ticketItems is null ||
+                !ticketItems.TryGetValue("LoginProvider", out var ticketProvider) ||
+                !string.Equals(ticketProvider, provider, StringComparison.Ordinal) ||
+                ticketItems.ContainsKey("IsLinking"))
                 return Results.Redirect("/login?error=external_failed");
 
             var externalPrincipal = result.Principal;
@@ -59,6 +76,16 @@ internal static class IdentityExternalLoginEndpoints
 
             if (user is null)
             {
+                // SECURITY: an unknown upstream identity must not become a clinical
+                // account on its own. Just-in-time creation is opt-in outside
+                // Development/Testing; otherwise an administrator provisions the
+                // account and the user links the provider from their profile.
+                var autoCreate = configuration.GetValue(
+                    "Authentication:ExternalProvisioning:AutoCreateUsers",
+                    environment.IsDevelopment() || environment.IsEnvironment("Testing"));
+                if (!autoCreate)
+                    return Results.Redirect("/login?error=external_account_not_provisioned");
+
                 user = new User
                 {
                     UserName = email,
@@ -90,6 +117,13 @@ internal static class IdentityExternalLoginEndpoints
             var completed = await completion.CompletePrimaryAsync(httpContext, user, returnUrl, [provider], ct);
             return Results.Redirect(completed.RedirectUrl);
         }).AllowAnonymous();
+
+        static bool IsSupportedProvider(string provider, IConfiguration configuration) =>
+            provider is "Google" or "Microsoft" or "Entra" ||
+            configuration.GetSection("Authentication:ExternalSources").GetChildren()
+                .Select(section => section["Name"])
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Contains(provider, StringComparer.Ordinal);
 
         auth.MapGet("/external-providers", async (
             IConfiguration config,

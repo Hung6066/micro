@@ -19,6 +19,7 @@ public static class AuthorizationChangeRequestEndpoints
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["Role:role.publish"] = "Role",
+        ["Role:role.update"] = "Role",
         ["Role:role.rollback"] = "Role",
         ["AuthorizationPolicy:policy.publish"] = "AuthorizationPolicy",
         ["AuthorizationPolicy:policy.rollback"] = "AuthorizationPolicy"

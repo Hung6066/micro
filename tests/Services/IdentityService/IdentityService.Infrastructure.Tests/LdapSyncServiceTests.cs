@@ -97,7 +97,9 @@ public sealed class LdapSyncServiceTests
             .ProvisionUserAsync(new LdapUserProfile("directory-user", "new@example.test", "Updated", "User", ["CN=Doctors"], true, "CN=directory-user"));
 
         existing.Email.Should().Be("new@example.test");
-        existing.IsActive.Should().BeTrue();
+        // The directory must never re-enable an account that was disabled locally.
+        existing.IsActive.Should().BeFalse();
+        manager.Verify(x => x.AddLoginAsync(existing, It.Is<UserLoginInfo>(login => login.LoginProvider == "Ldap")), Times.Once);
         manager.Verify(x => x.RemoveFromRoleAsync(existing, "Nurse"), Times.Once);
         manager.Verify(x => x.RemoveFromRoleAsync(existing, "Provider"), Times.Never);
     }
@@ -195,12 +197,17 @@ public sealed class LdapSyncServiceTests
         var missing = new User { UserName = "missing", EmailConfirmed = true, IsActive = true };
         var present = new User { UserName = "present", EmailConfirmed = true, IsActive = true };
         var unconfirmed = new User { UserName = "unconfirmed", EmailConfirmed = false, IsActive = true };
-        db.Users.AddRange(missing, present, unconfirmed);
+        // A local account (break-glass admin, SAML, SCIM) that the directory never knew.
+        var localAdmin = new User { UserName = "local-admin", EmailConfirmed = true, IsActive = true };
+        db.Users.AddRange(missing, present, unconfirmed, localAdmin);
         await db.SaveChangesAsync();
 
         var manager = Manager();
         manager.SetupGet(x => x.Users).Returns(db.Users);
         manager.Setup(x => x.UpdateAsync(It.IsAny<User>())).ReturnsAsync(IdentityResult.Success);
+        manager.Setup(x => x.GetLoginsAsync(missing))
+            .ReturnsAsync([new UserLoginInfo("Ldap", "missing", "LDAP")]);
+        manager.Setup(x => x.GetLoginsAsync(localAdmin)).ReturnsAsync([]);
         var service = new LdapSyncService(Runtime(db), manager.Object, NullLogger<LdapSyncService>.Instance);
         var method = typeof(LdapSyncService).GetMethod("DeactivateMissingUsers", BindingFlags.NonPublic | BindingFlags.Instance);
         method.Should().NotBeNull();
@@ -211,6 +218,18 @@ public sealed class LdapSyncServiceTests
         missing.IsActive.Should().BeFalse();
         present.IsActive.Should().BeTrue();
         unconfirmed.IsActive.Should().BeTrue();
+        localAdmin.IsActive.Should().BeTrue("only directory-provisioned accounts may be disabled by the sync");
+        manager.Verify(x => x.UpdateSecurityStampAsync(missing), Times.Once);
+
+        // An empty directory result must not disable anyone.
+        var survivor = new User { UserName = "survivor", EmailConfirmed = true, IsActive = true };
+        db.Users.Add(survivor);
+        await db.SaveChangesAsync();
+        manager.Setup(x => x.GetLoginsAsync(survivor))
+            .ReturnsAsync([new UserLoginInfo("Ldap", "survivor", "LDAP")]);
+        await (Task)method.Invoke(service, [new HashSet<string>(), CancellationToken.None])!;
+        survivor.IsActive.Should().BeTrue();
+
         manager.Verify(x => x.UpdateAsync(missing), Times.Once);
         manager.Verify(x => x.UpdateAsync(It.Is<User>(u => u.UserName != "missing")), Times.Never);
     }

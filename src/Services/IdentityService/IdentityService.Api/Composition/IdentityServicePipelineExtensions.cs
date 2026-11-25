@@ -61,6 +61,33 @@ public static class IdentityServicePipelineExtensions
     public static void UseIdentityServicePipeline(this WebApplication app)
     {
 
+        // SECURITY: resolve the real client address and scheme only from proxies
+        // that are explicitly trusted. Without this, rate limits are keyed on the
+        // proxy address (one bucket for everybody) and cookies issued behind a
+        // TLS-terminating proxy lose the Secure flag. Forwarded headers from any
+        // other source are ignored.
+        var trustedNetworks = app.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [];
+        var trustedProxies = app.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
+        if (trustedNetworks.Length > 0 || trustedProxies.Length > 0)
+        {
+            var forwarded = new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+                ForwardLimit = app.Configuration.GetValue("ForwardedHeaders:ForwardLimit", 2)
+            };
+            forwarded.KnownNetworks.Clear();
+            forwarded.KnownProxies.Clear();
+            foreach (var network in trustedNetworks)
+            {
+                var parts = network.Split('/', 2, StringSplitOptions.TrimEntries);
+                forwarded.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+                    IPAddress.Parse(parts[0]), int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture)));
+            }
+            foreach (var proxy in trustedProxies)
+                forwarded.KnownProxies.Add(IPAddress.Parse(proxy.Trim()));
+            app.UseForwardedHeaders(forwarded);
+        }
+
         if (app.Environment.IsProduction())
             app.Services.RequireDurableAuditSink();
 
@@ -151,6 +178,27 @@ public static class IdentityServicePipelineExtensions
                     {
                         using var document = JsonDocument.Parse((string)sessionJson!);
                         var root = document.RootElement;
+
+                        // SECURITY: the session cookie is scoped to the parent domain and
+                        // is SameSite=Lax, so any sibling origin can make the browser send
+                        // it. A state-changing request is only bridged to the session when
+                        // it also carries the session's CSRF token; otherwise it stays
+                        // anonymous and is rejected by authorization.
+                        var method = context.Request.Method;
+                        if (!HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) && !HttpMethods.IsOptions(method) &&
+                            context.RequestServices.GetRequiredService<IConfiguration>()
+                                .GetValue("Security:EnforceCsrfOnSessionBridge", true))
+                        {
+                            var expectedCsrf = root.TryGetProperty("CsrfToken", out var csrfElement) ? csrfElement.GetString() : null;
+                            var presentedCsrf = context.Request.Headers[HisHopeProtocolConstants.Headers.CsrfToken].FirstOrDefault();
+                            if (string.IsNullOrEmpty(expectedCsrf) || string.IsNullOrEmpty(presentedCsrf) ||
+                                !CryptographicOperations.FixedTimeEquals(
+                                    Encoding.UTF8.GetBytes(expectedCsrf), Encoding.UTF8.GetBytes(presentedCsrf)))
+                            {
+                                await next();
+                                return;
+                            }
+                        }
                         var protectedJwt = root.TryGetProperty("Jwt", out var jwtElement)
                             ? jwtElement.GetString()
                             : null;

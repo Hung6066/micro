@@ -48,6 +48,9 @@ public static class AccountRecoveryEndpoints
         group.MapPost(IdentityApiRoutes.ResetPasswordSegment, async (
             ResetPasswordRequest request,
             IIdentityService identityService,
+            UserManager<User> userManager,
+            His.Hope.Infrastructure.Security.ITokenBlacklistService tokenBlacklist,
+            His.Hope.IdentityService.Application.OpenIddict.IOpenIddictSubjectRevoker subjectRevoker,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -59,6 +62,13 @@ public static class AccountRecoveryEndpoints
             try
             {
                 await identityService.ResetPasswordAsync(request.Email, request.Token, request.NewPassword, ct);
+                // A reset is the recovery path after a suspected compromise: end
+                // every existing session, access token and OIDC grant.
+                if (await userManager.FindByEmailAsync(request.Email) is { } resetUser)
+                {
+                    await tokenBlacklist.RevokeAllUserTokensAsync(resetUser.Id.ToString(), ct);
+                    await subjectRevoker.RevokeAllAsync(resetUser.Id, ct);
+                }
                 logger.LogInformation("Password reset completed.");
                 return Results.Ok(new { message = "Password has been reset successfully." });
             }
@@ -81,6 +91,8 @@ public static class AccountRecoveryEndpoints
             ChangePasswordRequest request,
             HttpContext httpContext,
             IIdentityService identityService,
+            His.Hope.Infrastructure.Security.ITokenBlacklistService tokenBlacklist,
+            His.Hope.IdentityService.Application.OpenIddict.IOpenIddictSubjectRevoker subjectRevoker,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -97,6 +109,8 @@ public static class AccountRecoveryEndpoints
             try
             {
                 await identityService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword, ct);
+                await tokenBlacklist.RevokeAllUserTokensAsync(userId.Value.ToString(), ct);
+                await subjectRevoker.RevokeAllAsync(userId.Value, ct);
                 logger.LogInformation("Password changed for UserId={UserId}", userId);
                 return Results.Ok(new { message = "Password changed successfully." });
             }

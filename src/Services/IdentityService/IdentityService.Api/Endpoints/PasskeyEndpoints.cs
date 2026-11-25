@@ -155,6 +155,8 @@ public static class PasskeyEndpoints
             if (user is null || !user.IsActive) return Results.Unauthorized();
             await db.SaveChangesAsync(ct);
             var completed = await completion.CompletePrimaryAsync(context, user, request.ReturnUrl, ["passkey"]);
+            if (completed.Rejected)
+                return Results.Unauthorized();
             return Results.Ok(new
             {
                 authenticated = !completed.RequiresMfa,

@@ -8,6 +8,11 @@ namespace His.Hope.IdentityService.Api.Endpoints;
 
 internal static class AdminAudit
 {
+    // Column limits of the audit table. An oversized value used to fail the
+    // insert after the change had already been committed, losing the record.
+    private static string? Truncate(string? value, int maxLength) =>
+        value is { Length: var length } && length > maxLength ? value[..maxLength] : value;
+
     public static Task LogAsync(IAuditService audit, HttpContext http, string action, string resource, string? resourceId, CancellationToken ct) =>
         audit.LogPhiAccessAsync(new PhiAuditEntry
         {
@@ -17,7 +22,7 @@ internal static class AdminAudit
             ResourceId = resourceId ?? string.Empty,
             Action = action,
             ClientIp = http.Connection.RemoteIpAddress?.ToString(),
-            UserAgent = http.Request.Headers.UserAgent.ToString(),
+            UserAgent = Truncate(http.Request.Headers.UserAgent.ToString(), 500),
             CorrelationId = http.Response.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault() ?? http.TraceIdentifier,
             HttpMethod = http.Request.Method,
             Path = http.Request.Path
@@ -47,13 +52,13 @@ internal static class AdminAudit
                 audience = "identity-control-plane",
                 principalType = http.User.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value ?? AuthorizationConstants.PrincipalTypes.Human
             }),
-            BeforeJson = beforeJson,
-            AfterJson = afterJson,
+            BeforeJson = Truncate(beforeJson, 8000),
+            AfterJson = Truncate(afterJson, 8000),
             CorrelationId = http.TraceIdentifier,
             Outcome = "success",
             Source = "authorization-control-plane",
             IpAddress = http.Connection.RemoteIpAddress?.ToString(),
-            UserAgent = http.Request.Headers.UserAgent.ToString()
+            UserAgent = Truncate(http.Request.Headers.UserAgent.ToString(), 500)
         });
         await db.SaveChangesAsync(ct);
     }

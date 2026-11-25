@@ -44,7 +44,7 @@ public sealed class ScimEndpointBranchTests
         await CreateUserAsync(userManager, $"{prefix}-c", "c@example.test");
 
         var context = ScimContext();
-        context.Request.QueryString = new QueryString($"?startIndex=2&count=1&filter=userName%20eq%20%22{prefix}-b%22");
+        context.Request.QueryString = new QueryString("?startIndex=2&count=1");
         var result = await InvokeAsync("GetUsers", context, db, configuration, CancellationToken.None);
 
         Assert.Equal("Ok`1", result.GetType().Name);
@@ -54,6 +54,19 @@ public sealed class ScimEndpointBranchTests
         Assert.True((int)value.GetType().GetProperty("TotalResults")!.GetValue(value)! >= 3);
         var resources = (System.Collections.IEnumerable)value.GetType().GetProperty("Resources")!.GetValue(value)!;
         Assert.Single(resources.Cast<object>());
+
+        // The filter is applied: exactly the named account comes back, not a page of everyone.
+        var filtered = ScimContext();
+        filtered.Request.QueryString = new QueryString($"?filter=userName%20eq%20%22{prefix}-b%22");
+        var filteredValue = ResultValue(await InvokeAsync("GetUsers", filtered, db, configuration, CancellationToken.None));
+        Assert.Equal(1, (int)filteredValue.GetType().GetProperty("TotalResults")!.GetValue(filteredValue)!);
+        Assert.Single(((System.Collections.IEnumerable)filteredValue.GetType().GetProperty("Resources")!.GetValue(filteredValue)!).Cast<object>());
+
+        // An unsupported filter is rejected instead of being silently ignored.
+        var unsupported = ScimContext();
+        unsupported.Request.QueryString = new QueryString("?filter=name.familyName%20co%20%22x%22");
+        var rejected = await InvokeAsync("GetUsers", unsupported, db, configuration, CancellationToken.None);
+        Assert.Equal("ProblemHttpResult", rejected.GetType().Name);
     }
 
     [Fact]

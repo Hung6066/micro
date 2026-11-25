@@ -75,9 +75,23 @@ public static class AdminTableEndpoints
         var users = await db.Users.Where(user => ids.Contains(user.Id))
             .WhereTenantMembership(db, filter.AllowedTenantKeys)
             .ToListAsync(ct);
+        var deactivating = request.ActionId == "deactivate";
+        if (deactivating)
+        {
+            // An administrator cannot disable their own account in a bulk action.
+            var actorId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
+                ?? http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            users = users.Where(user => !string.Equals(user.Id.ToString(), actorId, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
         foreach (var user in users)
-            user.IsActive = request.ActionId == "activate";
+            user.IsActive = !deactivating;
         await db.SaveChangesAsync(ct);
+        foreach (var user in users)
+        {
+            if (deactivating)
+                await His.Hope.IdentityService.Api.Services.UserSessionRevocation.RevokeAllAsync(http.RequestServices, user.Id, ct);
+            await AuditAsync(audit, http, deactivating ? "DEACTIVATE" : "ACTIVATE", "User", user.Id.ToString(), ct);
+        }
         await AuditAsync(audit, http, "BULK_ACTION", "User", request.ActionId, ct);
 
         return Results.Ok(new { actionId = request.ActionId, requestedCount = request.RowKeys.Length, updatedCount = users.Count });
@@ -559,6 +573,11 @@ public static class AdminTableEndpoints
                     }
                     user.IsActive = state.ActionId == "activate";
                     await db.SaveChangesAsync(ct);
+                    // The job has no request scope; rotating the security stamp is
+                    // what invalidates the user's tokens, refresh tokens and cookie.
+                    if (!user.IsActive)
+                        await userManager.UpdateSecurityStampAsync(user);
+                    await AuditAsync(audit, http, user.IsActive ? "ACTIVATE" : "DEACTIVATE", "User", id.ToString(), ct);
                     await CompleteRowAsync(state, store, id.ToString(), "completed", ct);
                 }
                 break;

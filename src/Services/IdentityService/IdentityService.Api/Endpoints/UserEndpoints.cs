@@ -110,8 +110,17 @@ public static class UserEndpoints
             IMediator mediator = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
+            His.Hope.IdentityService.Application.Interfaces.IApplicationDbContext governanceDb = null!,
             CancellationToken ct = default) =>
         {
+            // SECURITY: admin.users.write alone must not create an account holding
+            // a role the actor could not assign through the governed roles endpoint.
+            if (!string.IsNullOrWhiteSpace(request.Role) &&
+                await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
+                    governanceDb, http.User, Guid.Empty, [request.Role], ct) is { } createGovernanceError)
+                return Results.Problem(statusCode: 403, detail: createGovernanceError,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
+
             try
             {
                 var command = new CreateUserCommand(
@@ -141,11 +150,40 @@ public static class UserEndpoints
             IAuditService audit = null!,
             HttpContext http = null!,
             ITokenBlacklistService tokenBlacklist = null!,
+            His.Hope.IdentityService.Application.Interfaces.IApplicationDbContext governanceDb = null!,
             CancellationToken ct = default) =>
         {
             var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
                 return accessError;
+
+            // SECURITY: this endpoint only needs admin.users.write, so a role change
+            // made here is held to the same rules as PUT /users/{id}/roles: never on
+            // your own account, and never beyond what the actor may grant.
+            string[] previousRoles = [];
+            var roleChanged = false;
+            if (!string.IsNullOrWhiteSpace(request.Role))
+            {
+                previousRoles = await (
+                    from userRole in db.UserRoles.AsNoTracking()
+                    join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                    where userRole.UserId == id
+                    select role.Name!).ToArrayAsync(ct);
+                roleChanged = previousRoles.Length != 1 ||
+                    !string.Equals(previousRoles[0], request.Role, StringComparison.OrdinalIgnoreCase);
+            }
+            if (roleChanged)
+            {
+                var actorId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
+                    ?? http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (string.Equals(actorId, id.ToString(), StringComparison.OrdinalIgnoreCase))
+                    return Results.Problem(statusCode: 400,
+                        extensions: new Dictionary<string, object?> { ["errorCode"] = "self_role_change" });
+                if (await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
+                        governanceDb, http.User, id, [request.Role!], ct) is { } updateGovernanceError)
+                    return Results.Problem(statusCode: 403, detail: updateGovernanceError,
+                        extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
+            }
 
             try
             {
@@ -155,6 +193,12 @@ public static class UserEndpoints
 
                 var user = await mediator.Send(command, ct);
                 await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+                if (roleChanged)
+                    await AdminAudit.LogAuthorizationChangeAsync(
+                        governanceDb, http, "ROLE_ASSIGNMENT", "User", id.ToString(),
+                        "Role changed through user update.",
+                        JsonSerializer.Serialize(new { roles = previousRoles }),
+                        JsonSerializer.Serialize(new { roles = new[] { request.Role } }), ct);
                 await AdminAudit.LogAsync(audit, http, "UPDATE", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }

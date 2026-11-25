@@ -88,6 +88,15 @@ public static class AccountLinkingEndpoints
         if (!result.Succeeded)
             return TypedResults.Redirect("/profile?error=link_failed");
 
+        // Single-use ticket, and it must come from a link challenge for this provider.
+        await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+        var ticketItems = result.Properties?.Items;
+        if (ticketItems is null ||
+            !ticketItems.TryGetValue("LoginProvider", out var ticketProvider) ||
+            !string.Equals(ticketProvider, provider, StringComparison.Ordinal) ||
+            !ticketItems.ContainsKey("IsLinking"))
+            return TypedResults.Redirect("/profile?error=link_failed");
+
         var user = await GetCurrentUser(httpContext, userManager);
         if (user is null)
             return TypedResults.Redirect("/login?error=not_authenticated");

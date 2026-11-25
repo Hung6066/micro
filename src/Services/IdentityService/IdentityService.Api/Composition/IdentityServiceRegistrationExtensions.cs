@@ -112,6 +112,7 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddScoped<His.Hope.IdentityService.Application.Interfaces.IEmailSender, ConfiguredEmailSender>();
         builder.Services.AddScoped<IPushDeliveryService, PushDeliveryService>();
         builder.Services.AddScoped<OidcLoginCompletionService>();
+        builder.Services.AddScoped<LoginAttemptGuard>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<PushNotificationOutboxWorker>();
         builder.Services.BindConfig<Saml2Configuration>(builder.Configuration, "Saml2", (services, configuration) =>
@@ -238,6 +239,12 @@ public static class IdentityServiceRegistrationExtensions
                  ? CookieSecurePolicy.Always
                  : CookieSecurePolicy.SameAsRequest;
              options.LoginPath = "/Account/Login";
+             // SECURITY: bounded, non-sliding SSO session. The framework default is a
+             // 14-day sliding cookie, which outlives every other session limit here.
+             options.ExpireTimeSpan = builder.Configuration.GetValue("Authentication:CookieLifetime", TimeSpan.FromHours(8));
+             options.SlidingExpiration = false;
+             options.Events.OnValidatePrincipal =
+                 His.Hope.IdentityService.Api.Middleware.SecurityVersionMiddleware.ValidateCookiePrincipalAsync;
              options.Events.OnRedirectToLogin = context =>
              {
                  if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
@@ -262,7 +269,17 @@ public static class IdentityServiceRegistrationExtensions
                  return Task.CompletedTask;
              };
          })
-         .AddCookie(IdentityConstants.ExternalScheme);
+         .AddCookie(IdentityConstants.ExternalScheme, options =>
+         {
+             // The external cookie only carries the upstream identity from the
+             // provider callback to account resolution; it must not linger.
+             options.Cookie.HttpOnly = true;
+             options.Cookie.SecurePolicy = builder.Environment.IsProduction()
+                 ? CookieSecurePolicy.Always
+                 : CookieSecurePolicy.SameAsRequest;
+             options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+             options.SlidingExpiration = false;
+         });
 
         // SSO cookie sharing is opt-in. Production deployments must configure the exact parent domain.
         var authCookieDomain = builder.Configuration["Authentication:CookieDomain"];
@@ -561,6 +578,28 @@ public static class IdentityServiceRegistrationExtensions
                     QueueLimit = 0
                 });
             });
+            // Interactive login and the HR feed get their own budgets. A per-address
+            // limit is only meaningful when the address is the client's: if the request
+            // came through a proxy that is not configured as trusted, every user would
+            // share one bucket, so the limiter stands aside (per-account lockout still
+            // applies) until ForwardedHeaders:KnownNetworks/KnownProxies is set.
+            var trustedProxiesConfigured =
+                builder.Configuration.GetSection("ForwardedHeaders:KnownNetworks").GetChildren().Any() ||
+                builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").GetChildren().Any();
+            bool ClientAddressIsResolved(HttpContext context) =>
+                context.Connection.RemoteIpAddress is not null &&
+                (trustedProxiesConfigured || !context.Request.Headers.ContainsKey("X-Forwarded-For"));
+            RateLimitPartition<string> PerClient(HttpContext context, string name, int defaultPermits) =>
+                ClientAddressIsResolved(context)
+                    ? RateLimitPartition.GetFixedWindowLimiter($"{name}:{RateLimitKey(context)}", _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = builder.Configuration.GetValue($"RateLimiting:{name}:PermitLimit", defaultPermits),
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    })
+                    : RateLimitPartition.GetNoLimiter($"{name}:unresolved");
+            options.AddPolicy("login", context => PerClient(context, "Login", 20));
+            options.AddPolicy("webhook", context => PerClient(context, "Webhook", 120));
             options.AddPolicy("scim", context =>
             {
                 var key = RateLimitKey(context);
@@ -770,6 +809,9 @@ public static class IdentityServiceRegistrationExtensions
                 if (oidcSecurity.SigningKey is not null)
                 {
                     options.AddSigningKey(oidcSecurity.SigningKey);
+                    // Registered after the active key: published and accepted, not used to sign.
+                    foreach (var additionalSigningKey in oidcSecurity.AdditionalSigningKeys)
+                        options.AddSigningKey(additionalSigningKey);
                 }
                 else
                 {
@@ -838,6 +880,8 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddSingleton<DatabaseAuditService>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<DatabaseAuditBackgroundService>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<AuditIntegrityVerifier>();
 
         builder.Services.AddSingleton<His.Hope.Infrastructure.Audit.IAuditService>(sp =>
         {

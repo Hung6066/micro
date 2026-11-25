@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -60,6 +61,7 @@ public sealed class AdminIncidentEndpointTests(IdentityServiceTestFixture fixtur
     {
         using var session = fixture.CreateSessionClient();
         Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
         var unknown = Guid.NewGuid();
 
         var userSessions = await session.GetWithCookiesAsync(IdentityApiRoutes.AdminUserSessions(unknown));
@@ -115,14 +117,41 @@ public sealed class AdminIncidentEndpointTests(IdentityServiceTestFixture fixtur
         using var session = fixture.CreateSessionClient();
         Assert.Equal(HttpStatusCode.OK, (await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
 
-        var reset = await session.PostWithCookiesAsync(
+        // Without a fresh MFA step-up the reset is refused outright.
+        Assert.Equal(HttpStatusCode.Forbidden, (await session.PostWithCookiesAsync(
+            IdentityApiRoutes.AdminUserCredentialReset(Guid.NewGuid()),
+            new { resetMfa = true, revokePasskeys = true, reason = "password-only session" })).StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
+
+        // An administrator can never strip their own second factor.
+        Assert.Equal(HttpStatusCode.BadRequest, (await session.PostWithCookiesAsync(
             IdentityApiRoutes.AdminUserCredentialReset(IdentityTestData.AdminId),
+            new { resetMfa = true, revokePasskeys = true, reason = "self reset must be refused" })).StatusCode);
+
+        Guid targetId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<His.Hope.IdentityService.Domain.Entities.User>>();
+            var target = new His.Hope.IdentityService.Domain.Entities.User
+            {
+                UserName = $"incident-target-{Guid.NewGuid():N}@test.test",
+                FirstName = "Incident",
+                LastName = "Target",
+                EmailConfirmed = true
+            };
+            target.Email = target.UserName;
+            Assert.True((await users.CreateAsync(target)).Succeeded);
+            targetId = target.Id;
+        }
+
+        var reset = await session.PostWithCookiesAsync(
+            IdentityApiRoutes.AdminUserCredentialReset(targetId),
             new { resetMfa = true, revokePasskeys = true, reason = "automated incident regression" });
         var resetMfaOnly = await session.PostWithCookiesAsync(
-            IdentityApiRoutes.AdminUserCredentialReset(IdentityTestData.AdminId),
+            IdentityApiRoutes.AdminUserCredentialReset(targetId),
             new { resetMfa = true, revokePasskeys = false, reason = "automated incident mfa regression" });
         var resetPasskeysOnly = await session.PostWithCookiesAsync(
-            IdentityApiRoutes.AdminUserCredentialReset(IdentityTestData.AdminId),
+            IdentityApiRoutes.AdminUserCredentialReset(targetId),
             new { resetMfa = false, revokePasskeys = true, reason = "automated incident passkey regression" });
         var revokeAll = await session.PostWithCookiesAsync(
             $"{IdentityApiRoutes.AdminUserSessions(IdentityTestData.AdminId)}/revoke-all",
@@ -137,7 +166,7 @@ public sealed class AdminIncidentEndpointTests(IdentityServiceTestFixture fixtur
         Assert.Equal(IdentityTestData.AdminId, revokeBody.RootElement.GetProperty("userId").GetGuid());
         Assert.True(revokeBody.RootElement.TryGetProperty("revokedSessions", out var revoked));
         Assert.True(revoked.GetInt32() >= 0);
-        Assert.Equal(IdentityTestData.AdminId, resetBody.RootElement.GetProperty("userId").GetGuid());
+        Assert.Equal(targetId, resetBody.RootElement.GetProperty("userId").GetGuid());
         Assert.True(resetBody.RootElement.TryGetProperty("removedMfa", out var removedMfa));
         Assert.True(resetBody.RootElement.TryGetProperty("removedPasskeys", out var removedPasskeys));
         Assert.True(resetBody.RootElement.GetProperty("tokensRevoked").GetBoolean());

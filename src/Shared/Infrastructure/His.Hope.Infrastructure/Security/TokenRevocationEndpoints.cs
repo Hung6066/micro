@@ -11,11 +11,14 @@ namespace His.Hope.Infrastructure.Security;
 
 public static class TokenRevocationEndpoints
 {
+    private const int MaxRevocationTtlSeconds = 24 * 60 * 60;
+
     public static RouteGroupBuilder MapTokenRevocationEndpoints(
         this RouteGroupBuilder group)
     {
         group.MapPost("/revoke", async (
             RevokeTokenRequest request,
+            HttpContext httpContext,
             ITokenBlacklistService blacklistService,
             ILogger<ITokenBlacklistService> logger,
             CancellationToken ct) =>
@@ -23,8 +26,15 @@ public static class TokenRevocationEndpoints
             if (string.IsNullOrWhiteSpace(request.Jti))
                 return Results.BadRequest(new { error = "jti is required" });
 
+            // SECURITY: a caller may only revoke the token it is presenting.
+            // Revoking other principals' tokens is an administrative action
+            // served by the audited admin incident endpoints.
+            var callerJti = httpContext.User.FindFirst("jti")?.Value;
+            if (!string.Equals(callerJti, request.Jti, StringComparison.Ordinal))
+                return Results.Forbid();
+
             var ttl = request.TtlSeconds > 0
-                ? TimeSpan.FromSeconds(request.TtlSeconds)
+                ? TimeSpan.FromSeconds(Math.Min(request.TtlSeconds, MaxRevocationTtlSeconds))
                 : TimeSpan.FromHours(1);
 
             await blacklistService.RevokeAsync(request.Jti, ttl, ct);
@@ -36,12 +46,21 @@ public static class TokenRevocationEndpoints
 
         group.MapPost("/revoke-all", async (
             RevokeAllUserTokensRequest request,
+            HttpContext httpContext,
             ITokenBlacklistService blacklistService,
             ILogger<ITokenBlacklistService> logger,
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.UserId))
                 return Results.BadRequest(new { error = "userId is required" });
+
+            // SECURITY: self-service only. Without this check any authenticated
+            // user could keep another user's (e.g. an administrator's) tokens revoked.
+            var callerId = httpContext.User.FindFirst("sub")?.Value
+                ?? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(callerId) ||
+                !string.Equals(callerId, request.UserId, StringComparison.OrdinalIgnoreCase))
+                return Results.Forbid();
 
             await blacklistService.RevokeAllUserTokensAsync(request.UserId, ct);
             logger.LogWarning("All tokens revoked for user: UserId={UserId}", request.UserId);

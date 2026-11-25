@@ -57,7 +57,7 @@ public sealed class LdapSyncService(
                 return null;
 
             var entry = results.Next();
-            using var userConnection = new LdapConnection();
+            using var userConnection = new LdapConnection { SecureSocketLayer = config.UseSsl };
             var port = config.UseSsl ? 636 : config.Port;
             userConnection.Connect(config.Server, port);
             if (!config.UseSsl && config.RequireStartTls)
@@ -92,11 +92,22 @@ public sealed class LdapSyncService(
         user.Email = profile.Email ?? user.Email;
         user.FirstName = profile.FirstName ?? user.FirstName;
         user.LastName = profile.LastName ?? user.LastName;
-        user.IsActive = profile.IsActive;
+        // The directory may disable an account, but it must never re-enable one an
+        // administrator disabled locally.
+        if (isNew)
+            user.IsActive = profile.IsActive;
+        else if (!profile.IsActive)
+            user.IsActive = false;
 
         var result = isNew ? await userManager.CreateAsync(user) : await userManager.UpdateAsync(user);
         if (!result.Succeeded)
             throw new InvalidOperationException("Unable to provision LDAP user.");
+
+        // Mark the account as directory-managed. The sync uses this marker to
+        // decide which accounts it is allowed to disable.
+        var logins = await userManager.GetLoginsAsync(user) ?? [];
+        if (!logins.Any(login => login.LoginProvider == LdapLoginProvider))
+            await userManager.AddLoginAsync(user, new UserLoginInfo(LdapLoginProvider, profile.UserName ?? user.Id.ToString(), "LDAP"));
 
         await ApplyRolesAsync(user, MapGroupsToRoles(profile.MemberOf, config));
         return user;
@@ -125,15 +136,32 @@ public sealed class LdapSyncService(
         return synced;
     }
 
+    private const string LdapLoginProvider = "Ldap";
+
     private async Task DeactivateMissingUsers(HashSet<string> synced, CancellationToken ct)
     {
+        // SECURITY: an empty result is far more likely a directory or filter
+        // problem than every employee leaving; disabling on it locked everyone out.
+        if (synced.Count == 0)
+        {
+            logger.LogWarning("LDAP sync returned no users; skipping deactivation of missing accounts.");
+            return;
+        }
+
         var users = await userManager.Users
-            .Where(u => u.EmailConfirmed && u.UserName != null && !synced.Contains(u.UserName))
+            .Where(u => u.IsActive && u.EmailConfirmed && u.UserName != null && !synced.Contains(u.UserName))
             .Take(1000).ToListAsync(ct);
         foreach (var user in users)
         {
+            // Only accounts this service provisioned from the directory. Local
+            // administrators, break-glass, SAML and SCIM accounts are not its to disable.
+            var logins = await userManager.GetLoginsAsync(user) ?? [];
+            if (!logins.Any(login => login.LoginProvider == LdapLoginProvider))
+                continue;
+
             user.IsActive = false;
             await userManager.UpdateAsync(user);
+            await userManager.UpdateSecurityStampAsync(user);
         }
     }
 
@@ -159,7 +187,9 @@ public sealed class LdapSyncService(
 
     private LdapConnection Connect(LdapConfig config)
     {
-        var connection = new LdapConnection();
+        // UseSsl must turn TLS on, not just select port 636: without this the
+        // service-account bind is sent in clear text.
+        var connection = new LdapConnection { SecureSocketLayer = config.UseSsl };
         var port = config.UseSsl ? 636 : config.Port;
         connection.Connect(config.Server, port);
         if (!config.UseSsl && config.RequireStartTls)

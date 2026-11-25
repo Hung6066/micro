@@ -331,6 +331,9 @@ public static class MfaEndpoints
 
     private static bool HasCompletedMfa(ClaimsPrincipal principal) =>
         principal.Claims
+            .Where(claim => claim.Type is His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.AuthenticationMethod
+                or ClaimTypes.AuthenticationMethod
+                or "http://schemas.microsoft.com/claims/authnmethodsreferences")
             .SelectMany(claim => claim.Value.Trim('[', ']').Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Any(value =>
                 string.Equals(value.Trim('"'), "otp", StringComparison.OrdinalIgnoreCase) ||

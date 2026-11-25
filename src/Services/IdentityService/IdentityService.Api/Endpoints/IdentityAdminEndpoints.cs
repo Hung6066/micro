@@ -43,6 +43,15 @@ public static class IdentityAdminEndpoints
             .BlockEndUserPortal();
         iamControlPlane.MapIamControlPlaneEndpoints();
         iamControlPlane.MapInfraAuditEndpoints();
+        // Result of the scheduled audit hash-chain verification (super admins only).
+        iamControlPlane.MapGet("/audit-integrity", async (StackExchange.Redis.IConnectionMultiplexer redis) =>
+        {
+            var status = await redis.GetDatabase().StringGetAsync(
+                His.Hope.IdentityService.Infrastructure.Services.AuditIntegrityVerifier.StatusKey);
+            return status.HasValue
+                ? Results.Content(status.ToString(), "application/json")
+                : Results.NotFound(new { errorCode = "audit_integrity_not_verified_yet" });
+        });
         admin.MapMyInfraAuditEndpoints();
         app.MapAdminIncidentEndpoints();
         admin.MapSettingsEndpoints();

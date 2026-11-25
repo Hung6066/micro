@@ -20,7 +20,7 @@ using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.IdentityService.Api.Services;
 
-public sealed record OidcLoginCompletionResult(bool RequiresMfa, string RedirectUrl);
+public sealed record OidcLoginCompletionResult(bool RequiresMfa, string RedirectUrl, bool Rejected = false);
 public sealed record AdaptiveMfaMethods(
     string? PreferredMethod,
     IReadOnlyList<string> AvailableMethods,
@@ -109,6 +109,7 @@ public sealed class OidcLoginCompletionService(
     private static readonly TimeSpan PendingMfaLifetime = TimeSpan.FromMinutes(5);
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("HisHope.OidcMfa.v1");
     private readonly IDatabase redisDb = redis.GetDatabase();
+    private readonly MfaAttemptGuard mfaGuard = new(redis);
 
     public async Task<OidcLoginCompletionResult> CompletePrimaryAsync(
         HttpContext context,
@@ -118,6 +119,13 @@ public sealed class OidcLoginCompletionService(
         CancellationToken cancellationToken = default)
     {
         var safeReturnUrl = ResolveSafeReturnUrl(context, returnUrl);
+
+        // SECURITY: every primary factor (password, LDAP, SAML, external IdP,
+        // passkey, mTLS) ends here, so a disabled or locked account is refused
+        // centrally instead of relying on each caller to remember the check.
+        if (!user.IsActive || LoginAttemptGuard.IsLockedOut(user))
+            return new(false, "/Account/Login?error=invalid_credentials", Rejected: true);
+
         var mfaEnabled = user.TwoFactorEnabled || await db.UserMfas
             .AsNoTracking()
             .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, cancellationToken);
@@ -202,9 +210,20 @@ public sealed class OidcLoginCompletionService(
         if (user is null || !user.IsActive || mfa is null || !mfa.IsEnabled)
             return new(PendingMfaCompletionStatus.Unauthorized, null);
 
+        if (await mfaGuard.IsBlockedAsync(pending.UserId))
+        {
+            await DeletePendingMfaAsync(context, pending.PendingId);
+            return new(PendingMfaCompletionStatus.Unauthorized, null);
+        }
+
         var secret = encryptor.Decrypt(mfa.SecretKey);
-        if (!totpService.VerifyCode(secret, code.Trim()))
+        if (!totpService.TryVerifyCode(secret, code.Trim(), out var totpStep) ||
+            !await mfaGuard.TryConsumeTotpStepAsync(pending.UserId, totpStep))
+        {
+            await mfaGuard.RecordFailureAsync(pending.UserId);
             return new(PendingMfaCompletionStatus.InvalidCode, null);
+        }
+        await mfaGuard.ResetAsync(pending.UserId);
 
         var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "otp");
         return new(PendingMfaCompletionStatus.Success, redirectUrl);
@@ -225,6 +244,12 @@ public sealed class OidcLoginCompletionService(
         var user = await userManager.FindByIdAsync(pending.UserId.ToString());
         if (user is null || !user.IsActive)
             return new(PendingMfaCompletionStatus.Unauthorized, null);
+
+        if (await mfaGuard.IsBlockedAsync(pending.UserId))
+        {
+            await DeletePendingMfaAsync(context, pending.PendingId);
+            return new(PendingMfaCompletionStatus.Unauthorized, null);
+        }
 
         var codeHash = recoveryCodeService.HashCode(recoveryCode);
         var consumeStatus = await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
@@ -252,7 +277,12 @@ public sealed class OidcLoginCompletionService(
         });
 
         if (consumeStatus != PendingMfaCompletionStatus.Success)
+        {
+            if (consumeStatus == PendingMfaCompletionStatus.InvalidRecoveryCode)
+                await mfaGuard.RecordFailureAsync(pending.UserId);
             return new(consumeStatus, null);
+        }
+        await mfaGuard.ResetAsync(pending.UserId);
 
         var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "recovery_code");
         return new(PendingMfaCompletionStatus.Success, redirectUrl);

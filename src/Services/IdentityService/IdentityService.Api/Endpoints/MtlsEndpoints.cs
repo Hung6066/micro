@@ -38,6 +38,8 @@ public static class MtlsEndpoints
                 return Results.Unauthorized();
 
             var result = await completion.CompletePrimaryAsync(http, user, "/", ["mtls"], ct);
+            if (result.Rejected)
+                return Results.Unauthorized();
             return Results.Redirect(result.RedirectUrl);
         }).AllowAnonymous();
 
