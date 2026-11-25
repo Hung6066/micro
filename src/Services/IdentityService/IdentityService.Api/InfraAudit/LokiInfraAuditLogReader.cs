@@ -101,7 +101,7 @@ public sealed class LokiInfraAuditLogReader(
             ca = X509Certificate2.CreateFromPem(options.CaCertificatePem.Replace("\\n", "\n", StringComparison.Ordinal));
         else
             return handler;
-        handler.SslOptions.RemoteCertificateValidationCallback = (_, certificate, _, errors) =>
+        handler.SslOptions.RemoteCertificateValidationCallback = (_, certificate, presented, errors) =>
         {
             if (certificate is null) return false;
             if (errors == System.Net.Security.SslPolicyErrors.None) return true;
@@ -110,6 +110,11 @@ public sealed class LokiInfraAuditLogReader(
             chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
             chain.ChainPolicy.CustomTrustStore.Add(ca);
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            // The relay certificate is issued by an intermediate that the server sends
+            // with the leaf; it must be available to the chain builder.
+            if (presented is not null)
+                foreach (var element in presented.ChainElements)
+                    chain.ChainPolicy.ExtraStore.Add(element.Certificate);
             return chain.Build(new X509Certificate2(certificate));
         };
         return handler;
