@@ -240,6 +240,15 @@ const iamWorkbenchRoutes: Routes = [
         (m) => m.BreakGlassPageComponent,
       ),
   },
+  {
+    // Full audit is super-admin only (server-enforced); others see their own activity.
+    path: "iam/infra-audit",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/infra-audit/infra-audit-page.component").then(
+        (m) => m.InfraAuditPageComponent,
+      ),
+  },
 ];
 
 export const routes: Routes = [

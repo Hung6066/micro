@@ -618,6 +618,17 @@ public static class IdentityServiceRegistrationExtensions
             .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.OpenShip.OpenShipConsoleOptions.SectionName));
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.DevicePosture.DevicePosturePolicyEvaluator>();
 
+        // Infrastructure access audit (Loki tenant openship-access-audit via the query relay).
+        // Unconfigured hosts answer 503 infra_audit_unavailable instead of failing to start.
+        builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAudit.InfraAuditOptions>()
+            .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.InfraAudit.InfraAuditOptions.SectionName));
+        builder.Services.AddHttpClient(His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(services => His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader.CreateHandler(
+                services.GetRequiredService<Microsoft.Extensions.Options.IOptions<His.Hope.IdentityService.Application.InfraAudit.InfraAuditOptions>>().Value));
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.IInfraAuditLogReader,
+            His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>();
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.InfraAuditService>();
+
         // LDAP Sync service (disabled by default)
         builder.Services.AddScoped<ExternalIdentityProviderRuntime>();
         builder.Services.AddScoped<LdapSyncService>();

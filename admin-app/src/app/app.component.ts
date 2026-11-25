@@ -301,6 +301,14 @@ export class AppComponent {
           fallback: "Break-glass access",
           permission: "admin.roles.read",
         },
+        {
+          id: "infra-audit",
+          route: "/iam/infra-audit",
+          icon: "policy",
+          labelKey: "admin.infraAudit",
+          fallback: "Infrastructure audit",
+          permission: "admin.roles.read",
+        },
       ],
     },
     {

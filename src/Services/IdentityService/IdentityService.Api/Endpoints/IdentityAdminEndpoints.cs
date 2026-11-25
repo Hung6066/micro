@@ -42,6 +42,8 @@ public static class IdentityAdminEndpoints
             .RequireOperatorPortal()
             .BlockEndUserPortal();
         iamControlPlane.MapIamControlPlaneEndpoints();
+        iamControlPlane.MapInfraAuditEndpoints();
+        admin.MapMyInfraAuditEndpoints();
         app.MapAdminIncidentEndpoints();
         admin.MapSettingsEndpoints();
         admin.MapAuditLogEndpoints();
