@@ -24,6 +24,7 @@ function grant(overrides: Partial<AgentRootGrant> = {}): AgentRootGrant {
     approvedByEmail: null,
     approvedAt: null,
     validBefore: null,
+    requestedDevices: [],
     certificates: [],
     revokedBy: null,
     revokedAt: null,
@@ -37,7 +38,7 @@ function grant(overrides: Partial<AgentRootGrant> = {}): AgentRootGrant {
 }
 
 function listOf(items: AgentRootGrant[], enabled = true): AgentRootGrantList {
-  return { enabled, agentId: "openship-agent-root", principal: "root-breakglass", minMinutes: 30, maxMinutes: 480, pendingTtlMinutes: 60, activeDevices: ["k3s-manager"], items };
+  return { enabled, agentId: "openship-agent-root", principal: "root-breakglass", minMinutes: 30, maxMinutes: 480, pendingTtlMinutes: 60, activeDevices: [{ id: "dev-k3s", name: "k3s-manager-vmi3129107" }, { id: "dev-win", name: "win-liam" }], items };
 }
 
 function setup(api: Partial<AgentRootGrantsApiService>) {
@@ -74,7 +75,9 @@ describe("AgentRootGrantsPageComponent", () => {
     const remaining = page.columns.find((column) => column.key === "remainingMinutes")!;
     expect(remaining.computed!(page.rows[1])).toBe("1 h 35 min");
     expect(page.columns.map((column) => column.key)).toContain("actions");
-    expect(page.activeDevices).toEqual(["k3s-manager"]);
+    expect(page.activeDevices.map((device) => device.name)).toEqual(["k3s-manager-vmi3129107", "win-liam"]);
+    // The K3s manager is preselected.
+    expect(page.form.controls.deviceIds.value).toEqual(["dev-k3s"]);
   });
 
   it("shows which devices got a certificate for a grant", () => {
@@ -83,6 +86,7 @@ describe("AgentRootGrantsPageComponent", () => {
       { deviceName: "mac-hung", serial: "2" },
     ] }));
     expect(row["devices"]).toBe("k3s-manager, mac-hung");
+    expect(toRow(grant({ requestedDevices: ["win-liam", "mac-hung"] }))["devices"]).toBe("win-liam, mac-hung");
   });
 
   it("adds a device with trimmed fields and toggles it", () => {
@@ -121,16 +125,22 @@ describe("AgentRootGrantsPageComponent", () => {
     const create = jasmine.createSpy("create").and.returnValue(of(grant({ requestedByMe: true })));
     const page = setup({ list, create });
 
-    page.form.setValue({ durationMinutes: 240, reason: "  short " });
+    page.form.setValue({ durationMinutes: 240, deviceIds: ["dev-k3s"], reason: "  short " });
     expect(page.canSubmit).toBeFalse();
     page.submit();
     expect(create).not.toHaveBeenCalled();
 
-    page.form.setValue({ durationMinutes: 240, reason: "  Rotate the etcd encryption key  " });
+    page.form.setValue({ durationMinutes: 1440, deviceIds: [], reason: "  Rotate the etcd encryption key  " });
+    expect(page.canSubmit).toBeFalse();
+    page.form.setValue({ durationMinutes: 1440, deviceIds: ["dev-k3s", "dev-win"], reason: "  Rotate the etcd encryption key  " });
     expect(page.canSubmit).toBeTrue();
     page.submit();
 
-    expect(create).toHaveBeenCalledOnceWith({ durationMinutes: 240, reason: "Rotate the etcd encryption key" });
+    expect(create).toHaveBeenCalledOnceWith({
+      durationMinutes: 1440,
+      reason: "Rotate the etcd encryption key",
+      deviceIds: ["dev-k3s", "dev-win"],
+    });
     expect(list).toHaveBeenCalledTimes(2);
     expect(page.form.controls.reason.value).toBe("");
   });
@@ -160,14 +170,14 @@ describe("AgentRootGrantsPageComponent", () => {
     expect(page.message).toContain("another super admin");
     expect(page.busy).toBeFalse();
 
-    page.form.setValue({ durationMinutes: 60, reason: "Patch kubelet on all nodes" });
+    page.form.setValue({ durationMinutes: 60, deviceIds: ["dev-k3s"], reason: "Patch kubelet on all nodes" });
     page.submit();
     expect(page.message).toContain("fresh MFA");
   });
 
   it("disables requests when the feature is off on the server", () => {
     const page = setup({ list: () => of(listOf([], false)) });
-    page.form.setValue({ durationMinutes: 60, reason: "Patch kubelet on all nodes" });
+    page.form.setValue({ durationMinutes: 60, deviceIds: ["dev-k3s"], reason: "Patch kubelet on all nodes" });
     expect(page.enabled).toBeFalse();
     expect(page.canSubmit).toBeFalse();
   });

@@ -880,6 +880,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.RequestedByEmail).HasMaxLength(256).IsRequired();
             entity.Property(item => item.ApprovedByEmail).HasMaxLength(256);
             entity.Property(item => item.FailureReason).HasMaxLength(500);
+            entity.Property(item => item.RequestedDeviceIds).HasMaxLength(4000);
             entity.HasIndex(item => new { item.AgentId, item.Status });
         });
 

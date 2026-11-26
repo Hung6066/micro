@@ -25,6 +25,12 @@ public class AgentRootGrant
     public string? ApprovedByEmail { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public DateTime? ValidBefore { get; set; }
+    /// <summary>
+    /// JSON array of the <see cref="AgentRootDevice"/> ids the requester chose; only these are
+    /// signed on approval. Null on grants made before devices were chosen (all active devices).
+    /// </summary>
+    public string? RequestedDeviceIds { get; set; }
+
     public Guid? RevokedBy { get; set; }
     public DateTime? RevokedAt { get; set; }
     public string? FailureReason { get; set; }

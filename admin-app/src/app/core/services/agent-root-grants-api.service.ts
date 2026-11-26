@@ -22,6 +22,8 @@ export interface AgentRootGrant {
   approvedByEmail: string | null;
   approvedAt: string | null;
   validBefore: string | null;
+  /** Devices the requester chose (empty on grants from before device selection). */
+  requestedDevices: string[];
   /** Devices that got a certificate for this grant (serials only). */
   certificates: AgentRootIssued[];
   revokedBy: string | null;
@@ -57,6 +59,11 @@ export interface AddAgentRootDeviceRequest {
   clientId: string;
 }
 
+export interface AgentRootDeviceChoice {
+  id: string;
+  name: string;
+}
+
 export interface AgentRootGrantList {
   enabled: boolean;
   agentId: string;
@@ -64,14 +71,16 @@ export interface AgentRootGrantList {
   minMinutes: number;
   maxMinutes: number;
   pendingTtlMinutes: number;
-  /** Devices an approval would sign right now. */
-  activeDevices: string[];
+  /** Active devices a requester can choose. */
+  activeDevices: AgentRootDeviceChoice[];
   items: AgentRootGrant[];
 }
 
 export interface CreateAgentRootGrantRequest {
   durationMinutes: number;
   reason: string;
+  /** One or more active devices; only these are signed on approval. */
+  deviceIds: string[];
 }
 
 @Injectable({ providedIn: "root" })

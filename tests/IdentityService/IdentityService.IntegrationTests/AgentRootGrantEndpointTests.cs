@@ -25,6 +25,9 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
     private static readonly string Devices = $"{IdentityApiRoutes.AdminIam}/infra-access/agent-root-devices";
     private const string AgentId = "openship-agent-root";
 
+    /// <summary>The K3s manager device seeded by migration 20261126110000.</summary>
+    private static readonly Guid ManagerDeviceId = Guid.Parse("7d0c5c2e-5b7a-4f37-9d3c-0a1f6e2b9c41");
+
     [Fact]
     public async Task Anonymous_callers_cannot_reach_agent_root_endpoints()
     {
@@ -38,7 +41,8 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
     {
         using var session = await fixture.CreateAuthenticatedSessionAsync();
 
-        var created = await session.PostWithCookiesAsync(Root, new { durationMinutes = 60, reason = "Patch kubelet on all nodes" });
+        var created = await session.PostWithCookiesAsync(Root,
+            new { durationMinutes = 60, reason = "Patch kubelet on all nodes", deviceIds = new[] { ManagerDeviceId } });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var grant = await created.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("pending", grant.GetProperty("status").GetString());
@@ -63,8 +67,19 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
         using var session = await fixture.CreateAuthenticatedSessionAsync();
         var tooShort = await session.PostWithCookiesAsync(Root, new { durationMinutes = 10, reason = "Patch kubelet on all nodes" });
         Assert.Equal(HttpStatusCode.BadRequest, tooShort.StatusCode);
-        var noReason = await session.PostWithCookiesAsync(Root, new { durationMinutes = 60, reason = "short" });
+        var noReason = await session.PostWithCookiesAsync(Root, new { durationMinutes = 60, reason = "short", deviceIds = new[] { ManagerDeviceId } });
         Assert.Equal(HttpStatusCode.BadRequest, noReason.StatusCode);
+        var noDevice = await session.PostWithCookiesAsync(Root, new { durationMinutes = 60, reason = "Patch kubelet on all nodes" });
+        Assert.Equal(HttpStatusCode.BadRequest, noDevice.StatusCode);
+        var unknownDevice = await session.PostWithCookiesAsync(Root,
+            new { durationMinutes = 60, reason = "Patch kubelet on all nodes", deviceIds = new[] { Guid.NewGuid() } });
+        Assert.Equal(HttpStatusCode.BadRequest, unknownDevice.StatusCode);
+        var tooLong = await session.PostWithCookiesAsync(Root,
+            new { durationMinutes = 1441, reason = "Patch kubelet on all nodes", deviceIds = new[] { ManagerDeviceId } });
+        Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+        var fullDay = await session.PostWithCookiesAsync(Root,
+            new { durationMinutes = 1440, reason = "Overnight etcd defragmentation", deviceIds = new[] { ManagerDeviceId } });
+        Assert.Equal(HttpStatusCode.Created, fullDay.StatusCode);
 
         using var passwordOnly = fixture.CreateSessionClient();
         Assert.Equal(HttpStatusCode.OK, (await passwordOnly.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
@@ -120,7 +135,7 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.DoesNotContain("ssh-ed25519-cert-v01", listBody, StringComparison.Ordinal);
         var listRoot = JsonDocument.Parse(listBody).RootElement;
-        Assert.Contains(listRoot.GetProperty("activeDevices").EnumerateArray(), item => item.GetString() == nameA);
+        Assert.Contains(listRoot.GetProperty("activeDevices").EnumerateArray(), item => item.GetProperty("name").GetString() == nameA);
         var row = listRoot.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == id);
         var serialA = row.GetProperty("certificates").EnumerateArray()
             .Single(item => item.GetProperty("deviceName").GetString() == nameA).GetProperty("serial").GetString();
@@ -165,6 +180,47 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
         Assert.Contains(audit, item => item.Action == "AUTHZ_AGENT_ROOT_DEVICE_ADD");
         Assert.Contains(audit, item => item.Action == "AUTHZ_AGENT_ROOT_DEVICE_DISABLE");
         Assert.DoesNotContain(audit, item => (item.AfterJson ?? string.Empty).Contains("ssh-ed25519-cert-v01", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Approval_signs_only_the_devices_chosen_in_the_request()
+    {
+        await RevokeAllActiveAsync();
+        using var session = await fixture.CreateAuthenticatedSessionAsync();
+        var (clientA, tokenA) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
+        var (clientB, tokenB) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
+        var (clientC, tokenC) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
+        var keyA = NewPublicKey("chosen-a");
+        var keyB = NewPublicKey("chosen-b");
+        var keyC = NewPublicKey("not-chosen");
+        var nameA = $"pick-a-{Guid.NewGuid():N}"[..18];
+        var nameB = $"pick-b-{Guid.NewGuid():N}"[..18];
+        var nameC = $"pick-c-{Guid.NewGuid():N}"[..18];
+        var deviceA = await AddDeviceAsync(session, nameA, keyA, clientA);
+        var deviceB = await AddDeviceAsync(session, nameB, keyB, clientB);
+        await AddDeviceAsync(session, nameC, keyC, clientC);
+
+        var id = await SeedPendingAsync(Guid.NewGuid(), "requester-six@example.test", durationMinutes: 1440,
+            deviceIds: [deviceA, deviceB]);
+        var list = JsonDocument.Parse(await (await session.GetWithCookiesAsync(Root)).Content.ReadAsStringAsync()).RootElement;
+        var pending = list.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == id);
+        Assert.Equal(new[] { nameA, nameB }.Order(StringComparer.Ordinal),
+            pending.GetProperty("requestedDevices").EnumerateArray().Select(item => item.GetString()!));
+        Assert.Contains(list.GetProperty("activeDevices").EnumerateArray(),
+            item => item.GetProperty("id").GetGuid() == deviceA && item.GetProperty("name").GetString() == nameA);
+
+        var approve = await session.PostWithCookiesAsync($"{Root}/{id}/approve");
+        Assert.True(approve.StatusCode == HttpStatusCode.OK, await approve.Content.ReadAsStringAsync());
+        var calls = fixture.AgentRootSigner.Calls.Where(call => call.KeyId.Contains(id.ToString("D"), StringComparison.Ordinal)).ToList();
+        Assert.Equal(2, calls.Count);
+        Assert.Contains(calls, call => call.PublicKey == keyA && call.Ttl == TimeSpan.FromHours(24));
+        Assert.Contains(calls, call => call.PublicKey == keyB);
+        Assert.DoesNotContain(calls, call => call.PublicKey == keyC);
+
+        Assert.Equal(HttpStatusCode.OK, (await FetchAsync(tokenA)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await FetchAsync(tokenB)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await FetchAsync(tokenC)).StatusCode);
+        await RevokeAllActiveAsync();
     }
 
     [Fact]
@@ -243,7 +299,8 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
     private static async Task<string?> ErrorCodeAsync(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("errorCode", out var code) ? code.GetString() : null;
 
-    private async Task<Guid> SeedPendingAsync(Guid requester, string requesterEmail, int durationMinutes, DateTime? requestedAt = null)
+    private async Task<Guid> SeedPendingAsync(Guid requester, string requesterEmail, int durationMinutes, DateTime? requestedAt = null,
+        Guid[]? deviceIds = null)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -252,6 +309,7 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
             Id = Guid.NewGuid(), AgentId = AgentId, Reason = "Rotate the etcd encryption key", DurationMinutes = durationMinutes,
             Status = AgentRootGrant.StatusPending, RequestedBy = requester, RequestedByEmail = requesterEmail,
             RequestedAt = requestedAt ?? DateTime.UtcNow,
+            RequestedDeviceIds = deviceIds is null ? null : JsonSerializer.Serialize(deviceIds),
         };
         db.AgentRootGrants.Add(grant);
         await db.SaveChangesAsync();

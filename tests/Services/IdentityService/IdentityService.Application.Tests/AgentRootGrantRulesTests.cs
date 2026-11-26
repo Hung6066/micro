@@ -22,8 +22,9 @@ public sealed class AgentRootGrantRulesTests
     [Theory]
     [InlineData(30, true)]
     [InlineData(480, true)]
+    [InlineData(1440, true)]
     [InlineData(29, false)]
-    [InlineData(481, false)]
+    [InlineData(1441, false)]
     public void Duration_must_be_within_configured_bounds(int minutes, bool valid)
     {
         var errors = AgentRootGrantRules.ValidateRequest(minutes, "Rotate node certificates", Options);

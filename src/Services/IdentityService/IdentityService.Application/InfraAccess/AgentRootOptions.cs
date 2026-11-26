@@ -26,7 +26,7 @@ public sealed class AgentRootOptions
 
     public int MinMinutes { get; set; } = 30;
 
-    public int MaxMinutes { get; set; } = 480;
+    public int MaxMinutes { get; set; } = 1440;
 
     /// <summary>A request that nobody approved within this window can no longer be approved.</summary>
     public int PendingTtlMinutes { get; set; } = 60;

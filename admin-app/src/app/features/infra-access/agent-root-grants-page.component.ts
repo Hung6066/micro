@@ -27,12 +27,13 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import {
   AgentRootDevice,
+  AgentRootDeviceChoice,
   AgentRootGrant,
   AgentRootGrantsApiService,
 } from "../../core/services/agent-root-grants-api.service";
 
-/** Grant durations offered in the form, in minutes (the server allows 30 min to 8 h). */
-export const AGENT_ROOT_DURATIONS = [30, 60, 120, 240, 480] as const;
+/** Grant durations offered in the form, in minutes (the server allows 30 min to 24 h). */
+export const AGENT_ROOT_DURATIONS = [30, 60, 120, 240, 480, 720, 1440] as const;
 
 export const REASON_MIN_LENGTH = 10;
 export const REASON_MAX_LENGTH = 500;
@@ -85,7 +86,8 @@ export const REASON_MAX_LENGTH = 500;
         <p class="warning">
           {{
             "admin.agentRootDisabled"
-              | hhTranslate: "Agent root access is disabled on this IdentityService."
+              | hhTranslate
+                : "Agent root access is disabled on this IdentityService."
           }}
         </p>
       }
@@ -95,12 +97,16 @@ export const REASON_MAX_LENGTH = 500;
 
       <p class="devices-note">
         @if (activeDevices.length) {
-          {{ "admin.agentRootSignsDevices" | hhTranslate: "An approval signs these devices:" }}
-          <strong>{{ activeDevices.join(", ") }}</strong>
+          {{
+            "admin.agentRootChooseDevices"
+              | hhTranslate
+                : "Choose the devices that need root; an approval signs only those."
+          }}
         } @else if (loaded) {
           {{
             "admin.agentRootNoDevices"
-              | hhTranslate: "No active device yet: add one under Agent root devices before requesting access."
+              | hhTranslate
+                : "No active device yet: add one under Agent root devices before requesting access."
           }}
         }
       </p>
@@ -109,29 +115,50 @@ export const REASON_MAX_LENGTH = 500;
         <mat-card-content>
           <form class="request" [formGroup]="form" (ngSubmit)="submit()">
             <mat-form-field appearance="outline">
-              <mat-label>{{ "admin.agentRootDuration" | hhTranslate: "Duration" }}</mat-label>
+              <mat-label>{{
+                "admin.agentRootDuration" | hhTranslate: "Duration"
+              }}</mat-label>
               <mat-select formControlName="durationMinutes">
                 @for (minutes of durations; track minutes) {
-                  <mat-option [value]="minutes">{{ durationLabel(minutes) }}</mat-option>
+                  <mat-option [value]="minutes">{{
+                    durationLabel(minutes)
+                  }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>{{
+                "admin.agentRootDevicesColumn" | hhTranslate: "Devices"
+              }}</mat-label>
+              <mat-select formControlName="deviceIds" multiple>
+                @for (device of activeDevices; track device.id) {
+                  <mat-option [value]="device.id">{{ device.name }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
             <mat-form-field appearance="outline" class="reason">
-              <mat-label>{{ "admin.reason" | hhTranslate: "Reason" }}</mat-label>
+              <mat-label>{{
+                "admin.reason" | hhTranslate: "Reason"
+              }}</mat-label>
               <textarea
                 matInput
                 formControlName="reason"
                 rows="3"
                 [attr.maxlength]="reasonMaxLength"
               ></textarea>
-              <mat-hint>{{ form.controls.reason.value.trim().length }} / {{ reasonMaxLength }}</mat-hint>
+              <mat-hint
+                >{{ form.controls.reason.value.trim().length }} /
+                {{ reasonMaxLength }}</mat-hint
+              >
             </mat-form-field>
             <hh-action-button
               type="submit"
               kind="primary"
               icon="key"
               [disabled]="!canSubmit"
-              [label]="'admin.agentRootRequest' | hhTranslate: 'Request root access'"
+              [label]="
+                'admin.agentRootRequest' | hhTranslate: 'Request root access'
+              "
             />
           </form>
         </mat-card-content>
@@ -144,7 +171,9 @@ export const REASON_MAX_LENGTH = 500;
         [loading]="loading"
         [error]="tableError"
         [empty]="!loading && !tableError && !rows.length"
-        [emptyMessage]="'admin.agentRootEmpty' | hhTranslate: 'No agent root grants yet.'"
+        [emptyMessage]="
+          'admin.agentRootEmpty' | hhTranslate: 'No agent root grants yet.'
+        "
       >
         <ng-template hhDataTableCell="actions" let-row>
           <div class="action-cell">
@@ -172,7 +201,9 @@ export const REASON_MAX_LENGTH = 500;
         </ng-template>
       </hh-data-table>
 
-      <h2 class="section-title">{{ "admin.agentRootDevices" | hhTranslate: "Agent root devices" }}</h2>
+      <h2 class="section-title">
+        {{ "admin.agentRootDevices" | hhTranslate: "Agent root devices" }}
+      </h2>
       <p class="devices-note">
         {{
           "admin.agentRootDevicesHelp"
@@ -182,18 +213,33 @@ export const REASON_MAX_LENGTH = 500;
       </p>
       <mat-card class="form-card">
         <mat-card-content>
-          <form class="request" [formGroup]="deviceForm" (ngSubmit)="addDevice()">
+          <form
+            class="request"
+            [formGroup]="deviceForm"
+            (ngSubmit)="addDevice()"
+          >
             <mat-form-field appearance="outline">
-              <mat-label>{{ "admin.agentRootDeviceName" | hhTranslate: "Device name" }}</mat-label>
+              <mat-label>{{
+                "admin.agentRootDeviceName" | hhTranslate: "Device name"
+              }}</mat-label>
               <input matInput formControlName="name" maxlength="64" />
             </mat-form-field>
             <mat-form-field appearance="outline">
-              <mat-label>{{ "admin.clientId" | hhTranslate: "Client ID" }}</mat-label>
+              <mat-label>{{
+                "admin.clientId" | hhTranslate: "Client ID"
+              }}</mat-label>
               <input matInput formControlName="clientId" maxlength="128" />
             </mat-form-field>
             <mat-form-field appearance="outline" class="reason">
-              <mat-label>{{ "admin.agentRootPublicKey" | hhTranslate: "Public key (.pub)" }}</mat-label>
-              <textarea matInput formControlName="publicKey" rows="2" maxlength="1024"></textarea>
+              <mat-label>{{
+                "admin.agentRootPublicKey" | hhTranslate: "Public key (.pub)"
+              }}</mat-label>
+              <textarea
+                matInput
+                formControlName="publicKey"
+                rows="2"
+                maxlength="1024"
+              ></textarea>
             </mat-form-field>
             <hh-action-button
               type="submit"
@@ -211,7 +257,9 @@ export const REASON_MAX_LENGTH = 500;
         [rows]="deviceRows"
         [loading]="loading"
         [empty]="!loading && !deviceRows.length"
-        [emptyMessage]="'admin.agentRootNoDevicesTable' | hhTranslate: 'No devices yet.'"
+        [emptyMessage]="
+          'admin.agentRootNoDevicesTable' | hhTranslate: 'No devices yet.'
+        "
       >
         <ng-template hhDataTableCell="actions" let-row>
           <div class="action-cell">
@@ -275,6 +323,7 @@ export class AgentRootGrantsPageComponent implements OnInit {
   readonly reasonMaxLength = REASON_MAX_LENGTH;
   readonly form = new FormGroup({
     durationMinutes: new FormControl<number>(60, { nonNullable: true }),
+    deviceIds: new FormControl<string[]>([], { nonNullable: true }),
     reason: new FormControl<string>("", { nonNullable: true }),
   });
 
@@ -286,7 +335,7 @@ export class AgentRootGrantsPageComponent implements OnInit {
 
   grants: AgentRootGrant[] = [];
   devices: AgentRootDevice[] = [];
-  activeDevices: string[] = [];
+  activeDevices: AgentRootDeviceChoice[] = [];
   enabled = true;
   loaded = false;
   loading = false;
@@ -299,6 +348,7 @@ export class AgentRootGrantsPageComponent implements OnInit {
     return (
       this.enabled &&
       !this.busy &&
+      this.form.controls.deviceIds.value.length > 0 &&
       reason.length >= REASON_MIN_LENGTH &&
       reason.length <= REASON_MAX_LENGTH
     );
@@ -321,19 +371,40 @@ export class AgentRootGrantsPageComponent implements OnInit {
   get deviceColumns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
-      { key: "name", label: this.i18n.t("admin.agentRootDeviceName", "Device name") },
+      {
+        key: "name",
+        label: this.i18n.t("admin.agentRootDeviceName", "Device name"),
+      },
       {
         key: "isActive",
         label: this.i18n.t("admin.status", "Status"),
         computed: (row) =>
-          row["isActive"] ? this.i18n.t("admin.active", "active") : this.i18n.t("admin.disabled", "disabled"),
+          row["isActive"]
+            ? this.i18n.t("admin.active", "active")
+            : this.i18n.t("admin.disabled", "disabled"),
       },
       { key: "clientId", label: this.i18n.t("admin.clientId", "Client ID") },
-      { key: "fingerprint", label: this.i18n.t("admin.fingerprint", "Fingerprint") },
-      { key: "lastFetchedAt", label: this.i18n.t("admin.agentRootLastFetch", "Last fetch"), format: "dateTime" },
+      {
+        key: "fingerprint",
+        label: this.i18n.t("admin.fingerprint", "Fingerprint"),
+      },
+      {
+        key: "lastFetchedAt",
+        label: this.i18n.t("admin.agentRootLastFetch", "Last fetch"),
+        format: "dateTime",
+      },
       { key: "addedByEmail", label: this.i18n.t("admin.addedBy", "Added by") },
-      { key: "addedAt", label: this.i18n.t("admin.added", "Added"), format: "dateTime" },
-      { key: "actions", label: this.i18n.t("admin.actions", "Actions"), sortable: false, hideable: false },
+      {
+        key: "addedAt",
+        label: this.i18n.t("admin.added", "Added"),
+        format: "dateTime",
+      },
+      {
+        key: "actions",
+        label: this.i18n.t("admin.actions", "Actions"),
+        sortable: false,
+        hideable: false,
+      },
     ];
   }
 
@@ -344,17 +415,45 @@ export class AgentRootGrantsPageComponent implements OnInit {
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
-      { key: "status", label: this.i18n.t("admin.status", "Status"), computed: (row) => this.statusLabel(row) },
-      { key: "requestedByEmail", label: this.i18n.t("admin.requester", "Requester") },
-      { key: "approvedByEmail", label: this.i18n.t("admin.approver", "Approver") },
-      { key: "devices", label: this.i18n.t("admin.agentRootDevicesColumn", "Devices") },
-      { key: "requestedAt", label: this.i18n.t("admin.requested", "Requested"), format: "dateTime" },
-      { key: "approvedAt", label: this.i18n.t("admin.approved", "Approved"), format: "dateTime" },
-      { key: "validBefore", label: this.i18n.t("admin.validUntil", "Valid until"), format: "dateTime" },
+      {
+        key: "status",
+        label: this.i18n.t("admin.status", "Status"),
+        computed: (row) => this.statusLabel(row),
+      },
+      {
+        key: "requestedByEmail",
+        label: this.i18n.t("admin.requester", "Requester"),
+      },
+      {
+        key: "approvedByEmail",
+        label: this.i18n.t("admin.approver", "Approver"),
+      },
+      {
+        key: "devices",
+        label: this.i18n.t("admin.agentRootDevicesColumn", "Devices"),
+      },
+      {
+        key: "requestedAt",
+        label: this.i18n.t("admin.requested", "Requested"),
+        format: "dateTime",
+      },
+      {
+        key: "approvedAt",
+        label: this.i18n.t("admin.approved", "Approved"),
+        format: "dateTime",
+      },
+      {
+        key: "validBefore",
+        label: this.i18n.t("admin.validUntil", "Valid until"),
+        format: "dateTime",
+      },
       {
         key: "remainingMinutes",
         label: this.i18n.t("admin.remaining", "Remaining"),
-        computed: (row) => (row["active"] ? this.durationLabel(Number(row["remainingMinutes"])) : ""),
+        computed: (row) =>
+          row["active"]
+            ? this.durationLabel(Number(row["remainingMinutes"]))
+            : "",
       },
       { key: "reason", label: this.i18n.t("admin.reason", "Reason") },
       {
@@ -378,6 +477,18 @@ export class AgentRootGrantsPageComponent implements OnInit {
       next: (list) => {
         this.grants = list.items;
         this.activeDevices = list.activeDevices ?? [];
+        // Drop choices that are no longer active; preselect the K3s manager on first load.
+        const active = new Set(this.activeDevices.map((device) => device.id));
+        const kept = this.form.controls.deviceIds.value.filter((id) =>
+          active.has(id),
+        );
+        if (!kept.length) {
+          const manager = this.activeDevices.find((device) =>
+            device.name.startsWith("k3s-manager"),
+          );
+          if (manager) kept.push(manager.id);
+        }
+        this.form.controls.deviceIds.setValue(kept);
         this.enabled = list.enabled;
         this.loaded = true;
         this.loading = false;
@@ -411,7 +522,11 @@ export class AgentRootGrantsPageComponent implements OnInit {
     this.busy = true;
     this.message = "";
     this.api
-      .addDevice({ name: value.name.trim(), clientId: value.clientId.trim(), publicKey: value.publicKey.trim() })
+      .addDevice({
+        name: value.name.trim(),
+        clientId: value.clientId.trim(),
+        publicKey: value.publicKey.trim(),
+      })
       .subscribe({
         next: () => {
           this.busy = false;
@@ -423,7 +538,9 @@ export class AgentRootGrantsPageComponent implements OnInit {
   }
 
   toggleDevice(row: Record<string, unknown>): void {
-    this.act(this.api.setDeviceActive(String(row["id"]), row["isActive"] !== true));
+    this.act(
+      this.api.setDeviceActive(String(row["id"]), row["isActive"] !== true),
+    );
   }
 
   submit(): void {
@@ -431,14 +548,20 @@ export class AgentRootGrantsPageComponent implements OnInit {
     const value = this.form.getRawValue();
     this.busy = true;
     this.message = "";
-    this.api.create({ durationMinutes: value.durationMinutes, reason: value.reason.trim() }).subscribe({
-      next: () => {
-        this.busy = false;
-        this.form.controls.reason.setValue("");
-        this.load();
-      },
-      error: (error: HttpErrorResponse) => this.fail(error),
-    });
+    this.api
+      .create({
+        durationMinutes: value.durationMinutes,
+        reason: value.reason.trim(),
+        deviceIds: value.deviceIds,
+      })
+      .subscribe({
+        next: () => {
+          this.busy = false;
+          this.form.controls.reason.setValue("");
+          this.load();
+        },
+        error: (error: HttpErrorResponse) => this.fail(error),
+      });
   }
 
   canApprove(row: Record<string, unknown>): boolean {
@@ -460,11 +583,18 @@ export class AgentRootGrantsPageComponent implements OnInit {
   }
 
   durationLabel(minutes: number): string {
-    if (minutes < 60) return this.i18n.t("admin.minutes", "{{n}} min").replace("{{n}}", String(minutes));
+    if (minutes < 60)
+      return this.i18n
+        .t("admin.minutes", "{{n}} min")
+        .replace("{{n}}", String(minutes));
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
-    const label = this.i18n.t("admin.hours", "{{n}} h").replace("{{n}}", String(hours));
-    return rest ? `${label} ${this.i18n.t("admin.minutes", "{{n}} min").replace("{{n}}", String(rest))}` : label;
+    const label = this.i18n
+      .t("admin.hours", "{{n}} h")
+      .replace("{{n}}", String(hours));
+    return rest
+      ? `${label} ${this.i18n.t("admin.minutes", "{{n}} min").replace("{{n}}", String(rest))}`
+      : label;
   }
 
   private act(request: Observable<unknown>): void {
@@ -489,7 +619,8 @@ export class AgentRootGrantsPageComponent implements OnInit {
 
   private statusLabel(row: Record<string, unknown>): string {
     const status = String(row["status"] ?? "");
-    if (status === "issued" && !row["active"]) return this.i18n.t("admin.agentRootStatusExpired", "expired");
+    if (status === "issued" && !row["active"])
+      return this.i18n.t("admin.agentRootStatusExpired", "expired");
     return this.i18n.t(`admin.agentRootStatus.${status}`, status);
   }
 
@@ -507,7 +638,10 @@ export class AgentRootGrantsPageComponent implements OnInit {
           "You requested this grant; another super admin must approve it.",
         );
       case "agent_root_disabled":
-        return this.i18n.t("admin.agentRootDisabled", "Agent root access is disabled on this IdentityService.");
+        return this.i18n.t(
+          "admin.agentRootDisabled",
+          "Agent root access is disabled on this IdentityService.",
+        );
       case "agent_root_sign_failed":
         return this.i18n.t(
           "admin.agentRootSignFailed",
@@ -519,20 +653,41 @@ export class AgentRootGrantsPageComponent implements OnInit {
           "The request was not approved in time and has expired. Request a new grant.",
         );
       case "agent_root_not_pending":
-        return this.i18n.t("admin.agentRootNotPending", "This grant is no longer pending.");
+        return this.i18n.t(
+          "admin.agentRootNotPending",
+          "This grant is no longer pending.",
+        );
       case "agent_root_grant_closed":
-        return this.i18n.t("admin.agentRootClosed", "This grant is already closed.");
+        return this.i18n.t(
+          "admin.agentRootClosed",
+          "This grant is already closed.",
+        );
       case "agent_root_no_devices":
-        return this.i18n.t("admin.agentRootNoDevices", "No active device yet: add one under Agent root devices before requesting access.");
+        return this.i18n.t(
+          "admin.agentRootNoDevices",
+          "No active device yet: add one under Agent root devices before requesting access.",
+        );
       case "agent_root_device_exists":
-        return this.i18n.t("admin.agentRootDeviceExists", "A device with this name already exists.");
+        return this.i18n.t(
+          "admin.agentRootDeviceExists",
+          "A device with this name already exists.",
+        );
       case "agent_root_key_in_use":
-        return this.i18n.t("admin.agentRootKeyInUse", "This public key is already registered.");
+        return this.i18n.t(
+          "admin.agentRootKeyInUse",
+          "This public key is already registered.",
+        );
       case "agent_root_client_in_use":
-        return this.i18n.t("admin.agentRootClientInUse", "That client already belongs to an active device; create one client per device.");
+        return this.i18n.t(
+          "admin.agentRootClientInUse",
+          "That client already belongs to an active device; create one client per device.",
+        );
     }
     if (error.status === 400) {
-      const fields = Object.values((error.error as { errors?: Record<string, string[]> } | null)?.errors ?? {}).flat();
+      const fields = Object.values(
+        (error.error as { errors?: Record<string, string[]> } | null)?.errors ??
+          {},
+      ).flat();
       if (fields.length) return fields.join(" ");
       return this.i18n.t(
         "admin.agentRootInvalid",
@@ -540,8 +695,14 @@ export class AgentRootGrantsPageComponent implements OnInit {
       );
     }
     if (error.status === 403)
-      return this.i18n.t("admin.agentRootForbidden", "Only super admins can manage agent root access.");
-    return this.i18n.t("admin.agentRootFailed", "The agent root request failed.");
+      return this.i18n.t(
+        "admin.agentRootForbidden",
+        "Only super admins can manage agent root access.",
+      );
+    return this.i18n.t(
+      "admin.agentRootFailed",
+      "The agent root request failed.",
+    );
   }
 }
 
@@ -549,6 +710,10 @@ export function toRow(grant: AgentRootGrant): Record<string, unknown> {
   return {
     ...grant,
     approvedByEmail: grant.approvedByEmail ?? "",
-    devices: (grant.certificates ?? []).map((item) => item.deviceName).join(", "),
+    // Issued grants show who actually got a certificate; others show what was requested.
+    devices: (grant.certificates?.length
+      ? grant.certificates.map((item) => item.deviceName)
+      : (grant.requestedDevices ?? [])
+    ).join(", "),
   };
 }

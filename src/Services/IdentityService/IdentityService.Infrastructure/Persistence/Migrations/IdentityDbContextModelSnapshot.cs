@@ -485,6 +485,11 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("requested_by_email");
 
+                    b.Property<string>("RequestedDeviceIds")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("requested_device_ids");
+
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("revoked_at");

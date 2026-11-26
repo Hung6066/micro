@@ -59,19 +59,22 @@ public static class AgentRootGrantEndpoints
             .WithOpenApi();
     }
 
-    public sealed record CreateAgentRootGrantRequest(int DurationMinutes, string? Reason);
+    public sealed record CreateAgentRootGrantRequest(int DurationMinutes, string? Reason, Guid[]? DeviceIds);
 
     /// <summary>List row. The certificate itself is never part of it.</summary>
     public sealed record AgentRootGrantDto(
         Guid Id, string AgentId, string Reason, int DurationMinutes, string Status,
         Guid RequestedBy, string RequestedByEmail, DateTime RequestedAt,
         Guid? ApprovedBy, string? ApprovedByEmail, DateTime? ApprovedAt,
-        DateTime? ValidBefore, IReadOnlyList<AgentRootIssuedDto> Certificates,
+        DateTime? ValidBefore, IReadOnlyList<string> RequestedDevices, IReadOnlyList<AgentRootIssuedDto> Certificates,
         Guid? RevokedBy, DateTime? RevokedAt, string? FailureReason,
         bool Active, int RemainingMinutes, bool RequestedByMe, DateTime? PendingUntil);
 
     /// <summary>Which device got a certificate for a grant (serial only, never the certificate).</summary>
     public sealed record AgentRootIssuedDto(string DeviceName, string Serial);
+
+    /// <summary>A device the requester can choose (active devices only).</summary>
+    public sealed record AgentRootDeviceChoice(Guid Id, string Name);
 
     public sealed record AgentRootCertificateResponse(Guid GrantId, string DeviceName, string Certificate, DateTime ValidBefore, string? Serial);
 
@@ -100,12 +103,16 @@ public static class AgentRootGrantEndpoints
                 Status = item.Status, RequestedBy = item.RequestedBy, RequestedByEmail = item.RequestedByEmail,
                 RequestedAt = item.RequestedAt, ApprovedBy = item.ApprovedBy, ApprovedByEmail = item.ApprovedByEmail,
                 ApprovedAt = item.ApprovedAt, ValidBefore = item.ValidBefore,
+                RequestedDeviceIds = item.RequestedDeviceIds,
                 RevokedBy = item.RevokedBy, RevokedAt = item.RevokedAt, FailureReason = item.FailureReason,
             })
             .ToListAsync(ct);
         var issued = await IssuedByGrantAsync(db, grants.Select(item => item.Id).ToArray(), ct);
+        var deviceNames = await db.AgentRootDevices.AsNoTracking()
+            .ToDictionaryAsync(device => device.Id, device => device.Name, ct);
         var activeDevices = await db.AgentRootDevices.AsNoTracking()
-            .Where(device => device.IsActive).OrderBy(device => device.Name).Select(device => device.Name).ToArrayAsync(ct);
+            .Where(device => device.IsActive).OrderBy(device => device.Name)
+            .Select(device => new AgentRootDeviceChoice(device.Id, device.Name)).ToArrayAsync(ct);
         return Results.Ok(new
         {
             enabled = settings.Enabled,
@@ -114,9 +121,9 @@ public static class AgentRootGrantEndpoints
             minMinutes = settings.MinMinutes,
             maxMinutes = settings.MaxMinutes,
             pendingTtlMinutes = settings.PendingTtlMinutes,
-            // What an approval would sign right now; shown to the approver.
+            // The devices a requester can choose from.
             activeDevices,
-            items = grants.Select(item => ToDto(item, me, now, settings, issued.GetValueOrDefault(item.Id))).ToArray(),
+            items = grants.Select(item => ToDto(item, me, now, settings, issued.GetValueOrDefault(item.Id), deviceNames)).ToArray(),
         });
     }
 
@@ -132,6 +139,16 @@ public static class AgentRootGrantEndpoints
         var errors = AgentRootGrantRules.ValidateRequest(request.DurationMinutes, request.Reason, settings);
         if (errors.Count > 0)
             return Results.ValidationProblem(errors);
+        var requestedIds = (request.DeviceIds ?? []).Distinct().ToArray();
+        if (requestedIds.Length == 0)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["deviceIds"] = ["Choose at least one device."] });
+        var chosen = await db.AgentRootDevices.AsNoTracking()
+            .Where(device => requestedIds.Contains(device.Id) && device.IsActive)
+            .OrderBy(device => device.Name)
+            .Select(device => new { device.Id, device.Name })
+            .ToListAsync(ct);
+        if (chosen.Count != requestedIds.Length)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["deviceIds"] = ["Every chosen device must exist and be active."] });
         if (await ResolveActorAsync(http, db, ct) is not { } actor)
             return Results.Forbid();
 
@@ -146,13 +163,14 @@ public static class AgentRootGrantEndpoints
             RequestedBy = actor.Id,
             RequestedByEmail = actor.Email,
             RequestedAt = now,
+            RequestedDeviceIds = JsonSerializer.Serialize(chosen.Select(device => device.Id)),
         };
         db.AgentRootGrants.Add(grant);
         await db.SaveChangesAsync(ct);
         await AdminAudit.LogAuthorizationChangeAsync(db, http, "AGENT_ROOT_GRANT_REQUEST", ResourceType, grant.Id.ToString("D"),
-            grant.Reason, null, Snapshot(grant), ct);
+            grant.Reason, null, Snapshot(grant, [], chosen.Select(device => device.Name).ToArray()), ct);
         return Results.Created($"{IdentityApiRoutes.AdminIam}/infra-access/agent-root-grants/{grant.Id:D}",
-            ToDto(grant, actor.Id, now, settings, []));
+            ToDto(grant, actor.Id, now, settings, [], chosen.ToDictionary(device => device.Id, device => device.Name)));
     }
 
     internal static async Task<IResult> Approve(
@@ -191,11 +209,15 @@ public static class AgentRootGrantEndpoints
             }
         }
 
+        // Only the devices the requester chose (still active); grants from before device
+        // selection existed sign every active device.
+        var chosenIds = ParseDeviceIds(grant.RequestedDeviceIds);
         var devices = await db.AgentRootDevices.AsNoTracking()
-            .Where(device => device.IsActive).OrderBy(device => device.Name).ToListAsync(ct);
+            .Where(device => device.IsActive && (chosenIds == null || chosenIds.Contains(device.Id)))
+            .OrderBy(device => device.Name).ToListAsync(ct);
         if (devices.Count == 0)
             return Problem(StatusCodes.Status409Conflict, "agent_root_no_devices",
-                "No active agent device; add one under Agent root devices first.");
+                "None of the chosen devices is active any more; request a new grant.");
 
         // Claim the grant atomically so two approvers racing each other cannot both sign.
         var claimed = await db.AgentRootGrants
@@ -260,7 +282,8 @@ public static class AgentRootGrantEndpoints
         // Snapshot carries the serial only; the certificate never goes into audit.
         await AdminAudit.LogAuthorizationChangeAsync(db, http, "AGENT_ROOT_GRANT_APPROVE", ResourceType, id.ToString("D"),
             "Agent root grant approved and certificates issued.", before, Snapshot(grant, issued), ct);
-        return Results.Ok(ToDto(grant, approver.Id, clock.GetUtcNow().UtcDateTime, settings, issued));
+        return Results.Ok(ToDto(grant, approver.Id, clock.GetUtcNow().UtcDateTime, settings, issued,
+            devices.ToDictionary(device => device.Id, device => device.Name)));
     }
 
     /// <remarks>
@@ -289,7 +312,7 @@ public static class AgentRootGrantEndpoints
         await db.SaveChangesAsync(ct);
         await AdminAudit.LogAuthorizationChangeAsync(db, http, "AGENT_ROOT_GRANT_REVOKE", ResourceType, id.ToString("D"),
             "Agent root grant revoked.", before, Snapshot(grant, issuedBefore), ct);
-        return Results.Ok(ToDto(grant, actor.Id, now, options.CurrentValue, issuedBefore));
+        return Results.Ok(ToDto(grant, actor.Id, now, options.CurrentValue, issuedBefore, null));
     }
 
     /// <remarks>
@@ -467,15 +490,27 @@ public static class AgentRootGrantEndpoints
     }
 
     private static AgentRootGrantDto ToDto(
-        AgentRootGrant item, Guid? me, DateTime now, AgentRootOptions settings, IReadOnlyList<AgentRootIssuedDto>? issued) => new(
+        AgentRootGrant item, Guid? me, DateTime now, AgentRootOptions settings, IReadOnlyList<AgentRootIssuedDto>? issued,
+        IReadOnlyDictionary<Guid, string>? deviceNames) => new(
         item.Id, item.AgentId, item.Reason, item.DurationMinutes, item.Status,
         item.RequestedBy, item.RequestedByEmail, Utc(item.RequestedAt)!.Value,
         item.ApprovedBy, item.ApprovedByEmail, Utc(item.ApprovedAt),
-        Utc(item.ValidBefore), issued ?? [],
+        Utc(item.ValidBefore),
+        (ParseDeviceIds(item.RequestedDeviceIds) ?? [])
+            .Select(id => deviceNames is not null && deviceNames.TryGetValue(id, out var name) ? name : id.ToString("D"))
+            .Order(StringComparer.Ordinal).ToArray(),
+        issued ?? [],
         item.RevokedBy, Utc(item.RevokedAt), item.FailureReason,
         AgentRootGrantRules.IsActive(item, now), AgentRootGrantRules.RemainingMinutes(item, now),
         me is { } current && current == item.RequestedBy,
         item.Status == AgentRootGrant.StatusPending ? Utc(item.RequestedAt.AddMinutes(settings.PendingTtlMinutes)) : null);
+
+    private static Guid[]? ParseDeviceIds(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return JsonSerializer.Deserialize<Guid[]>(json); }
+        catch (JsonException) { return []; }
+    }
 
     private static AgentRootDeviceDto ToDeviceDto(AgentRootDevice item) => new(
         item.Id, item.Name, item.Fingerprint, item.ClientId, item.IsActive, item.AddedByEmail,
@@ -484,9 +519,10 @@ public static class AgentRootGrantEndpoints
     private static DateTime? Utc(DateTime? value) => value is { } v ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : null;
 
     /// <summary>Audit snapshot: everything except certificate text (device names and serials only).</summary>
-    private static string Snapshot(AgentRootGrant item, IReadOnlyList<AgentRootIssuedDto> issued) => JsonSerializer.Serialize(new
+    private static string Snapshot(AgentRootGrant item, IReadOnlyList<AgentRootIssuedDto> issued, IReadOnlyList<string>? requestedDevices = null) => JsonSerializer.Serialize(new
     {
         item.Id, item.AgentId, item.Reason, item.DurationMinutes, item.Status,
+        item.RequestedDeviceIds, RequestedDevices = requestedDevices,
         item.RequestedBy, item.RequestedByEmail, item.RequestedAt,
         item.ApprovedBy, item.ApprovedByEmail, item.ApprovedAt,
         item.ValidBefore, Certificates = issued, item.RevokedBy, item.RevokedAt, item.FailureReason,
