@@ -99,5 +99,8 @@ describe("ClientEditDialogComponent", () => {
     expect(component.scopeOptions).toContain(
       jasmine.objectContaining({ value: "openship.console.access" }),
     );
+    expect(component.scopeOptions).toContain(
+      jasmine.objectContaining({ value: "openship.agent.root.certificate" }),
+    );
   });
 });

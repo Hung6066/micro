@@ -364,6 +364,10 @@ export class ClientEditDialogComponent {
       label: "identity.clients.reconcile",
     },
     { value: "openship.console.access", label: "openship.console.access" },
+    {
+      value: "openship.agent.root.certificate",
+      label: "openship.agent.root.certificate",
+    },
   ] as const;
   readonly formGroup: FormGroup;
   private readonly initialClient: OidcClient | null;
