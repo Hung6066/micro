@@ -4,6 +4,8 @@ using System.Text.Json;
 using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Application.InfraAudit;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -16,7 +18,7 @@ public sealed class InfraAuditEndpointTests(IdentityServiceTestFixture fixture)
     [Fact]
     public async Task Anonymous_callers_cannot_read_the_infrastructure_audit()
     {
-        foreach (var route in new[] { $"{Root}/meta", $"{Root}/events", $"{Root}/export", $"{IdentityApiRoutes.Admin}/infra-audit/me/events" })
+        foreach (var route in new[] { $"{Root}/meta", $"{Root}/events", $"{Root}/export", $"{Root}/warpgate-sessions", $"{IdentityApiRoutes.Admin}/infra-audit/me/events" })
         {
             var response = await fixture.AnonymousClient.GetAsync(route);
             Assert.True(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Redirect, route);
@@ -56,6 +58,53 @@ public sealed class InfraAuditEndpointTests(IdentityServiceTestFixture fixture)
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             Assert.Equal("invalid_infra_audit_query",
                 (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errorCode").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task Open_warpgate_sessions_validate_the_window_and_answer_503_when_unconfigured()
+    {
+        using var session = await fixture.CreateAuthenticatedSessionAsync();
+
+        foreach (var hours in new[] { "0", "-1", "745" })
+        {
+            var invalid = await session.GetWithCookiesAsync($"{Root}/warpgate-sessions?hours={hours}");
+            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+            Assert.Equal("invalid_infra_audit_query",
+                (await invalid.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errorCode").GetString());
+        }
+
+        var response = await session.GetWithCookiesAsync($"{Root}/warpgate-sessions?hours=24");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal("infra_audit_unavailable",
+            (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errorCode").GetString());
+    }
+
+    [Fact]
+    public async Task Admins_who_are_not_super_admins_cannot_see_open_warpgate_sessions()
+    {
+        var configuration = fixture.Services.GetRequiredService<IConfiguration>();
+        const string key = "Identity:SuperAdmin:UserIds:0";
+        const string restrictKey = "Identity:SuperAdmin:RestrictToControlPlane";
+        var previous = configuration[key];
+        var previousRestriction = configuration[restrictKey];
+        try
+        {
+            // Same admin, removed from the super-admin allowlist: HumanSuperAdmin must refuse.
+            configuration[key] = null;
+            configuration[restrictKey] = "true";
+            using var session = fixture.CreateSessionClient();
+            Assert.Equal(HttpStatusCode.OK, (await session.LoginAsAdminAsync()).StatusCode);
+
+            var sessions = await session.GetWithCookiesAsync($"{Root}/warpgate-sessions");
+            Assert.Equal(HttpStatusCode.Forbidden, sessions.StatusCode);
+            var events = await session.GetWithCookiesAsync($"{Root}/events");
+            Assert.Equal(HttpStatusCode.Forbidden, events.StatusCode);
+        }
+        finally
+        {
+            configuration[key] = previous;
+            configuration[restrictKey] = previousRestriction;
         }
     }
 

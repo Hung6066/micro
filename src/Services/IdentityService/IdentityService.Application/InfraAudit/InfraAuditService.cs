@@ -65,6 +65,21 @@ public sealed class InfraAuditService(IInfraAuditLogReader reader, IOptions<Infr
                 .ToList());
     }
 
+    /// <summary>
+    /// Warpgate sessions that started in [from, to] and have not logged an end. Lines are read
+    /// newest first, so a truncated scan loses only the oldest starts.
+    /// </summary>
+    public async Task<WarpgateOpenSessions> GetOpenWarpgateSessionsAsync(
+        DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        var raw = await reader.ReadAsync(WarpgateSessionTracker.BuildQuery(from, to, SummaryScanLimit),
+            from, to, SummaryScanLimit, cancellationToken);
+        var events = raw
+            .Select(entry => InfraAuditNormalizer.Normalize(entry.Timestamp, entry.Line))
+            .OfType<InfraAuditEvent>();
+        return new WarpgateOpenSessions(from, to, WarpgateSessionTracker.OpenSessions(events), raw.Count >= SummaryScanLimit);
+    }
+
     private static IEnumerable<InfraAuditEvent> Normalize(
         IEnumerable<(DateTimeOffset Timestamp, string Line)> raw, InfraAuditFilter filter)
     {

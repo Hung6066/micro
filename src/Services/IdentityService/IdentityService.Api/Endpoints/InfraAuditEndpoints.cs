@@ -25,6 +25,7 @@ public static class InfraAuditEndpoints
         group.MapGet("/summary", Summary);
         group.MapGet("/export", Export);
         group.MapGet("/grants/{id:guid}/timeline", GrantTimeline);
+        group.MapGet("/warpgate-sessions", WarpgateSessions);
     }
 
     /// <summary>Maps "my activity" on the human-admin /api/v1/admin group.</summary>
@@ -120,6 +121,21 @@ public static class InfraAuditEndpoints
             var page = await service.GetPageAsync(filter, ct);
             await AdminAudit.LogAsync(audit, http, "VIEW", "InfraAuditGrantTimeline", id.ToString("D"), ct);
             return Results.Ok(new { grantId = id, from = start, to = end, items = page.Items, truncated = page.NextTo is not null });
+        });
+    }
+
+    private static async Task<IResult> WarpgateSessions(
+        int? hours, InfraAuditService service, TimeProvider clock,
+        IAuditService audit, HttpContext http, CancellationToken ct)
+    {
+        if (WarpgateSessionTracker.TryCreateWindow(clock.GetUtcNow(), service.Options, hours, out var from, out var to) is { } error)
+            return Invalid(error);
+        return await Guarded(async () =>
+        {
+            var sessions = await service.GetOpenWarpgateSessionsAsync(from, to, ct);
+            await AdminAudit.LogAsync(audit, http, "VIEW", "InfraAuditWarpgateSessions",
+                string.Create(CultureInfo.InvariantCulture, $"hours={hours ?? WarpgateSessionTracker.DefaultHours} open={sessions.Items.Count}"), ct);
+            return Results.Ok(new { from, to, items = sessions.Items, truncated = sessions.Truncated });
         });
     }
 
