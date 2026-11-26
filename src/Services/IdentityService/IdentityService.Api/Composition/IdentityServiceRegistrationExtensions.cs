@@ -700,9 +700,8 @@ public static class IdentityServiceRegistrationExtensions
         // Agent root SSH grants: four-eyes approval, then Vault SSH CA signs the agent key.
         builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions>()
             .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions.SectionName))
-            .PostConfigure(options => options.PublicKey = options.PublicKey?.Trim() ?? string.Empty)
             .Validate(options => options.Validate().Count == 0,
-                $"{His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions.SectionName} is invalid (agent id, Vault mount/role, principal, duration bounds or ssh-ed25519 public key).")
+                $"{His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions.SectionName} is invalid (agent id, Vault mount/role, principal or duration bounds).")
             .ValidateOnStart();
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAccess.IAgentRootCertificateSigner,
             VaultAgentRootCertificateSigner>();

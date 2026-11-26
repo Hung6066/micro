@@ -5,8 +5,8 @@ namespace His.Hope.IdentityService.Application.InfraAccess;
 /// <summary>
 /// Time-limited root SSH for the infrastructure automation agent. A super admin requests a
 /// grant, a different super admin approves it with a fresh MFA, and IdentityService asks the
-/// Vault SSH CA (<see cref="VaultMount"/>/<see cref="VaultRole"/>) to sign <see cref="PublicKey"/>
-/// for <see cref="Principal"/>. Nodes trust that CA for the principal; nothing else is needed
+/// Vault SSH CA (<see cref="VaultMount"/>/<see cref="VaultRole"/>) to sign the key of every active
+/// device (admin-app "Agent root devices") for <see cref="Principal"/>. Nodes trust that CA for the principal; nothing else is needed
 /// on the node side.
 /// </summary>
 public sealed class AgentRootOptions
@@ -17,9 +17,6 @@ public sealed class AgentRootOptions
 
     /// <summary>Identifier of the agent; the certificate fetcher asks for this id.</summary>
     public string AgentId { get; set; } = "openship-agent-root";
-
-    /// <summary>The agent's OpenSSH public key, one line: "ssh-ed25519 AAAA… comment".</summary>
-    public string PublicKey { get; set; } = string.Empty;
 
     public string VaultMount { get; set; } = "ssh-client-signer";
 
@@ -37,6 +34,17 @@ public sealed class AgentRootOptions
     private static readonly Regex Ed25519PublicKey = new(
         @"^ssh-ed25519 AAAAC3NzaC1lZDI1NTE5[A-Za-z0-9+/]{40,}={0,2}( [\x21-\x7E]{1,200})?$",
         RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+
+    /// <summary>True for a device name usable in a certificate key ID.</summary>
+    public static bool IsValidDeviceName(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= 64 && Segment.IsMatch(value);
+
+    /// <summary>OpenSSH "SHA256:..." fingerprint of a valid ed25519 public key line.</summary>
+    public static string Fingerprint(string publicKey)
+    {
+        var blob = Convert.FromBase64String(publicKey.Trim().Split(' ')[1]);
+        return "SHA256:" + Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(blob)).TrimEnd('=');
+    }
 
     private static readonly Regex Segment = new(
         "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
@@ -64,8 +72,6 @@ public sealed class AgentRootOptions
             errors.Add($"{SectionName}:MinMinutes/MaxMinutes must satisfy 1 <= Min <= Max <= 1440.");
         if (PendingTtlMinutes is < 1 or > 24 * 60)
             errors.Add($"{SectionName}:PendingTtlMinutes must be between 1 and 1440.");
-        if (Enabled && !IsValidPublicKey(PublicKey?.Trim()))
-            errors.Add($"{SectionName}:PublicKey must be one 'ssh-ed25519 AAAA… comment' line when Enabled is true.");
         return errors;
     }
 }

@@ -22,7 +22,8 @@ export interface AgentRootGrant {
   approvedByEmail: string | null;
   approvedAt: string | null;
   validBefore: string | null;
-  certificateSerial: string | null;
+  /** Devices that got a certificate for this grant (serials only). */
+  certificates: AgentRootIssued[];
   revokedBy: string | null;
   revokedAt: string | null;
   failureReason: string | null;
@@ -32,6 +33,30 @@ export interface AgentRootGrant {
   pendingUntil: string | null;
 }
 
+export interface AgentRootIssued {
+  deviceName: string;
+  serial: string;
+}
+
+/** A machine allowed to hold the agent root certificate, with its own key and client. */
+export interface AgentRootDevice {
+  id: string;
+  name: string;
+  fingerprint: string;
+  clientId: string;
+  isActive: boolean;
+  addedByEmail: string;
+  addedAt: string;
+  disabledAt: string | null;
+  lastFetchedAt: string | null;
+}
+
+export interface AddAgentRootDeviceRequest {
+  name: string;
+  publicKey: string;
+  clientId: string;
+}
+
 export interface AgentRootGrantList {
   enabled: boolean;
   agentId: string;
@@ -39,6 +64,8 @@ export interface AgentRootGrantList {
   minMinutes: number;
   maxMinutes: number;
   pendingTtlMinutes: number;
+  /** Devices an approval would sign right now. */
+  activeDevices: string[];
   items: AgentRootGrant[];
 }
 
@@ -51,6 +78,7 @@ export interface CreateAgentRootGrantRequest {
 export class AgentRootGrantsApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.adminApiUrl}/iam/infra-access/agent-root-grants`;
+  private readonly devicesUrl = `${environment.adminApiUrl}/iam/infra-access/agent-root-devices`;
 
   /** Super-admin only; newest 100 grants. */
   list(): Observable<AgentRootGrantList> {
@@ -69,5 +97,22 @@ export class AgentRootGrantsApiService {
 
   revoke(id: string): Observable<AgentRootGrant> {
     return this.http.post<AgentRootGrant>(`${this.baseUrl}/${encodeURIComponent(id)}/revoke`, {});
+  }
+
+  listDevices(): Observable<AgentRootDevice[]> {
+    return this.http.get<AgentRootDevice[]>(this.devicesUrl);
+  }
+
+  /** Needs a fresh MFA. The client must exist and not belong to another active device. */
+  addDevice(request: AddAgentRootDeviceRequest): Observable<AgentRootDevice> {
+    return this.http.post<AgentRootDevice>(this.devicesUrl, request);
+  }
+
+  /** Needs a fresh MFA. A disabled device can no longer fetch certificates. */
+  setDeviceActive(id: string, active: boolean): Observable<AgentRootDevice> {
+    return this.http.post<AgentRootDevice>(
+      `${this.devicesUrl}/${encodeURIComponent(id)}/${active ? "enable" : "disable"}`,
+      {},
+    );
   }
 }

@@ -7,6 +7,7 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { HttpErrorResponse } from "@angular/common/http";
+import { Observable } from "rxjs";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -25,6 +26,7 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import {
+  AgentRootDevice,
   AgentRootGrant,
   AgentRootGrantsApiService,
 } from "../../core/services/agent-root-grants-api.service";
@@ -38,7 +40,8 @@ export const REASON_MAX_LENGTH = 500;
 /**
  * Time-limited root SSH for the infrastructure automation agent. A super admin requests a
  * grant; a different super admin approves it with a fresh MFA, and IdentityService has the
- * Vault SSH CA sign the agent key. Revoking stops distribution of the certificate.
+ * Vault SSH CA sign the key of every active device. Revoking stops distribution of the
+ * certificates; disabling a device stops that device's fetches.
  */
 @Component({
   selector: "app-agent-root-grants-page",
@@ -89,6 +92,18 @@ export const REASON_MAX_LENGTH = 500;
       @if (message) {
         <p class="error" role="alert">{{ message }}</p>
       }
+
+      <p class="devices-note">
+        @if (activeDevices.length) {
+          {{ "admin.agentRootSignsDevices" | hhTranslate: "An approval signs these devices:" }}
+          <strong>{{ activeDevices.join(", ") }}</strong>
+        } @else if (loaded) {
+          {{
+            "admin.agentRootNoDevices"
+              | hhTranslate: "No active device yet: add one under Agent root devices before requesting access."
+          }}
+        }
+      </p>
 
       <mat-card class="form-card">
         <mat-card-content>
@@ -156,6 +171,65 @@ export const REASON_MAX_LENGTH = 500;
           </div>
         </ng-template>
       </hh-data-table>
+
+      <h2 class="section-title">{{ "admin.agentRootDevices" | hhTranslate: "Agent root devices" }}</h2>
+      <p class="devices-note">
+        {{
+          "admin.agentRootDevicesHelp"
+            | hhTranslate
+              : "Each machine has its own ed25519 key and its own client_credentials client (scope openship.agent.root.certificate) and fetches only its own certificate."
+        }}
+      </p>
+      <mat-card class="form-card">
+        <mat-card-content>
+          <form class="request" [formGroup]="deviceForm" (ngSubmit)="addDevice()">
+            <mat-form-field appearance="outline">
+              <mat-label>{{ "admin.agentRootDeviceName" | hhTranslate: "Device name" }}</mat-label>
+              <input matInput formControlName="name" maxlength="64" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ "admin.clientId" | hhTranslate: "Client ID" }}</mat-label>
+              <input matInput formControlName="clientId" maxlength="128" />
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="reason">
+              <mat-label>{{ "admin.agentRootPublicKey" | hhTranslate: "Public key (.pub)" }}</mat-label>
+              <textarea matInput formControlName="publicKey" rows="2" maxlength="1024"></textarea>
+            </mat-form-field>
+            <hh-action-button
+              type="submit"
+              kind="primary"
+              icon="add"
+              [disabled]="!canAddDevice"
+              [label]="'admin.agentRootAddDevice' | hhTranslate: 'Add device'"
+            />
+          </form>
+        </mat-card-content>
+      </mat-card>
+      <hh-data-table
+        [label]="'admin.agentRootDevices' | hhTranslate: 'Agent root devices'"
+        [columns]="deviceColumns"
+        [rows]="deviceRows"
+        [loading]="loading"
+        [empty]="!loading && !deviceRows.length"
+        [emptyMessage]="'admin.agentRootNoDevicesTable' | hhTranslate: 'No devices yet.'"
+      >
+        <ng-template hhDataTableCell="actions" let-row>
+          <div class="action-cell">
+            <hh-action-button
+              [kind]="row['isActive'] ? 'danger' : 'secondary'"
+              mode="icon-only"
+              [icon]="row['isActive'] ? 'block' : 'check_circle'"
+              [label]="
+                row['isActive']
+                  ? ('admin.disable' | hhTranslate: 'Disable')
+                  : ('admin.enable' | hhTranslate: 'Enable')
+              "
+              [disabled]="busy"
+              (pressed)="toggleDevice(row)"
+            />
+          </div>
+        </ng-template>
+      </hh-data-table>
     </hh-page-layout>
   `,
   styles: [
@@ -175,6 +249,12 @@ export const REASON_MAX_LENGTH = 500;
       .action-cell {
         display: flex;
         gap: var(--space-sm);
+      }
+      .section-title {
+        margin: var(--space-lg) 0 var(--space-sm);
+      }
+      .devices-note {
+        margin: var(--space-sm) 0;
       }
       .warning,
       .error {
@@ -198,7 +278,15 @@ export class AgentRootGrantsPageComponent implements OnInit {
     reason: new FormControl<string>("", { nonNullable: true }),
   });
 
+  readonly deviceForm = new FormGroup({
+    name: new FormControl<string>("", { nonNullable: true }),
+    clientId: new FormControl<string>("", { nonNullable: true }),
+    publicKey: new FormControl<string>("", { nonNullable: true }),
+  });
+
   grants: AgentRootGrant[] = [];
+  devices: AgentRootDevice[] = [];
+  activeDevices: string[] = [];
   enabled = true;
   loaded = false;
   loading = false;
@@ -216,6 +304,39 @@ export class AgentRootGrantsPageComponent implements OnInit {
     );
   }
 
+  get canAddDevice(): boolean {
+    const value = this.deviceForm.getRawValue();
+    return (
+      !this.busy &&
+      /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(value.name.trim()) &&
+      value.clientId.trim().length > 0 &&
+      value.publicKey.trim().startsWith("ssh-ed25519 ")
+    );
+  }
+
+  get deviceRows(): Record<string, unknown>[] {
+    return this.devices.map((device) => ({ ...device }));
+  }
+
+  get deviceColumns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      { key: "name", label: this.i18n.t("admin.agentRootDeviceName", "Device name") },
+      {
+        key: "isActive",
+        label: this.i18n.t("admin.status", "Status"),
+        computed: (row) =>
+          row["isActive"] ? this.i18n.t("admin.active", "active") : this.i18n.t("admin.disabled", "disabled"),
+      },
+      { key: "clientId", label: this.i18n.t("admin.clientId", "Client ID") },
+      { key: "fingerprint", label: this.i18n.t("admin.fingerprint", "Fingerprint") },
+      { key: "lastFetchedAt", label: this.i18n.t("admin.agentRootLastFetch", "Last fetch"), format: "dateTime" },
+      { key: "addedByEmail", label: this.i18n.t("admin.addedBy", "Added by") },
+      { key: "addedAt", label: this.i18n.t("admin.added", "Added"), format: "dateTime" },
+      { key: "actions", label: this.i18n.t("admin.actions", "Actions"), sortable: false, hideable: false },
+    ];
+  }
+
   get rows(): Record<string, unknown>[] {
     return this.grants.map((grant) => toRow(grant));
   }
@@ -226,6 +347,7 @@ export class AgentRootGrantsPageComponent implements OnInit {
       { key: "status", label: this.i18n.t("admin.status", "Status"), computed: (row) => this.statusLabel(row) },
       { key: "requestedByEmail", label: this.i18n.t("admin.requester", "Requester") },
       { key: "approvedByEmail", label: this.i18n.t("admin.approver", "Approver") },
+      { key: "devices", label: this.i18n.t("admin.agentRootDevicesColumn", "Devices") },
       { key: "requestedAt", label: this.i18n.t("admin.requested", "Requested"), format: "dateTime" },
       { key: "approvedAt", label: this.i18n.t("admin.approved", "Approved"), format: "dateTime" },
       { key: "validBefore", label: this.i18n.t("admin.validUntil", "Valid until"), format: "dateTime" },
@@ -249,11 +371,13 @@ export class AgentRootGrantsPageComponent implements OnInit {
   }
 
   load(): void {
+    this.loadDevices();
     this.loading = true;
     this.tableError = "";
     this.api.list().subscribe({
       next: (list) => {
         this.grants = list.items;
+        this.activeDevices = list.activeDevices ?? [];
         this.enabled = list.enabled;
         this.loaded = true;
         this.loading = false;
@@ -266,6 +390,40 @@ export class AgentRootGrantsPageComponent implements OnInit {
         this.cdr.markForCheck();
       },
     });
+  }
+
+  loadDevices(): void {
+    this.api.listDevices().subscribe({
+      next: (devices) => {
+        this.devices = devices;
+        this.cdr.markForCheck();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.message = this.describe(error);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  addDevice(): void {
+    if (!this.canAddDevice) return;
+    const value = this.deviceForm.getRawValue();
+    this.busy = true;
+    this.message = "";
+    this.api
+      .addDevice({ name: value.name.trim(), clientId: value.clientId.trim(), publicKey: value.publicKey.trim() })
+      .subscribe({
+        next: () => {
+          this.busy = false;
+          this.deviceForm.reset();
+          this.load();
+        },
+        error: (error: HttpErrorResponse) => this.fail(error),
+      });
+  }
+
+  toggleDevice(row: Record<string, unknown>): void {
+    this.act(this.api.setDeviceActive(String(row["id"]), row["isActive"] !== true));
   }
 
   submit(): void {
@@ -309,7 +467,7 @@ export class AgentRootGrantsPageComponent implements OnInit {
     return rest ? `${label} ${this.i18n.t("admin.minutes", "{{n}} min").replace("{{n}}", String(rest))}` : label;
   }
 
-  private act(request: ReturnType<AgentRootGrantsApiService["approve"]>): void {
+  private act(request: Observable<unknown>): void {
     this.busy = true;
     this.message = "";
     request.subscribe({
@@ -364,12 +522,23 @@ export class AgentRootGrantsPageComponent implements OnInit {
         return this.i18n.t("admin.agentRootNotPending", "This grant is no longer pending.");
       case "agent_root_grant_closed":
         return this.i18n.t("admin.agentRootClosed", "This grant is already closed.");
+      case "agent_root_no_devices":
+        return this.i18n.t("admin.agentRootNoDevices", "No active device yet: add one under Agent root devices before requesting access.");
+      case "agent_root_device_exists":
+        return this.i18n.t("admin.agentRootDeviceExists", "A device with this name already exists.");
+      case "agent_root_key_in_use":
+        return this.i18n.t("admin.agentRootKeyInUse", "This public key is already registered.");
+      case "agent_root_client_in_use":
+        return this.i18n.t("admin.agentRootClientInUse", "That client already belongs to an active device; create one client per device.");
     }
-    if (error.status === 400)
+    if (error.status === 400) {
+      const fields = Object.values((error.error as { errors?: Record<string, string[]> } | null)?.errors ?? {}).flat();
+      if (fields.length) return fields.join(" ");
       return this.i18n.t(
         "admin.agentRootInvalid",
         "Choose a duration and give a reason of 10 to 500 characters.",
       );
+    }
     if (error.status === 403)
       return this.i18n.t("admin.agentRootForbidden", "Only super admins can manage agent root access.");
     return this.i18n.t("admin.agentRootFailed", "The agent root request failed.");
@@ -380,5 +549,6 @@ export function toRow(grant: AgentRootGrant): Record<string, unknown> {
   return {
     ...grant,
     approvedByEmail: grant.approvedByEmail ?? "",
+    devices: (grant.certificates ?? []).map((item) => item.deviceName).join(", "),
   };
 }

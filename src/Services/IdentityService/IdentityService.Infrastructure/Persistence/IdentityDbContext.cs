@@ -31,6 +31,8 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<UserFacility> UserFacilities => Set<UserFacility>();
     public DbSet<BreakGlassRequest> BreakGlassRequests => Set<BreakGlassRequest>();
     public DbSet<AgentRootGrant> AgentRootGrants => Set<AgentRootGrant>();
+    public DbSet<AgentRootDevice> AgentRootDevices => Set<AgentRootDevice>();
+    public DbSet<AgentRootCertificate> AgentRootCertificates => Set<AgentRootCertificate>();
     public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<AccessReview> AccessReviews => Set<AccessReview>();
     public DbSet<SupportElevation> SupportElevations => Set<SupportElevation>();
@@ -877,10 +879,33 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
             entity.Property(item => item.RequestedByEmail).HasMaxLength(256).IsRequired();
             entity.Property(item => item.ApprovedByEmail).HasMaxLength(256);
-            entity.Property(item => item.CertificateSerial).HasMaxLength(128);
-            entity.Property(item => item.Certificate).HasColumnType("text");
             entity.Property(item => item.FailureReason).HasMaxLength(500);
             entity.HasIndex(item => new { item.AgentId, item.Status });
+        });
+
+        builder.Entity<AgentRootDevice>(entity =>
+        {
+            entity.ToTable("agent_root_devices");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Name).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.PublicKey).HasMaxLength(1024).IsRequired();
+            entity.Property(item => item.Fingerprint).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.ClientId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.AddedByEmail).HasMaxLength(256).IsRequired();
+            entity.HasIndex(item => item.Name).IsUnique();
+            entity.HasIndex(item => item.Fingerprint).IsUnique();
+            entity.HasIndex(item => item.ClientId);
+        });
+
+        builder.Entity<AgentRootCertificate>(entity =>
+        {
+            entity.ToTable("agent_root_certificates");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.DeviceName).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Certificate).HasColumnType("text").IsRequired();
+            entity.Property(item => item.Serial).HasMaxLength(128).IsRequired();
+            entity.HasIndex(item => new { item.DeviceId, item.ValidBefore });
+            entity.HasIndex(item => item.GrantId);
         });
 
         builder.Entity<AccessRequest>(entity =>

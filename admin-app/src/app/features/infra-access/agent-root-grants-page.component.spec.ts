@@ -24,7 +24,7 @@ function grant(overrides: Partial<AgentRootGrant> = {}): AgentRootGrant {
     approvedByEmail: null,
     approvedAt: null,
     validBefore: null,
-    certificateSerial: null,
+    certificates: [],
     revokedBy: null,
     revokedAt: null,
     failureReason: null,
@@ -37,7 +37,7 @@ function grant(overrides: Partial<AgentRootGrant> = {}): AgentRootGrant {
 }
 
 function listOf(items: AgentRootGrant[], enabled = true): AgentRootGrantList {
-  return { enabled, agentId: "openship-agent-root", principal: "root-breakglass", minMinutes: 30, maxMinutes: 480, pendingTtlMinutes: 60, items };
+  return { enabled, agentId: "openship-agent-root", principal: "root-breakglass", minMinutes: 30, maxMinutes: 480, pendingTtlMinutes: 60, activeDevices: ["k3s-manager"], items };
 }
 
 function setup(api: Partial<AgentRootGrantsApiService>) {
@@ -45,7 +45,7 @@ function setup(api: Partial<AgentRootGrantsApiService>) {
     imports: [AgentRootGrantsPageComponent],
     providers: [
       provideZonelessChangeDetection(),
-      { provide: AgentRootGrantsApiService, useValue: api },
+      { provide: AgentRootGrantsApiService, useValue: { listDevices: () => of([]), ...api } },
       {
         provide: HisHopeI18nService,
         useValue: { t: (_key: string, fallback?: string) => fallback ?? _key, locale: () => "en" },
@@ -74,6 +74,46 @@ describe("AgentRootGrantsPageComponent", () => {
     const remaining = page.columns.find((column) => column.key === "remainingMinutes")!;
     expect(remaining.computed!(page.rows[1])).toBe("1 h 35 min");
     expect(page.columns.map((column) => column.key)).toContain("actions");
+    expect(page.activeDevices).toEqual(["k3s-manager"]);
+  });
+
+  it("shows which devices got a certificate for a grant", () => {
+    const row = toRow(grant({ status: "issued", certificates: [
+      { deviceName: "k3s-manager", serial: "1" },
+      { deviceName: "mac-hung", serial: "2" },
+    ] }));
+    expect(row["devices"]).toBe("k3s-manager, mac-hung");
+  });
+
+  it("adds a device with trimmed fields and toggles it", () => {
+    const device = {
+      id: "d1", name: "mac-hung", fingerprint: "SHA256:x", clientId: "agent-mac", isActive: true,
+      addedByEmail: "a@example.test", addedAt: "2026-11-26T01:00:00Z", disabledAt: null, lastFetchedAt: null,
+    };
+    const addDevice = jasmine.createSpy("addDevice").and.returnValue(of(device));
+    const setDeviceActive = jasmine.createSpy("setDeviceActive").and.returnValue(of({ ...device, isActive: false }));
+    const page = setup({ list: () => of(listOf([])), listDevices: () => of([device]), addDevice, setDeviceActive });
+
+    expect(page.deviceRows.length).toBe(1);
+    page.deviceForm.setValue({ name: "bad name", clientId: "agent-mac", publicKey: "ssh-ed25519 AAAA x" });
+    expect(page.canAddDevice).toBeFalse();
+    page.deviceForm.setValue({ name: " mac-hung ", clientId: " agent-mac ", publicKey: " ssh-ed25519 AAAA mac " });
+    expect(page.canAddDevice).toBeTrue();
+    page.addDevice();
+    expect(addDevice).toHaveBeenCalledOnceWith({ name: "mac-hung", clientId: "agent-mac", publicKey: "ssh-ed25519 AAAA mac" });
+
+    page.toggleDevice(page.deviceRows[0]);
+    expect(setDeviceActive).toHaveBeenCalledOnceWith("d1", false);
+  });
+
+  it("explains a client already used by another device", () => {
+    const addDevice = jasmine.createSpy("addDevice").and.returnValue(
+      throwError(() => new HttpErrorResponse({ status: 409, error: { errorCode: "agent_root_client_in_use" } })),
+    );
+    const page = setup({ list: () => of(listOf([])), addDevice });
+    page.deviceForm.setValue({ name: "win-hung", clientId: "agent-win", publicKey: "ssh-ed25519 AAAA win" });
+    page.addDevice();
+    expect(page.message).toContain("one client per device");
   });
 
   it("submits the form with the chosen duration and trimmed reason, then reloads", () => {

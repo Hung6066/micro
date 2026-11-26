@@ -60,9 +60,9 @@ public static class AgentRootGrantRules
     /// key_id recorded in the certificate (and therefore in sshd logs on every node). Emails are
     /// stripped to printable ASCII without spaces or quotes and the whole value is capped.
     /// </summary>
-    public static string BuildKeyId(Guid grantId, string? requesterEmail, string? approverEmail)
+    public static string BuildKeyId(Guid grantId, string? deviceName, string? requesterEmail, string? approverEmail)
     {
-        var value = $"agent-root grant={grantId:D} requester={Clean(requesterEmail)} approver={Clean(approverEmail)}";
+        var value = $"agent-root grant={grantId:D} device={Clean(deviceName)} requester={Clean(requesterEmail)} approver={Clean(approverEmail)}";
         return value.Length <= KeyIdMaxLength ? value : value[..KeyIdMaxLength];
     }
 

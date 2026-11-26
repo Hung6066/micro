@@ -22,6 +22,7 @@ namespace His.Hope.IdentityService.IntegrationTests;
 public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixture)
 {
     private static readonly string Root = $"{IdentityApiRoutes.AdminIam}/infra-access/agent-root-grants";
+    private static readonly string Devices = $"{IdentityApiRoutes.AdminIam}/infra-access/agent-root-devices";
     private const string AgentId = "openship-agent-root";
 
     [Fact]
@@ -73,70 +74,130 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
     }
 
     [Fact]
-    public async Task Another_super_admin_approves_then_the_workload_fetches_the_certificate_until_revoked()
+    public async Task Approval_signs_every_active_device_and_each_device_fetches_only_its_own_certificate()
     {
         await RevokeAllActiveAsync();
-        var otherRequester = Guid.NewGuid();
-        var id = await SeedPendingAsync(otherRequester, "requester-two@example.test", durationMinutes: 120);
         using var session = await fixture.CreateAuthenticatedSessionAsync();
+        var (clientA, tokenA) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
+        var (clientB, tokenB) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
+        var keyA = NewPublicKey("laptop-a");
+        var keyB = NewPublicKey("laptop-b");
+        var nameA = $"laptop-a-{Guid.NewGuid():N}"[..20];
+        var nameB = $"laptop-b-{Guid.NewGuid():N}"[..20];
+        var deviceA = await AddDeviceAsync(session, nameA, keyA, clientA);
+        await AddDeviceAsync(session, nameB, keyB, clientB);
 
+        // A registered client with no grant yet gets 404; an unregistered client too.
+        Assert.Equal(HttpStatusCode.NotFound, (await FetchAsync(tokenA)).StatusCode);
+        var (_, strangerToken) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
+        var stranger = await FetchAsync(strangerToken);
+        Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+        Assert.Equal("agent_root_unknown_device", await ErrorCodeAsync(stranger));
+
+        var id = await SeedPendingAsync(Guid.NewGuid(), "requester-two@example.test", durationMinutes: 120);
         var approve = await session.PostWithCookiesAsync($"{Root}/{id}/approve");
         var approveBody = await approve.Content.ReadAsStringAsync();
         Assert.True(approve.StatusCode == HttpStatusCode.OK, approveBody);
         var approved = JsonDocument.Parse(approveBody).RootElement;
         Assert.Equal("issued", approved.GetProperty("status").GetString());
-        Assert.True(approved.GetProperty("active").GetBoolean());
         Assert.InRange(approved.GetProperty("remainingMinutes").GetInt32(), 119, 120);
         Assert.False(approved.TryGetProperty("certificate", out _));
+        var issuedNames = approved.GetProperty("certificates").EnumerateArray()
+            .Select(item => item.GetProperty("deviceName").GetString()).ToList();
+        Assert.Contains(nameA, issuedNames);
+        Assert.Contains(nameB, issuedNames);
 
-        var call = Assert.Single(fixture.AgentRootSigner.Calls, item => item.KeyId.Contains(id.ToString("D"), StringComparison.Ordinal));
-        Assert.Equal(FakeAgentRootCertificateSigner.PublicKey, call.PublicKey);
-        Assert.Equal("root-breakglass", call.Principal);
-        Assert.Equal(TimeSpan.FromMinutes(120), call.Ttl);
-        Assert.Equal($"agent-root grant={id:D} requester=requester-two@example.test approver={IdentityTestData.AdminEmail}",
-            call.KeyId, ignoreCase: true);
+        var callA = Assert.Single(fixture.AgentRootSigner.Calls, item => item.PublicKey == keyA);
+        Assert.Equal("root-breakglass", callA.Principal);
+        Assert.Equal(TimeSpan.FromMinutes(120), callA.Ttl);
+        Assert.Equal($"agent-root grant={id:D} device={nameA} requester=requester-two@example.test approver={IdentityTestData.AdminEmail}",
+            callA.KeyId, ignoreCase: true);
+        Assert.Single(fixture.AgentRootSigner.Calls, item => item.PublicKey == keyB && item.KeyId.Contains(id.ToString("D"), StringComparison.Ordinal));
 
-        // The list never carries the certificate text.
+        // The list never carries certificate text, only device names and serials.
         var list = await session.GetWithCookiesAsync(Root);
         var listBody = await list.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.DoesNotContain("ssh-ed25519-cert-v01", listBody, StringComparison.Ordinal);
-        var row = JsonDocument.Parse(listBody).RootElement.GetProperty("items").EnumerateArray()
-            .Single(item => item.GetProperty("id").GetGuid() == id);
-        Assert.False(row.TryGetProperty("certificate", out _));
-        Assert.False(row.GetProperty("requestedByMe").GetBoolean());
-        Assert.False(string.IsNullOrWhiteSpace(row.GetProperty("certificateSerial").GetString()));
+        var listRoot = JsonDocument.Parse(listBody).RootElement;
+        Assert.Contains(listRoot.GetProperty("activeDevices").EnumerateArray(), item => item.GetString() == nameA);
+        var row = listRoot.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == id);
+        var serialA = row.GetProperty("certificates").EnumerateArray()
+            .Single(item => item.GetProperty("deviceName").GetString() == nameA).GetProperty("serial").GetString();
 
-        // Workload without the dedicated scope is refused; with it, the certificate is returned.
-        var wrongScope = await CreateWorkloadTokenAsync(IdentityApiRoutes.OpenShipConsoleAccessScope);
+        // Without the dedicated scope, or as a human, the fetch is refused.
+        var (_, wrongScope) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipConsoleAccessScope);
         Assert.Equal(HttpStatusCode.Forbidden, (await FetchAsync(wrongScope)).StatusCode);
-        // A human super-admin token never qualifies either.
         Assert.Equal(HttpStatusCode.Forbidden, (await FetchAsync(await fixture.CreateFreshMfaAdminTokenAsync())).StatusCode);
 
-        var token = await CreateWorkloadTokenAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
-        var fetched = await FetchAsync(token);
+        var fetched = await FetchAsync(tokenA);
         var fetchedBody = await fetched.Content.ReadAsStringAsync();
         Assert.True(fetched.StatusCode == HttpStatusCode.OK, fetchedBody);
         Assert.True(fetched.Headers.CacheControl?.NoStore, "certificates must not be cached");
         var certificate = JsonDocument.Parse(fetchedBody).RootElement;
         Assert.Equal(id, certificate.GetProperty("grantId").GetGuid());
+        Assert.Equal(nameA, certificate.GetProperty("deviceName").GetString());
+        Assert.Equal(serialA, certificate.GetProperty("serial").GetString());
         Assert.StartsWith("ssh-ed25519-cert-v01@openssh.com ", certificate.GetProperty("certificate").GetString());
-        Assert.Equal(row.GetProperty("certificateSerial").GetString(), certificate.GetProperty("serial").GetString());
+        var fetchedB = JsonDocument.Parse(await (await FetchAsync(tokenB)).Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal(nameB, fetchedB.GetProperty("deviceName").GetString());
+        Assert.NotEqual(serialA, fetchedB.GetProperty("serial").GetString());
+
+        // Disabling a device stops its fetches at once; the other device keeps working.
+        Assert.Equal(HttpStatusCode.OK, (await session.PostWithCookiesAsync($"{Devices}/{deviceA}/disable")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await FetchAsync(tokenA)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await FetchAsync(tokenB)).StatusCode);
 
         var revoke = await session.PostWithCookiesAsync($"{Root}/{id}/revoke");
         Assert.Equal(HttpStatusCode.OK, revoke.StatusCode);
         Assert.Equal("revoked", (await revoke.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
-        Assert.Equal(HttpStatusCode.NotFound, (await FetchAsync(token)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await FetchAsync(tokenB)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await session.PostWithCookiesAsync($"{Root}/{id}/revoke")).StatusCode);
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var audit = await db.AuditLogs.AsNoTracking()
-            .Where(item => item.ResourceType == "AgentRootGrant" && item.ResourceId == id.ToString("D"))
+            .Where(item => (item.ResourceType == "AgentRootGrant" && item.ResourceId == id.ToString("D")) ||
+                           (item.ResourceType == "AgentRootDevice" && item.ResourceId == deviceA.ToString("D")))
             .ToListAsync();
         Assert.Contains(audit, item => item.Action == "AUTHZ_AGENT_ROOT_GRANT_APPROVE");
         Assert.Contains(audit, item => item.Action == "AUTHZ_AGENT_ROOT_GRANT_REVOKE");
+        Assert.Contains(audit, item => item.Action == "AUTHZ_AGENT_ROOT_DEVICE_ADD");
+        Assert.Contains(audit, item => item.Action == "AUTHZ_AGENT_ROOT_DEVICE_DISABLE");
         Assert.DoesNotContain(audit, item => (item.AfterJson ?? string.Empty).Contains("ssh-ed25519-cert-v01", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Adding_a_device_validates_key_client_and_uniqueness()
+    {
+        using var session = await fixture.CreateAuthenticatedSessionAsync();
+        var (client, _) = await CreateWorkloadClientAsync(IdentityApiRoutes.OpenShipAgentRootCertificateScope);
+        var key = NewPublicKey("validation");
+        var name = $"dev-{Guid.NewGuid():N}"[..16];
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await session.PostWithCookiesAsync(Devices,
+            new { name, publicKey = "ssh-rsa AAAAB3NzaC1yc2E bad", clientId = client })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await session.PostWithCookiesAsync(Devices,
+            new { name = "bad name!", publicKey = key, clientId = client })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await session.PostWithCookiesAsync(Devices,
+            new { name, publicKey = key, clientId = "no-such-client-" + Guid.NewGuid().ToString("N") })).StatusCode);
+
+        await AddDeviceAsync(session, name, key, client);
+        var sameClient = await session.PostWithCookiesAsync(Devices, new { name = name + "-2", publicKey = NewPublicKey("other"), clientId = client });
+        Assert.Equal(HttpStatusCode.Conflict, sameClient.StatusCode);
+        Assert.Equal("agent_root_client_in_use", await ErrorCodeAsync(sameClient));
+        var sameKey = await session.PostWithCookiesAsync(Devices, new { name = name + "-3", publicKey = key, clientId = client });
+        Assert.Equal(HttpStatusCode.Conflict, sameKey.StatusCode);
+
+        var listed = JsonDocument.Parse(await (await session.GetWithCookiesAsync(Devices)).Content.ReadAsStringAsync()).RootElement;
+        var row = listed.EnumerateArray().Single(item => item.GetProperty("name").GetString() == name);
+        Assert.StartsWith("SHA256:", row.GetProperty("fingerprint").GetString());
+        Assert.False(row.TryGetProperty("publicKey", out _));
+
+        using var passwordOnly = fixture.CreateSessionClient();
+        Assert.Equal(HttpStatusCode.OK, (await passwordOnly.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password)).StatusCode);
+        var stepUp = await passwordOnly.PostWithCookiesAsync(Devices, new { name = name + "-4", publicKey = NewPublicKey("mfa"), clientId = client });
+        Assert.Equal(HttpStatusCode.Forbidden, stepUp.StatusCode);
     }
 
     [Fact]
@@ -159,7 +220,7 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
         await using var scope = fixture.Services.CreateAsyncScope();
         var stored = await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().AgentRootGrants.AsNoTracking().SingleAsync(item => item.Id == id);
         Assert.Equal(AgentRootGrant.StatusFailed, stored.Status);
-        Assert.Null(stored.Certificate);
+        Assert.False(await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().AgentRootCertificates.AnyAsync(item => item.GrantId == id));
         Assert.Contains("HTTP 403", stored.FailureReason);
     }
 
@@ -207,6 +268,26 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
                 .SetProperty(item => item.RevokedAt, DateTime.UtcNow));
     }
 
+    /// <summary>A fresh, valid "ssh-ed25519 AAAA... comment" line (random 32-byte key).</summary>
+    private static string NewPublicKey(string comment)
+    {
+        var type = System.Text.Encoding.ASCII.GetBytes("ssh-ed25519");
+        var blob = new byte[4 + type.Length + 4 + 32];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(blob, type.Length);
+        type.CopyTo(blob, 4);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(blob.AsSpan(4 + type.Length), 32);
+        System.Security.Cryptography.RandomNumberGenerator.Fill(blob.AsSpan(8 + type.Length));
+        return $"ssh-ed25519 {Convert.ToBase64String(blob)} {comment}@test";
+    }
+
+    private static async Task<Guid> AddDeviceAsync(SessionClient session, string name, string publicKey, string clientId)
+    {
+        var response = await session.PostWithCookiesAsync(Devices, new { name, publicKey, clientId });
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.Created, body);
+        return JsonDocument.Parse(body).RootElement.GetProperty("id").GetGuid();
+    }
+
     private async Task<HttpResponseMessage> FetchAsync(string token)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{IdentityApiRoutes.OpenShipAgentRootCertificate}?agentId={AgentId}");
@@ -214,7 +295,7 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
         return await fixture.AnonymousClient.SendAsync(request);
     }
 
-    private async Task<string> CreateWorkloadTokenAsync(string scopeName)
+    private async Task<(string ClientId, string Token)> CreateWorkloadClientAsync(string scopeName)
     {
         var suffix = Guid.NewGuid().ToString("N")[..12];
         var clientId = $"openship-agent-root-fetcher-{suffix}";
@@ -282,6 +363,6 @@ public sealed class AgentRootGrantEndpointTests(IdentityServiceTestFixture fixtu
         }));
         var tokenBody = await tokenResponse.Content.ReadAsStringAsync();
         Assert.True(tokenResponse.IsSuccessStatusCode, tokenBody);
-        return JsonDocument.Parse(tokenBody).RootElement.GetProperty("access_token").GetString()!;
+        return (clientId, JsonDocument.Parse(tokenBody).RootElement.GetProperty("access_token").GetString()!);
     }
 }

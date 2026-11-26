@@ -101,13 +101,14 @@ public sealed class AgentRootGrantRulesTests
     public void Key_id_names_grant_requester_and_approver_and_is_capped()
     {
         var id = Guid.Parse("11111111-2222-3333-4444-555555555555");
-        Assert.Equal("agent-root grant=11111111-2222-3333-4444-555555555555 requester=a@x.test approver=b@x.test",
-            AgentRootGrantRules.BuildKeyId(id, "a@x.test", " b@x.test "));
+        Assert.Equal("agent-root grant=11111111-2222-3333-4444-555555555555 device=mac-hung requester=a@x.test approver=b@x.test",
+            AgentRootGrantRules.BuildKeyId(id, "mac-hung", "a@x.test", " b@x.test "));
 
-        var keyId = AgentRootGrantRules.BuildKeyId(id, new string('r', 300) + "\"quote", "with space@x.test");
+        var keyId = AgentRootGrantRules.BuildKeyId(id, "win", new string('r', 300) + "\"quote", "with space@x.test");
         Assert.True(keyId.Length <= AgentRootGrantRules.KeyIdMaxLength);
         Assert.DoesNotContain("\"", keyId);
-        Assert.Contains("approver=", AgentRootGrantRules.BuildKeyId(id, null, null));
+        Assert.Contains("device=win ", keyId);
+        Assert.Contains("approver=", AgentRootGrantRules.BuildKeyId(id, null, null, null));
     }
 
     [Theory]
@@ -121,12 +122,24 @@ public sealed class AgentRootGrantRulesTests
         Assert.Equal(valid, AgentRootOptions.IsValidPublicKey(key));
 
     [Fact]
-    public void Options_require_a_public_key_only_when_enabled()
+    public void Options_validate_vault_names_and_duration_bounds()
     {
         Assert.Empty(new AgentRootOptions().Validate());
-        Assert.NotEmpty(new AgentRootOptions { Enabled = true }.Validate());
-        Assert.Empty(new AgentRootOptions { Enabled = true, PublicKey = ValidKey }.Validate());
+        Assert.Empty(new AgentRootOptions { Enabled = true }.Validate());
         Assert.NotEmpty(new AgentRootOptions { MinMinutes = 60, MaxMinutes = 30 }.Validate());
         Assert.NotEmpty(new AgentRootOptions { VaultMount = "../sys" }.Validate());
     }
+
+    [Theory]
+    [InlineData("k3s-manager-vmi3129107", true)]
+    [InlineData("mac.hung_2", true)]
+    [InlineData("", false)]
+    [InlineData("-leading", false)]
+    [InlineData("has space", false)]
+    public void Device_names_are_key_id_safe(string name, bool valid) =>
+        Assert.Equal(valid, AgentRootOptions.IsValidDeviceName(name));
+
+    [Fact]
+    public void Fingerprint_matches_ssh_keygen() =>
+        Assert.Equal("SHA256:RUmGPD+IkmTBowPW8HKHissVnfpqEt1KiYpKsWjWZsU", AgentRootOptions.Fingerprint(ValidKey));
 }
