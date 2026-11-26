@@ -713,7 +713,7 @@ public static class IdentityDbInitializer
             "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy",
             "hishop:admin", "fhir.patient.read", "fhir.encounter.read",
             "platform.continuity.write", "scim.read", "scim.write", "manufacturing.api",
-            "identity.clients.reconcile", "openship.console.access"
+            "identity.clients.reconcile", "openship.console.access", "openship.agent.root.certificate"
         };
         foreach (var scopeName in scopeNames)
         {

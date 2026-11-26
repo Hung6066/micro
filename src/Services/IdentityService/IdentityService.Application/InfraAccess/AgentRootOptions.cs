@@ -1,0 +1,71 @@
+using System.Text.RegularExpressions;
+
+namespace His.Hope.IdentityService.Application.InfraAccess;
+
+/// <summary>
+/// Time-limited root SSH for the infrastructure automation agent. A super admin requests a
+/// grant, a different super admin approves it with a fresh MFA, and IdentityService asks the
+/// Vault SSH CA (<see cref="VaultMount"/>/<see cref="VaultRole"/>) to sign <see cref="PublicKey"/>
+/// for <see cref="Principal"/>. Nodes trust that CA for the principal; nothing else is needed
+/// on the node side.
+/// </summary>
+public sealed class AgentRootOptions
+{
+    public const string SectionName = "InfraAccess:AgentRoot";
+
+    public bool Enabled { get; set; }
+
+    /// <summary>Identifier of the agent; the certificate fetcher asks for this id.</summary>
+    public string AgentId { get; set; } = "openship-agent-root";
+
+    /// <summary>The agent's OpenSSH public key, one line: "ssh-ed25519 AAAA… comment".</summary>
+    public string PublicKey { get; set; } = string.Empty;
+
+    public string VaultMount { get; set; } = "ssh-client-signer";
+
+    public string VaultRole { get; set; } = "agent-root";
+
+    public string Principal { get; set; } = "root-breakglass";
+
+    public int MinMinutes { get; set; } = 30;
+
+    public int MaxMinutes { get; set; } = 480;
+
+    /// <summary>A request that nobody approved within this window can no longer be approved.</summary>
+    public int PendingTtlMinutes { get; set; } = 60;
+
+    private static readonly Regex Ed25519PublicKey = new(
+        @"^ssh-ed25519 AAAAC3NzaC1lZDI1NTE5[A-Za-z0-9+/]{40,}={0,2}( [\x21-\x7E]{1,200})?$",
+        RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+
+    private static readonly Regex Segment = new(
+        "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+
+    /// <summary>True for a single-line ed25519 OpenSSH public key whose base64 body decodes.</summary>
+    public static bool IsValidPublicKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 1024 || !Ed25519PublicKey.IsMatch(value))
+            return false;
+        var body = value.Split(' ')[1];
+        var buffer = new byte[body.Length];
+        // An ed25519 key blob is 51 bytes: length-prefixed "ssh-ed25519" + 32-byte key.
+        return Convert.TryFromBase64String(body, buffer, out var written) && written == 51;
+    }
+
+    /// <summary>Configuration errors, empty when the options are usable.</summary>
+    public IReadOnlyList<string> Validate()
+    {
+        var errors = new List<string>();
+        if (!Segment.IsMatch(AgentId ?? string.Empty)) errors.Add($"{SectionName}:AgentId is invalid.");
+        if (!Segment.IsMatch(VaultMount ?? string.Empty)) errors.Add($"{SectionName}:VaultMount is invalid.");
+        if (!Segment.IsMatch(VaultRole ?? string.Empty)) errors.Add($"{SectionName}:VaultRole is invalid.");
+        if (!Segment.IsMatch(Principal ?? string.Empty)) errors.Add($"{SectionName}:Principal is invalid.");
+        if (MinMinutes < 1 || MaxMinutes < MinMinutes || MaxMinutes > 24 * 60)
+            errors.Add($"{SectionName}:MinMinutes/MaxMinutes must satisfy 1 <= Min <= Max <= 1440.");
+        if (PendingTtlMinutes is < 1 or > 24 * 60)
+            errors.Add($"{SectionName}:PendingTtlMinutes must be between 1 and 1440.");
+        if (Enabled && !IsValidPublicKey(PublicKey?.Trim()))
+            errors.Add($"{SectionName}:PublicKey must be one 'ssh-ed25519 AAAA… comment' line when Enabled is true.");
+        return errors;
+    }
+}

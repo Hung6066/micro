@@ -404,6 +404,7 @@ internal sealed class TestApplicationDbContext : DbContext, IApplicationDbContex
     public DbSet<PushDeliveryAttempt> PushDeliveryAttempts => Set<PushDeliveryAttempt>();
     public DbSet<UserFacility> UserFacilities => Set<UserFacility>();
     public DbSet<BreakGlassRequest> BreakGlassRequests => Set<BreakGlassRequest>();
+    public DbSet<AgentRootGrant> AgentRootGrants => Set<AgentRootGrant>();
     public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<AccessReview> AccessReviews => Set<AccessReview>();
     public DbSet<RoleTemplateVersion> RoleTemplateVersions => Set<RoleTemplateVersion>();

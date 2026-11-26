@@ -249,6 +249,15 @@ const iamWorkbenchRoutes: Routes = [
         (m) => m.InfraAuditPageComponent,
       ),
   },
+  {
+    // Super-admin only (server-enforced): four-eyes root SSH grants for the automation agent.
+    path: "iam/agent-root",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/infra-access/agent-root-grants-page.component").then(
+        (m) => m.AgentRootGrantsPageComponent,
+      ),
+  },
 ];
 
 export const routes: Routes = [

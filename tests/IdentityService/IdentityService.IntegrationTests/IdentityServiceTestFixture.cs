@@ -38,6 +38,8 @@ public class IdentityServiceTestFixture : IAsyncLifetime
     private string? _keyDirectory;
 
     public HttpClient AnonymousClient { get; private set; } = null!;
+    /// <summary>Stands in for the Vault SSH CA so agent root grant tests never call Vault.</summary>
+    public FakeAgentRootCertificateSigner AgentRootSigner { get; } = new();
     public IServiceProvider Services => _app!.Services;
     public string PostgresConnectionString => _postgresConnectionString ?? "";
 
@@ -186,6 +188,9 @@ public class IdentityServiceTestFixture : IAsyncLifetime
         builder.Configuration["Identity:SuperAdmin:UserIds:0"] = IdentityTestData.AdminId.ToString("D");
         builder.Configuration["Authentication:OidcClients:his-hope-test:RedirectUris:0"] = "http://localhost:4200/auth/callback";
         builder.Configuration["Authentication:OidcClients:his-hope-test:PostLogoutRedirectUris:0"] = "http://localhost:4200/auth/login";
+        builder.Configuration["InfraAccess:AgentRoot:Enabled"] = "true";
+        builder.Configuration["InfraAccess:AgentRoot:PublicKey"] = FakeAgentRootCertificateSigner.PublicKey;
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAccess.IAgentRootCertificateSigner>(AgentRootSigner);
 
         _app = builder.Build();
 

@@ -30,6 +30,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<PushDeliveryAttempt> PushDeliveryAttempts => Set<PushDeliveryAttempt>();
     public DbSet<UserFacility> UserFacilities => Set<UserFacility>();
     public DbSet<BreakGlassRequest> BreakGlassRequests => Set<BreakGlassRequest>();
+    public DbSet<AgentRootGrant> AgentRootGrants => Set<AgentRootGrant>();
     public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<AccessReview> AccessReviews => Set<AccessReview>();
     public DbSet<SupportElevation> SupportElevations => Set<SupportElevation>();
@@ -865,6 +866,21 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.ApprovedBy).HasMaxLength(256);
             entity.HasIndex(item => new { item.SubjectUserId, item.Status, item.ExpiresAt });
             entity.HasIndex(item => new { item.FacilityId, item.Status, item.ExpiresAt });
+        });
+
+        builder.Entity<AgentRootGrant>(entity =>
+        {
+            entity.ToTable("agent_root_grants");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.AgentId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.RequestedByEmail).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.ApprovedByEmail).HasMaxLength(256);
+            entity.Property(item => item.CertificateSerial).HasMaxLength(128);
+            entity.Property(item => item.Certificate).HasColumnType("text");
+            entity.Property(item => item.FailureReason).HasMaxLength(500);
+            entity.HasIndex(item => new { item.AgentId, item.Status });
         });
 
         builder.Entity<AccessRequest>(entity =>

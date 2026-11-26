@@ -309,6 +309,14 @@ export class AppComponent {
           fallback: "Infrastructure audit",
           permission: "admin.roles.read",
         },
+        {
+          id: "agent-root",
+          route: "/iam/agent-root",
+          icon: "admin_panel_settings",
+          labelKey: "admin.agentRootAccess",
+          fallback: "Agent root access",
+          permission: "admin.roles.read",
+        },
       ],
     },
     {

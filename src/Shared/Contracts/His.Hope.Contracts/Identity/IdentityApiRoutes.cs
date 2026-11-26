@@ -51,6 +51,10 @@ public static class IdentityApiRoutes
     // break-glass write window for one user, for workload callers only.
     public const string OpenShipConsoleAccess = ApiV1 + "/openship/console-access";
     public const string OpenShipConsoleAccessScope = "openship.console.access";
+    // Agent root SSH: the K3s manager fetches the Vault-signed certificate of the
+    // newest active four-eyes grant, for workload callers only.
+    public const string OpenShipAgentRootCertificate = ApiV1 + "/openship/agent-root-certificate";
+    public const string OpenShipAgentRootCertificateScope = "openship.agent.root.certificate";
     // OpenID Connect protocol endpoints are shared by API clients and tests.
     // Keep them here alongside service routes so protocol URL drift is visible.
     public const string OidcAuthorize = "/connect/authorize";

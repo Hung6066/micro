@@ -75,6 +75,9 @@ public static class IdentityServiceRegistrationExtensions
     /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipConsoleAccess"/>.</summary>
     public const string OpenShipConsoleAccessPolicy = "OpenShipConsoleAccess";
 
+    /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipAgentRootCertificate"/>.</summary>
+    public const string OpenShipAgentRootCertificatePolicy = "OpenShipAgentRootCertificate";
+
     public static void AddIdentityService(this WebApplicationBuilder builder)
     {
         builder.Services.AddOptions<PushProviderOptions>()
@@ -428,6 +431,26 @@ public static class IdentityServiceRegistrationExtensions
                         .Contains(IdentityApiRoutes.OpenShipConsoleAccessScope, StringComparer.Ordinal);
                     return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
                 }));
+        // Agent root certificate fetcher on the K3s manager: a workload principal
+        // with a client id and the dedicated scope. Human tokens never qualify.
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(OpenShipAgentRootCertificatePolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipAgentRootCertificateScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy("ScimM2M", policy => policy
                 .RequireAuthenticatedUser()
@@ -668,6 +691,16 @@ public static class IdentityServiceRegistrationExtensions
             His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>();
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.InfraAuditService>();
 
+        // Agent root SSH grants: four-eyes approval, then Vault SSH CA signs the agent key.
+        builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions>()
+            .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions.SectionName))
+            .PostConfigure(options => options.PublicKey = options.PublicKey?.Trim() ?? string.Empty)
+            .Validate(options => options.Validate().Count == 0,
+                $"{His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions.SectionName} is invalid (agent id, Vault mount/role, principal, duration bounds or ssh-ed25519 public key).")
+            .ValidateOnStart();
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAccess.IAgentRootCertificateSigner,
+            VaultAgentRootCertificateSigner>();
+
         // LDAP Sync service (disabled by default)
         builder.Services.AddScoped<ExternalIdentityProviderRuntime>();
         builder.Services.AddScoped<LdapSyncService>();
@@ -800,7 +833,9 @@ public static class IdentityServiceRegistrationExtensions
                     "fhir.encounter.read",
                     "platform.continuity.write",
                     // Workload scope for the OpenShip console-access lookup.
-                    IdentityApiRoutes.OpenShipConsoleAccessScope);
+                    IdentityApiRoutes.OpenShipConsoleAccessScope,
+                    // Workload scope for the agent root SSH certificate fetcher.
+                    IdentityApiRoutes.OpenShipAgentRootCertificateScope);
 
                 options.SetAccessTokenLifetime(TimeSpan.Parse(oidcConfig["AccessTokenLifetime"]!));
                 options.SetRefreshTokenLifetime(TimeSpan.Parse(oidcConfig["RefreshTokenLifetime"]!));

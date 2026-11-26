@@ -24,6 +24,7 @@ public static class IdentityAdminEndpoints
     {
         app.MapOpenShipClientProvisioningEndpoints();
         app.MapOpenShipConsoleAccessEndpoints();
+        app.MapAgentRootCertificateEndpoint();
         var auth = app.MapGroup(IdentityApiRoutes.Auth).RequireCors();
 
         // Admin API endpoints (for frontend admin module)
@@ -43,6 +44,7 @@ public static class IdentityAdminEndpoints
             .BlockEndUserPortal();
         iamControlPlane.MapIamControlPlaneEndpoints();
         iamControlPlane.MapInfraAuditEndpoints();
+        iamControlPlane.MapAgentRootGrantEndpoints();
         // Result of the scheduled audit hash-chain verification (super admins only).
         iamControlPlane.MapGet("/audit-integrity", async (StackExchange.Redis.IConnectionMultiplexer redis) =>
         {

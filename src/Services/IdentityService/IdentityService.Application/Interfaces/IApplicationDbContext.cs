@@ -27,6 +27,7 @@ public interface IApplicationDbContext
     DbSet<PushDeliveryAttempt> PushDeliveryAttempts { get; }
     DbSet<UserFacility> UserFacilities { get; }
     DbSet<BreakGlassRequest> BreakGlassRequests { get; }
+    DbSet<AgentRootGrant> AgentRootGrants { get; }
     DbSet<AccessRequest> AccessRequests { get; }
     DbSet<AccessReview> AccessReviews { get; }
     DbSet<RoleTemplateVersion> RoleTemplateVersions { get; }
