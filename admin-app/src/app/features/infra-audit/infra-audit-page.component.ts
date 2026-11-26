@@ -29,6 +29,7 @@ import {
   InfraAuditMeta,
   InfraAuditQuery,
   InfraAuditSummary,
+  WarpgateOpenSession,
 } from "../../core/services/infra-audit-api.service";
 
 /** Range presets in hours; the server caps one query at 31 days and keeps 90. */
@@ -175,6 +176,53 @@ export const RANGE_PRESETS = [1, 24, 24 * 7, 24 * 30] as const;
         }
       }
 
+      @if (!mineOnly && configured && metaLoaded) {
+        <mat-card class="sessions">
+          <mat-card-header>
+            <mat-card-title>{{
+              "admin.infraAuditWarpgateSessions" | hhTranslate: "Open Warpgate sessions"
+            }}</mat-card-title>
+            <hh-action-button
+              [disabled]="sessionsLoading"
+              (pressed)="loadSessions()"
+              kind="secondary"
+              mode="icon-only"
+              icon="refresh"
+              [label]="'admin.refresh' | hhTranslate: 'Refresh'"
+            />
+          </mat-card-header>
+          <mat-card-content>
+            <p class="top">
+              {{
+                "admin.infraAuditWarpgateSessionsHint"
+                  | hhTranslate
+                    : "Sessions that started in the selected range (at least 24 hours) and have not ended."
+              }}
+            </p>
+            @if (sessionsTruncated) {
+              <p class="top">
+                {{
+                  "admin.infraAuditWarpgateSessionsTruncated"
+                    | hhTranslate
+                      : "Too many Warpgate events in this range; the oldest sessions may be missing."
+                }}
+              </p>
+            }
+            <hh-data-table
+              [label]="'admin.infraAuditWarpgateSessions' | hhTranslate: 'Open Warpgate sessions'"
+              [columns]="sessionColumns"
+              [rows]="sessionRows"
+              [loading]="sessionsLoading"
+              [error]="sessionsError"
+              [empty]="!sessionsLoading && !sessionsError && !sessionRows.length"
+              [emptyMessage]="
+                'admin.infraAuditWarpgateSessionsEmpty' | hhTranslate: 'No open Warpgate sessions.'
+              "
+            />
+          </mat-card-content>
+        </mat-card>
+      }
+
       <hh-data-table
         [label]="'admin.infraAudit' | hhTranslate: 'Infrastructure audit'"
         [columns]="columns"
@@ -222,6 +270,14 @@ export const RANGE_PRESETS = [1, 24, 24 * 7, 24 * 30] as const;
       .cards .alert strong {
         color: var(--color-danger);
       }
+      .sessions {
+        margin: var(--space-md) 0;
+      }
+      .sessions mat-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
       .warning,
       .error {
         margin: var(--space-sm) 0;
@@ -258,6 +314,10 @@ export class InfraAuditPageComponent implements OnInit {
   summary: InfraAuditSummary | null = null;
   rows: Record<string, unknown>[] = [];
   nextTo: string | null = null;
+  sessionRows: Record<string, unknown>[] = [];
+  sessionsLoading = false;
+  sessionsError = "";
+  sessionsTruncated = false;
   private window: { from: string; to: string } | null = null;
 
   get sourceCounts(): Array<{ key: string; value: number }> {
@@ -277,6 +337,17 @@ export class InfraAuditPageComponent implements OnInit {
       { key: "result", label: this.i18n.t("admin.infraAuditResult", "Result") },
       { key: "sourceIp", label: this.i18n.t("admin.sourceIp", "Source IP") },
       { key: "detail", label: this.i18n.t("admin.detail", "Detail") },
+    ];
+  }
+
+  get sessionColumns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      { key: "user", label: this.i18n.t("admin.infraAuditActor", "Person") },
+      { key: "target", label: this.i18n.t("admin.target", "Target") },
+      { key: "startedAt", label: this.i18n.t("admin.infraAuditStartedAt", "Started"), format: "dateTime" },
+      { key: "sourceIp", label: this.i18n.t("admin.sourceIp", "Source IP") },
+      { key: "sessionId", label: this.i18n.t("admin.infraAuditSessionId", "Warpgate session") },
     ];
   }
 
@@ -310,6 +381,7 @@ export class InfraAuditPageComponent implements OnInit {
     this.message = "";
     this.load(this.window.to);
     if (!this.mineOnly && this.configured) {
+      this.loadSessions();
       this.api.getSummary(this.query(this.window.to)).subscribe({
         next: (summary) => {
           this.summary = summary;
@@ -321,6 +393,29 @@ export class InfraAuditPageComponent implements OnInit {
         },
       });
     }
+  }
+
+  /** Open Warpgate sessions over the selected range, never less than a day. */
+  loadSessions(): void {
+    if (this.mineOnly || !this.configured) return;
+    this.sessionsLoading = true;
+    this.sessionsError = "";
+    this.cdr.markForCheck();
+    this.api.getWarpgateSessions(Math.max(24, this.filters.controls.hours.value)).subscribe({
+      next: (result) => {
+        this.sessionRows = result.items.map((item) => toSessionRow(item));
+        this.sessionsTruncated = result.truncated;
+        this.sessionsLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.sessionRows = [];
+        this.sessionsTruncated = false;
+        this.sessionsLoading = false;
+        this.sessionsError = this.describe(error);
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   loadOlder(): void {
@@ -422,5 +517,15 @@ export function toRow(item: InfraAuditEvent): Record<string, unknown> {
     target: item.target ?? "",
     sourceIp: item.sourceIp ?? "",
     detail: item.detail ?? "",
+  };
+}
+
+export function toSessionRow(item: WarpgateOpenSession): Record<string, unknown> {
+  return {
+    ...item,
+    id: item.sessionId,
+    user: item.user ?? "—",
+    target: item.target ?? "",
+    sourceIp: item.sourceIp ?? "",
   };
 }

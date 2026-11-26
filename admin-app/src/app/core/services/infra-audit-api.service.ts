@@ -44,6 +44,34 @@ export interface InfraAuditSummary {
   perHour: Array<{ key: string; value: number }>;
 }
 
+/** Activity of one break-glass grant between its approval and its end (revoked or expired). */
+export interface InfraAuditGrantTimeline {
+  grantId: string;
+  from: string;
+  to: string;
+  items: InfraAuditEvent[];
+  /** More events than one page; the oldest are not shown. */
+  truncated?: boolean;
+  /** The grant is older than the audit retention, nothing can be shown. */
+  expired?: boolean;
+}
+
+/** A Warpgate session that logged a start and no end yet. */
+export interface WarpgateOpenSession {
+  sessionId: string;
+  user: string | null;
+  target: string | null;
+  startedAt: string;
+  sourceIp: string | null;
+}
+
+export interface WarpgateOpenSessions {
+  from: string;
+  to: string;
+  items: WarpgateOpenSession[];
+  truncated: boolean;
+}
+
 export interface InfraAuditQuery {
   from?: string;
   to?: string;
@@ -85,10 +113,17 @@ export class InfraAuditApiService {
     });
   }
 
-  getGrantTimeline(grantId: string): Observable<InfraAuditPage & { grantId: string; from: string; to: string }> {
-    return this.http.get<InfraAuditPage & { grantId: string; from: string; to: string }>(
+  getGrantTimeline(grantId: string): Observable<InfraAuditGrantTimeline> {
+    return this.http.get<InfraAuditGrantTimeline>(
       `${this.baseUrl}/iam/infra-audit/grants/${encodeURIComponent(grantId)}/timeline`,
     );
+  }
+
+  /** Warpgate sessions started in the last `hours` hours that have not ended. */
+  getWarpgateSessions(hours = 24): Observable<WarpgateOpenSessions> {
+    return this.http.get<WarpgateOpenSessions>(`${this.baseUrl}/iam/infra-audit/warpgate-sessions`, {
+      params: new HttpParams().set("hours", String(hours)),
+    });
   }
 
   /** Any admin: their own activity only. */

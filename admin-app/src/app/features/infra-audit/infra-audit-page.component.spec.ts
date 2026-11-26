@@ -6,9 +6,23 @@ import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
   InfraAuditApiService,
   InfraAuditEvent,
+  WarpgateOpenSession,
   toParams,
 } from "../../core/services/infra-audit-api.service";
-import { InfraAuditPageComponent, toRow } from "./infra-audit-page.component";
+import { InfraAuditPageComponent, toRow, toSessionRow } from "./infra-audit-page.component";
+
+const meta = {
+  configured: true, sources: ["vault", "warpgate"], results: ["allowed", "denied"],
+  retentionDays: 90, maxRangeDays: 31, maxPageSize: 500, maxExportRows: 10000,
+};
+
+const openSession: WarpgateOpenSession = {
+  sessionId: "6f1c2a3b-0000-4000-8000-00000000000a",
+  user: "ops@example.com",
+  target: "k3s-manager",
+  startedAt: "2026-11-26T09:10:00Z",
+  sourceIp: "100.64.0.7",
+};
 
 const event: InfraAuditEvent = {
   timestamp: "2026-11-25T01:00:00Z",
@@ -28,7 +42,13 @@ function setup(api: Partial<InfraAuditApiService>) {
     imports: [InfraAuditPageComponent],
     providers: [
       provideZonelessChangeDetection(),
-      { provide: InfraAuditApiService, useValue: api },
+      {
+        provide: InfraAuditApiService,
+        useValue: {
+          getWarpgateSessions: () => of({ from: "", to: "", items: [], truncated: false }),
+          ...api,
+        },
+      },
       {
         provide: HisHopeI18nService,
         useValue: { t: (_key: string, fallback?: string) => fallback ?? _key, locale: () => "en" },
@@ -113,6 +133,74 @@ describe("InfraAuditPageComponent", () => {
   });
 });
 
+describe("InfraAuditPageComponent open Warpgate sessions", () => {
+  it("loads open sessions with the page and again on refresh", () => {
+    const getWarpgateSessions = jasmine.createSpy("getWarpgateSessions").and.returnValue(
+      of({ from: "", to: "", items: [openSession], truncated: true }),
+    );
+    const page = setup({
+      getMeta: () => of(meta),
+      getEvents: () => of({ items: [], nextTo: null }),
+      getSummary: () => throwError(() => new HttpErrorResponse({ status: 503 })),
+      getWarpgateSessions,
+    });
+
+    expect(getWarpgateSessions).toHaveBeenCalledOnceWith(24);
+    expect(page.sessionRows.length).toBe(1);
+    expect(page.sessionRows[0]["user"]).toBe("ops@example.com");
+    expect(page.sessionsTruncated).toBeTrue();
+    expect(page.sessionColumns.map((column) => column.key)).toEqual([
+      "user", "target", "startedAt", "sourceIp", "sessionId",
+    ]);
+
+    page.filters.controls.hours.setValue(24 * 7);
+    page.loadSessions();
+    expect(getWarpgateSessions.calls.mostRecent().args[0]).toBe(168);
+  });
+
+  it("never asks for less than a day so long-running sessions stay visible", () => {
+    const getWarpgateSessions = jasmine.createSpy("getWarpgateSessions").and.returnValue(
+      of({ from: "", to: "", items: [], truncated: false }),
+    );
+    const page = setup({
+      getMeta: () => of(meta),
+      getEvents: () => of({ items: [], nextTo: null }),
+      getSummary: () => throwError(() => new HttpErrorResponse({ status: 503 })),
+      getWarpgateSessions,
+    });
+
+    page.filters.controls.hours.setValue(1);
+    page.loadSessions();
+
+    expect(getWarpgateSessions.calls.mostRecent().args[0]).toBe(24);
+  });
+
+  it("shows the store error in the panel and keeps the rest of the page", () => {
+    const page = setup({
+      getMeta: () => of(meta),
+      getEvents: () => of({ items: [event], nextTo: null }),
+      getSummary: () => throwError(() => new HttpErrorResponse({ status: 503 })),
+      getWarpgateSessions: () =>
+        throwError(() => new HttpErrorResponse({ status: 503, error: { errorCode: "infra_audit_unavailable" } })),
+    });
+
+    expect(page.sessionsError).toContain("unreachable");
+    expect(page.sessionsLoading).toBeFalse();
+    expect(page.rows.length).toBe(1);
+  });
+
+  it("does not ask for sessions when only the caller's own activity is allowed", () => {
+    const getWarpgateSessions = jasmine.createSpy("getWarpgateSessions");
+    setup({
+      getMeta: () => throwError(() => new HttpErrorResponse({ status: 403 })),
+      getMyEvents: () => of({ items: [], nextTo: null }),
+      getWarpgateSessions,
+    });
+
+    expect(getWarpgateSessions).not.toHaveBeenCalled();
+  });
+});
+
 describe("infra audit helpers", () => {
   it("builds query params without empty filters", () => {
     const params = toParams({ from: "a", to: "b", sources: ["vault", "console"], actor: "  ", text: "x", limit: 50 });
@@ -120,6 +208,13 @@ describe("infra audit helpers", () => {
     expect(params.has("actor")).toBeFalse();
     expect(params.get("text")).toBe("x");
     expect(params.get("limit")).toBe("50");
+  });
+
+  it("keys session rows by the Warpgate session id and blanks missing fields", () => {
+    const row = toSessionRow({ ...openSession, user: null, sourceIp: null });
+    expect(row["id"]).toBe(openSession.sessionId);
+    expect(row["user"]).toBe("—");
+    expect(row["sourceIp"]).toBe("");
   });
 
   it("gives every row a stable id and dashes for a missing actor", () => {
