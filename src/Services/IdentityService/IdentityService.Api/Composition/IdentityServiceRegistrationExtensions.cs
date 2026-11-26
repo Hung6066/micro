@@ -229,6 +229,12 @@ public static class IdentityServiceRegistrationExtensions
                  // every reverse-proxy path.
                  if (context.Request.Headers.ContainsKey("Authorization"))
                      return JwtBearerDefaults.AuthenticationScheme;
+                 // An ended hishop_sid session on an API path answers 401 so the
+                 // browser re-exchanges its session. The Identity cookie would
+                 // authenticate it without admin claims and turn it into a 403.
+                 if (context.Request.Path.StartsWithSegments("/api") &&
+                     BrowserSessionBridge.IsExpired(context))
+                     return JwtBearerDefaults.AuthenticationScheme;
                  // Browser requests → cookie
                  return IdentityConstants.ApplicationScheme;
              };

@@ -278,6 +278,106 @@ public sealed class PlatformAdminSessionTests(IdentityServiceTestFixture fixture
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("idle")]
+    [InlineData("absolute")]
+    public async Task Ended_session_answers_401_instead_of_falling_back_to_the_identity_cookie(string state)
+    {
+        using var scope = fixture.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var admin = await users.FindByIdAsync(IdentityTestData.AdminId.ToString())
+            ?? throw new InvalidOperationException("The test administrator is missing.");
+        var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
+        var sessionId = Guid.NewGuid().ToString("N");
+        var now = DateTimeOffset.UtcNow;
+        await redis.StringSetAsync($"session:{sessionId}", JsonSerializer.Serialize(new
+        {
+            Jwt = "unused",
+            UserId = admin.Id.ToString(),
+            ExpiresAt = now.AddMinutes(30),
+            IdleExpiresAt = state == "idle" ? now.AddMinutes(-1) : now.AddMinutes(10),
+            AbsoluteExpiresAt = state == "absolute" ? now.AddMinutes(-1) : now.AddHours(3),
+            IsPrivileged = true,
+            PrincipalType = AuthorizationConstants.PrincipalTypes.Human
+        }), TimeSpan.FromMinutes(5));
+
+        try
+        {
+            // The browser still holds a valid Identity cookie next to the ended session.
+            using var exchange = await ExchangeRequestAsync(scope.ServiceProvider, admin, "his-hope-admin");
+            var identityCookie = exchange.Headers.GetValues("Cookie").Single();
+            foreach (var path in new[] { $"{IdentityApiRoutes.AdminIam}/infra-audit/meta", IdentityApiRoutes.AdminClients })
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, path);
+                request.Headers.Add("Cookie", $"{identityCookie}; {HisHopeProtocolConstants.Cookies.BrowserSession}={sessionId}");
+                using var response = await fixture.AnonymousClient.SendAsync(request);
+                Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            }
+        }
+        finally
+        {
+            await redis.KeyDeleteAsync($"session:{sessionId}");
+        }
+    }
+
+    [Fact]
+    public async Task Bridged_request_moves_the_idle_expiry_forward()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var admin = await users.FindByIdAsync(IdentityTestData.AdminId.ToString())
+            ?? throw new InvalidOperationException("The test administrator is missing.");
+        var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>().GetDatabase();
+        var membershipAdded = false;
+        if (!(await users.GetClaimsAsync(admin)).Any(claim =>
+                claim.Type == HisHopeProtocolConstants.Claims.TenantMembership && claim.Value == "nacoms-group"))
+        {
+            Assert.True((await users.AddClaimAsync(admin,
+                new Claim(HisHopeProtocolConstants.Claims.TenantMembership, "nacoms-group"))).Succeeded);
+            membershipAdded = true;
+        }
+        string? sessionKey = null;
+        try
+        {
+            using var exchange = await ExchangeRequestAsync(scope.ServiceProvider, admin, "his-hope-admin");
+            using var exchanged = await fixture.AnonymousClient.SendAsync(exchange);
+            Assert.Equal(HttpStatusCode.NoContent, exchanged.StatusCode);
+            var sessionId = exchanged.Headers.GetValues("Set-Cookie")
+                .Select(cookie => cookie.Split(';')[0])
+                .Single(cookie => cookie.StartsWith($"{HisHopeProtocolConstants.Cookies.BrowserSession}=", StringComparison.Ordinal))
+                .Split('=', 2)[1];
+            sessionKey = $"session:{sessionId}";
+
+            // Pretend the session has been idle for a while: two minutes of idle time left.
+            var stored = System.Text.Json.Nodes.JsonNode.Parse((string)(await redis.StringGetAsync(sessionKey))!)!.AsObject();
+            var nearIdle = DateTimeOffset.UtcNow.AddMinutes(2);
+            stored["IdleExpiresAt"] = nearIdle;
+            await redis.StringSetAsync(sessionKey, stored.ToJsonString(), TimeSpan.FromMinutes(10));
+
+            using var session = fixture.CreateSessionClient();
+            session.ApplySetCookieHeaders(exchanged);
+            using var clients = await session.GetWithCookiesAsync(IdentityApiRoutes.AdminClients);
+            Assert.Equal(HttpStatusCode.OK, clients.StatusCode);
+
+            using var after = JsonDocument.Parse((string)(await redis.StringGetAsync(sessionKey))!);
+            var idle = after.RootElement.GetProperty("IdleExpiresAt").GetDateTimeOffset();
+            var absolute = after.RootElement.GetProperty("AbsoluteExpiresAt").GetDateTimeOffset();
+            Assert.True(idle > nearIdle.AddMinutes(5), $"idle expiry {idle:O} did not move forward");
+            Assert.True(idle <= absolute);
+            Assert.True(after.RootElement.GetProperty("Jwt").GetString()!.Length > 20);
+            var ttl = await redis.KeyTimeToLiveAsync(sessionKey);
+            Assert.NotNull(ttl);
+            Assert.True(ttl > TimeSpan.FromMinutes(15), $"session record TTL {ttl} ends before the idle window");
+        }
+        finally
+        {
+            if (sessionKey is not null)
+                await redis.KeyDeleteAsync(sessionKey);
+            if (membershipAdded)
+                await users.RemoveClaimAsync(admin, new Claim(HisHopeProtocolConstants.Claims.TenantMembership, "nacoms-group"));
+        }
+    }
+
     private static async Task<HttpRequestMessage> ExchangeRequestAsync(
         IServiceProvider services, User user, string clientId)
     {

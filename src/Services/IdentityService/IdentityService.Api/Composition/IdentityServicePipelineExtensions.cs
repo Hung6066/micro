@@ -238,7 +238,8 @@ public static class IdentityServicePipelineExtensions
                                 // Preserve the existing fail-closed behavior
                                 // for invalid or legacy session payloads.
                             }
-                            var sessionData = JsonSerializer.Deserialize<SessionData>((string)sessionJson!);
+                            var currentSessionJson = (string)sessionJson!;
+                            var sessionData = JsonSerializer.Deserialize<SessionData>(currentSessionJson);
                             var hasHumanPrincipal = string.Equals(sessionPrincipalType, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal) ||
                                 string.Equals(tokenPrincipal?.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal);
                             var hasPermissionClaims = tokenPrincipal?.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
@@ -300,16 +301,29 @@ public static class IdentityServicePipelineExtensions
                                             IdleExpiresAt = migratedIdleExpiresAt,
                                             AbsoluteExpiresAt = migratedAbsoluteExpiresAt
                                         };
+                                        currentSessionJson = JsonSerializer.Serialize(sessionData);
                                         await redis.GetDatabase().StringSetAsync(
                                             $"session:{sessionId}",
-                                            JsonSerializer.Serialize(sessionData),
+                                            currentSessionJson,
                                             sessionData.ExpiresAt - DateTimeOffset.UtcNow);
                                     }
                                 }
                             }
 
+                            // Idle expiry is an inactivity limit: every bridged
+                            // request moves it forward, as the BFF does.
+                            await BrowserSessionBridge.SlideIdleExpiryAsync(
+                                redis.GetDatabase(), sessionId, currentSessionJson, DateTimeOffset.UtcNow);
+
                             context.Request.Headers.Authorization = $"Bearer {jwt}";
                             context.Request.Headers["X-HisHope-Session"] = "1";
+                        }
+                        else if (!string.IsNullOrWhiteSpace(protectedJwt))
+                        {
+                            // A token-bearing session whose idle, absolute or token
+                            // expiry has passed. Sessions without a token (pending
+                            // MFA, server-rendered login) keep the cookie fallback.
+                            BrowserSessionBridge.MarkExpired(context);
                         }
                     }
                     catch (CryptographicException)
