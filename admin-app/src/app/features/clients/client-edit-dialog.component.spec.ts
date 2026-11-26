@@ -1,6 +1,6 @@
 import { provideZonelessChangeDetection } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
-import { Subject } from "rxjs";
+import { Subject, of, throwError } from "rxjs";
 import { ClientSecretResponse } from "../../core/contracts/admin.contracts";
 import {
   HIS_HOPE_DIALOG_DATA,
@@ -44,7 +44,7 @@ describe("ClientEditDialogComponent", () => {
         { provide: HIS_HOPE_DIALOG_DATA, useValue: null },
         {
           provide: ClientsApiService,
-          useValue: { createClient: () => created },
+          useValue: { createClient: () => created, getAvailableScopes: () => of([]) },
         },
         { provide: HisHopeDialogRef, useValue: {} },
         { provide: HisHopeToastService, useValue: { error: () => {} } },
@@ -73,34 +73,48 @@ describe("ClientEditDialogComponent", () => {
     expect(button.disabled).toBeFalse();
   });
 
-  it("offers the OpenShip client reconciliation scope to confidential clients", () => {
+  function createWithScopes(
+    getAvailableScopes: () => unknown,
+    data: unknown = null,
+  ) {
     TestBed.configureTestingModule({
       imports: [ClientEditDialogComponent],
       providers: [
-        { provide: HIS_HOPE_DIALOG_DATA, useValue: null },
-        { provide: ClientsApiService, useValue: {} },
+        { provide: HIS_HOPE_DIALOG_DATA, useValue: data },
+        { provide: ClientsApiService, useValue: { getAvailableScopes } },
         { provide: HisHopeDialogRef, useValue: {} },
         { provide: HisHopeToastService, useValue: {} },
         { provide: HisHopeI18nService, useValue: { t: (key: string) => key } },
       ],
     });
+    return TestBed.createComponent(ClientEditDialogComponent).componentInstance;
+  }
 
-    const fixture = TestBed.createComponent(ClientEditDialogComponent);
-    const component = fixture.componentInstance as unknown as {
-      scopeOptions: ReadonlyArray<{ value: string; label: string }>;
-    };
+  it("offers the scopes IdentityService reports, without a hardcoded list", () => {
+    const component = createWithScopes(() =>
+      of([
+        { name: "openid" },
+        { name: "identity.clients.reconcile" },
+        { name: "openship.agent.root.certificate" },
+      ]),
+    );
 
-    expect(component.scopeOptions).toContain(
-      jasmine.objectContaining({
-        value: "identity.clients.reconcile",
-        label: "identity.clients.reconcile",
-      }),
+    expect(component.scopeOptions.map((option) => option.value)).toEqual([
+      "identity.clients.reconcile",
+      "openid",
+      "openship.agent.root.certificate",
+    ]);
+  });
+
+  it("falls back to the standard OIDC scopes plus the client's own when the list fails", () => {
+    const component = createWithScopes(
+      () => throwError(() => new Error("offline")),
+      { clientId: "legacy", scopes: ["openid", "legacy.scope"] },
     );
-    expect(component.scopeOptions).toContain(
-      jasmine.objectContaining({ value: "openship.console.access" }),
-    );
-    expect(component.scopeOptions).toContain(
-      jasmine.objectContaining({ value: "openship.agent.root.certificate" }),
-    );
+    const values = component.scopeOptions.map((option) => option.value);
+
+    expect(values).toContain("legacy.scope");
+    expect(values).toContain("offline_access");
+    expect(values).not.toContain("openship.console.access");
   });
 });

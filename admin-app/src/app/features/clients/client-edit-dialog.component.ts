@@ -351,24 +351,13 @@ export class ClientEditDialogComponent {
   private readonly i18n = inject(HisHopeI18nService);
 
   readonly isEdit: boolean;
-  readonly scopeOptions = [
-    { value: "openid", label: "openid" },
-    { value: "profile", label: "profile" },
-    { value: "email", label: "email" },
-    { value: "roles", label: "roles" },
-    { value: "hishop:permissions", label: "hishop:permissions" },
-    { value: "hishop:admin", label: "hishop:admin" },
-    { value: "offline_access", label: "offline_access" },
-    {
-      value: "identity.clients.reconcile",
-      label: "identity.clients.reconcile",
-    },
-    { value: "openship.console.access", label: "openship.console.access" },
-    {
-      value: "openship.agent.root.certificate",
-      label: "openship.agent.root.certificate",
-    },
-  ] as const;
+  /**
+   * Scopes come from IdentityService (GET /clients/scopes: server-registered scopes plus
+   * openiddict_scopes), so a scope added by a backend migration shows up here without a
+   * frontend change. Until the list loads, or if it fails, only the standard OIDC scopes and
+   * the client's current scopes are offered; the backend rejects unknown scopes anyway.
+   */
+  scopeOptions: { value: string; label: string }[] = [];
   readonly formGroup: FormGroup;
   private readonly initialClient: OidcClient | null;
   saving = false;
@@ -414,6 +403,17 @@ export class ClientEditDialogComponent {
       },
       { validators: [clientFormValidator] },
     );
+    this.scopeOptions = toScopeOptions([], data?.scopes ?? []);
+    this.api
+      .getAvailableScopes()
+      .pipe(catchError(() => of([])))
+      .subscribe((scopes) => {
+        this.scopeOptions = toScopeOptions(
+          scopes.map((scope) => scope.name),
+          data?.scopes ?? [],
+        );
+        this.changeDetector.markForCheck();
+      });
   }
 
   save(): void {
@@ -520,4 +520,20 @@ export class ClientEditDialogComponent {
   cancel(): void {
     this.dialogRef.close();
   }
+}
+
+const STANDARD_SCOPES = ["openid", "profile", "email", "roles", "offline_access"];
+
+/** Server scopes (or the standard OIDC set when none loaded) plus the client's own scopes. */
+export function toScopeOptions(
+  serverScopes: readonly string[],
+  clientScopes: readonly string[],
+): { value: string; label: string }[] {
+  const names = new Set<string>(
+    serverScopes.length > 0 ? serverScopes : STANDARD_SCOPES,
+  );
+  for (const scope of clientScopes) names.add(scope);
+  return [...names]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ value: name, label: name }));
 }

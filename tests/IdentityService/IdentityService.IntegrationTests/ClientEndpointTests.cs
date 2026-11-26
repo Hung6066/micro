@@ -31,6 +31,33 @@ public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
     }
 
     [Fact]
+    public async Task Admin_client_scope_list_comes_from_the_server_and_create_rejects_unknown_scopes()
+    {
+        using var session = await LoginAsync();
+
+        var list = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/scopes");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        using var document = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        var names = document.RootElement.EnumerateArray().Select(item => item.GetProperty("name").GetString()).ToList();
+        Assert.Contains("openid", names);
+        Assert.Contains("offline_access", names);
+        Assert.Contains(IdentityApiRoutes.OpenShipConsoleAccessScope, names);
+        Assert.Contains(IdentityApiRoutes.OpenShipAgentRootCertificateScope, names);
+        Assert.Equal(names.Count, names.Distinct().Count());
+
+        var unknown = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId = $"integration-client-{Guid.NewGuid():N}",
+            displayName = "Unknown scope",
+            type = "confidential",
+            grantTypes = new[] { "client_credentials" },
+            scopes = new[] { "openship.does.not.exist" }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Contains("openship.does.not.exist", await unknown.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Admin_client_crud_and_onboarding_paths_are_exercised()
     {
         using var session = await LoginAsync();

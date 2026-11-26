@@ -49,6 +49,13 @@ export type {
   IamWorkloadSessionResponse,
 };
 
+/** An OAuth scope from GET /clients/scopes. */
+export interface AvailableScope {
+  name: string;
+  displayName?: string | null;
+  description?: string | null;
+}
+
 export interface OidcClient {
   id?: string;
   clientId: string;

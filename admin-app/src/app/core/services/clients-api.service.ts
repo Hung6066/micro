@@ -6,6 +6,7 @@ import {
   AdminPageResult,
   AdminBulkActionResponse,
   AdminTableView,
+  AvailableScope,
   ClientOnboarding,
   ClientSecretResponse,
   OidcClient,
@@ -50,6 +51,11 @@ export class ClientsApiService {
     return this.getClientsPage({ page: 1, pageSize: 100 }).pipe(
       map((response) => response.items),
     );
+  }
+
+  /** OAuth scopes a client may be granted, as IdentityService knows them. */
+  getAvailableScopes(): Observable<AvailableScope[]> {
+    return this.http.get<AvailableScope[]>(`${this.baseUrl}/clients/scopes`);
   }
 
   getClient(id: string): Observable<OidcClient> {

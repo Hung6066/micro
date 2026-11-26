@@ -6,6 +6,8 @@ using His.Hope.Contracts.Identity;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
+using OpenIddict.Server;
+using Microsoft.Extensions.Options;
 using His.Hope.Infrastructure.Audit;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
@@ -23,6 +25,10 @@ public static class ClientEndpoints
         group.AddEndpointFilter(StepUpAuthenticationGuard.RequireFreshMfaForMutationFilter);
 
         group.MapGet("/", GetClients)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.ClientsRead);
+        // Literal segment wins over "/{id}"; client ids are never "scopes".
+        group.MapGet("/scopes", GetAvailableScopes)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead)
             .WithTenantReadScope(HisHopePermissions.Admin.ClientsRead);
         group.MapGet("/{id}", GetClientById)
@@ -157,6 +163,7 @@ public static class ClientEndpoints
         IdentityDbContext db,
         IConglomerateTenantRegistry tenantRegistry,
         IOpenIddictApplicationManager appManager,
+        IOptionsMonitor<OpenIddictServerOptions> serverOptions,
         VaultClientSecretStore vaultStore,
         IAuditService audit,
         HttpContext http,
@@ -175,6 +182,13 @@ public static class ClientEndpoints
 
         if (!AreAllowedClientUris(request.RedirectUris) || !AreAllowedClientUris(request.PostLogoutRedirectUris))
             return InvalidRedirectUris();
+
+        var unknownScopes = (request.Scopes ?? [])
+            .Except(await LoadAvailableScopeNamesAsync(db, serverOptions.CurrentValue, ct), StringComparer.Ordinal)
+            .ToArray();
+        if (unknownScopes.Length > 0)
+            return TypedResults.Problem(statusCode: 400, detail: "Unknown scope(s): " + string.Join(", ", unknownScopes),
+                extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation });
 
         var isConfidential = normalizedType == "confidential";
         var descriptor = new OpenIddictApplicationDescriptor
@@ -510,6 +524,35 @@ public static class ClientEndpoints
             return System.Text.Json.JsonSerializer.Deserialize<List<string>>(uris) ?? new();
         }
         catch { return new(); }
+    }
+
+    /// <summary>
+    /// Scopes a client may be granted: those registered on the OpenIddict server plus those
+    /// stored in openiddict_scopes (seeded by migrations). admin-app's client dialog reads this
+    /// list, so a new scope needs no frontend change.
+    /// </summary>
+    private static async Task<Ok<List<AvailableScopeResponse>>> GetAvailableScopes(
+        IdentityDbContext db, IOptionsMonitor<OpenIddictServerOptions> serverOptions, CancellationToken ct)
+    {
+        var stored = await db.OpenIddictScopes.AsNoTracking()
+            .Where(scope => scope.Name != null)
+            .Select(scope => new { scope.Name, scope.DisplayName, scope.Description })
+            .ToListAsync(ct);
+        var byName = new Dictionary<string, AvailableScopeResponse>(StringComparer.Ordinal);
+        foreach (var name in serverOptions.CurrentValue.Scopes)
+            byName[name] = new AvailableScopeResponse(name, null, null);
+        foreach (var scope in stored)
+            byName[scope.Name!] = new AvailableScopeResponse(scope.Name!, scope.DisplayName, scope.Description);
+        return TypedResults.Ok(byName.Values.OrderBy(scope => scope.Name, StringComparer.Ordinal).ToList());
+    }
+
+    private static async Task<HashSet<string>> LoadAvailableScopeNamesAsync(
+        IdentityDbContext db, OpenIddictServerOptions serverOptions, CancellationToken ct)
+    {
+        var names = new HashSet<string>(serverOptions.Scopes, StringComparer.Ordinal);
+        names.UnionWith(await db.OpenIddictScopes.AsNoTracking()
+            .Where(scope => scope.Name != null).Select(scope => scope.Name!).ToListAsync(ct));
+        return names;
     }
 
     private static HashSet<string> BuildPermissions(CreateClientRequest request)
