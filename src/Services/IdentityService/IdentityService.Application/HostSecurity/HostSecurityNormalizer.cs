@@ -42,6 +42,7 @@ public static partial class HostSecurityNormalizer
             "host_integrity" => Integrity(raw, root, securityEvent),
             "sudo" => Sudo(raw, root, securityEvent),
             "sshd_auth" => Login(raw, root, securityEvent),
+            "egress_baseline" => Egress(raw, root, securityEvent),
             _ => null,
         };
     }
@@ -110,6 +111,28 @@ public static partial class HostSecurityNormalizer
             NormalizeSeverity(Str(root, "severity")), Str(root, "host") ?? Label(raw, "host") ?? "unknown",
             Truncate(Str(root, "user"), 300), Truncate(InfraAuditNormalizer.Mask(summary), MaxText)!,
             Truncate(InfraAuditNormalizer.Mask(Str(root, "message")), MaxText), null, [], null);
+    }
+
+    private static HostSecurityEvent Egress(LokiLine raw, JsonElement root, string securityEvent)
+    {
+        string summary;
+        string? detail = null;
+        if (root.TryGetProperty("edge", out var edge) && edge.ValueKind == JsonValueKind.Object)
+        {
+            summary = $"New outbound connection {Str(edge, "source")} -> {Str(edge, "destination")} {Str(edge, "port")}";
+            detail = $"{Str(edge, "kind")} edge, not seen while learning";
+        }
+        else
+        {
+            var total = Int(root, "edges_total") ?? 0;
+            var added = Int(root, "new_edges") ?? 0;
+            summary = $"{(Str(root, "mode") == "learning" ? "Learning" : "Checked")} outbound baseline: {total} known edges, {added} new this run";
+            if (Str(root, "learn_until") is { } until) detail = $"learning until {until}";
+        }
+        var id = IdOf(raw);
+        return new HostSecurityEvent(id, $"evt:{id}", raw.Timestamp, HostSecurityCategories.Network, securityEvent,
+            NormalizeSeverity(Str(root, "severity")), Str(root, "host") ?? Label(raw, "host") ?? "unknown", null,
+            Truncate(summary, MaxText)!, detail, null, [], null);
     }
 
     private static HostSecurityEvent Falco(LokiLine raw, string rule)

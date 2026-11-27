@@ -104,6 +104,19 @@ public sealed class HostSecurityTests
         item.Host.Should().Be("pg-53");
     }
 
+    [Fact]
+    public void Egress_events_are_network_category()
+    {
+        var learning = HostSecurityNormalizer.Normalize(Line(
+            """{"log_type":"egress_baseline","host":"vmi3129107","security_event":"egress_learning","severity":"info","mode":"learning","learn_until":"2026-12-04T00:00:00Z","edges_total":28,"new_edges":3}"""))!;
+        learning.Category.Should().Be(HostSecurityCategories.Network);
+        learning.Summary.Should().Be("Learning outbound baseline: 28 known edges, 3 new this run");
+        var edge = HostSecurityNormalizer.Normalize(Line(
+            """{"log_type":"egress_baseline","host":"vmi3129107","security_event":"egress_new_edge","severity":"warning","edge":{"kind":"flow","source":"openship-logging/openship-loki","destination":"external","port":"tcp/4444"}}"""))!;
+        edge.Severity.Should().Be("warning");
+        edge.Summary.Should().Be("New outbound connection openship-logging/openship-loki -> external tcp/4444");
+    }
+
     [Theory]
     [InlineData("unknown", null, null, null, "unknown_category")]
     [InlineData(null, "loud", null, null, "unknown_severity")]

@@ -28,8 +28,9 @@ public static class HostSecurityCategories
     public const string Sudo = "sudo";
     public const string Login = "login";
     public const string Runtime = "runtime";
+    public const string Network = "network";
 
-    public static readonly IReadOnlyList<string> All = [Integrity, Sudo, Login, Runtime];
+    public static readonly IReadOnlyList<string> All = [Integrity, Sudo, Login, Runtime, Network];
 }
 
 /// <summary>One changed item of an integrity drift.</summary>

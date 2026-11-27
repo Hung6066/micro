@@ -119,6 +119,7 @@ public sealed partial class HostSecurityService(
         if (filter.Categories.Contains(HostSecurityCategories.Integrity)) types.Add("host_integrity");
         if (filter.Categories.Contains(HostSecurityCategories.Sudo)) types.Add("sudo");
         if (filter.Categories.Contains(HostSecurityCategories.Login)) types.Add("sshd_auth");
+        if (filter.Categories.Contains(HostSecurityCategories.Network)) types.Add("egress_baseline");
         var text = filter.Text is null ? "" : $" |~ \"(?i){EscapeLogQl(EscapeRe2(filter.Text))}\"";
         if (types.Count > 0)
         {

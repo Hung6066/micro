@@ -34,7 +34,7 @@ import {
 /** Poll interval while "Live" is on (and the tab is visible). */
 export const LIVE_INTERVAL_MS = 15_000;
 export const RANGE_HOURS = [1, 6, 24, 24 * 7] as const;
-export const CATEGORIES = ["integrity", "sudo", "login", "runtime"] as const;
+export const CATEGORIES = ["integrity", "sudo", "login", "runtime", "network"] as const;
 
 /**
  * Host and workload security events (super-admin, server-enforced): config integrity drift,

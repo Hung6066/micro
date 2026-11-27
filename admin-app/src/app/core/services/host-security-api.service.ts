@@ -4,7 +4,7 @@ import { Observable } from "rxjs";
 import { environment } from "../../../environments/environment";
 
 export type HostSecuritySeverity = "critical" | "warning" | "info";
-export type HostSecurityCategory = "integrity" | "sudo" | "login" | "runtime";
+export type HostSecurityCategory = "integrity" | "sudo" | "login" | "runtime" | "network";
 
 export interface HostIntegrityChange {
   category: string;
