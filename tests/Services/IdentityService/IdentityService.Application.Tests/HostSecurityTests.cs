@@ -92,6 +92,18 @@ public sealed class HostSecurityTests
         item.Detail.Should().NotContain("abc123");
     }
 
+    [Fact]
+    public void Falco_host_event_with_iso_time_has_no_pod_actor()
+    {
+        var raw = new LokiLine(Now, "2026-11-27T09:16:26.099078464+0000: Warning Write to authentication file /etc/shadow by sh | user=root",
+            new Dictionary<string, string> { ["priority"] = "Warning", ["rule"] = "OpenShip write to authentication file",
+                ["hostname"] = "pg-53", ["k8s_ns_name"] = "host", ["k8s_pod_name"] = "host" });
+        var item = HostSecurityNormalizer.Normalize(raw)!;
+        item.Actor.Should().BeNull();
+        item.Summary.Should().Be("Write to authentication file /etc/shadow by sh");
+        item.Host.Should().Be("pg-53");
+    }
+
     [Theory]
     [InlineData("unknown", null, null, null, "unknown_category")]
     [InlineData(null, "loud", null, null, "unknown_severity")]

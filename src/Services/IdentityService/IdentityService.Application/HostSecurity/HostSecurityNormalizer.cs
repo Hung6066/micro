@@ -123,6 +123,9 @@ public static partial class HostSecurityNormalizer
         if (output.StartsWith(priority + " ", StringComparison.OrdinalIgnoreCase)) output = output[(priority.Length + 1)..];
         var ns = Label(raw, "k8s_ns_name");
         var pod = Label(raw, "k8s_pod_name");
+        // Host processes (no pod) are labelled "host" by the Vector agent.
+        if (ns is "host" or "<NA>") ns = null;
+        if (pod is "host" or "<NA>") pod = null;
         var actor = ns is null && pod is null ? null : $"{ns}/{pod}";
         var id = IdOf(raw);
         return new HostSecurityEvent(id, $"evt:{id}", raw.Timestamp, HostSecurityCategories.Runtime, rule,
@@ -168,6 +171,7 @@ public static partial class HostSecurityNormalizer
     private static string? Truncate(string? value, int max) =>
         value is { Length: var length } && length > max ? value[..max] + "…" : value;
 
-    [GeneratedRegex(@"^\d{2}:\d{2}:\d{2}(?:\.\d+)?:\s*")]
+    // "08:41:49.145969500: " or ISO "2026-11-27T09:16:26.099078464+0000: " (time_format_iso_8601).
+    [GeneratedRegex(@"^(?:\d{4}-\d{2}-\d{2}T)?\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{4}|[+-]\d{2}:\d{2})?:\s*")]
     private static partial Regex FalcoPrefix();
 }
