@@ -78,6 +78,9 @@ public static class IdentityServiceRegistrationExtensions
     /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipAgentRootCertificate"/>.</summary>
     public const string OpenShipAgentRootCertificatePolicy = "OpenShipAgentRootCertificate";
 
+    /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipHostIntegrityApprovals"/>.</summary>
+    public const string OpenShipHostIntegrityApprovalsPolicy = "OpenShipHostIntegrityApprovals";
+
     public static void AddIdentityService(this WebApplicationBuilder builder)
     {
         builder.Services.AddOptions<PushProviderOptions>()
@@ -437,6 +440,26 @@ public static class IdentityServiceRegistrationExtensions
                         .Contains(IdentityApiRoutes.OpenShipConsoleAccessScope, StringComparer.Ordinal);
                     return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
                 }));
+        // Host integrity check on every OpenShip host: a workload principal with a client id and
+        // the dedicated scope reads approved drift fingerprints. Human tokens never qualify.
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(OpenShipHostIntegrityApprovalsPolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipHostIntegrityApprovalsScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
         // Agent root certificate fetcher on the K3s manager: a workload principal
         // with a client id and the dedicated scope. Human tokens never qualify.
         builder.Services.AddAuthorizationBuilder()
@@ -703,6 +726,7 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddScoped<His.Hope.IdentityService.Application.HostSecurity.IHostSecurityAckStore,
             His.Hope.IdentityService.Api.HostSecurity.AuditLogHostSecurityAckStore>();
         builder.Services.AddScoped<His.Hope.IdentityService.Application.HostSecurity.HostSecurityService>();
+        builder.Services.AddScoped<His.Hope.IdentityService.Api.HostSecurity.HostIntegrityApprovalStore>();
 
         // Agent root SSH grants: four-eyes approval, then Vault SSH CA signs the agent key.
         builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions>()

@@ -24,6 +24,7 @@ import {
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import {
+  HostIntegrityApproval,
   HostIntegrityStatus,
   HostSecurityApiService,
   HostSecurityEvent,
@@ -90,6 +91,9 @@ export const CATEGORIES = ["integrity", "sudo", "login", "runtime", "network"] a
       }
       @if (message) {
         <p class="error" role="alert">{{ message }}</p>
+      }
+      @if (notice) {
+        <p class="notice" role="status">{{ notice }}</p>
       }
       @if (page?.unavailableSources?.length) {
         <p class="warning">
@@ -173,6 +177,22 @@ export const CATEGORIES = ["integrity", "sudo", "login", "runtime", "network"] a
         </div>
       }
 
+      @if (approving) {
+        <div class="ack-bar approve-bar" role="region" aria-label="approve drift">
+          <span>
+            {{ "admin.hostSecurityApproveDrift" | hhTranslate: "Approve drift" }} <strong>{{ approving.host }}</strong>
+            <code>{{ approving.fingerprint }}</code> ({{ approving.severity }}{{ approving.severity === "critical" ? ", needs a second admin" : "" }})
+          </span>
+          <mat-form-field appearance="outline" class="note">
+            <mat-label>{{ "admin.hostSecurityApproveReason" | hhTranslate: "Why is this change expected? (ticket, plan)" }}</mat-label>
+            <input matInput [(ngModel)]="approveReason" [ngModelOptions]="{ standalone: true }" maxlength="300" />
+          </mat-form-field>
+          <hh-action-button [disabled]="acking || approveReason.trim().length < 10" (pressed)="approveDrift()" kind="primary" icon="verified"
+            [label]="'admin.hostSecurityApprove' | hhTranslate: 'Approve'" />
+          <hh-action-button (pressed)="approving = null" kind="secondary" icon="close" [label]="'admin.cancel' | hhTranslate: 'Cancel'" />
+        </div>
+      }
+
       <div class="table-wrap">
         <table class="events" [attr.aria-busy]="loading">
           <thead>
@@ -223,6 +243,18 @@ export const CATEGORIES = ["integrity", "sudo", "login", "runtime", "network"] a
                   } @else if (event.severity !== "info") {
                     <span class="open">{{ "admin.hostSecurityOpen" | hhTranslate: "open" }}</span>
                   }
+                  @if (event.securityEvent === "integrity_drift" && event.fingerprint) {
+                    @if (approvalFor(event); as approval) {
+                      @if (approval.status === "approved") {
+                        <div class="muted">{{ "admin.hostSecurityApprovedBy" | hhTranslate: "approved by" }} {{ approval.approvedBy }}</div>
+                      } @else {
+                        <div class="muted">{{ "admin.hostSecurityWaitingSecond" | hhTranslate: "waiting for a second admin" }} ({{ approval.requestedBy }})</div>
+                        <button type="button" class="link" (click)="startApprove(event)">{{ "admin.hostSecurityConfirm" | hhTranslate: "Confirm" }}</button>
+                      }
+                    } @else {
+                      <button type="button" class="link" (click)="startApprove(event)">{{ "admin.hostSecurityApprove" | hhTranslate: "Approve" }}</button>
+                    }
+                  }
                 </td>
               </tr>
             } @empty {
@@ -268,7 +300,9 @@ export const CATEGORIES = ["integrity", "sudo", "login", "runtime", "network"] a
       .chip-warning { background: var(--color-warning); color: var(--color-on-danger); }
       .chip-info { background: var(--border-subtle); }
       .cat { color: var(--text-secondary); font-size: var(--font-size-caption); margin-right: var(--space-xs); }
-      .open { color: var(--color-danger); font-weight: 600; }
+      .open { color: var(--color-danger); font-weight: var(--font-weight-semibold); }
+      .link { background: none; border: none; padding: 0; color: var(--color-primary); cursor: pointer; font: inherit; text-decoration: underline; }
+      .approve-bar { border-left: var(--space-xs) solid var(--color-primary); padding-left: var(--space-sm); }
       code { overflow-wrap: anywhere; }
       .warning, .error { margin: var(--space-sm) 0; }
       .error { color: var(--color-danger); }
@@ -302,6 +336,10 @@ export class HostSecurityPageComponent implements OnInit {
   lastUpdated: Date | null = null;
   selected = new Set<string>();
   ackNote = "";
+  approvals = new Map<string, HostIntegrityApproval>();
+  approving: HostSecurityEvent | null = null;
+  approveReason = "";
+  notice = "";
   private poll: Subscription | null = null;
 
   get driftedHosts(): number {
@@ -359,10 +397,11 @@ export class HostSecurityPageComponent implements OnInit {
     if (this.loading) return;
     this.loading = true;
     this.cdr.markForCheck();
-    forkJoin({ events: this.api.getEvents(this.query()), hosts: this.api.getHosts() }).subscribe({
-      next: ({ events, hosts }) => {
+    forkJoin({ events: this.api.getEvents(this.query()), hosts: this.api.getHosts(), approvals: this.api.getApprovals() }).subscribe({
+      next: ({ events, hosts, approvals }) => {
         this.page = events;
         this.hosts = hosts.items;
+        this.approvals = new Map(approvals.items.map((item) => [item.key, item]));
         this.message = "";
         this.lastUpdated = new Date();
         const open = new Set(events.items.filter((item) => !item.ack).map((item) => item.ackKey));
@@ -405,6 +444,39 @@ export class HostSecurityPageComponent implements OnInit {
     });
   }
 
+  approvalFor(event: HostSecurityEvent): HostIntegrityApproval | undefined {
+    return this.approvals.get(event.ackKey);
+  }
+
+  startApprove(event: HostSecurityEvent): void {
+    this.approving = event;
+    this.approveReason = "";
+  }
+
+  /** The host accepts the drift into its baseline at its next check (5 min); the alert then resolves. */
+  approveDrift(): void {
+    const event = this.approving;
+    if (!event?.fingerprint) return;
+    this.acking = true;
+    this.api.approve(event.host, event.fingerprint, this.approveReason).subscribe({
+      next: (result) => {
+        this.acking = false;
+        this.approving = null;
+        this.notice =
+          result.status === "pending_second_approver"
+            ? "Critical drift: recorded. A second super-admin must approve it too."
+            : "Approved. The host applies it at its next check (within 5 minutes).";
+        this.loading = false;
+        this.reload();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.acking = false;
+        this.message = this.describe(error);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   filterHost(host: string): void {
     this.filters.controls.host.setValue(host);
     this.reload();
@@ -424,6 +496,11 @@ export class HostSecurityPageComponent implements OnInit {
   }
 
   private describe(error: HttpErrorResponse): string {
+    const code = (error.error as { errorCode?: string } | null)?.errorCode;
+    if (code === "step_up_required")
+      return "This needs a fresh MFA sign-in. Sign out, sign in again with MFA, then retry within 15 minutes.";
+    if (code === "second_approver_required") return "Critical drift: a different super-admin must confirm your request.";
+    if (code === "drift_not_found") return "That drift is no longer current on the host (already approved or changed again). Refresh.";
     if (error.status === 403) return "Super-admin only.";
     const reason = (error.error as { reason?: string; errorCode?: string } | null)?.reason;
     if (error.status === 503) return `Security events are unavailable (${reason ?? "upstream"}).`;

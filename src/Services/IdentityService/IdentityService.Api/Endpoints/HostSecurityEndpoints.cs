@@ -3,7 +3,9 @@ using His.Hope.IdentityService.Api.HostSecurity;
 using His.Hope.IdentityService.Api.InfraAudit;
 using His.Hope.IdentityService.Application.HostSecurity;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.Infrastructure.Audit;
+using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -23,7 +25,14 @@ public static class HostSecurityEndpoints
         group.MapGet("/events", Events);
         group.MapGet("/hosts", Hosts);
         group.MapPost("/acks", Acknowledge);
+        group.MapGet("/approvals", Approvals);
+        group.MapPost("/approvals", Approve);
     }
+
+    /// <summary>Machine endpoint: the integrity check on each host pulls its approved drift fingerprints.</summary>
+    public static void MapHostIntegrityApprovalPullEndpoint(this WebApplication app) =>
+        app.MapGet(His.Hope.Contracts.Identity.IdentityApiRoutes.OpenShipHostIntegrityApprovals, PullApprovals)
+            .RequireAuthorization(His.Hope.IdentityService.Api.Composition.IdentityServiceRegistrationExtensions.OpenShipHostIntegrityApprovalsPolicy);
 
     private static IResult Meta(HostSecurityService service) => Results.Ok(new
     {
@@ -91,6 +100,73 @@ public static class HostSecurityEndpoints
         if (added > 0) await db.SaveChangesAsync(ct);
         var acks = await store.GetAsync(keys, ct);
         return Results.Ok(new { acknowledged = added, items = acks.Values });
+    }
+
+    public sealed record ApproveRequest(string? Host, string? Fingerprint, string? Reason);
+
+    private static async Task<IResult> Approvals(HostIntegrityApprovalStore store, TimeProvider clock, CancellationToken ct) =>
+        Results.Ok(new { items = await store.RecentAsync(clock.GetUtcNow() - HostIntegrityApprovalRules.HostPullWindow, ct) });
+
+    /// <summary>
+    /// Approve a drift (fresh MFA). Warning drift is approved at once; critical drift needs a second,
+    /// different super-admin: the first call records a request, the second approves.
+    /// </summary>
+    private static async Task<IResult> Approve(
+        ApproveRequest request, HostSecurityService service, HostIntegrityApprovalStore store, IdentityDbContext db,
+        TimeProvider clock, HttpContext http, CancellationToken ct)
+    {
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp)
+            return stepUp;
+        if (HostIntegrityApprovalRules.Validate(request.Host, request.Fingerprint, request.Reason) is { } error)
+            return Invalid(error);
+        var subject = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value;
+        if (!Guid.TryParse(subject, out var userId)) return Results.Forbid();
+        var user = await db.Users.AsNoTracking().Where(item => item.Id == userId)
+            .Select(item => new { item.Email, item.UserName }).FirstOrDefaultAsync(ct);
+        var userName = user?.Email ?? user?.UserName ?? userId.ToString("D");
+        var host = request.Host!.Trim();
+        var fingerprint = request.Fingerprint!.Trim();
+        var reason = request.Reason!.Trim();
+        var key = HostIntegrityApprovalRules.Key(host, fingerprint);
+
+        return await Guarded(async () =>
+        {
+            var drift = await service.FindDriftAsync(host, fingerprint, ct);
+            if (drift is null)
+                return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Drift not found",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = "drift_not_found",
+                        ["reason"] = "No drift with this fingerprint on this host in the last 24 hours (already approved or changed again)." });
+            var state = await store.GetStateAsync(key, ct);
+            var decision = HostIntegrityApprovalRules.Decide(state, userId, drift.Severity, clock.GetUtcNow());
+            switch (decision)
+            {
+                case HostIntegrityApprovalDecision.AlreadyApproved:
+                    return Results.Ok(new { status = "approved", key });
+                case HostIntegrityApprovalDecision.SameApprover:
+                    return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Second approver required",
+                        extensions: new Dictionary<string, object?> { ["errorCode"] = "second_approver_required",
+                            ["reason"] = "Critical drift needs a different super-admin to confirm your request." });
+                case HostIntegrityApprovalDecision.Request:
+                    store.Add(HostIntegrityApprovalStore.Requested, key, userId, userName, reason, drift.Severity, host, fingerprint, drift.Changes.Count, http);
+                    await db.SaveChangesAsync(ct);
+                    return Results.Accepted(value: new { status = "pending_second_approver", key });
+                default:
+                    store.Add(HostIntegrityApprovalStore.Approved, key, userId, userName, reason, drift.Severity, host, fingerprint, drift.Changes.Count, http);
+                    await db.SaveChangesAsync(ct);
+                    return Results.Ok(new { status = "approved", key });
+            }
+        });
+    }
+
+    private static async Task<IResult> PullApprovals(string? host, HostIntegrityApprovalStore store, TimeProvider clock, CancellationToken ct)
+    {
+        if (!HostIntegrityApprovalRules.IsValidHost(host)) return Invalid("invalid_host");
+        var items = await store.ApprovedForHostAsync(host!.Trim(), clock.GetUtcNow() - HostIntegrityApprovalRules.HostPullWindow, ct);
+        return Results.Ok(new
+        {
+            host,
+            items = items.Select(item => new { item.Fingerprint, item.Reason, item.RequestedBy, item.ApprovedBy, item.ApprovedAt, item.Severity }),
+        });
     }
 
     /// <summary>Keys the normalizer produces: "evt:&lt;20 hex&gt;" or "drift:&lt;host&gt;:&lt;16 hex&gt;".</summary>

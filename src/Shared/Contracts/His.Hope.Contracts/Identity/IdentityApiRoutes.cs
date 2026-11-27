@@ -55,6 +55,10 @@ public static class IdentityApiRoutes
     // newest active four-eyes grant, for workload callers only.
     public const string OpenShipAgentRootCertificate = ApiV1 + "/openship/agent-root-certificate";
     public const string OpenShipAgentRootCertificateScope = "openship.agent.root.certificate";
+    // Host integrity check (openship-integrity on every OpenShip host) pulls the drift
+    // approvals made in admin-app Security, workload callers only.
+    public const string OpenShipHostIntegrityApprovals = ApiV1 + "/openship/host-integrity-approvals";
+    public const string OpenShipHostIntegrityApprovalsScope = "openship.host.integrity.approvals";
     // OpenID Connect protocol endpoints are shared by API clients and tests.
     // Keep them here alongside service routes so protocol URL drift is visible.
     public const string OidcAuthorize = "/connect/authorize";

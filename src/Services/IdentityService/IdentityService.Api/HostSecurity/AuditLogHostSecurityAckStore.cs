@@ -20,16 +20,20 @@ public sealed class AuditLogHostSecurityAckStore(IdentityDbContext db) : IHostSe
     {
         if (keys.Count == 0) return new Dictionary<string, HostSecurityAck>();
         var rows = await db.AuditLogs.AsNoTracking()
-            .Where(row => row.ResourceType == ResourceType && row.Action == Action && row.ResourceId != null && keys.Contains(row.ResourceId))
+            // An approved drift (HostIntegrityApprovalStore) counts as acknowledged too.
+            .Where(row => ((row.ResourceType == ResourceType && row.Action == Action) ||
+                           (row.ResourceType == HostIntegrityApprovalStore.ResourceType && row.Action == HostIntegrityApprovalStore.Approved))
+                          && row.ResourceId != null && keys.Contains(row.ResourceId))
             .OrderBy(row => row.Timestamp)
-            .Select(row => new { row.ResourceId, row.UserName, row.UserId, row.Timestamp, row.Details })
+            .Select(row => new { row.ResourceId, row.UserName, row.UserId, row.Timestamp, row.Details, row.Action })
             .ToListAsync(cancellationToken);
         var result = new Dictionary<string, HostSecurityAck>(StringComparer.Ordinal);
         foreach (var row in rows)
         {
             if (result.ContainsKey(row.ResourceId!)) continue; // the first acknowledgement counts
             result[row.ResourceId!] = new HostSecurityAck(row.ResourceId!, row.UserName ?? row.UserId,
-                new DateTimeOffset(DateTime.SpecifyKind(row.Timestamp, DateTimeKind.Utc)), NoteOf(row.Details));
+                new DateTimeOffset(DateTime.SpecifyKind(row.Timestamp, DateTimeKind.Utc)),
+                row.Action == HostIntegrityApprovalStore.Approved ? "approved: " + ReasonOf(row.Details) : NoteOf(row.Details));
         }
         return result;
     }
@@ -49,6 +53,20 @@ public sealed class AuditLogHostSecurityAckStore(IdentityDbContext db) : IHostSe
         IpAddress = ip,
         UserAgent = userAgent is { Length: > 500 } ? userAgent[..500] : userAgent,
     };
+
+    private static string? ReasonOf(string? details)
+    {
+        if (string.IsNullOrEmpty(details)) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(details);
+            return document.RootElement.TryGetProperty("Reason", out var reason) && reason.ValueKind == JsonValueKind.String ? reason.GetString() : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     private static string? NoteOf(string? details)
     {

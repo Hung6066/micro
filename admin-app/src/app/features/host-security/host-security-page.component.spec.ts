@@ -47,6 +47,7 @@ function setup(api: Partial<HostSecurityApiService>) {
         useValue: {
           getMeta: () => of({ configured: true, categories: [], severities: [], maxLimit: 500, maxRangeDays: 31, staleAfterMinutes: 20 }),
           getHosts: () => of({ items: hosts }),
+          getApprovals: () => of({ items: [] }),
           getEvents: () => of({ items: [drift, driftRepeat, sudo], unacknowledged: { critical: 1, warning: 1 }, truncated: false, unavailableSources: [] }),
           ...api,
         },
@@ -111,5 +112,28 @@ describe("HostSecurityPageComponent", () => {
     expect(params.get("host")).toBe("pg-53");
     expect(params.has("unacknowledgedOnly")).toBeFalse();
     expect(params.has("text")).toBeFalse();
+  });
+
+  it("approves a drift with a reason and explains the second-approver step", () => {
+    const approve = jasmine.createSpy("approve").and.returnValue(of({ status: "pending_second_approver", key: drift.ackKey }));
+    const page = setup({ approve });
+    page.setLive(false);
+    page.startApprove(drift);
+    page.approveReason = "planned sudoers change for the broker";
+    page.approveDrift();
+    expect(approve).toHaveBeenCalledWith("vmi3129107", "3dec450c11effb93", "planned sudoers change for the broker");
+    expect(page.approving).toBeNull();
+    expect(page.notice).toContain("second super-admin");
+  });
+
+  it("explains a missing fresh MFA", () => {
+    const page = setup({
+      approve: () => throwError(() => new HttpErrorResponse({ status: 403, error: { errorCode: "step_up_required" } })),
+    });
+    page.setLive(false);
+    page.startApprove(drift);
+    page.approveReason = "planned sudoers change for the broker";
+    page.approveDrift();
+    expect(page.message).toContain("fresh MFA");
   });
 });

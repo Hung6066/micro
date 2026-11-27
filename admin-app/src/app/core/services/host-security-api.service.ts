@@ -55,6 +55,20 @@ export interface HostIntegrityStatus {
   stale: boolean;
 }
 
+/** A drift approval (critical drift: requested by one super-admin, approved by another). */
+export interface HostIntegrityApproval {
+  key: string;
+  host: string;
+  fingerprint: string;
+  status: "approved" | "pending_second_approver";
+  severity: HostSecuritySeverity;
+  reason: string;
+  requestedBy: string;
+  requestedAt: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+}
+
 export interface HostSecurityMeta {
   configured: boolean;
   categories: HostSecurityCategory[];
@@ -91,6 +105,18 @@ export class HostSecurityApiService {
 
   getHosts(): Observable<{ items: HostIntegrityStatus[] }> {
     return this.http.get<{ items: HostIntegrityStatus[] }>(`${this.baseUrl}/hosts`);
+  }
+
+  getApprovals(): Observable<{ items: HostIntegrityApproval[] }> {
+    return this.http.get<{ items: HostIntegrityApproval[] }>(`${this.baseUrl}/approvals`);
+  }
+
+  /**
+   * Approve a drift so the host accepts it into its baseline (fresh MFA; 403 step_up_required
+   * otherwise). Critical drift answers 202 pending_second_approver until another admin approves.
+   */
+  approve(host: string, fingerprint: string, reason: string): Observable<{ status: string; key: string }> {
+    return this.http.post<{ status: string; key: string }>(`${this.baseUrl}/approvals`, { host, fingerprint, reason: reason.trim() });
   }
 
   acknowledge(events: HostSecurityEvent[], note: string): Observable<{ acknowledged: number; items: HostSecurityAck[] }> {

@@ -94,6 +94,24 @@ public sealed partial class HostSecurityService(
         return new HostSecurityPage(events, open, truncated, unavailable);
     }
 
+    /// <summary>
+    /// The newest drift event of <paramref name="host"/> with exactly <paramref name="fingerprint"/>
+    /// in the last 24 hours (the server re-reads severity and changes; it never trusts the browser).
+    /// </summary>
+    public async Task<HostSecurityEvent?> FindDriftAsync(string host, string fingerprint, CancellationToken cancellationToken)
+    {
+        var now = clock.GetUtcNow();
+        var lines = await reader.ReadStreamsAsync(_options.Tenant,
+            $"{{job=\"openship-access-audit\", log_type=\"host_integrity\"}} |= \"{fingerprint}\"", now.AddHours(-24), now, 50, cancellationToken);
+        return lines
+            .Select(HostSecurityNormalizer.Normalize)
+            .OfType<HostSecurityEvent>()
+            .Where(item => item.SecurityEvent == "integrity_drift" && item.Fingerprint == fingerprint
+                           && string.Equals(item.Host, host, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.Timestamp)
+            .FirstOrDefault();
+    }
+
     /// <summary>Latest integrity report per host seen in the last hours.</summary>
     public async Task<IReadOnlyList<HostIntegrityStatus>> GetHostStatusAsync(CancellationToken cancellationToken)
     {
