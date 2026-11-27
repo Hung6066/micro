@@ -31,6 +31,7 @@ export const ADMIN_ROUTE_READ_PERMISSIONS: Readonly<Record<string, string>> = {
   "iam/break-glass": "admin.roles.read",
   "iam/infra-audit": "admin.roles.read",
   "iam/agent-root": "admin.roles.read",
+  "iam/security": "admin.roles.read",
   clients: "admin.clients.read",
   users: "admin.users.read",
   roles: "admin.roles.read",

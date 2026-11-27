@@ -44,6 +44,7 @@ public static class IdentityAdminEndpoints
             .BlockEndUserPortal();
         iamControlPlane.MapIamControlPlaneEndpoints();
         iamControlPlane.MapInfraAuditEndpoints();
+        iamControlPlane.MapHostSecurityEndpoints();
         iamControlPlane.MapAgentRootGrantEndpoints();
         // Result of the scheduled audit hash-chain verification (super admins only).
         iamControlPlane.MapGet("/audit-integrity", async (StackExchange.Redis.IConnectionMultiplexer redis) =>

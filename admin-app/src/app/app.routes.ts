@@ -250,6 +250,15 @@ const iamWorkbenchRoutes: Routes = [
       ),
   },
   {
+    // Super-admin only (server-enforced): host integrity drift, sudo, logins and Falco alerts.
+    path: "iam/security",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/host-security/host-security-page.component").then(
+        (m) => m.HostSecurityPageComponent,
+      ),
+  },
+  {
     // Super-admin only (server-enforced): four-eyes root SSH grants for the automation agent.
     path: "iam/agent-root",
     canActivate: [...protectedRoute],

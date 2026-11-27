@@ -693,9 +693,16 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddHttpClient(His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader.HttpClientName)
             .ConfigurePrimaryHttpMessageHandler(services => His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader.CreateHandler(
                 services.GetRequiredService<Microsoft.Extensions.Options.IOptions<His.Hope.IdentityService.Application.InfraAudit.InfraAuditOptions>>().Value));
-        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.IInfraAuditLogReader,
-            His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>();
+        builder.Services.AddSingleton<His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>();
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.IInfraAuditLogReader>(services =>
+            services.GetRequiredService<His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>());
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.InfraAuditService>();
+        // Security page: same relay, also tenant openship-runtime-security (Falco); acks in audit_logs.
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.HostSecurity.ILokiStreamReader>(services =>
+            services.GetRequiredService<His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>());
+        builder.Services.AddScoped<His.Hope.IdentityService.Application.HostSecurity.IHostSecurityAckStore,
+            His.Hope.IdentityService.Api.HostSecurity.AuditLogHostSecurityAckStore>();
+        builder.Services.AddScoped<His.Hope.IdentityService.Application.HostSecurity.HostSecurityService>();
 
         // Agent root SSH grants: four-eyes approval, then Vault SSH CA signs the agent key.
         builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions>()

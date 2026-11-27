@@ -14,6 +14,9 @@ public sealed class InfraAuditOptions
 
     public string Tenant { get; set; } = "openship-access-audit";
 
+    /// <summary>Falco runtime alerts (falcosidekick), read by the Security page.</summary>
+    public string RuntimeSecurityTenant { get; set; } = "openship-runtime-security";
+
     /// <summary>Relay basic-auth user and password (secret; never logged).</summary>
     public string? Username { get; set; }
 

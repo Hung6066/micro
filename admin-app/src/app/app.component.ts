@@ -310,6 +310,14 @@ export class AppComponent {
           permission: "admin.roles.read",
         },
         {
+          id: "host-security",
+          route: "/iam/security",
+          icon: "security",
+          labelKey: "admin.hostSecurity",
+          fallback: "Security",
+          permission: "admin.roles.read",
+        },
+        {
           id: "agent-root",
           route: "/iam/agent-root",
           icon: "admin_panel_settings",
