@@ -32,6 +32,20 @@ public sealed class HostSecurityTests
             ["k8s_ns_name"] = "openship-apps", ["k8s_pod_name"] = "api-1", ["source"] = "syscall",
         });
 
+    private const string SharedKeyOffHost =
+        """{"log_type":"ssh_gate","host":"pg-53","user":"openship-admin","gate":"openship-shared-key-audit","action":"openship-shared-key-audit --probe","target":"--probe","source_ip":"100.96.0.9","result":"allowed","security_event":"shared_key_offhost","severity":"critical"}""";
+
+    [Fact]
+    public void Ssh_gate_events_show_as_login_with_source()
+    {
+        var item = HostSecurityNormalizer.Normalize(Line(SharedKeyOffHost))!;
+        item.Category.Should().Be(HostSecurityCategories.Login);
+        item.SecurityEvent.Should().Be("shared_key_offhost");
+        item.Severity.Should().Be("critical");
+        item.Host.Should().Be("pg-53");
+        item.Summary.Should().Be("openship-shared-key-audit --probe from 100.96.0.9");
+    }
+
     [Fact]
     public void Drift_keeps_changes_and_acks_by_fingerprint()
     {

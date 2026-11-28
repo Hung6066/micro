@@ -42,6 +42,7 @@ public static partial class HostSecurityNormalizer
             "host_integrity" => Integrity(raw, root, securityEvent),
             "sudo" => Sudo(raw, root, securityEvent),
             "sshd_auth" => Login(raw, root, securityEvent),
+            "ssh_gate" => Login(raw, root, securityEvent),
             "egress_baseline" => Egress(raw, root, securityEvent),
             _ => null,
         };
