@@ -14,6 +14,50 @@ namespace His.Hope.IdentityService.IntegrationTests;
 public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
 {
     [Fact]
+    public async Task Admin_client_creation_rejects_missing_type_without_server_error()
+    {
+        using var session = await LoginAsync();
+        var response = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId = $"integration-client-{Guid.NewGuid():N}",
+            displayName = "Missing type",
+            clientType = "Public",
+            grantTypes = new[] { "authorization_code" },
+            redirectUris = new[] { "https://app.example/callback" },
+            scopes = new[] { "openid" }
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Admin_client_scope_list_comes_from_the_server_and_create_rejects_unknown_scopes()
+    {
+        using var session = await LoginAsync();
+
+        var list = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/scopes");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        using var document = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        var names = document.RootElement.EnumerateArray().Select(item => item.GetProperty("name").GetString()).ToList();
+        Assert.Contains("openid", names);
+        Assert.Contains("offline_access", names);
+        Assert.Contains(IdentityApiRoutes.OpenShipConsoleAccessScope, names);
+        Assert.Contains(IdentityApiRoutes.OpenShipAgentRootCertificateScope, names);
+        Assert.Equal(names.Count, names.Distinct().Count());
+
+        var unknown = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId = $"integration-client-{Guid.NewGuid():N}",
+            displayName = "Unknown scope",
+            type = "confidential",
+            grantTypes = new[] { "client_credentials" },
+            scopes = new[] { "openship.does.not.exist" }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Contains("openship.does.not.exist", await unknown.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Admin_client_crud_and_onboarding_paths_are_exercised()
     {
         using var session = await LoginAsync();
@@ -77,6 +121,82 @@ public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
             (await session.DeleteWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}")).StatusCode);
     }
 
+    [Theory]
+    [InlineData("https://app.example/callback", true)]
+    [InlineData("http://localhost:8000", true)]
+    [InlineData("http://LOCALHOST:18000/", true)]
+    [InlineData("http://127.0.0.1:8250/oidc/callback", true)]
+    [InlineData("http://[::1]:8000", true)]
+    [InlineData("http://app.example/callback", false)]
+    [InlineData("http://localhost.example.com/callback", false)]
+    [InlineData("http://127.0.0.2/callback", false)]
+    [InlineData("https://app.example/callback#fragment", false)]
+    [InlineData("https://user:pass@app.example/callback", false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("not a uri", false)]
+    public void Admin_client_uris_must_be_https_or_http_loopback(string uri, bool allowed) =>
+        Assert.Equal(allowed, ClientEndpoints.IsAllowedClientUri(uri));
+
+    [Fact]
+    public async Task Admin_client_create_and_update_enforce_redirect_uris_and_update_persists_them()
+    {
+        using var session = await LoginAsync();
+        var clientId = $"integration-cli-{Guid.NewGuid():N}";
+
+        var rejected = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId,
+            displayName = "Clear-text callback",
+            type = "public",
+            grantTypes = new[] { "authorization_code", "refresh_token" },
+            redirectUris = new[] { "http://app.example/callback" },
+            scopes = new[] { "openid" }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+
+        var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminClients, new
+        {
+            clientId,
+            displayName = "CLI client",
+            type = "public",
+            grantTypes = new[] { "authorization_code", "refresh_token" },
+            redirectUris = new[] { "http://localhost:8000" },
+            scopes = new[] { "openid", "email", "profile", "offline_access" }
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        var list = await (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminClients))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var id = list.GetProperty("items").EnumerateArray()
+            .First(value => value.GetProperty("clientId").GetString() == clientId)
+            .GetProperty("id").GetString()!;
+
+        var current = await (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var badUpdate = await session.PutWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}", new
+        {
+            redirectUris = new[] { "http://localhost:8000", "http://evil.example/callback" },
+            concurrencyToken = current.GetProperty("concurrencyToken").GetString()
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, badUpdate.StatusCode);
+
+        var update = await session.PutWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}", new
+        {
+            redirectUris = new[] { "http://localhost:8000", "http://localhost:18000" },
+            concurrencyToken = current.GetProperty("concurrencyToken").GetString()
+        });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+
+        var saved = await (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}"))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(
+            new[] { "http://localhost:8000", "http://localhost:18000" },
+            saved.GetProperty("redirectUris").EnumerateArray().Select(uri => uri.GetString()!).ToArray());
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await session.DeleteWithCookiesAsync($"{IdentityApiRoutes.AdminClients}/{id}")).StatusCode);
+    }
+
     [Fact]
     public async Task Dynamic_registration_requires_a_configured_registration_token()
     {
@@ -106,6 +226,16 @@ public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
         Assert.Empty((System.Collections.IEnumerable)grantTypes.Invoke(null, [null])!);
         Assert.Equal(new[] { "authorization_code", "refresh_token" }, ((System.Collections.IEnumerable)grantTypes.Invoke(null, ["authorization_code refresh_token ignored"])!).Cast<string>());
         Assert.Contains("custom", ((System.Collections.IEnumerable)scopes.Invoke(null, ["scope:custom scope:custom openid roles"])!).Cast<string>());
+        // Stored OpenIddict permissions are a JSON array using the "scp:" prefix.
+        Assert.Equal(
+            new[] { "openid", "scim.read", "identity.clients.reconcile" },
+            ((System.Collections.IEnumerable)scopes.Invoke(null, ["[\"ept:token\",\"gt:client_credentials\",\"scp:openid\",\"scp:scim.read\",\"scope:identity.clients.reconcile\"]"])!).Cast<string>());
+        var build = type.GetMethod("BuildPermissions", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var request = new His.Hope.IdentityService.Application.DTOs.CreateClientRequest(
+            "m2m", "M2M", "confidential", ["client_credentials"], null, null, ["identity.clients.reconcile"], null);
+        var built = ((System.Collections.Generic.IEnumerable<string>)build.Invoke(null, [request])!).ToArray();
+        Assert.Contains("scp:identity.clients.reconcile", built);
+        Assert.DoesNotContain(built, permission => permission.StartsWith("scope:", StringComparison.Ordinal));
         Assert.Empty((System.Collections.IEnumerable)uris.Invoke(null, ["not-json"])!);
     }
 
@@ -156,6 +286,7 @@ public sealed class ClientEndpointTests(IdentityServiceTestFixture fixture)
         var session = fixture.CreateSessionClient();
         var response = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync());
         return session;
     }
 }

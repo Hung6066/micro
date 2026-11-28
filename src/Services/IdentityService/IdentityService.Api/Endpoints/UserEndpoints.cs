@@ -9,7 +9,13 @@ using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.Infrastructure.Audit;
 using System.Text.Json;
 using His.Hope.IdentityService.Api.Authorization;
+using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Contracts.Identity;
+using His.Hope.SharedKernel.Domain.Common;
+using His.Hope.IdentityService.Application.OpenIddict;
+using His.Hope.IdentityService.Domain.Entities;
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -19,9 +25,20 @@ namespace His.Hope.IdentityService.Api.Endpoints;
 /// </summary>
 public static class UserEndpoints
 {
+    /// <summary>Shared Signals outbox event type emitted when an account is deactivated.</summary>
+    public const string UserDeactivatedSignal = "user-deactivated";
+
+    /// <summary>Problem errorCode returned when an administrator tries to verify their own email.</summary>
+    public const string SelfEmailVerificationErrorCode = "self_email_verification";
+
+    /// <summary>Problem errorCode returned when an administrator tries to set their own password.</summary>
+    public const string SelfPasswordSetErrorCode = "self_password_set";
+
+    /// <summary>Body of PUT /users/{id}/password.</summary>
+    public sealed record AdminSetPasswordRequest(string NewPassword);
+
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder group)
     {
-        // GET /api/v1/auth/users - Paginated user list
         group.MapGet(IdentityApiRoutes.UsersSegment, async (
             int page = 1,
             int pageSize = 20,
@@ -30,6 +47,7 @@ public static class UserEndpoints
             bool? isActive = null,
             string? sort = null,
             IMediator mediator = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             QueryRequest normalized;
@@ -50,38 +68,59 @@ public static class UserEndpoints
                         new HashSet<string>(["role", "isActive"], StringComparer.OrdinalIgnoreCase));
             }
             catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
-            if (normalized.Search?.Length > 100 || normalized.Filters["role"]?.Length > 100)
+            if (normalized.Search?.Length > 100 || (normalized.Filters?.TryGetValue("role", out var roleFilter) == true && roleFilter?.Length > 100))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search and role filters must be 100 characters or fewer."] });
 
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             var result = await mediator.Send(
                 new GetUsersQuery(
                     normalized.Page,
                     normalized.PageSize,
                     normalized.Search,
-                    normalized.Filters["role"],
+                    normalized.Filters?.GetValueOrDefault("role"),
                     isActive,
-                    normalized.Sort), ct);
+                    normalized.Sort,
+                    tenantFilter.AllowedTenantKeys?.ToArray()), ct);
             return Results.Ok(result);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
 
-        // GET /api/v1/auth/users/{id} - User detail
         group.MapGet(IdentityApiRoutes.UsersSegment + "/{id:guid}", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            var user = await mediator.Send(new GetUserByIdQuery(id), ct);
-            return user is null ? Results.NotFound() : Results.Ok(user);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            var user = Guard.Against.NotFound(
+                await mediator.Send(new GetUserByIdQuery(id), ct), "User", id);
 
-        // POST /api/v1/auth/users - Create user
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            return Results.Ok(user);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
+
         group.MapPost(IdentityApiRoutes.UsersSegment, async (
             CreateUserRequest request,
             IMediator mediator = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
+            His.Hope.IdentityService.Application.Interfaces.IApplicationDbContext governanceDb = null!,
             CancellationToken ct = default) =>
         {
+            // SECURITY: admin.users.write alone must not create an account holding
+            // a role the actor could not assign through the governed roles endpoint.
+            if (!string.IsNullOrWhiteSpace(request.Role) &&
+                await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
+                    governanceDb, http.User, Guid.Empty, [request.Role], ct) is { } createGovernanceError)
+                return Results.Problem(statusCode: 403, detail: createGovernanceError,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
+
             try
             {
                 var command = new CreateUserCommand(
@@ -99,18 +138,53 @@ public static class UserEndpoints
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
 
-        // PUT /api/v1/auth/users/{id} - Update user
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}", async (
             Guid id,
             UpdateUserRequest request,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             ITokenBlacklistService tokenBlacklist = null!,
+            His.Hope.IdentityService.Application.Interfaces.IApplicationDbContext governanceDb = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            // SECURITY: this endpoint only needs admin.users.write, so a role change
+            // made here is held to the same rules as PUT /users/{id}/roles: never on
+            // your own account, and never beyond what the actor may grant.
+            string[] previousRoles = [];
+            var roleChanged = false;
+            if (!string.IsNullOrWhiteSpace(request.Role))
+            {
+                previousRoles = await (
+                    from userRole in db.UserRoles.AsNoTracking()
+                    join role in db.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                    where userRole.UserId == id
+                    select role.Name!).ToArrayAsync(ct);
+                roleChanged = previousRoles.Length != 1 ||
+                    !string.Equals(previousRoles[0], request.Role, StringComparison.OrdinalIgnoreCase);
+            }
+            if (roleChanged)
+            {
+                var actorId = http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
+                    ?? http.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (string.Equals(actorId, id.ToString(), StringComparison.OrdinalIgnoreCase))
+                    return Results.Problem(statusCode: 400,
+                        extensions: new Dictionary<string, object?> { ["errorCode"] = "self_role_change" });
+                if (await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
+                        governanceDb, http.User, id, [request.Role!], ct) is { } updateGovernanceError)
+                    return Results.Problem(statusCode: 403, detail: updateGovernanceError,
+                        extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
+            }
+
             try
             {
                 var command = new UpdateUserCommand(
@@ -119,12 +193,14 @@ public static class UserEndpoints
 
                 var user = await mediator.Send(command, ct);
                 await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+                if (roleChanged)
+                    await AdminAudit.LogAuthorizationChangeAsync(
+                        governanceDb, http, "ROLE_ASSIGNMENT", "User", id.ToString(),
+                        "Role changed through user update.",
+                        JsonSerializer.Serialize(new { roles = previousRoles }),
+                        JsonSerializer.Serialize(new { roles = new[] { request.Role } }), ct);
                 await AdminAudit.LogAsync(audit, http, "UPDATE", "User", id.ToString(), ct);
                 return Results.Ok(user);
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
             }
             catch (InvalidOperationException ex)
             {
@@ -132,63 +208,206 @@ public static class UserEndpoints
                     detail: ex.Message,
                     extensions: new Dictionary<string, object?> { ["errorCode"] = ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? ApiErrorCodes.ConcurrencyConflict : ApiErrorCodes.UserRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
 
-        // PUT /api/v1/auth/users/{id}/deactivate - Soft-delete user
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/deactivate", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
             ITokenBlacklistService tokenBlacklist = null!,
+            IOpenIddictSubjectRevoker subjectRevoker = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
-            try
-            {
-                await mediator.Send(new DeactivateUserCommand(id), ct);
-                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
-                await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
-                return Results.NoContent();
-            }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
 
-        // PUT /api/v1/auth/users/{id}/activate - Reactivate user
+            await mediator.Send(new DeactivateUserCommand(id), ct);
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            // SECURITY (leavers): the blacklist only covers JWT access tokens.
+            // Revoke OpenIddict authorizations and refresh/reference tokens too,
+            // so OIDC relying parties (e.g. OpenShip consoles) cannot refresh.
+            await subjectRevoker.RevokeAllAsync(id, ct);
+            db.SecuritySignalOutbox.Add(new SecuritySignalOutbox
+            {
+                EventType = UserDeactivatedSignal,
+                Subject = id.ToString(),
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    eventType = UserDeactivatedSignal,
+                    subject = id.ToString(),
+                    severity = "info",
+                    occurredAt = DateTime.UtcNow
+                })
+            });
+            await db.SaveChangesAsync(ct);
+            await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
+            return Results.NoContent();
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/activate", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
             ITokenBlacklistService tokenBlacklist = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            await mediator.Send(new ActivateUserCommand(id), ct);
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
+            return Results.NoContent();
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
+        // Administrator-verified email. Production requires a confirmed email before a
+        // password sign-in succeeds, and accounts created by an administrator start
+        // unconfirmed with no way to receive the confirmation link before they can sign
+        // in. Another administrator (never the account itself) vouches for the address,
+        // with a fresh MFA step-up; the action is idempotent and audited.
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/verify-email", async (
+            Guid id,
+            IdentityDbContext db = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
+            CancellationToken ct = default) =>
+        {
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp)
+                return stepUp;
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            var caller = http.User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
+                ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
+            if (string.Equals(caller, id.ToString(), StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Self email verification is not allowed",
+                    detail: "Another administrator must verify this account's email address.",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = SelfEmailVerificationErrorCode });
+
+            var user = await db.Users.FirstOrDefaultAsync(item => item.Id == id, ct);
+            if (user is null)
+                return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(user.Email))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: "The account has no email address",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = "email_missing" });
+
+            var changed = !user.EmailConfirmed;
+            if (changed)
+            {
+                user.EmailConfirmed = true;
+                await db.SaveChangesAsync(ct);
+                await AdminAudit.LogAsync(audit, http, "VERIFY_EMAIL", "User", id.ToString(), ct);
+            }
+
+            return Results.Ok(new { id, emailConfirmed = true, changed });
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
+        // Administrator-set password. Accounts created in admin-app had no way to get a
+        // usable password (the edit dialog's password field was never sent). Another
+        // administrator (never the account itself: that is Change password) sets one with
+        // a fresh MFA step-up. The reset path enforces the password policy and the recent
+        // password history; afterwards every session and token of the user is revoked.
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/password", async (
+            Guid id,
+            AdminSetPasswordRequest request,
+            IdentityDbContext db = null!,
+            IIdentityService identityService = null!,
+            ITokenBlacklistService tokenBlacklist = null!,
+            IOpenIddictSubjectRevoker subjectRevoker = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
+            CancellationToken ct = default) =>
+        {
+            if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp)
+                return stepUp;
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            var caller = http.User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
+                ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
+            if (string.Equals(caller, id.ToString(), StringComparison.OrdinalIgnoreCase))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status403Forbidden,
+                    title: "Setting your own password is not allowed",
+                    detail: "Use Change password for your own account.",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = SelfPasswordSetErrorCode });
+
+            if (string.IsNullOrWhiteSpace(request?.NewPassword))
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "A new password is required",
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = "password_required" });
+
+            var email = await db.Users.AsNoTracking()
+                .Where(item => item.Id == id)
+                .Select(item => item.Email)
+                .FirstOrDefaultAsync(ct);
+            if (email is null)
+                return Results.NotFound();
+
             try
             {
-                await mediator.Send(new ActivateUserCommand(id), ct);
-                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
-                await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
-                return Results.NoContent();
+                var token = await identityService.GeneratePasswordResetTokenAsync(email, ct);
+                await identityService.ResetPasswordAsync(email, token, request.NewPassword, ct);
             }
-            catch (KeyNotFoundException)
+            catch (InvalidOperationException ex)
             {
-                return Results.NotFound();
+                var reused = ex.Message.Contains("reuse", StringComparison.OrdinalIgnoreCase);
+                return Results.Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: reused ? "The password was used recently" : "The password does not meet the policy",
+                    detail: ex.Message,
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["errorCode"] = reused ? "password_reused" : "password_policy"
+                    });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
-        // PUT /api/v1/auth/users/{id}/roles - Assign roles
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await subjectRevoker.RevokeAllAsync(id, ct);
+            await AdminAudit.LogAsync(audit, http, "SET_PASSWORD", "User", id.ToString(), ct);
+            return Results.NoContent();
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
         group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/roles", async (
             Guid id,
             AssignRolesRequest request,
             IMediator mediator = null!,
             ITokenBlacklistService tokenBlacklist = null!,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
             try
             {
                 var governanceError = await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
@@ -206,17 +425,169 @@ public static class UserEndpoints
                 await AdminAudit.LogAsync(audit, http, "ASSIGN_ROLES", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }
-            catch (KeyNotFoundException)
-            {
-                return Results.NotFound();
-            }
             catch (InvalidOperationException ex)
             {
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
+
+        // Tenant memberships. A tenant_membership claim decides which tenant
+        // portals (e.g. admin-app → nacoms-group) a user may open a session for.
+        // Only the startup seeder granted it before, so accounts created in
+        // admin-app could sign in but got 403 at the BFF session exchange.
+        group.MapGet(IdentityApiRoutes.UsersSegment + "/{id:guid}/tenant-memberships", async (
+            Guid id,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
+            CancellationToken ct = default) =>
+        {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+                return accessError;
+
+            var memberships = await db.UserClaims.AsNoTracking()
+                .Where(claim => claim.UserId == id &&
+                                claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                                claim.ClaimValue != null)
+                .Select(claim => claim.ClaimValue!)
+                .ToListAsync(ct);
+            var tenants = await db.IamScopes.AsNoTracking()
+                .Where(scope => scope.Kind == "tenant" && scope.IsActive)
+                .OrderBy(scope => scope.DisplayName)
+                .Select(scope => new { key = scope.Key, displayName = scope.DisplayName })
+                .ToListAsync(ct);
+            var manageable = tenantFilter.AllowedTenantKeys;
+
+            return Results.Ok(new
+            {
+                memberships = memberships.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(key => key).ToArray(),
+                tenants = tenants.Select(tenant => new
+                {
+                    tenant.key,
+                    tenant.displayName,
+                    canManage = manageable is null || manageable.Contains(tenant.key)
+                })
+            });
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
+
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/tenant-memberships/{tenantKey}", (
+            Guid id,
+            string tenantKey,
+            IdentityDbContext db,
+            IApplicationDbContext appDb,
+            ITokenBlacklistService tokenBlacklist,
+            IOpenIddictSubjectRevoker subjectRevoker,
+            IAuditService audit,
+            HttpContext http,
+            CancellationToken ct) =>
+            ChangeTenantMembershipAsync(id, tenantKey, add: true, db, appDb, tokenBlacklist, subjectRevoker, audit, http, ct))
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
+
+        group.MapDelete(IdentityApiRoutes.UsersSegment + "/{id:guid}/tenant-memberships/{tenantKey}", (
+            Guid id,
+            string tenantKey,
+            IdentityDbContext db,
+            IApplicationDbContext appDb,
+            ITokenBlacklistService tokenBlacklist,
+            IOpenIddictSubjectRevoker subjectRevoker,
+            IAuditService audit,
+            HttpContext http,
+            CancellationToken ct) =>
+            ChangeTenantMembershipAsync(id, tenantKey, add: false, db, appDb, tokenBlacklist, subjectRevoker, audit, http, ct))
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
 
         return group;
+    }
+
+    /// <summary>Problem errorCode returned when an administrator tries to change their own tenant memberships.</summary>
+    public const string SelfTenantMembershipErrorCode = "self_tenant_membership";
+
+    private static async Task<IResult> ChangeTenantMembershipAsync(
+        Guid id,
+        string tenantKey,
+        bool add,
+        IdentityDbContext db,
+        IApplicationDbContext appDb,
+        ITokenBlacklistService tokenBlacklist,
+        IOpenIddictSubjectRevoker subjectRevoker,
+        IAuditService audit,
+        HttpContext http,
+        CancellationToken ct)
+    {
+        if (StepUpAuthenticationGuard.RequireFreshMfa(http) is { } stepUp)
+            return stepUp;
+
+        var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+        if (await IamTenantAccessGuard.EnsureUserAccessAsync(db, id, tenantFilter, ct) is { } accessError)
+            return accessError;
+
+        var caller = http.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? http.User.FindFirstValue(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
+        if (string.Equals(caller, id.ToString(), StringComparison.OrdinalIgnoreCase))
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "Changing your own tenant memberships is not allowed",
+                detail: "Another administrator must change this account's tenant memberships.",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = SelfTenantMembershipErrorCode });
+
+        var tenant = await db.IamScopes.AsNoTracking()
+            .Where(scope => scope.Kind == "tenant" && scope.Key == tenantKey)
+            .Select(scope => new { scope.Key, scope.IsActive })
+            .FirstOrDefaultAsync(ct);
+        if (tenant is null || (add && !tenant.IsActive))
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Unknown or inactive tenant",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = "tenant_unknown" });
+
+        // A tenant-scoped administrator may only grant or revoke tenants they manage.
+        if (tenantFilter.AllowedTenantKeys is { } allowed && !allowed.Contains(tenant.Key))
+            return Results.Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "You cannot manage this tenant",
+                extensions: new Dictionary<string, object?> { ["errorCode"] = "tenant_not_manageable" });
+
+        if (!await db.Users.AnyAsync(user => user.Id == id, ct))
+            return Results.NotFound();
+
+        var existing = await db.UserClaims
+            .Where(claim => claim.UserId == id &&
+                            claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                            claim.ClaimValue != null &&
+                            claim.ClaimValue.ToLower() == tenant.Key.ToLower())
+            .ToListAsync(ct);
+
+        var changed = add ? existing.Count == 0 : existing.Count > 0;
+        if (changed)
+        {
+            if (add)
+                db.UserClaims.Add(new Microsoft.AspNetCore.Identity.IdentityUserClaim<Guid>
+                {
+                    UserId = id,
+                    ClaimType = IamTenantScopeResolver.TenantMembershipClaimType,
+                    ClaimValue = tenant.Key
+                });
+            else
+                db.UserClaims.RemoveRange(existing);
+            await db.SaveChangesAsync(ct);
+
+            // Claims are captured at sign-in: end every session so the change applies now.
+            await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+            await subjectRevoker.RevokeAllAsync(id, ct);
+            await AdminAudit.LogAuthorizationChangeAsync(
+                appDb, http, add ? "TENANT_MEMBERSHIP_GRANT" : "TENANT_MEMBERSHIP_REVOKE", "User", id.ToString(),
+                "Tenant membership changed through admin control plane.",
+                null, JsonSerializer.Serialize(new { tenant = tenant.Key, member = add }), ct);
+            await AdminAudit.LogAsync(audit, http, add ? "ADD_TENANT_MEMBERSHIP" : "REMOVE_TENANT_MEMBERSHIP", "User", id.ToString(), ct);
+        }
+
+        return Results.Ok(new { id, tenant = tenant.Key, member = add, changed });
     }
 }

@@ -17,8 +17,7 @@ builder.Configuration["ReverseProxy:Clusters:pharmacy-service:Destinations:pharm
 builder.Services.AddBffCore(builder.Configuration, "PharmacyBff");
 builder.Services.AddBffProxy(builder.Configuration);
 
-builder.Services.AddGrpcClient<PharmacyGrpcService.PharmacyGrpcServiceClient>(o =>
-    o.Address = runtimeEndpoints.GetRequired("pharmacy-grpc"));
+builder.Services.AddHisHopeGrpcClient<PharmacyGrpcService.PharmacyGrpcServiceClient>(runtimeEndpoints, "pharmacy-grpc");
 
 builder.Services.AddSingleton<PharmacyBff.Aggregation.MedicationFullHandler>();
 builder.Services.AddSingleton<IAggregationHandler>(sp =>

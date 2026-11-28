@@ -59,6 +59,7 @@ export class HisHopeResourceRowActionsDirective {
         [subtitle]="subtitle() | hhTranslate: subtitleFallback()"
       />
       <ng-content select="[hhPageHeaderActions]" />
+      <ng-content select="[hhResourceListPrefix]" />
 
       <hh-toolbar
         hhPageToolbar

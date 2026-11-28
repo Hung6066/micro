@@ -31,7 +31,7 @@ public class GrpcPermissionHandler : AuthorizationHandler<PermissionRequirement>
             return;
         }
 
-        var userId = context.User.FindFirst("sub")?.Value
+        var userId = context.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject)?.Value
                   ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
         if (string.IsNullOrEmpty(userId))
@@ -64,7 +64,7 @@ public class GrpcPermissionHandler : AuthorizationHandler<PermissionRequirement>
             _logger.LogError(ex, "gRPC permission check failed, falling back to local claim");
 
             // Fallback: check JWT claims locally
-            var permissionsClaims = context.User.FindAll("permissions")
+            var permissionsClaims = context.User.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
                 .SelectMany(c => c.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

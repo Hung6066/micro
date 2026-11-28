@@ -6,6 +6,7 @@ import {
   AdminPageResult,
   AdminBulkActionResponse,
   AdminTableView,
+  AvailableScope,
   ClientOnboarding,
   ClientSecretResponse,
   OidcClient,
@@ -52,13 +53,21 @@ export class ClientsApiService {
     );
   }
 
+  /** OAuth scopes a client may be granted, as IdentityService knows them. */
+  getAvailableScopes(): Observable<AvailableScope[]> {
+    return this.http.get<AvailableScope[]>(`${this.baseUrl}/clients/scopes`);
+  }
+
   getClient(id: string): Observable<OidcClient> {
     return this.http.get<OidcClient>(`${this.baseUrl}/clients/${id}`);
   }
 
   createClient(client: Partial<OidcClient>): Observable<ClientSecretResponse> {
     return this.http
-      .post<ClientSecretResponse>(`${this.baseUrl}/clients`, client)
+      .post<ClientSecretResponse>(`${this.baseUrl}/clients`, {
+        ...client,
+        type: client.clientType,
+      })
       .pipe(tap(() => this.requestCache.invalidate("admin:clients:")));
   }
 
@@ -105,6 +114,7 @@ export class ClientsApiService {
   }
 
   getTableViews(_resource: "clients"): Observable<AdminTableView[]> {
+    void _resource;
     return this.tableApi.getViews("clients");
   }
 

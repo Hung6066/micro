@@ -44,7 +44,12 @@
   const readProblem = async (response, fallback) => {
     try {
       const body = await response.clone().json();
-      return body.detail || body.title || body.errorDescription || body.error || fallback;
+      const messages = {
+        invalid_recovery_code: 'That recovery code is invalid or has already been used.',
+        invalid_totp_code: 'That authenticator code is invalid or has expired.',
+        invalid_mfa_state: 'Submit exactly one verification method.'
+      };
+      return body.detail || body.errorDescription || body.error || messages[body.errorCode] || body.title || fallback;
     } catch {
       const text = await response.text();
       return text || fallback;
@@ -170,10 +175,13 @@
   const totpForm = document.getElementById('totp-form');
   const totpInput = document.getElementById('totp-code');
   const totpSubmit = totpForm?.querySelector('button[type="submit"]');
+  const recoveryForm = document.getElementById('recovery-code-form');
+  const recoveryInput = document.getElementById('recovery-code');
+  const recoverySubmit = recoveryForm?.querySelector('button[type="submit"]');
   const status = document.getElementById('mfa-status');
   const error = document.getElementById('mfa-error');
 
-  if (!primaryActions || !alternateActions || !passkeyMfaButton || !nativeMfaButton || !alternateMethodsButton || !alternatePanel || !totpForm || !totpInput || !totpSubmit)
+  if (!primaryActions || !alternateActions || !passkeyMfaButton || !nativeMfaButton || !alternateMethodsButton || !alternatePanel || !totpForm || !totpInput || !totpSubmit || !recoveryForm || !recoveryInput || !recoverySubmit)
     return;
 
   const state = {
@@ -240,7 +248,7 @@
     nativeMfaButton.hidden = !mobileAvailable;
     alternateMethodsButton.hidden = !hasAlternates;
     alternateMethodsButton.textContent = !passkeyAvailable && !mobileAvailable && totpAvailable
-      ? 'Use authenticator code'
+      ? 'Use authenticator or recovery code'
       : 'Use another method';
     alternateMethodsButton.setAttribute('aria-expanded', state.alternateOpen ? 'true' : 'false');
 
@@ -248,6 +256,9 @@
     totpForm.hidden = !totpAvailable || !state.alternateOpen;
     totpInput.disabled = !totpAvailable || state.busyMethod !== null;
     totpSubmit.disabled = !totpAvailable || state.busyMethod !== null;
+    recoveryForm.hidden = !totpAvailable || !state.alternateOpen;
+    recoveryInput.disabled = !totpAvailable || state.busyMethod !== null;
+    recoverySubmit.disabled = !totpAvailable || state.busyMethod !== null;
 
     const busy = state.busyMethod !== null;
     passkeyMfaButton.disabled = !passkeyAvailable || busy;
@@ -444,8 +455,45 @@
     }
   };
 
+  const submitRecoveryCode = async event => {
+    event.preventDefault();
+    state.alternateOpen = true;
+    clearFeedback();
+
+    const recoveryCode = `${recoveryInput.value || ''}`.trim();
+    if (!recoveryCode) {
+      setError('Enter one of your unused recovery codes.');
+      render();
+      return;
+    }
+
+    state.busyMethod = 'recovery';
+    setStatus('Verifying recovery code.');
+    render();
+
+    try {
+      const response = await fetch('/api/v1/auth/mfa/verify', {
+        method: 'POST',
+        headers: csrfHeaders(true),
+        body: JSON.stringify({ recoveryCode })
+      });
+      if (!response.ok) throw new Error(await readProblem(response, 'Recovery-code verification failed.'));
+
+      const result = await response.json();
+      await establishBrowserSession();
+      window.location.assign(mfaReturnUrl || result.redirectUrl || '/');
+    } catch (exception) {
+      setError(exception instanceof Error ? exception.message : String(exception));
+    } finally {
+      recoveryInput.value = '';
+      state.busyMethod = null;
+      render();
+    }
+  };
+
   passkeyMfaButton.addEventListener('click', submitPasskey);
   nativeMfaButton.addEventListener('click', startNativeApproval);
+  recoveryForm.addEventListener('submit', submitRecoveryCode);
   alternateMethodsButton.addEventListener('click', () => {
     if (state.busyMethod !== null) return;
     state.alternateOpen = !state.alternateOpen;

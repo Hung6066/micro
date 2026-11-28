@@ -53,7 +53,19 @@ import { PasskeyApiService } from "../../core/services/passkey-api.service";
               : ("admin.passkeyNotRegistered"
                 | hhTranslate: "No passkey is registered for this account.")
           }}
+          @if (ready && count !== null) {
+            ({{ count }}{{ minimumRequired ? " / " + minimumRequired : "" }})
+          }
         </p>
+        @if (ready && minimumRequired && count !== null && count < minimumRequired) {
+          <p class="hint">
+            {{
+              "admin.passkeyBelowMinimum"
+                | hhTranslate
+                  : "Add another passkey (for example on your phone) so passkeys alone count as MFA, or enable MFA / TOTP."
+            }}
+          </p>
+        }
         <p class="error" *ngIf="error">{{ error }}</p>
       </mat-card-content>
       <mat-card-actions>
@@ -62,7 +74,11 @@ import { PasskeyApiService } from "../../core/services/passkey-api.service";
           (pressed)="create()"
           kind="primary"
           icon="add"
-          [label]="'admin.createPasskey' | hhTranslate: 'Create passkey'"
+          [label]="
+            ready
+              ? ('admin.addAnotherPasskey' | hhTranslate: 'Add another passkey')
+              : ('admin.createPasskey' | hhTranslate: 'Create passkey')
+          "
         />
       </mat-card-actions>
     </mat-card>
@@ -76,13 +92,22 @@ export class PasskeyProviderCardComponent {
   private readonly client = new HisHopeBrowserPasskeyClient();
 
   ready = false;
+  count: number | null = null;
+  minimumRequired: number | null = null;
   busy = false;
   error = "";
 
   constructor() {
+    this.loadStatus();
+  }
+
+  private loadStatus(): void {
     this.api.getStatus().subscribe({
       next: (status) => {
         this.ready = status.registered;
+        this.count = typeof status.count === "number" ? status.count : null;
+        this.minimumRequired =
+          typeof status.minimumRequired === "number" ? status.minimumRequired : null;
         this.cdr.markForCheck();
       },
       error: (error) => {
@@ -125,6 +150,7 @@ export class PasskeyProviderCardComponent {
         }),
       );
       this.ready = true;
+      this.loadStatus();
     } catch (error) {
       this.error = this.errors.message(
         error,

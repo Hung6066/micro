@@ -37,6 +37,7 @@ import { HisHopeMaterialValidationErrorComponent } from "./his-hope-material-val
             [type]="type()"
             [formControl]="$any(control())"
             [placeholder]="placeholder()"
+            [attr.autocomplete]="autocomplete() || null"
           />
         }
       </mat-form-field>
@@ -75,6 +76,8 @@ export class HisHopeTextFieldComponent {
   readonly hint = input("");
   readonly placeholder = input("");
   readonly type = input<"text" | "email" | "number" | "password">("text");
+  /** HTML autocomplete hint, e.g. "new-password" so browsers never autofill a saved password. */
+  readonly autocomplete = input("");
   readonly messages = input<Record<string, string>>({});
   readonly appearance = input<"fill" | "outline">("outline");
   readonly subscriptSizing = input<"fixed" | "dynamic">("dynamic");

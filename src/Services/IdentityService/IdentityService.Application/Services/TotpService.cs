@@ -20,21 +20,34 @@ public class TotpService
         return Base32Encode(bytes);
     }
 
-    public bool VerifyCode(string secret, string code)
+    public bool VerifyCode(string secret, string code) => TryVerifyCode(secret, code, out _);
+
+    /// <summary>
+    /// Verifies a code and reports the time step it matched so callers can
+    /// reject a second use of the same step (replay protection).
+    /// </summary>
+    public bool TryVerifyCode(string secret, string code, out long matchedStep)
     {
+        matchedStep = 0;
         if (string.IsNullOrEmpty(secret) || string.IsNullOrEmpty(code))
             return false;
 
         var secretBytes = Base32Decode(secret);
         var counter = GetCurrentCounter();
+        var presented = Encoding.UTF8.GetBytes(code);
+        var matched = false;
 
+        // Compare every step in constant time; do not return on the first match.
         for (var i = -AllowedDrift; i <= AllowedDrift; i++)
         {
-            var expected = GenerateTotp(secretBytes, counter + i);
-            if (expected == code)
-                return true;
+            var expected = Encoding.UTF8.GetBytes(GenerateTotp(secretBytes, counter + i));
+            if (CryptographicOperations.FixedTimeEquals(expected, presented) && !matched)
+            {
+                matched = true;
+                matchedStep = counter + i;
+            }
         }
-        return false;
+        return matched;
     }
 
     public string GenerateQrCodeUri(string secret, string email, string issuer = "HisHope")

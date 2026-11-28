@@ -3,12 +3,42 @@ using System.Net.Http.Json;
 using FluentAssertions;
 using His.Hope.Authorization;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace His.Hope.Authorization.Tests;
 
 public sealed class OpenFgaClientTests
 {
+    [Fact]
+    public async Task Registered_client_accepts_a_slow_successful_authorization_check()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["AUTHZ_OPENFGA_URL"] = "http://openfga/",
+            ["AUTHZ_OPENFGA_STORE_ID"] = "store",
+            ["AUTHZ_OPENFGA_MODEL_ID"] = "model"
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddLogging();
+        services.AddHisHopeAuthorization();
+        services.AddHttpClient<OpenFgaClient>().ConfigurePrimaryHttpMessageHandler(() => new SlowHandler());
+        using var provider = services.BuildServiceProvider();
+
+        var client = provider.GetRequiredService<OpenFgaClient>();
+        (await client.CheckAsync("user:1", "granted", "permission:admin.roles.read")).Should().BeTrue();
+    }
+
+    private sealed class SlowHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(750, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { allowed = true }) };
+        }
+    }
+
     [Fact]
     public async Task Check_and_list_objects_use_openfga_contract()
     {

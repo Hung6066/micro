@@ -9,7 +9,15 @@ public static class RoleSeparationOfDuties
     private static readonly (string Left, string Right)[] Conflicts =
     [
         ("Provider", "BillingClerk"),
-        ("Pharmacist", "BillingClerk")
+        ("Pharmacist", "BillingClerk"),
+        // Manufacturing four-eyes controls: the person executing or
+        // inspecting a process must not be its final approver.
+        ("ManufacturingProductionOperator", "ManufacturingQualityManager"),
+        ("ManufacturingQualityInspector", "ManufacturingQualityManager"),
+        ("ManufacturingProductionOperator", "ManufacturingPlantManager"),
+        ("ManufacturingQualityInspector", "ManufacturingPlantManager"),
+        ("ManufacturingRecipeManager", "ManufacturingProductionOperator"),
+        ("ManufacturingCostController", "ManufacturingPlantManager")
     ];
 
     public static bool TryFindConflict(IEnumerable<string> roleNames, out string conflict)

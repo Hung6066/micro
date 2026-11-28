@@ -24,8 +24,10 @@ WITH counts AS (
     UNION ALL SELECT 'break_glass', count(*)::int FROM break_glass_requests
     UNION ALL SELECT 'posture_policies', count(*)::int FROM device_posture_policies
     UNION ALL SELECT 'posture_assessments', count(*)::int FROM device_posture_assessments
+    UNION ALL SELECT 'posture_assessment_table', count(*)::int FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'device_posture_assessments'
     UNION ALL SELECT 'provision_bindings', count(*)::int FROM directory_provisioning_bindings
     UNION ALL SELECT 'provision_outbox', count(*)::int FROM directory_provisioning_outbox
+    UNION ALL SELECT 'provision_outbox_table', count(*)::int FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'directory_provisioning_outbox'
     UNION ALL SELECT 'certificates', count(*)::int FROM user_client_certificates
     UNION ALL SELECT 'seed_audit', count(*)::int FROM audit_logs WHERE source = 'seed-demo'
 ), relationships AS (
@@ -61,19 +63,26 @@ foreach ($line in $output) {
     }
 }
 
+# Assessments and provisioning outbox rows are runtime-generated, so a clean
+# production tenant may legitimately have zero rows. Require their tables,
+# while keeping seeded control-plane relationships fail-closed.
 $minimums = @{
     scopes = 4; services = 12; permission_sets = 3; assignments = 8; groups = 1
     group_memberships = 1; workload_roles = 5; boundaries = 5; resource_policies = 5
     policies = 1; access_requests = 1; access_reviews = 1; break_glass = 1
-    posture_policies = 1; posture_assessments = 1; provision_bindings = 1
-    provision_outbox = 1; certificates = 1; seed_audit = 1
+    posture_policies = 1; posture_assessment_table = 1; provision_bindings = 1
+    provision_outbox_table = 1; certificates = 1; seed_audit = 1
     group_assignment = 1; workload_assignments = 5; workload_boundaries = 5
     workload_resource_policies = 5
 }
 
 $failures = foreach ($entry in $minimums.GetEnumerator()) {
     if (-not $values.ContainsKey($entry.Key) -or $values[$entry.Key] -lt $entry.Value) {
-        "{0}={1} (expected >= {2})" -f $entry.Key, ($values[$entry.Key] ?? 'missing'), $entry.Value
+        $actual = 'missing'
+        if ($values.ContainsKey($entry.Key)) {
+            $actual = $values[$entry.Key]
+        }
+        "{0}={1} (expected >= {2})" -f $entry.Key, $actual, $entry.Value
     }
 }
 

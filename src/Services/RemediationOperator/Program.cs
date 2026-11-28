@@ -5,12 +5,14 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using k8s;
 using k8s.Models;
 using Prometheus;
 using Serilog;
 using Serilog.Events;
 using His.Hope.Contracts;
+using His.Hope.ServiceDefaults;
 
 // ============================================================================
 // His.Hope Auto-Remediation Operator
@@ -34,8 +36,7 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.WithProperty("Version", Constants.OperatorVersion)
     .WriteTo.Console()
     .WriteTo.File("/var/log/remediation-operator/log-.json",
-        rollingInterval: RollingInterval.Day,
-        formatter: new Serilog.Formatting.Json.JsonFormatter())
+        rollingInterval: RollingInterval.Day)
     .CreateLogger();
 
 try
@@ -47,6 +48,13 @@ try
         Args = args,
         ContentRootPath = AppContext.BaseDirectory
     });
+
+    // Vault Agent injects the production webhook credential as a JSON config
+    // file. Local development remains tokenless, while production fails closed.
+    builder.Configuration.AddJsonFile(
+        "/vault/secrets/operator-config",
+        optional: true,
+        reloadOnChange: false);
 
     builder.Host.UseSerilog();
 
@@ -61,6 +69,11 @@ try
     var maxConcurrentActions = configSection.GetValue<int>("MaxConcurrentActions");
     var dryRun = configSection.GetValue<bool>("DryRun");
     var ipWhitelist = configSection.GetSection("AlertmanagerSourceIpWhitelist").Get<string[]>() ?? [];
+    var webhookBearerToken = configSection["WebhookBearerToken"];
+    var requireWebhookAuthentication = builder.Environment.IsProduction() ||
+        !string.IsNullOrWhiteSpace(webhookBearerToken);
+    if (requireWebhookAuthentication && string.IsNullOrWhiteSpace(webhookBearerToken))
+        throw new InvalidOperationException("RemediationOperator:WebhookBearerToken is required outside local development.");
 
     // -----------------------------------------------------------------------
     // Kubernetes Client
@@ -72,12 +85,10 @@ try
     // Services
     // -----------------------------------------------------------------------
     var cooldownManager = new CooldownManager();
-    var remediationEngine = new RemediationEngine(
-        Log.Logger.ForContext<RemediationEngine>(),
-        k8sClient,
-        cooldownManager,
-        maxConcurrentActions,
-        dryRun);
+    builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "remediation-operator");
+    builder.Services.AddHisHopeExternalHttpClient("remediation-slack", "remediation.slack");
+    builder.Services.AddHisHopeExternalHttpClient("remediation-pagerduty", "remediation.pagerduty");
+    builder.Services.AddHisHopeExternalHttpClient("remediation-opsgenie", "remediation.opsgenie");
 
     // -----------------------------------------------------------------------
     // Web Application
@@ -103,6 +114,14 @@ try
     builder.Services.AddHealthChecks();
 
     var app = builder.Build();
+    app.UseHisHopeServiceDefaults();
+    var remediationEngine = new RemediationEngine(
+        Log.Logger.ForContext<RemediationEngine>(),
+        k8sClient,
+        cooldownManager,
+        maxConcurrentActions,
+        dryRun,
+        app.Services.GetRequiredService<IHttpClientFactory>());
 
     // Prometheus metrics middleware (on all ports)
     app.UseHttpMetrics();
@@ -133,6 +152,23 @@ try
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(httpContext.RequestAborted);
         cts.CancelAfter(TimeSpan.FromSeconds(30));
+
+        if (requireWebhookAuthentication)
+        {
+            const string bearerPrefix = "Bearer ";
+            var authorization = httpContext.Request.Headers.Authorization.ToString();
+            var suppliedToken = authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase)
+                ? authorization[bearerPrefix.Length..].Trim()
+                : string.Empty;
+            var suppliedBytes = Encoding.UTF8.GetBytes(suppliedToken);
+            var configuredBytes = Encoding.UTF8.GetBytes(webhookBearerToken!);
+            if (suppliedBytes.Length != configuredBytes.Length ||
+                !CryptographicOperations.FixedTimeEquals(suppliedBytes, configuredBytes))
+            {
+                Log.Warning("Alert webhook rejected because bearer authentication failed");
+                return Results.Unauthorized();
+            }
+        }
 
         // Optional source IP whitelisting
         if (ipWhitelist.Length > 0)
@@ -581,15 +617,16 @@ internal sealed class RemediationEngine
     private readonly CooldownManager _cooldownManager;
     private readonly SemaphoreSlim _globalThrottle;
     private readonly bool _dryRun;
-    private static readonly HttpClient _httpClient = new();
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public RemediationEngine(Serilog.ILogger logger, IKubernetes k8s, CooldownManager cooldownManager, int maxConcurrent, bool dryRun)
+    public RemediationEngine(Serilog.ILogger logger, IKubernetes k8s, CooldownManager cooldownManager, int maxConcurrent, bool dryRun, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _k8s = k8s;
         _cooldownManager = cooldownManager;
         _globalThrottle = new SemaphoreSlim(maxConcurrent);
         _dryRun = dryRun;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -936,13 +973,13 @@ internal sealed class RemediationEngine
                 }
 
                 if (action.Params?.CpuRequest is not null)
-                    container.Resources.Requests["cpu"] = new k8s.ResourceQuantity(action.Params.CpuRequest);
+                    container.Resources.Requests["cpu"] = new k8s.Models.ResourceQuantity(action.Params.CpuRequest);
                 if (action.Params?.MemoryRequest is not null)
-                    container.Resources.Requests["memory"] = new k8s.ResourceQuantity(action.Params.MemoryRequest);
+                    container.Resources.Requests["memory"] = new k8s.Models.ResourceQuantity(action.Params.MemoryRequest);
                 if (action.Params?.CpuLimit is not null)
-                    container.Resources.Limits["cpu"] = new k8s.ResourceQuantity(action.Params.CpuLimit);
+                    container.Resources.Limits["cpu"] = new k8s.Models.ResourceQuantity(action.Params.CpuLimit);
                 if (action.Params?.MemoryLimit is not null)
-                    container.Resources.Limits["memory"] = new k8s.ResourceQuantity(action.Params.MemoryLimit);
+                    container.Resources.Limits["memory"] = new k8s.Models.ResourceQuantity(action.Params.MemoryLimit);
             }
 
             await _k8s.AppsV1.ReplaceNamespacedDeploymentAsync(deployment, name, policy.Namespace, cancellationToken: ct);
@@ -999,7 +1036,7 @@ internal sealed class RemediationEngine
             if (action.Params?.MaxUnavailable is not null &&
                 deployment.Spec.Strategy?.RollingUpdate is not null)
             {
-                deployment.Spec.Strategy.RollingUpdate.MaxUnavailable = new k8s.ResourceQuantity(action.Params.MaxUnavailable);
+                deployment.Spec.Strategy.RollingUpdate.MaxUnavailable = action.Params.MaxUnavailable;
             }
 
             await _k8s.AppsV1.ReplaceNamespacedDeploymentAsync(deployment, name, policy.Namespace, cancellationToken: ct);
@@ -1042,7 +1079,10 @@ internal sealed class RemediationEngine
         try
         {
             var deployment = await _k8s.AppsV1.ReadNamespacedDeploymentAsync(name, policy.Namespace, cancellationToken: ct);
-            var currentRevision = deployment.Metadata.Annotations?.GetValueOrDefault("deployment.kubernetes.io/revision", "0");
+            var currentRevision = deployment.Metadata.Annotations is { } annotations &&
+                annotations.TryGetValue("deployment.kubernetes.io/revision", out var revision)
+                    ? revision
+                    : "0";
 
             if (action.Params?.Revision is null)
             {
@@ -1061,7 +1101,10 @@ internal sealed class RemediationEngine
 
             var targetRs = rsList.Items.FirstOrDefault(rs =>
             {
-                var rev = rs.Metadata.Annotations?.GetValueOrDefault("deployment.kubernetes.io/revision", "0");
+                var rev = rs.Metadata.Annotations is { } annotations &&
+                    annotations.TryGetValue("deployment.kubernetes.io/revision", out var revision)
+                        ? revision
+                        : "0";
                 return int.TryParse(rev, out var r) && r == action.Params.Revision.Value;
             });
 
@@ -1173,7 +1216,7 @@ internal sealed class RemediationEngine
 
                 var json = JsonSerializer.Serialize(slackPayload);
                 using var slackContent = new StringContent(json, Encoding.UTF8, "application/json");
-                var slackResponse = await _httpClient.PostAsync(slackWebhook, slackContent, ct);
+                var slackResponse = await _httpClientFactory.CreateClient("remediation-slack").PostAsync(slackWebhook, slackContent, ct);
                 slackResponse.EnsureSuccessStatusCode();
                 notificationsSent.Add("slack");
                 _logger.Information("Slack notification sent for alert {AlertName}", alertName);
@@ -1210,7 +1253,7 @@ internal sealed class RemediationEngine
 
                 var json = JsonSerializer.Serialize(pdPayload);
                 using var pdContent = new StringContent(json, Encoding.UTF8, "application/json");
-                var pdResponse = await _httpClient.PostAsync("https://events.pagerduty.com/v2/enqueue", pdContent, ct);
+                var pdResponse = await _httpClientFactory.CreateClient("remediation-pagerduty").PostAsync("https://events.pagerduty.com/v2/enqueue", pdContent, ct);
                 pdResponse.EnsureSuccessStatusCode();
                 notificationsSent.Add("pagerduty");
                 _logger.Information("PagerDuty notification sent for alert {AlertName}", alertName);
@@ -1254,7 +1297,7 @@ internal sealed class RemediationEngine
 
                 var json = JsonSerializer.Serialize(ogPayload);
                 using var ogContent = new StringContent(json, Encoding.UTF8, "application/json");
-                var ogResponse = await _httpClient.PostAsync(
+                var ogResponse = await _httpClientFactory.CreateClient("remediation-opsgenie").PostAsync(
                     $"https://api.opsgenie.com/v2/alerts", ogContent, ct);
                 ogResponse.EnsureSuccessStatusCode();
                 notificationsSent.Add("opsgenie");

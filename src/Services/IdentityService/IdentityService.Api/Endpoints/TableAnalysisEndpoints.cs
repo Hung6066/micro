@@ -1,3 +1,4 @@
+using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Contracts;
 using Microsoft.EntityFrameworkCore;
@@ -18,12 +19,20 @@ public static class TableAnalysisEndpoints
     {
         group.MapGet("/tables/analysis/formulas", () => Results.Ok(FormulaCatalog.Select(item => new { id = item.Key, description = item.Value, version = 1 })));
         group.MapPost("/tables/{resource}/analysis", Analyze)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
         return group;
     }
 
-    private static async Task<IResult> Analyze(string resource, TableAnalysisRequest request, IdentityDbContext db, CancellationToken ct)
+    private static async Task<IResult> Analyze(string resource, TableAnalysisRequest request, IdentityDbContext db, HttpContext http, CancellationToken ct)
     {
+        // SECURITY: the analysis used to read every tenant's users, roles and
+        // OIDC clients. Users are filtered to the caller's tenants; roles and
+        // clients have no tenant column, so only unrestricted callers may analyse them.
+        var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+        if (tenantFilter.IsRestricted && !resource.Trim().Equals("users", StringComparison.OrdinalIgnoreCase))
+            return Results.Forbid();
+
         var operation = request.Operation.Trim().ToLowerInvariant();
         if (operation is not ("aggregate" or "pivot" or "formula"))
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedAnalysisOperation });
@@ -38,7 +47,7 @@ public static class TableAnalysisEndpoints
         var limit = Math.Clamp(request.DetailLimit ?? 0, 0, 1000);
         var groups = normalized switch
         {
-            "users" when groupBy.Equals("active", StringComparison.OrdinalIgnoreCase) => BuildGroups((await db.Users.AsNoTracking().Select(user => new { Key = user.IsActive ? "true" : "false", user.Id, Label = user.UserName ?? user.Email ?? user.Id.ToString() }).ToListAsync(ct)).Select(item => (item.Key, item.Id.ToString(), item.Label)), limit),
+            "users" when groupBy.Equals("active", StringComparison.OrdinalIgnoreCase) => BuildGroups((await db.Users.AsNoTracking().WhereTenantMembership(db, tenantFilter.AllowedTenantKeys).Select(user => new { Key = user.IsActive ? "true" : "false", user.Id, Label = user.UserName ?? user.Email ?? user.Id.ToString() }).ToListAsync(ct)).Select(item => (item.Key, item.Id.ToString(), item.Label)), limit),
             "roles" when groupBy.Equals("isSystem", StringComparison.OrdinalIgnoreCase) => BuildGroups((await db.Roles.AsNoTracking().Select(role => new { Key = role.IsSystem ? "true" : "false", role.Id, Label = role.Name ?? role.Id.ToString() }).ToListAsync(ct)).Select(item => (item.Key, item.Id.ToString(), item.Label)), limit),
             "clients" when groupBy.Equals("clientType", StringComparison.OrdinalIgnoreCase) => BuildGroups((await db.OpenIddictApplications.AsNoTracking().Select(client => new { Key = client.ClientType ?? "unknown", Id = client.Id ?? string.Empty, Label = client.DisplayName ?? client.ClientId ?? client.Id ?? string.Empty }).ToListAsync(ct)).Select(item => (item.Key, item.Id, item.Label)), limit),
             _ => null

@@ -20,13 +20,15 @@ import {
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { IamGroup, IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { finalize, forkJoin, take } from "rxjs";
+import { finalize, forkJoin, map, take } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
 import { GroupEditDialogComponent } from "./group-edit-dialog.component";
+import { GroupMembersDialogComponent } from "./group-members-dialog.component";
 @Component({
   selector: "app-groups-page",
   standalone: true,
@@ -55,6 +57,13 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
       (refresh)="load()"
     >
       <ng-template hhResourceRowActions let-row>
+        <hh-action-button
+          kind="row"
+          mode="icon-only"
+          icon="group"
+          [label]="'admin.groupMembers' | hhTranslate: 'Group members'"
+          (pressed)="openMembers(row)"
+        />
         <hh-action-button
           *ngIf="canWrite"
           kind="row"
@@ -87,6 +96,7 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
 })
 export class GroupsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -138,14 +148,15 @@ export class GroupsPageComponent implements OnInit {
         label: this.i18n.t("admin.actions", "Actions"),
         sortable: false,
         hideable: false,
-        width: "128px",
-        minWidth: 128,
+        width: "168px", // token-lint-ignore: actions column fits three icon buttons, same pattern as clients-page
+        minWidth: 168,
         align: "center" as const,
       },
     ];
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   constructor() {
     effect(() => {
@@ -162,7 +173,10 @@ export class GroupsPageComponent implements OnInit {
     this.state.load(
       forkJoin({
         groups: this.api.getIamGroups().pipe(take(1)),
-        scopes: this.api.getIamScopes().pipe(take(1)),
+        scopes: this.api.getIamScopes().pipe(
+          take(1),
+          map((scopes) => this.tenantContext.filterScopes(scopes)),
+        ),
       }),
     );
   }
@@ -187,6 +201,14 @@ export class GroupsPageComponent implements OnInit {
       })
       .afterClosed()
       .subscribe((saved) => saved && this.load());
+  }
+  openMembers(row: Record<string, unknown>): void {
+    const group = this.groups.find((x) => x.id === String(row["id"]));
+    if (!group) return;
+    this.dialog.open(GroupMembersDialogComponent, {
+      width: "min(880px, calc(100vw - 32px))", // token-lint-ignore: dialog width matches clients-page dialogs (min(720px, ...)) with room for the members table
+      data: { group, canWrite: this.canWrite },
+    });
   }
   toggle(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

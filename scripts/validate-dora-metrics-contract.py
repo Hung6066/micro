@@ -33,7 +33,7 @@ for metric in required_metrics:
 if "pipeline_deployments_total" not in collector:
     errors.append("collector does not emit pipeline_deployments_total")
 
-for required in ["collect-dora-metrics.py", "GITHUB_TOKEN", "artifacts/dora", "schedule:", "workflow_dispatch:"]:
+for required in ["collect-dora-metrics.py", "GITHUB_TOKEN", "artifacts/dora", "workflow_dispatch:", "historical GitHub promotion metrics"]:
     if required not in workflow:
         errors.append(f"DORA workflow missing {required}")
 
@@ -47,4 +47,4 @@ if errors:
     for error in errors:
         print(f"- {error}")
     raise SystemExit(80)
-print(f"DORA metrics contract PASS: metrics={len(required_metrics)} producer=GitHub Actions dashboard=production")
+print(f"DORA metrics contract PASS: metrics={len(required_metrics)} source=manual historical GitHub promotion evidence")

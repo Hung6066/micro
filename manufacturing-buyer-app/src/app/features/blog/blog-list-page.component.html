@@ -1,0 +1,42 @@
+<section class="page-shell" data-testid="buyer-blog-list">
+  <div class="fx-container">
+    <div class="page-head">
+      <div>
+        <p class="page-head__eyebrow">{{ "buyer.blog.eyebrow" | hhTranslate }}</p>
+        <h1>{{ "buyer.blog.title" | hhTranslate }}</h1>
+        <p>{{ "buyer.blog.subtitle" | hhTranslate }}</p>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <div class="state">{{ "buyer.blog.loading" | hhTranslate }}</div>
+    } @else {
+      @if (error()) {
+        <div class="state state--error">{{ error() }}</div>
+      }
+      @if (!articles().length) {
+        <div class="state">{{ "buyer.blog.empty" | hhTranslate }}</div>
+      } @else {
+      <div class="news__grid">
+        @for (post of articles(); track post.slug) {
+          <article class="news-card fx-card">
+            <a [routerLink]="['/blog', post.slug]" class="news-card__link">
+              <div class="news-card__media">
+                <img [src]="post.imageUrl" [alt]="post.title" loading="lazy" />
+              </div>
+              <div class="news-card__body">
+                <span class="news-card__meta">
+                  {{ post.publishedAt | date: "dd/MM/yyyy" }} · {{ post.category }}
+                </span>
+                <h3>{{ post.title }}</h3>
+                <p>{{ post.excerpt }}</p>
+                <span class="link-btn">{{ "buyer.blog.readMore" | hhTranslate }}</span>
+              </div>
+            </a>
+          </article>
+        }
+      </div>
+      }
+    }
+  </div>
+</section>

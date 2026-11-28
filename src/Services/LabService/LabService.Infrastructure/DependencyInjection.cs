@@ -1,4 +1,5 @@
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Infrastructure.Events;
 using His.Hope.IntegrationEvents.Lab;
 using His.Hope.LabService.Domain.Events;
@@ -22,6 +23,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddSingleton<SoftDeleteInterceptor>();
         services.AddDbContext<LabDbContext>((serviceProvider, options) =>
             options.UseHisHopeNpgsql(
                 serviceProvider,
@@ -33,7 +35,7 @@ public static class DependencyInjection
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 })
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(new OutboxDomainEventInterceptor()));
+            .AddInterceptors(new OutboxDomainEventInterceptor(), serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();

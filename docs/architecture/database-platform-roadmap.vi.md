@@ -374,3 +374,27 @@ streaming replica và không được dùng làm bằng chứng HA.
   query-plan/load test, backup restore, failover, multi-replica và production
   secret/topology. Các mục này vẫn là release gates, không đánh dấu đạt chỉ vì
   compile thành công.
+
+### Bổ sung scale-safety đã triển khai
+
+- Identity có migration additive `20260829040337_AddTimeSeriesScaleIndexes`
+  với BRIN cho `audit_logs` và `security_events`; không thay thế các B-tree
+  lookup hiện hữu.
+- `scripts/validate-identity-migration-safety.ps1` chặn drop/rename trên bảng
+  control-plane quan trọng và kiểm tra migration BRIN còn nguyên.
+- `scripts/inspect-identity-scale-readiness.ps1` xuất capacity snapshot gồm
+  PostgreSQL version, max connections, row estimate, table size và dead tuple;
+  thiếu live connection sẽ trả `environment-blocked`.
+- `scripts/validate-identity-migration-dry-run.ps1` chạy toàn bộ idempotent SQL
+  trên database tạm rỗng với `ON_ERROR_STOP=1`, xác nhận migration history/index
+  rồi tự dọn database; đây là gate bắt buộc trước rollout.
+- `platform-quality-gates.yml` chạy gate này trong PostgreSQL 16.14 service
+  container và upload evidence cùng migration manifest ở mỗi pipeline run.
+- Retention Identity được expose qua appsettings, env examples và Compose để
+  kiểm soát outbox/telemetry/security events theo môi trường.
+- Snapshot local ngày 2026-08-29: PostgreSQL 16.14, `max_connections=100`,
+  các bảng Identity đang dưới ngưỡng cảnh báo. Đây là baseline local, không
+  thay thế load/failover/PITR evidence production.
+- Local writer-restart drill đã pass: PostgreSQL phục hồi, Identity readiness
+  HTTP 200 và migration/index vẫn tồn tại. Drill này chỉ chứng minh reconnect
+  sau restart ngắn, không phải bằng chứng multi-node HA failover.

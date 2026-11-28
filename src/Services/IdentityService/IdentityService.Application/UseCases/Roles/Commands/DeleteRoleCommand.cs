@@ -1,7 +1,9 @@
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.IdentityService.Application.UseCases.Roles.Commands;
 
@@ -20,17 +22,17 @@ public class DeleteRoleCommandHandler : IRequestHandler<DeleteRoleCommand>
     {
         var role = await _context.Roles
             .FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken)
-            ?? throw new KeyNotFoundException("Role not found.");
+            ?? Guard.Against.NotFound<Role>(null, "Role", request.Id);
 
         if (role.IsSystem)
-            throw new InvalidOperationException("System roles cannot be deleted.");
+            Guard.Against.Conflict(true, "System roles cannot be deleted.");
 
         // Check if any users are assigned to this role
         var hasUsers = await _context.UserRoles
             .AnyAsync(ur => ur.RoleId == request.Id, cancellationToken);
 
         if (hasUsers)
-            throw new InvalidOperationException(
+            Guard.Against.Conflict(true,
                 "Cannot delete role because it has users assigned. Remove all users from this role first.");
 
         _context.Roles.Remove(role);

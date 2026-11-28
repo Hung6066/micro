@@ -7,7 +7,6 @@ using His.Hope.Observability;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -22,7 +21,10 @@ using His.Hope.IdentityService.Api.Services;
 using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Api.Handlers;
+using His.Hope.Configuration;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.IdentityService.Application;
+using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.OpenIddict;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Assurance;
@@ -34,7 +36,7 @@ using His.Hope.IdentityService.Application.Scim;
 using His.Hope.IdentityService.Application.Provisioning;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.IdentityService.Infrastructure.Facility;
-using His.Hope.Persistence;
+using His.Hope.IdentityService.Infrastructure.Provisioning;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
@@ -57,8 +59,10 @@ using ITfoxtec.Identity.Saml2.MvcCore.Configuration;
 using ITfoxtec.Identity.Saml2.MvcCore;
 using ITfoxtec.Identity.Saml2.Schemas.Metadata;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.Infrastructure.DataLifecycle;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Serilog.Enrichers.Span;
 using StackExchange.Redis;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
@@ -68,11 +72,20 @@ namespace His.Hope.IdentityService.Api.Composition;
 
 public static class IdentityServiceRegistrationExtensions
 {
+    /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipConsoleAccess"/>.</summary>
+    public const string OpenShipConsoleAccessPolicy = "OpenShipConsoleAccess";
+
+    /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipAgentRootCertificate"/>.</summary>
+    public const string OpenShipAgentRootCertificatePolicy = "OpenShipAgentRootCertificate";
+
+    /// <summary>Authorization policy for <see cref="IdentityApiRoutes.OpenShipHostIntegrityApprovals"/>.</summary>
+    public const string OpenShipHostIntegrityApprovalsPolicy = "OpenShipHostIntegrityApprovals";
+
     public static void AddIdentityService(this WebApplicationBuilder builder)
     {
         builder.Services.AddOptions<PushProviderOptions>()
             .Bind(builder.Configuration.GetSection("PushProviders"))
-            .PostConfigure(options =>
+            .PostConfigure<ILogger<PushProviderOptions>>((options, logger) =>
             {
                 if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsJson) &&
                     !string.IsNullOrWhiteSpace(options.FirebaseCredentialsFile) &&
@@ -80,11 +93,17 @@ public static class IdentityServiceRegistrationExtensions
                 {
                     options.FirebaseCredentialsJson = File.ReadAllText(options.FirebaseCredentialsFile);
                 }
+                if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsSecretPath))
+                    options.FirebaseCredentialsSecretPath = builder.Configuration["ExternalProviders:Firebase:CredentialsSecretPath"] ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsSecretKey))
+                    options.FirebaseCredentialsSecretKey = builder.Configuration["ExternalProviders:Firebase:CredentialsSecretKey"] ?? "credentials_json";
+                if (!options.HasFirebaseConfiguration)
+                    logger.LogWarning("Firebase push is unavailable until provider credentials are configured");
+                if (options.ApnsEnabled && !options.HasApnsConfiguration)
+                    logger.LogWarning("APNs push is unavailable until provider credentials are configured");
             })
-            // Production must never be able to disable provider validation via
-            // configuration. Development can still run without push material.
-            .Validate(options => !builder.Environment.IsProduction() || !options.Validate().Any(),
-                "Production push provider credentials are incomplete")
+            .Validate(options => !builder.Environment.IsProduction() || !options.Validate(allowUnconfigured: true).Any(),
+                "Production push provider configuration is invalid or incomplete")
             .ValidateOnStart();
 
         builder.Services.AddSingleton(sp => new Fido2NetLib.Fido2(new Fido2NetLib.Fido2Configuration
@@ -93,33 +112,13 @@ public static class IdentityServiceRegistrationExtensions
             ServerName = builder.Configuration["Passkeys:RpName"] ?? "His.Hope",
             Origins = new HashSet<string>(builder.Configuration.GetSection("Passkeys:Origins").Get<string[]>() ?? new[] { builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost" })
         }));
-        builder.Services.AddHttpClient();
-        builder.Services.AddHttpClient("vault")
-            .ConfigurePrimaryHttpMessageHandler(() =>
-            {
-                var handler = new HttpClientHandler();
-                var caPath = builder.Configuration["Vault:TlsCaFile"];
-                if (!string.IsNullOrWhiteSpace(caPath))
-                {
-                    if (!File.Exists(caPath))
-                        throw new InvalidOperationException($"Vault TLS CA file '{caPath}' is missing.");
-                    var ca = new X509Certificate2(caPath);
-                    handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
-                    {
-                        if (certificate is null) return false;
-                        using var chain = new X509Chain();
-                        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                        chain.ChainPolicy.CustomTrustStore.Add(ca);
-                        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                        return chain.Build(new X509Certificate2(certificate));
-                    };
-                }
-                return handler;
-            });
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<SoftDeleteInterceptor>();
         builder.Services.AddScoped<SamlRuntimeConfigurationService>();
-        builder.Services.AddScoped<His.Hope.IdentityService.Application.Interfaces.IEmailSender, NoOpEmailSender>();
+        builder.Services.AddScoped<His.Hope.IdentityService.Application.Interfaces.IEmailSender, ConfiguredEmailSender>();
         builder.Services.AddScoped<IPushDeliveryService, PushDeliveryService>();
         builder.Services.AddScoped<OidcLoginCompletionService>();
+        builder.Services.AddScoped<LoginAttemptGuard>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<PushNotificationOutboxWorker>();
         builder.Services.BindConfig<Saml2Configuration>(builder.Configuration, "Saml2", (services, configuration) =>
@@ -152,10 +151,9 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddSaml2();
         builder.Services.AddControllersWithViews();
 
-        builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityService");
-
         builder.Host.UseSerilog((context, config) =>
             config.ReadFrom.Configuration(context.Configuration)
+                        .Enrich.WithSpan()
                         .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                         .Enrich.WithProperty("service", "identity-service"));
 
@@ -165,20 +163,14 @@ public static class IdentityServiceRegistrationExtensions
 
         builder.Services.AddDbContext<IdentityDbContext>((serviceProvider, options) =>
             options.UseHisHopeNpgsql(serviceProvider, builder.Configuration, "IdentityDb")
-                .UseSnakeCaseNamingConvention());
+                .UseSnakeCaseNamingConvention()
+                .AddInterceptors(serviceProvider.GetRequiredService<SoftDeleteInterceptor>()));
+        builder.Services.AddHisHopeDatabasePerformance(builder.Configuration);
         builder.Services.AddHisHopeMigrationRunner<IdentityDbContext>();
         builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
+        builder.Services.AddScoped<IOidcConsentService, OidcConsentService>();
 
         builder.Services.AddHisHopeServicePlatform(builder.Configuration, "identity-service");
-
-        // Use Redis distributed cache for token blacklist + refresh token storage (shared across services).
-        builder.Services.AddStackExchangeRedisCache(options =>
-        {
-            options.Configuration = builder.Configuration.GetConnectionString("Redis")
-                ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
-                ?? "localhost:6379";
-            options.InstanceName = "HisHope:";
-        });
 
         // IdentityService user-management requests do not use distributed locks, so keep
         // MediatR off Redis here to avoid an unnecessary IConnectionMultiplexer dependency.
@@ -189,9 +181,17 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddIdentityCore<User>(options =>
         {
             options.Password.RequireDigit = true;
-            options.Password.RequiredLength = 8;
+            options.Password.RequiredLength = builder.Environment.IsProduction() ? 14 : 8;
             options.Password.RequireNonAlphanumeric = true;
             options.User.RequireUniqueEmail = true;
+            options.Lockout.AllowedForNewUsers = true;
+            options.Lockout.MaxFailedAccessAttempts = builder.Environment.IsProduction() ? 5 : 10;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+            if (builder.Environment.IsProduction())
+            {
+                options.SignIn.RequireConfirmedEmail = true;
+                options.SignIn.RequireConfirmedAccount = true;
+            }
         })
         .AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
         .AddEntityFrameworkStores<IdentityDbContext>()
@@ -221,11 +221,22 @@ public static class IdentityServiceRegistrationExtensions
                  if (context.Request.Path.StartsWithSegments("/connect") ||
                      context.Request.Path.StartsWithSegments("/Account"))
                      return IdentityConstants.ApplicationScheme;
+                 // Browser SSO probes must stay on the Identity cookie even when
+                 // a stale hishop_sid injects a failing Authorization header.
+                 if (context.Request.Path.StartsWithSegments("/api/v1/auth/session-status") ||
+                     context.Request.Path.StartsWithSegments("/api/v1/auth/session/exchange"))
+                     return IdentityConstants.ApplicationScheme;
                  // API bearer tokens use the shared RSA/JWS/JWE validator. This
                  // handles both OpenIddict access tokens and the BFF session
                  // token without relying on a proxy-specific header surviving
                  // every reverse-proxy path.
                  if (context.Request.Headers.ContainsKey("Authorization"))
+                     return JwtBearerDefaults.AuthenticationScheme;
+                 // An ended hishop_sid session on an API path answers 401 so the
+                 // browser re-exchanges its session. The Identity cookie would
+                 // authenticate it without admin claims and turn it into a 403.
+                 if (context.Request.Path.StartsWithSegments("/api") &&
+                     BrowserSessionBridge.IsExpired(context))
                      return JwtBearerDefaults.AuthenticationScheme;
                  // Browser requests → cookie
                  return IdentityConstants.ApplicationScheme;
@@ -240,6 +251,12 @@ public static class IdentityServiceRegistrationExtensions
                  ? CookieSecurePolicy.Always
                  : CookieSecurePolicy.SameAsRequest;
              options.LoginPath = "/Account/Login";
+             // SECURITY: bounded, non-sliding SSO session. The framework default is a
+             // 14-day sliding cookie, which outlives every other session limit here.
+             options.ExpireTimeSpan = builder.Configuration.GetValue("Authentication:CookieLifetime", TimeSpan.FromHours(8));
+             options.SlidingExpiration = false;
+             options.Events.OnValidatePrincipal =
+                 His.Hope.IdentityService.Api.Middleware.SecurityVersionMiddleware.ValidateCookiePrincipalAsync;
              options.Events.OnRedirectToLogin = context =>
              {
                  if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
@@ -264,7 +281,17 @@ public static class IdentityServiceRegistrationExtensions
                  return Task.CompletedTask;
              };
          })
-         .AddCookie(IdentityConstants.ExternalScheme);
+         .AddCookie(IdentityConstants.ExternalScheme, options =>
+         {
+             // The external cookie only carries the upstream identity from the
+             // provider callback to account resolution; it must not linger.
+             options.Cookie.HttpOnly = true;
+             options.Cookie.SecurePolicy = builder.Environment.IsProduction()
+                 ? CookieSecurePolicy.Always
+                 : CookieSecurePolicy.SameAsRequest;
+             options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+             options.SlidingExpiration = false;
+         });
 
         // SSO cookie sharing is opt-in. Production deployments must configure the exact parent domain.
         var authCookieDomain = builder.Configuration["Authentication:CookieDomain"];
@@ -368,6 +395,91 @@ public static class IdentityServiceRegistrationExtensions
 
         // SECURITY: Register permission-based authorization policies
         builder.Services.AddHisHopeAuthorization();
+        builder.Services.PostConfigure<Microsoft.AspNetCore.Authorization.AuthorizationOptions>(options =>
+        {
+            // Identity registers explicit authorization on secured routes. The
+            // shared fallback policy rejects anonymous browser probes such as
+            // /session-status whenever a stale BFF cookie injects bearer auth.
+            options.FallbackPolicy = null;
+        });
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy("OpenShipManagedClients", policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipClientReconcileScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
+        // OpenShip console gateway: a workload principal with a client id and
+        // the dedicated console-access scope. Human tokens never qualify.
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(OpenShipConsoleAccessPolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipConsoleAccessScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
+        // Host integrity check on every OpenShip host: a workload principal with a client id and
+        // the dedicated scope reads approved drift fingerprints. Human tokens never qualify.
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(OpenShipHostIntegrityApprovalsPolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipHostIntegrityApprovalsScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
+        // Agent root certificate fetcher on the K3s manager: a workload principal
+        // with a client id and the dedicated scope. Human tokens never qualify.
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(OpenShipAgentRootCertificatePolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var principal = context.User;
+                    var isWorkload = string.Equals(
+                        principal.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    var clientId = principal.FindFirst(HisHopeProtocolConstants.Claims.ClientId)?.Value
+                        ?? principal.FindFirst(HisHopeProtocolConstants.Claims.AuthorizedParty)?.Value;
+                    var hasScope = principal.FindAll(HisHopeProtocolConstants.Claims.Scope)
+                        .Concat(principal.FindAll(HisHopeProtocolConstants.Claims.Scp))
+                        .SelectMany(claim => claim.Value.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        .Contains(IdentityApiRoutes.OpenShipAgentRootCertificateScope, StringComparer.Ordinal);
+                    return isWorkload && !string.IsNullOrWhiteSpace(clientId) && hasScope;
+                }));
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy("ScimM2M", policy => policy
                 .RequireAuthenticatedUser()
@@ -375,7 +487,8 @@ public static class IdentityServiceRegistrationExtensions
                 {
                     var hasScimScope = ScimAuthorization.HasProvisioningScope(context.User);
                     var hasClientIdentity = context.User.HasClaim(claim =>
-                        claim.Type is "client_id" or "azp" && !string.IsNullOrWhiteSpace(claim.Value));
+                        claim.Type is HisHopeProtocolConstants.Claims.ClientId or HisHopeProtocolConstants.Claims.AuthorizedParty
+                        && !string.IsNullOrWhiteSpace(claim.Value));
                     var isWorkload = string.Equals(
                         context.User.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
                         AuthorizationConstants.PrincipalTypes.Workload,
@@ -401,11 +514,14 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddFacilityBoundary();
         builder.Services.AddScoped<JwtTokenGenerator>();
         builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastructure.Services.IdentityService>();
-        builder.Services.AddHttpClient("security-signals", client =>
-        {
-            client.Timeout = TimeSpan.FromSeconds(10);
-        });
-        builder.Services.AddHttpClient("directory-provisioning", client => client.Timeout = TimeSpan.FromSeconds(15));
+        builder.Services.AddHisHopeExternalHttpClient(
+            "security-signals",
+            "identity.security-signals",
+            client => client.Timeout = TimeSpan.FromSeconds(10));
+        builder.Services.AddHisHopeExternalHttpClient(
+            "directory-provisioning",
+            "identity.directory-provisioning",
+            client => client.Timeout = TimeSpan.FromSeconds(15));
         builder.Services.AddScoped<IProvisioningTarget, ScimOutboundProvisioningTarget>();
         builder.Services.AddScoped<IProvisioningTarget, EntraOutboundProvisioningTarget>();
         builder.Services.AddScoped<IProvisioningTarget, GoogleWorkspaceProvisioningTarget>();
@@ -417,29 +533,60 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddScoped<RecoveryCodeService>();
         builder.Services.AddScoped<IdentityBrokerService>();
         builder.Services.AddScoped<BulkUserImportService>();
+        builder.Services.AddScoped<TenantProvisioningWorkflow>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<TenantProvisioningConsumer>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<TenantProvisioningOutboxDispatcher>();
 
-        // CORS for dashboard app (separate origin)
+        // CORS for browser SPAs on separate localhost ports (BFF cookie + session exchange).
         builder.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
             {
                 var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-                var developmentOrigins = new[]
-                {
-                    "http://localhost:8081", "http://localhost:8082", "http://localhost:8083",
-                    "http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4300",
-                    "https://localhost", "http://localhost", "capacitor://localhost",
-                    "http://app.his-hope.local:9080", "http://dashboard.his-hope.local:9080", "http://admin.his-hope.local:9080"
-                };
-                var origins = configuredOrigins.Length > 0
+                var productionOrigins = configuredOrigins.Length > 0
                     ? configuredOrigins
-                    : builder.Environment.IsProduction()
-                        ? new[] { "https://app.his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" }
-                        : developmentOrigins;
-                policy.WithOrigins(origins)
-                    .WithHeaders("Authorization", "DPoP", "Content-Type", "X-CSRF-Token", "X-Correlation-ID", "Accept-Language", "X-Timezone", "X-Currency")
-                    .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                    .AllowCredentials();
+                    : new[] { "https://app.his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" };
+
+                policy
+                    .AllowCredentials()
+                    .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+
+                if (builder.Environment.IsProduction())
+                {
+                    policy.WithOrigins(productionOrigins)
+                        .WithHeaders(
+                            HisHopeProtocolConstants.Headers.Authorization,
+                            HisHopeProtocolConstants.Headers.Dpop,
+                            HisHopeProtocolConstants.Headers.ContentType,
+                            HisHopeProtocolConstants.Headers.CsrfToken,
+                            HisHopeProtocolConstants.Headers.CorrelationId,
+                            HisHopeProtocolConstants.Headers.AcceptLanguage,
+                            HisHopeProtocolConstants.Headers.Timezone,
+                            HisHopeProtocolConstants.Headers.Currency);
+                }
+                else
+                {
+                    // Dev/staging: allow any localhost port so new SPA apps (e.g. 4203)
+                    // do not require a CORS whitelist edit for every preflight POST.
+                    policy
+                        .SetIsOriginAllowed(origin =>
+                        {
+                            if (string.IsNullOrWhiteSpace(origin))
+                                return false;
+                            if (origin.Equals("capacitor://localhost", StringComparison.OrdinalIgnoreCase))
+                                return true;
+                            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                                return false;
+                            if (uri.Host is "localhost" or "127.0.0.1")
+                                return true;
+                            if (uri.Host.EndsWith(".his-hope.local", StringComparison.OrdinalIgnoreCase))
+                                return true;
+                            return configuredOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
+                        })
+                        .AllowAnyHeader();
+                }
             });
         });
 
@@ -483,6 +630,28 @@ public static class IdentityServiceRegistrationExtensions
                     QueueLimit = 0
                 });
             });
+            // Interactive login and the HR feed get their own budgets. A per-address
+            // limit is only meaningful when the address is the client's: if the request
+            // came through a proxy that is not configured as trusted, every user would
+            // share one bucket, so the limiter stands aside (per-account lockout still
+            // applies) until ForwardedHeaders:KnownNetworks/KnownProxies is set.
+            var trustedProxiesConfigured =
+                builder.Configuration.GetSection("ForwardedHeaders:KnownNetworks").GetChildren().Any() ||
+                builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").GetChildren().Any();
+            bool ClientAddressIsResolved(HttpContext context) =>
+                context.Connection.RemoteIpAddress is not null &&
+                (trustedProxiesConfigured || !context.Request.Headers.ContainsKey("X-Forwarded-For"));
+            RateLimitPartition<string> PerClient(HttpContext context, string name, int defaultPermits) =>
+                ClientAddressIsResolved(context)
+                    ? RateLimitPartition.GetFixedWindowLimiter($"{name}:{RateLimitKey(context)}", _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = builder.Configuration.GetValue($"RateLimiting:{name}:PermitLimit", defaultPermits),
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    })
+                    : RateLimitPartition.GetNoLimiter($"{name}:unresolved");
+            options.AddPolicy("login", context => PerClient(context, "Login", 20));
+            options.AddPolicy("webhook", context => PerClient(context, "Webhook", 120));
             options.AddPolicy("scim", context =>
             {
                 var key = RateLimitKey(context);
@@ -506,12 +675,69 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddSingleton<RedisAdminJobStore>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<AdminJobWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<SupportElevationExpiryWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<OpenShipManagedClientTransitionExpiryWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<AccessReviewExpiryWorker>();
+        if (builder.Configuration.GetValue("AUTHZ_OPENFGA_PERMISSION_SYNC_ENABLED", false))
+        {
+            builder.Services.AddHttpClient(OpenFgaPermissionProjection.HttpClientName);
+            if (!builder.Environment.IsEnvironment("Testing"))
+                builder.Services.AddHostedService<OpenFgaPermissionSyncWorker>();
+        }
 
         // SECURITY: Binds tokens to (user_id, ip_hash, client_id) to prevent cross-IP replay attacks
         builder.Services.AddSingleton<TokenBindingService>();
 
+        builder.Services.Configure<ConglomerateOptions>(
+            builder.Configuration.GetSection(ConglomerateOptions.SectionName));
+        // Client ids contain hyphens, which orchestrators reject in environment variable names, so the
+        // client -> tenant map may also be supplied as one JSON object in Conglomerate:OidcClientTenantsJson.
+        builder.Services.PostConfigure<ConglomerateOptions>(options =>
+        {
+            var json = builder.Configuration["Conglomerate:OidcClientTenantsJson"];
+            if (string.IsNullOrWhiteSpace(json)) return;
+            var entries = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            if (entries is null) return;
+            foreach (var (clientId, tenantKey) in entries)
+                options.OidcClientTenants[clientId] = tenantKey;
+        });
         builder.Services.AddIdentityApplication();
+        builder.Services.AddOptions<His.Hope.IdentityService.Application.OpenShip.OpenShipConsoleOptions>()
+            .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.OpenShip.OpenShipConsoleOptions.SectionName));
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.DevicePosture.DevicePosturePolicyEvaluator>();
+
+        // Infrastructure access audit (Loki tenant openship-access-audit via the query relay).
+        // Unconfigured hosts answer 503 infra_audit_unavailable instead of failing to start.
+        builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAudit.InfraAuditOptions>()
+            .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.InfraAudit.InfraAuditOptions.SectionName));
+        builder.Services.AddHttpClient(His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(services => His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader.CreateHandler(
+                services.GetRequiredService<Microsoft.Extensions.Options.IOptions<His.Hope.IdentityService.Application.InfraAudit.InfraAuditOptions>>().Value));
+        builder.Services.AddSingleton<His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>();
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.IInfraAuditLogReader>(services =>
+            services.GetRequiredService<His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>());
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAudit.InfraAuditService>();
+        // Security page: same relay, also tenant openship-runtime-security (Falco); acks in audit_logs.
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.HostSecurity.ILokiStreamReader>(services =>
+            services.GetRequiredService<His.Hope.IdentityService.Api.InfraAudit.LokiInfraAuditLogReader>());
+        builder.Services.AddScoped<His.Hope.IdentityService.Application.HostSecurity.IHostSecurityAckStore,
+            His.Hope.IdentityService.Api.HostSecurity.AuditLogHostSecurityAckStore>();
+        builder.Services.AddScoped<His.Hope.IdentityService.Application.HostSecurity.HostSecurityService>();
+        builder.Services.AddScoped<His.Hope.IdentityService.Api.HostSecurity.HostIntegrityApprovalStore>();
+        // Zero Trust 3.5 R0: report-only sign-in risk score (events only, never blocks).
+        His.Hope.IdentityService.Api.Risk.RiskScoringRegistration.AddSignInRiskScoring(builder.Services, builder.Configuration);
+
+        // Agent root SSH grants: four-eyes approval, then Vault SSH CA signs the agent key.
+        builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions>()
+            .Bind(builder.Configuration.GetSection(His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions.SectionName))
+            .Validate(options => options.Validate().Count == 0,
+                $"{His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions.SectionName} is invalid (agent id, Vault mount/role, principal or duration bounds).")
+            .ValidateOnStart();
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.InfraAccess.IAgentRootCertificateSigner,
+            VaultAgentRootCertificateSigner>();
 
         // LDAP Sync service (disabled by default)
         builder.Services.AddScoped<ExternalIdentityProviderRuntime>();
@@ -519,7 +745,12 @@ public static class IdentityServiceRegistrationExtensions
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<LdapBackgroundService>();
         builder.Services.AddOptions<IdentityRetentionOptions>()
-            .Bind(builder.Configuration.GetSection("IdentityRetention"));
+            .Bind(builder.Configuration.GetSection("IdentityRetention"))
+            .Validate(settings => settings.MaxRowsPerRun is > 0 and <= 100_000,
+                "IdentityRetention:MaxRowsPerRun must be between 1 and 100000.")
+            .Validate(settings => settings.BatchSize is > 0 and <= 10_000,
+                "IdentityRetention:BatchSize must be between 1 and 10000.")
+            .ValidateOnStart();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<IdentityRetentionWorker>();
 
@@ -530,7 +761,9 @@ public static class IdentityServiceRegistrationExtensions
         });
         builder.Services.AddGrpcReflection();
 
-        // ─── Vault transit signing (production only; development uses ephemeral RSA) ───
+        // Vault HTTP traffic uses the shared "vault" client registered by
+        // AddHisHopeVault, which enforces the configured CA and client identity.
+        // Separate clients here would bypass that mTLS configuration.
         builder.Services.AddSingleton<IVaultKeyProvider, VaultKeyService>();
         builder.Services.AddSingleton<VaultClientSecretStore>();
 
@@ -541,18 +774,14 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddHealthChecks()
             .AddCheck<VaultHealthCheck>("vault-transit", tags: new[] { "ready" })
             .AddCheck<DbHealthCheck>("identity-db", tags: new[] { "ready" })
-            .AddCheck("redis", new RedisHealthCheck(
-                builder.Configuration.GetConnectionString("Redis")
-                    ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
-                    ?? "localhost:6379",
-                builder.Configuration), tags: new[] { "ready" });
+            .AddCheck<RedisHealthCheck>("redis", tags: new[] { "ready" });
 
         // Persist the DataProtection key ring in Redis so cookies, BFF session protection,
         // and MFA encryption survive container replacement and work across replicas.
         var dataProtectionRedis = builder.Configuration.GetConnectionString("Redis")
-            ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
+            ?? builder.Configuration.GetValue<string>(HisHopeConfigurationKeys.RedisConnectionString)
             ?? "localhost:6379";
-        var dataProtectionKeyName = builder.Configuration["DataProtection:KeyName"]
+        var dataProtectionKeyName = builder.Configuration[HisHopeConfigurationKeys.DataProtectionKeyName]
             ?? "HisHope:IdentityService:DataProtection:Keys";
         builder.Services.AddDataProtection()
             .SetApplicationName("His.Hope.IdentityService")
@@ -599,6 +828,8 @@ public static class IdentityServiceRegistrationExtensions
             .AddServer(options =>
             {
                 options.SetIssuer(new Uri(oidcConfig["Issuer"]!));
+                options.RegisterClaims("amr", "auth_time", "email", "email_verified",
+                    His.Hope.IdentityService.Application.OpenShip.OpenShipConsoleClaims.Groups);
 
                 options.SetAuthorizationEndpointUris(IdentityApiRoutes.OidcAuthorize);
                 options.SetTokenEndpointUris(IdentityApiRoutes.OidcToken);
@@ -638,7 +869,11 @@ public static class IdentityServiceRegistrationExtensions
                     // unrestricted FHIR read surface.
                     "fhir.patient.read",
                     "fhir.encounter.read",
-                    "platform.continuity.write");
+                    "platform.continuity.write",
+                    // Workload scope for the OpenShip console-access lookup.
+                    IdentityApiRoutes.OpenShipConsoleAccessScope,
+                    // Workload scope for the agent root SSH certificate fetcher.
+                    IdentityApiRoutes.OpenShipAgentRootCertificateScope);
 
                 options.SetAccessTokenLifetime(TimeSpan.Parse(oidcConfig["AccessTokenLifetime"]!));
                 options.SetRefreshTokenLifetime(TimeSpan.Parse(oidcConfig["RefreshTokenLifetime"]!));
@@ -647,6 +882,9 @@ public static class IdentityServiceRegistrationExtensions
                 if (oidcSecurity.SigningKey is not null)
                 {
                     options.AddSigningKey(oidcSecurity.SigningKey);
+                    // Registered after the active key: published and accepted, not used to sign.
+                    foreach (var additionalSigningKey in oidcSecurity.AdditionalSigningKeys)
+                        options.AddSigningKey(additionalSigningKey);
                 }
                 else
                 {
@@ -669,6 +907,7 @@ public static class IdentityServiceRegistrationExtensions
                 options.AddEventHandler(FixDiscoveryBaseUriHandler.Descriptor);
                 options.AddEventHandler(DpopTokenBindingHandler.Descriptor);
                 options.AddEventHandler(DpopTokenResponseHandler.Descriptor);
+                options.AddEventHandler(CustomValidateAuthorizationRequest.Descriptor);
                 options.AddEventHandler(CustomPopulateTokenClaims.Descriptor);
                 options.AddEventHandler(CustomHandleClientCredentialsRequest.Descriptor);
                 options.AddEventHandler(CustomHandleTokenExchangeRequest.Descriptor);
@@ -690,15 +929,19 @@ public static class IdentityServiceRegistrationExtensions
             });
 
         // PHI Audit with durable background processing (HIPAA 164.312(b))
-        // Audit events must not be discarded under load. The worker drains an
-        // unbounded in-process queue to the durable database; shutdown drains
-        // remaining entries before completing.
-        var auditChannel = System.Threading.Channels.Channel.CreateUnbounded<His.Hope.Infrastructure.Audit.PhiAuditEntry>(
-            new System.Threading.Channels.UnboundedChannelOptions
+        // Audit events must not be discarded under load. A bounded queue applies
+        // backpressure instead of allowing an outage to exhaust process memory.
+        var auditCapacity = Math.Clamp(
+            builder.Configuration.GetValue("Audit:ChannelCapacity", 10_000),
+            100,
+            1_000_000);
+        var auditChannel = System.Threading.Channels.Channel.CreateBounded<His.Hope.Infrastructure.Audit.PhiAuditEntry>(
+            new System.Threading.Channels.BoundedChannelOptions(auditCapacity)
             {
                 SingleReader = true,
                 SingleWriter = false,
-                AllowSynchronousContinuations = false
+                AllowSynchronousContinuations = false,
+                FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait
             });
         builder.Services.AddSingleton(auditChannel);
 
@@ -710,6 +953,8 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddSingleton<DatabaseAuditService>();
         if (!builder.Environment.IsEnvironment("Testing"))
             builder.Services.AddHostedService<DatabaseAuditBackgroundService>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<AuditIntegrityVerifier>();
 
         builder.Services.AddSingleton<His.Hope.Infrastructure.Audit.IAuditService>(sp =>
         {
@@ -722,7 +967,9 @@ public static class IdentityServiceRegistrationExtensions
         if (defaultObservabilityAuditSink != null)
             builder.Services.Remove(defaultObservabilityAuditSink);
         builder.Services.AddSingleton<IdentityObservabilityAuditSink>();
-        builder.Services.AddHttpClient<SiemWormAuditForwarder>();
+        builder.Services.AddHisHopeExternalHttpClient(
+            nameof(SiemWormAuditForwarder),
+            "identity.siem");
         builder.Services.AddSingleton<SiemWormAuditForwarder>();
         builder.Services.AddSingleton<IAuditSink, IdentityDurableAuditSink>();
 
@@ -730,6 +977,7 @@ public static class IdentityServiceRegistrationExtensions
         {
             builder.WebHost.ConfigureKestrel(options =>
             {
+                options.Configure(builder.Configuration.GetSection("Kestrel"));
                 options.Listen(System.Net.IPAddress.Any, 5003, listenOptions =>
                 {
                     listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;

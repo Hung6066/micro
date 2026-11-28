@@ -59,8 +59,57 @@ public class DatabaseAuditBackgroundService : BackgroundService
             .Build();
     }
 
+    /// <summary>
+    /// Entries that could not be written go to a Redis list that expires after
+    /// seven days; nothing used to read it back, so an outage longer than the
+    /// retry window lost audit records for good. This puts them back on the
+    /// normal write path once writes work again.
+    /// </summary>
+    private async Task ReplayDeadLettersAsync(CancellationToken ct)
+    {
+        if (_redis is null)
+            return;
+
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                try
+                {
+                    var db = _redis.GetDatabase();
+                    var replayed = 0;
+                    for (var day = 0; day <= 7 && replayed < 200; day++)
+                    {
+                        var key = $"his_hope:audit_dlq:{DateTime.UtcNow.AddDays(-day):yyyy-MM-dd}";
+                        while (replayed < 200)
+                        {
+                            var value = await db.ListLeftPopAsync(key);
+                            if (value.IsNull)
+                                break;
+                            if (JsonSerializer.Deserialize<PhiAuditEntry>(value.ToString()) is not { } entry)
+                                continue;
+                            await _channel.Writer.WriteAsync(entry, ct);
+                            replayed++;
+                        }
+                    }
+                    if (replayed > 0)
+                        _logger.LogInformation("Replayed {Count} audit entries from the dead-letter queue.", replayed);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Audit dead-letter replay failed; it will be retried.");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _ = ReplayDeadLettersAsync(stoppingToken);
         var batch = new List<PhiAuditEntry>(BatchSize);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -113,6 +162,9 @@ public class DatabaseAuditBackgroundService : BackgroundService
                     await _retryPipeline.ExecuteAsync(
                         async cancel =>
                         {
+                            // A failed insert stays tracked; without this every retry
+                            // and every later entry in the batch fails with it.
+                            db.ChangeTracker.Clear();
                             var auditLog = new Domain.Entities.AuditLog
                             {
                                 Id = Guid.NewGuid(),
@@ -123,7 +175,8 @@ public class DatabaseAuditBackgroundService : BackgroundService
                                 ResourceId = entry.ResourceId,
                                 Details = $"{entry.HttpMethod} {entry.Path}",
                                 IpAddress = entry.ClientIp,
-                                UserAgent = entry.UserAgent,
+                                // Column limit: an oversized header must not cost the record.
+                                UserAgent = entry.UserAgent is { Length: > 500 } userAgent ? userAgent[..500] : entry.UserAgent,
                                 Timestamp = entry.Timestamp
                             };
 

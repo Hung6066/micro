@@ -85,7 +85,25 @@ Passkeys__Origins__0=https://identity.myduchospital.vn
 Passkeys__Origins__1=android:apk-key-hash:<base64url-sha256-signing-key>
 ```
 
-Deploy Identity Service with the normal image pipeline. The service runs the EF migration runner during startup. The mobile release requires these tables to exist:
+Deploy Identity Service with the normal image pipeline. The service runs the EF migration runner during startup.
+
+Push credentials are optional at Identity startup. Without Firebase/APNs material,
+the service logs a warning and delivery attempts record `push_provider_unavailable`
+instead of reporting a successful send. In-app notifications and the push outbox
+remain available. Supplied but incomplete or invalid provider material still fails
+production startup validation.
+
+Configure `PushProviders__FirebaseCredentialsJson` (secret), or
+`PushProviders__FirebaseCredentialsFile`, or
+`PushProviders__FirebaseCredentialsSecretPath` (authorized Vault path).
+For iOS, configure `PushProviders__ApnsKeyId`, `PushProviders__ApnsTeamId`,
+`PushProviders__ApnsPrivateKey` (secret), and `PushProviders__ApnsBundleId`;
+set `PushProviders__ApnsEnabled=false` when iOS push is intentionally disabled.
+After saving these variables in OpenShip, redeploy/refresh the service to apply
+them to the Pod, then restart if needed. Restarting an unchanged Pod alone does
+not import updated OpenShip environment variables.
+
+The mobile release requires these tables to exist:
 
 - `mobile_device_registrations`
 - `mobile_telemetry_events`

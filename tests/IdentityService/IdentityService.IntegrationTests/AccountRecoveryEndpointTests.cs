@@ -30,6 +30,28 @@ public sealed class AccountRecoveryEndpointTests
     }
 
     [Fact]
+    public async Task ForgotPassword_is_rate_limited_per_client_key()
+    {
+        var key = $"recovery-rate-{Guid.NewGuid():N}";
+        HttpResponseMessage? last = null;
+
+        for (var index = 0; index < 130; index++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.ForgotPassword)
+            {
+                Content = JsonContent.Create(new { email = $"rate-{index}@example.test" })
+            };
+            request.Headers.Add("X-RateLimit-Key", key);
+            last = await _fixture.AnonymousClient.SendAsync(request);
+            if (last.StatusCode == HttpStatusCode.TooManyRequests)
+                break;
+        }
+
+        Assert.NotNull(last);
+        Assert.Equal(HttpStatusCode.TooManyRequests, last!.StatusCode);
+    }
+
+    [Fact]
     public async Task ResetPassword_requires_all_fields()
     {
         var response = await _fixture.AnonymousClient.PostAsJsonAsync(IdentityApiRoutes.ResetPassword,
@@ -49,6 +71,21 @@ public sealed class AccountRecoveryEndpointTests
     }
 
     [Fact]
+    public async Task ResetPassword_rejects_invalid_token_for_existing_email()
+    {
+        var response = await _fixture.AnonymousClient.PostAsJsonAsync(IdentityApiRoutes.ResetPassword,
+            new
+            {
+                email = IdentityTestCredentials.Email,
+                token = "definitely-invalid-reset-token",
+                newPassword = "NewPassword!123"
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("reset", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task VerifyEmail_rejects_unknown_email_and_token_without_disclosing_account()
     {
         var response = await _fixture.AnonymousClient.PostAsJsonAsync(IdentityApiRoutes.VerifyEmail,
@@ -56,6 +93,16 @@ public sealed class AccountRecoveryEndpointTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("invalid", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_rejects_invalid_token_for_existing_email()
+    {
+        var response = await _fixture.AnonymousClient.PostAsJsonAsync(IdentityApiRoutes.VerifyEmail,
+            new { email = IdentityTestCredentials.Email, token = "definitely-invalid-email-token" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("email", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

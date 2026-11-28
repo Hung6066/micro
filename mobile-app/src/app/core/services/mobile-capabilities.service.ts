@@ -37,13 +37,13 @@ export class MobileCapabilitiesService {
     this.permissions.has(readPermission("consents")),
   );
   readonly canManageClients = computed(() =>
-    this.permissions.has(mutationPermission("clients", "write")),
+    this.permissions.has(mutationPermission("clients")),
   );
   readonly canManageUsers = computed(() =>
-    this.permissions.has(mutationPermission("users", "write")),
+    this.permissions.has(mutationPermission("users")),
   );
   readonly canManageRoles = computed(() =>
-    this.permissions.has(mutationPermission("roles", "write")),
+    this.permissions.has(mutationPermission("roles")),
   );
 
   isFeatureEnabled(key: MobileFeatureKey): boolean {

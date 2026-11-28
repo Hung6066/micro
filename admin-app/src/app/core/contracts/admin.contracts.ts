@@ -11,6 +11,7 @@ import type {
   IamResourcePolicy,
   IamScope,
   IamServiceDefinition,
+  IamServicePrincipal,
   IamTrustedIssuer,
   IamTrustedIssuersResponse,
   IamUnusedPermissionsResult,
@@ -39,6 +40,7 @@ export type {
   IamResourcePolicy,
   IamScope,
   IamServiceDefinition,
+  IamServicePrincipal,
   IamTrustedIssuer,
   IamTrustedIssuersResponse,
   IamUnusedPermissionsResult,
@@ -46,6 +48,13 @@ export type {
   IamWorkloadSession,
   IamWorkloadSessionResponse,
 };
+
+/** An OAuth scope from GET /clients/scopes. */
+export interface AvailableScope {
+  name: string;
+  displayName?: string | null;
+  description?: string | null;
+}
 
 export interface OidcClient {
   id?: string;
@@ -270,6 +279,21 @@ export interface AuthorizationPolicy {
   createdAt?: string;
   publishedAt?: string;
   publishedBy?: string;
+}
+
+export interface AuthorizationChangeRequest {
+  id: string;
+  resourceType: string;
+  resourceId: string;
+  action: string;
+  requestedBy: string;
+  reason: string;
+  status: string;
+  approvedBy?: string;
+  requestedAt: string;
+  decidedAt?: string;
+  executedAt?: string;
+  expiresAt: string;
 }
 
 export interface AuthorizationPolicyLintResult {

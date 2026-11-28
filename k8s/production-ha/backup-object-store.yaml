@@ -90,7 +90,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - server
-            - http://minio-{0...3}.minio-headless.backup.svc.cluster.local/data
+            - https://minio-{0...3}.minio-headless.backup.svc.cluster.local/data
             - --console-address
             - :9001
           env:
@@ -113,21 +113,38 @@ spec:
             httpGet:
               path: /minio/health/ready
               port: api
+              scheme: HTTPS
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /minio/health/live
               port: api
+              scheme: HTTPS
             initialDelaySeconds: 30
             periodSeconds: 20
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 2
+              memory: 2Gi
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: minio-tls
+              mountPath: /root/.minio/certs
+              readOnly: true
+      volumes:
+        - name: minio-tls
+          secret:
+            secretName: minio-tls
+            defaultMode: 0400
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -171,9 +188,18 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
           env:
             - name: MC_CONFIG_DIR
               value: /tmp/mc
+            - name: SSL_CERT_FILE
+              value: /etc/minio-tls/ca.crt
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
@@ -184,13 +210,23 @@ spec:
                 secretKeyRef:
                   name: minio-credentials
                   key: MINIO_ROOT_PASSWORD
+          volumeMounts:
+            - name: minio-tls
+              mountPath: /etc/minio-tls
+              readOnly: true
           command: ["/bin/sh", "-ec"]
           args:
             - |
-              until mc alias set local http://minio.backup.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do sleep 3; done
-              mc mb --ignore-existing local/his-hope-spire
+              until mc alias set local https://minio.backup.svc.cluster.local:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do sleep 3; done
+              mc mb --with-lock --ignore-existing local/his-hope-spire
               mc version enable local/his-hope-spire
+              mc retention set --default COMPLIANCE 30d local/his-hope-spire
               mc anonymous set none local/his-hope-spire
+      volumes:
+        - name: minio-tls
+          secret:
+            secretName: minio-tls
+            defaultMode: 0400
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -201,12 +237,51 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/name: minio
-  policyTypes: [Ingress]
+  policyTypes: [Ingress, Egress]
   # MinIO is a cluster-internal endpoint. The bucket policy remains
-  # least-privilege; access is constrained by the ClusterIP service and
-  # deployment-level namespace isolation.
+  # least-privilege; allow only MinIO's own namespace and the CNPG backup
+  # workload namespace. Do not expose the object store to arbitrary pods.
   ingress:
     -
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backup
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: minio
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: spire
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: spire-postgres
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backup
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: minio-backup-bucket
       ports:
         - protocol: TCP
           port: 9000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backup
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: minio
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

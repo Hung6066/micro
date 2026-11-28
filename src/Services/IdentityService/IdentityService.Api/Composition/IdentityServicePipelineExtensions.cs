@@ -1,6 +1,7 @@
 using His.Hope.AspNetCore;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
+using His.Hope.SharedKernel.Protocol;
 using His.Hope.Observability;
 using System.Net;
 using System.Security.Claims;
@@ -60,6 +61,33 @@ public static class IdentityServicePipelineExtensions
     public static void UseIdentityServicePipeline(this WebApplication app)
     {
 
+        // SECURITY: resolve the real client address and scheme only from proxies
+        // that are explicitly trusted. Without this, rate limits are keyed on the
+        // proxy address (one bucket for everybody) and cookies issued behind a
+        // TLS-terminating proxy lose the Secure flag. Forwarded headers from any
+        // other source are ignored.
+        var trustedNetworks = app.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [];
+        var trustedProxies = app.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
+        if (trustedNetworks.Length > 0 || trustedProxies.Length > 0)
+        {
+            var forwarded = new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+                ForwardLimit = app.Configuration.GetValue("ForwardedHeaders:ForwardLimit", 2)
+            };
+            forwarded.KnownNetworks.Clear();
+            forwarded.KnownProxies.Clear();
+            foreach (var network in trustedNetworks)
+            {
+                var parts = network.Split('/', 2, StringSplitOptions.TrimEntries);
+                forwarded.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+                    IPAddress.Parse(parts[0]), int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture)));
+            }
+            foreach (var proxy in trustedProxies)
+                forwarded.KnownProxies.Add(IPAddress.Parse(proxy.Trim()));
+            app.UseForwardedHeaders(forwarded);
+        }
+
         if (app.Environment.IsProduction())
             app.Services.RequireDurableAuditSink();
 
@@ -79,7 +107,7 @@ public static class IdentityServicePipelineExtensions
                 status is not (400 or 401 or 403 or 404 or 409 or 429))
                 return;
 
-            var correlationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+            var correlationId = http.Request.Headers[His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Headers.CorrelationId].FirstOrDefault()
                 ?? http.TraceIdentifier;
             var problem = new ProblemDetails
             {
@@ -121,8 +149,8 @@ public static class IdentityServicePipelineExtensions
         app.UseMiddleware<His.Hope.IdentityService.Api.Metrics.SloMiddleware>();
         app.UseSerilogRequestLogging();
         app.UseHisHopePrometheus();
-        app.UseCors();
         app.UseRouting();
+        app.UseCors();
         app.UseRateLimiter();
         app.UseDpopAuthorizationSchemeNormalization();
 
@@ -134,10 +162,12 @@ public static class IdentityServicePipelineExtensions
         app.Use(async (context, next) =>
         {
             if (!context.Request.Headers.ContainsKey("Authorization") &&
-                context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+                context.Request.Cookies.TryGetValue(HisHopeProtocolConstants.Cookies.BrowserSession, out var sessionId) &&
                 !string.IsNullOrWhiteSpace(sessionId) &&
                 !context.Request.Path.StartsWithSegments("/connect") &&
-                !context.Request.Path.StartsWithSegments("/Account"))
+                !context.Request.Path.StartsWithSegments("/Account") &&
+                !context.Request.Path.StartsWithSegments("/api/v1/auth/session-status") &&
+                !context.Request.Path.StartsWithSegments("/api/v1/auth/session/exchange"))
             {
                 var redis = context.RequestServices.GetRequiredService<StackExchange.Redis.IConnectionMultiplexer>();
                 var protector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
@@ -148,16 +178,48 @@ public static class IdentityServicePipelineExtensions
                     {
                         using var document = JsonDocument.Parse((string)sessionJson!);
                         var root = document.RootElement;
+
+                        // SECURITY: the session cookie is scoped to the parent domain and
+                        // is SameSite=Lax, so any sibling origin can make the browser send
+                        // it. A state-changing request is only bridged to the session when
+                        // it also carries the session's CSRF token; otherwise it stays
+                        // anonymous and is rejected by authorization.
+                        var method = context.Request.Method;
+                        if (!HttpMethods.IsGet(method) && !HttpMethods.IsHead(method) && !HttpMethods.IsOptions(method) &&
+                            context.RequestServices.GetRequiredService<IConfiguration>()
+                                .GetValue("Security:EnforceCsrfOnSessionBridge", true))
+                        {
+                            var expectedCsrf = root.TryGetProperty("CsrfToken", out var csrfElement) ? csrfElement.GetString() : null;
+                            var presentedCsrf = context.Request.Headers[HisHopeProtocolConstants.Headers.CsrfToken].FirstOrDefault();
+                            if (string.IsNullOrEmpty(expectedCsrf) || string.IsNullOrEmpty(presentedCsrf) ||
+                                !CryptographicOperations.FixedTimeEquals(
+                                    Encoding.UTF8.GetBytes(expectedCsrf), Encoding.UTF8.GetBytes(presentedCsrf)))
+                            {
+                                await next();
+                                return;
+                            }
+                        }
                         var protectedJwt = root.TryGetProperty("Jwt", out var jwtElement)
                             ? jwtElement.GetString()
                             : null;
                         var expiresAt = root.TryGetProperty("ExpiresAt", out var expiryElement)
                             ? expiryElement.GetDateTimeOffset()
                             : DateTimeOffset.MinValue;
+                        var idleExpiresAt = root.TryGetProperty("IdleExpiresAt", out var idleElement) &&
+                            idleElement.ValueKind != JsonValueKind.Null
+                            ? idleElement.GetDateTimeOffset()
+                            : DateTimeOffset.MaxValue;
+                        var absoluteExpiresAt = root.TryGetProperty("AbsoluteExpiresAt", out var absoluteElement) &&
+                            absoluteElement.ValueKind != JsonValueKind.Null
+                            ? absoluteElement.GetDateTimeOffset()
+                            : DateTimeOffset.MaxValue;
                         var sessionPrincipalType = root.TryGetProperty("PrincipalType", out var principalTypeElement)
                             ? principalTypeElement.GetString()
                             : null;
-                        if (!string.IsNullOrWhiteSpace(protectedJwt) && expiresAt > DateTimeOffset.UtcNow)
+                        if (!string.IsNullOrWhiteSpace(protectedJwt) &&
+                            expiresAt > DateTimeOffset.UtcNow &&
+                            idleExpiresAt > DateTimeOffset.UtcNow &&
+                            absoluteExpiresAt > DateTimeOffset.UtcNow)
                         {
                             var jwt = protector.Unprotect(protectedJwt);
 
@@ -176,57 +238,92 @@ public static class IdentityServicePipelineExtensions
                                 // Preserve the existing fail-closed behavior
                                 // for invalid or legacy session payloads.
                             }
-                            var sessionData = JsonSerializer.Deserialize<SessionData>((string)sessionJson!);
+                            var currentSessionJson = (string)sessionJson!;
+                            var sessionData = JsonSerializer.Deserialize<SessionData>(currentSessionJson);
                             var hasHumanPrincipal = string.Equals(sessionPrincipalType, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal) ||
                                 string.Equals(tokenPrincipal?.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal);
-                            var hasPermissionClaims = tokenPrincipal?.FindAll("permissions")
+                            var hasPermissionClaims = tokenPrincipal?.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
                                 .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
                                 .Any() == true;
-                            if ((!hasHumanPrincipal || !hasPermissionClaims) &&
+                            var hasSessionUserId = Guid.TryParse(root.GetProperty("UserId").GetString(), out var sessionUserId);
+                            var isConfiguredSuperAdmin = hasHumanPrincipal &&
+                                hasSessionUserId &&
+                                context.RequestServices.GetRequiredService<IConfiguration>()
+                                    .GetSection("Identity:SuperAdmin:UserIds")
+                                    .Get<string[]>()
+                                    ?.Any(id => string.Equals(id, sessionUserId.ToString(), StringComparison.OrdinalIgnoreCase)) == true;
+                            var hasSuperAdminClaim = string.Equals(
+                                tokenPrincipal?.FindFirst(HisHopeProtocolConstants.Claims.SuperAdmin)?.Value,
+                                "true",
+                                StringComparison.OrdinalIgnoreCase);
+                            var superAdminClaimIsStale = isConfiguredSuperAdmin != hasSuperAdminClaim;
+                            if ((!hasHumanPrincipal || !hasPermissionClaims || superAdminClaimIsStale) &&
                                 tokenPrincipal is not null &&
-                                Guid.TryParse(root.GetProperty("UserId").GetString(), out var sessionUserId))
+                                hasSessionUserId)
                             {
                                 var userManager = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<User>>();
-                                var db = context.RequestServices.GetRequiredService<IdentityDbContext>();
+                                var identityService = context.RequestServices.GetRequiredService<IIdentityService>();
                                 var user = await userManager.FindByIdAsync(sessionUserId.ToString());
                                 if (user is not null)
                                 {
                                     var roles = await userManager.GetRolesAsync(user);
-                                    var permissions = await db.RolePermissions
-                                        .Where(mapping => roles.Contains(mapping.Role.Name!))
-                                        .Select(mapping => mapping.PermissionCode)
-                                        .Concat(db.BreakGlassRequests
-                                            .Where(request => request.SubjectUserId == user.Id &&
-                                                request.Status == "approved" &&
-                                                request.RevokedAt == null &&
-                                                request.ExpiresAt > DateTime.UtcNow)
-                                            .Select(request => request.PermissionCode))
-                                        .Distinct()
-                                        .ToListAsync();
+                                    var (permissions, tenantClaims) = await HumanSessionAuthClaims.ResolveAsync(
+                                        userManager,
+                                        identityService,
+                                        user);
+                                    var permissionList = permissions.ToList();
                                     var (migratedJwt, migratedExpiry) = tokenGenerator.GenerateAccessToken(
                                         user,
                                         roles,
-                                        permissions);
+                                        permissionList,
+                                        additionalClaims: tenantClaims);
                                     jwt = migratedJwt;
                                     if (sessionData is not null)
                                     {
+                                        var sessionIsPrivileged = isConfiguredSuperAdmin;
+                                        var absoluteSessionLimit = sessionData.IssuedAt.Add(
+                                            sessionIsPrivileged ? TimeSpan.FromHours(4) : TimeSpan.FromHours(8));
+                                        var migratedAbsoluteExpiresAt = sessionData.AbsoluteExpiresAt is { } existingAbsoluteExpiry &&
+                                            existingAbsoluteExpiry < absoluteSessionLimit
+                                                ? existingAbsoluteExpiry
+                                                : absoluteSessionLimit;
+                                        var migratedIdleExpiresAt = DateTimeOffset.UtcNow.Add(
+                                            sessionIsPrivileged ? TimeSpan.FromMinutes(15) : TimeSpan.FromMinutes(30));
+                                        if (migratedIdleExpiresAt > migratedAbsoluteExpiresAt)
+                                            migratedIdleExpiresAt = migratedAbsoluteExpiresAt;
                                         sessionData = sessionData with
                                         {
                                             Jwt = protector.Protect(migratedJwt),
                                             PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
-                                            Permissions = permissions.ToArray(),
-                                            ExpiresAt = migratedExpiry < sessionData.ExpiresAt ? migratedExpiry : sessionData.ExpiresAt
+                                            Permissions = permissionList.ToArray(),
+                                            ExpiresAt = migratedExpiry < sessionData.ExpiresAt ? migratedExpiry : sessionData.ExpiresAt,
+                                            IsPrivileged = sessionIsPrivileged,
+                                            IdleExpiresAt = migratedIdleExpiresAt,
+                                            AbsoluteExpiresAt = migratedAbsoluteExpiresAt
                                         };
+                                        currentSessionJson = JsonSerializer.Serialize(sessionData);
                                         await redis.GetDatabase().StringSetAsync(
                                             $"session:{sessionId}",
-                                            JsonSerializer.Serialize(sessionData),
+                                            currentSessionJson,
                                             sessionData.ExpiresAt - DateTimeOffset.UtcNow);
                                     }
                                 }
                             }
 
+                            // Idle expiry is an inactivity limit: every bridged
+                            // request moves it forward, as the BFF does.
+                            await BrowserSessionBridge.SlideIdleExpiryAsync(
+                                redis.GetDatabase(), sessionId, currentSessionJson, DateTimeOffset.UtcNow);
+
                             context.Request.Headers.Authorization = $"Bearer {jwt}";
                             context.Request.Headers["X-HisHope-Session"] = "1";
+                        }
+                        else if (!string.IsNullOrWhiteSpace(protectedJwt))
+                        {
+                            // A token-bearing session whose idle, absolute or token
+                            // expiry has passed. Sessions without a token (pending
+                            // MFA, server-rendered login) keep the cookie fallback.
+                            BrowserSessionBridge.MarkExpired(context);
                         }
                     }
                     catch (CryptographicException)

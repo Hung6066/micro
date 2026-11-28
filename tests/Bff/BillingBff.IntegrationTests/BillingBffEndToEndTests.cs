@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using His.Hope.Bff.Core.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.Redis;
 using StackExchange.Redis;
 using Xunit;
@@ -23,7 +24,9 @@ public class BillingBffEndToEndTests : IAsyncLifetime
         await _redis.StartAsync();
 
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redis.GetConnectionString());
-        Environment.SetEnvironmentVariable("Services__Billing", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("REDIS_URL", $"redis://{_redis.GetConnectionString()}");
+        Environment.SetEnvironmentVariable("SERVICE_BILLING_API_URL", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("SERVICE_BILLING_GRPC_URL", "http://localhost:5099");
 
         _bff = new WebApplicationFactory<Program>();
         _client = _bff.CreateClient();
@@ -32,15 +35,15 @@ public class BillingBffEndToEndTests : IAsyncLifetime
     [Fact]
     public async Task GetInvoicesSearch_WithValidSession_ProxiesRequest()
     {
-        var redis = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
+        var redis = _bff.Services.GetRequiredService<IConnectionMultiplexer>();
         var db = redis.GetDatabase();
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt-token",
+            Jwt = string.Empty,
             Permissions = new[] { "billing.view" },
             CsrfToken = "csrf-test",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -65,15 +68,15 @@ public class BillingBffEndToEndTests : IAsyncLifetime
     [Fact]
     public async Task GetInvoices_WithExpiredSession_Returns401()
     {
-        var redis = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
+        var redis = _bff.Services.GetRequiredService<IConnectionMultiplexer>();
         var db = redis.GetDatabase();
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = Array.Empty<string>(),
             CsrfToken = "csrf",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow.AddHours(-2),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1)
         };
@@ -93,12 +96,17 @@ public class BillingBffEndToEndTests : IAsyncLifetime
         _client.Dispose();
         await _bff.DisposeAsync();
         await _redis.DisposeAsync();
+        Environment.SetEnvironmentVariable("ConnectionStrings__Redis", null);
+        Environment.SetEnvironmentVariable("REDIS_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_BILLING_API_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_BILLING_GRPC_URL", null);
     }
 
     private static string ComputeSha256(string input)
     {
         var bytes = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
+
 }

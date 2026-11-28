@@ -24,13 +24,13 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
         // The production database was created by the initial migration with
         // quoted PascalCase identifiers. Keep the mapping explicit so current
         // EF/Npgsql conventions do not look for snake_case columns.
-        builder.Property(e => e.PatientId).HasColumnName("PatientId").IsRequired();
-        builder.Property(e => e.ProviderId).HasColumnName("ProviderId").IsRequired();
-        builder.Property(e => e.AppointmentId).HasColumnName("AppointmentId");
-        builder.Property(e => e.EncounterDate).HasColumnName("EncounterDate").IsRequired();
+builder.Property(e => e.PatientId).HasColumnName("patient_id").IsRequired();
+builder.Property(e => e.ProviderId).HasColumnName("provider_id").IsRequired();
+builder.Property(e => e.AppointmentId).HasColumnName("appointment_id");
+builder.Property(e => e.EncounterDate).HasColumnName("encounter_date").IsRequired();
 
         builder.Property(e => e.EncounterType)
-            .HasColumnName("EncounterType")
+.HasColumnName("encounter_type")
             .HasConversion(
                 t => t.Code,
                 code => EncounterType.FromCode(code))
@@ -38,17 +38,17 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
             .IsRequired();
 
         builder.Property(e => e.Status)
-            .HasColumnName("Status")
+.HasColumnName("status")
             .HasConversion(
                 s => s.Code,
                 code => EncounterStatus.FromCode(code))
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(e => e.ChiefComplaint).HasColumnName("ChiefComplaint").HasMaxLength(1000);
-        builder.Property(e => e.Assessment).HasColumnName("Assessment").HasMaxLength(5000);
-        builder.Property(e => e.Plan).HasColumnName("Plan").HasMaxLength(5000);
-        builder.Property(e => e.DiagnosisNotes).HasColumnName("DiagnosisNotes").HasMaxLength(5000);
+builder.Property(e => e.ChiefComplaint).HasColumnName("chief_complaint").HasMaxLength(1000);
+builder.Property(e => e.Assessment).HasColumnName("assessment").HasMaxLength(5000);
+builder.Property(e => e.Plan).HasColumnName("plan").HasMaxLength(5000);
+builder.Property(e => e.DiagnosisNotes).HasColumnName("diagnosis_notes").HasMaxLength(5000);
 
         builder.OwnsOne(e => e.Hpi, hpi =>
         {

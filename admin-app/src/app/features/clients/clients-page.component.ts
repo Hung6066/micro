@@ -14,6 +14,7 @@ import {
   OidcClient,
 } from "../../core/contracts/admin.contracts";
 import { ClientsApiService } from "../../core/services/clients-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopePageQuery } from "@his-hope/frontend-foundation";
 import {
   HisHopeAuditFeedbackService,
@@ -39,7 +40,18 @@ import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
-import { ClientEditDialogComponent } from "./client-edit-dialog.component";
+import {
+  ClientEditDialogComponent,
+  isAllowedRedirectUri,
+} from "./client-edit-dialog.component";
+
+/** Inline-edited redirect URIs: comma, whitespace or newline separated. */
+export function splitUris(value: unknown): string[] {
+  return String(value ?? "")
+    .split(/[\s,]+/)
+    .map((uri) => uri.trim())
+    .filter(Boolean);
+}
 import { catchError } from "rxjs/operators";
 import { of } from "rxjs";
 
@@ -171,6 +183,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class ClientsPageComponent implements OnInit {
   private readonly api = inject(ClientsApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly toast = inject(HisHopeToastService);
   private readonly auditFeedback = inject(HisHopeAuditFeedbackService);
@@ -206,14 +219,23 @@ export class ClientsPageComponent implements OnInit {
         responsivePriority: 1,
       },
       {
+        // Not editable: the update endpoint cannot change the client type.
         key: "clientType",
         label: this.i18n.t("admin.type", "Type"),
-        editable: true,
         responsivePriority: 2,
       },
       {
+        // Comma-separated; HTTPS, or HTTP on a loopback host for CLI clients.
         key: "redirectUris",
         label: this.i18n.t("admin.redirectUris", "Redirect URIs"),
+        editable: true,
+        editValidator: (value) =>
+          splitUris(value).every(isAllowedRedirectUri)
+            ? null
+            : this.i18n.t(
+                "admin.clientRedirectUrisHttpsInvalid",
+                "Use HTTPS redirect URIs (HTTP only for localhost / 127.0.0.1 in CLI clients).",
+              ),
         responsivePriority: 3,
       },
       {
@@ -305,7 +327,10 @@ export class ClientsPageComponent implements OnInit {
     this.api
       .updateClient(client.id, {
         displayName: String(row["displayName"] ?? client.displayName),
-        clientType: String(row["clientType"] ?? client.clientType),
+        redirectUris:
+          row["redirectUris"] === undefined
+            ? client.redirectUris
+            : splitUris(row["redirectUris"]),
         concurrencyToken: client.concurrencyToken,
       })
       .pipe(
@@ -347,6 +372,7 @@ export class ClientsPageComponent implements OnInit {
   ngOnInit(): void {
     this.table.loadServerView(() => this.api.getTableViews("clients"));
     this.loadClients();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadClients());
   }
 
   loadServerView(): void {

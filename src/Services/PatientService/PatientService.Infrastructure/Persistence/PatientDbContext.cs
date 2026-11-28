@@ -1,4 +1,5 @@
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.DataLifecycle;
 using His.Hope.Authorization;
 using His.Hope.PatientService.Domain.Aggregates;
 using His.Hope.PatientService.Domain.Entities;
@@ -37,8 +38,9 @@ public class PatientDbContext : DbContext, IUnitOfWork
         modelBuilder.ApplyConfiguration(new MedicalConditionConfiguration());
         modelBuilder.ApplyConfiguration(new AllergyConfiguration());
         modelBuilder.Entity<Patient>().HasQueryFilter(patient =>
-            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
-            (_facilityScope.FacilityIds.Contains(patient.FacilityId!)));
+            EF.Property<bool?>(patient, "IsDeleted") != true &&
+            (!_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            (_facilityScope.FacilityIds.Contains(patient.FacilityId!))));
 
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
@@ -59,6 +61,7 @@ public class PatientDbContext : DbContext, IUnitOfWork
             entity.HasIndex(e => new { e.Status, e.OccurredOn }).HasDatabaseName("ix_outbox_messages_status_occurred_on");
         });
         base.OnModelCreating(modelBuilder);
+        HisHopeDataConventions.Apply(modelBuilder, typeof(Patient));
     }
 
     public override async Task<int> SaveChangesAsync(

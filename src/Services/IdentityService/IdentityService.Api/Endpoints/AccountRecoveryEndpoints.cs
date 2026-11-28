@@ -9,6 +9,7 @@ using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using StackExchange.Redis;
 using His.Hope.Contracts.Identity;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -28,10 +29,10 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                var token = await identityService.GeneratePasswordResetTokenAsync(request.Email);
+                var token = await identityService.GeneratePasswordResetTokenAsync(request.Email, ct);
                 await emailSender.SendAsync(request.Email, "Password Reset — His.Hope",
                     $"Your password reset token: {token}", ct);
-                logger.LogInformation("Password reset email sent to {Email}", request.Email);
+                logger.LogInformation("Password reset email dispatch completed.");
             }
             catch (KeyNotFoundException)
             {
@@ -47,6 +48,9 @@ public static class AccountRecoveryEndpoints
         group.MapPost(IdentityApiRoutes.ResetPasswordSegment, async (
             ResetPasswordRequest request,
             IIdentityService identityService,
+            UserManager<User> userManager,
+            His.Hope.Infrastructure.Security.ITokenBlacklistService tokenBlacklist,
+            His.Hope.IdentityService.Application.OpenIddict.IOpenIddictSubjectRevoker subjectRevoker,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -57,8 +61,15 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                await identityService.ResetPasswordAsync(request.Email, request.Token, request.NewPassword);
-                logger.LogInformation("Password reset completed for {Email}", request.Email);
+                await identityService.ResetPasswordAsync(request.Email, request.Token, request.NewPassword, ct);
+                // A reset is the recovery path after a suspected compromise: end
+                // every existing session, access token and OIDC grant.
+                if (await userManager.FindByEmailAsync(request.Email) is { } resetUser)
+                {
+                    await tokenBlacklist.RevokeAllUserTokensAsync(resetUser.Id.ToString(), ct);
+                    await subjectRevoker.RevokeAllAsync(resetUser.Id, ct);
+                }
+                logger.LogInformation("Password reset completed.");
                 return Results.Ok(new { message = "Password has been reset successfully." });
             }
             catch (KeyNotFoundException)
@@ -80,6 +91,8 @@ public static class AccountRecoveryEndpoints
             ChangePasswordRequest request,
             HttpContext httpContext,
             IIdentityService identityService,
+            His.Hope.Infrastructure.Security.ITokenBlacklistService tokenBlacklist,
+            His.Hope.IdentityService.Application.OpenIddict.IOpenIddictSubjectRevoker subjectRevoker,
             ILogger<Program> logger,
             CancellationToken ct) =>
         {
@@ -95,7 +108,9 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                await identityService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword);
+                await identityService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword, ct);
+                await tokenBlacklist.RevokeAllUserTokensAsync(userId.Value.ToString(), ct);
+                await subjectRevoker.RevokeAllAsync(userId.Value, ct);
                 logger.LogInformation("Password changed for UserId={UserId}", userId);
                 return Results.Ok(new { message = "Password changed successfully." });
             }
@@ -130,13 +145,13 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                var token = await identityService.GenerateEmailConfirmationTokenAsync(userId.Value);
+                var token = await identityService.GenerateEmailConfirmationTokenAsync(userId.Value, ct);
                 var email = httpContext.User.FindFirst(ClaimTypes.Email)?.Value;
                 if (!string.IsNullOrEmpty(email))
                 {
                     await emailSender.SendAsync(email, "Verify Your Email — His.Hope",
                         $"Your email verification token: {token}", ct);
-                    logger.LogInformation("Verification email sent to {Email}", email);
+                    logger.LogInformation("Verification email dispatch completed.");
                 }
                 return Results.Ok(new { message = "Verification email sent." });
             }
@@ -159,8 +174,8 @@ public static class AccountRecoveryEndpoints
 
             try
             {
-                await identityService.ConfirmEmailAsync(request.Email, request.Token);
-                logger.LogInformation("Email verified for {Email}", request.Email);
+                await identityService.ConfirmEmailAsync(request.Email, request.Token, ct);
+                logger.LogInformation("Email verification completed.");
                 return Results.Ok(new { message = "Email verified successfully." });
             }
             catch (KeyNotFoundException)
@@ -184,7 +199,7 @@ public static class AccountRecoveryEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var currentSessionId = httpContext.Request.Cookies["hishop_sid"];
+            var currentSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             var sessionIds = await sessionTracker.GetUserSessionsAsync(userId.Value.ToString());
             var db = redis.GetDatabase();
             var sessions = new List<SessionInfo>();
@@ -232,7 +247,7 @@ public static class AccountRecoveryEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var currentSessionId = httpContext.Request.Cookies["hishop_sid"];
+            var currentSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             if (sessionId == currentSessionId)
                 return Results.Problem(statusCode: 400,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.CurrentSessionCannotBeRevoked });
@@ -254,7 +269,7 @@ public static class AccountRecoveryEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
-            var currentSessionId = httpContext.Request.Cookies["hishop_sid"];
+            var currentSessionId = httpContext.Request.Cookies[HisHopeProtocolConstants.Cookies.BrowserSession];
             var sessionIds = await sessionTracker.GetUserSessionsAsync(userId.Value.ToString());
             var db = redis.GetDatabase();
             var keys = sessionIds
@@ -281,7 +296,7 @@ public static class AccountRecoveryEndpoints
     private static Guid? GetUserId(HttpContext httpContext)
     {
         var claim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)
-                    ?? httpContext.User.FindFirst("sub");
+                    ?? httpContext.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Subject);
         return claim is not null && Guid.TryParse(claim.Value, out var id) ? id : null;
     }
 }

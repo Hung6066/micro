@@ -10,7 +10,7 @@ public class LabOrderConfiguration : IEntityTypeConfiguration<LabOrder>
 {
     public void Configure(EntityTypeBuilder<LabOrder> builder)
     {
-        builder.ToTable("LabOrders");
+        builder.ToTable("lab_orders");
 
         builder.Property(o => o.FacilityId).HasColumnName("facilityid").HasMaxLength(100);
 
@@ -54,7 +54,7 @@ public class LabOrderConfiguration : IEntityTypeConfiguration<LabOrder>
 
         builder.OwnsMany(o => o.RequestedTests, testBuilder =>
         {
-            testBuilder.ToTable("LabTests");
+            testBuilder.ToTable("lab_tests");
             testBuilder.WithOwner().HasForeignKey("LabOrderId");
 
             testBuilder.HasKey(t => t.Id);
@@ -85,7 +85,7 @@ public class LabOrderConfiguration : IEntityTypeConfiguration<LabOrder>
 
             testBuilder.OwnsOne(t => t.Result, resultBuilder =>
             {
-                resultBuilder.ToTable("LabResults");
+                resultBuilder.ToTable("lab_results");
 
                 resultBuilder.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnName("id");
                 resultBuilder.HasKey("Id");

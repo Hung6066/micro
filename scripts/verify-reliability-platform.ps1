@@ -18,7 +18,12 @@ foreach ($path in $required) {
 }
 
 if (-not $SkipTests) {
-    dotnet test (Join-Path $repo 'tests/Shared/Infrastructure.Tests/Infrastructure.Tests.csproj') --no-restore
+    $project = Join-Path $repo 'tests/Shared/Infrastructure.Tests/Infrastructure.Tests.csproj'
+    # Keep this verifier runnable from a clean checkout. The no-restore-only
+    # invocation previously failed with NETSDK1004 when assets were absent.
+    dotnet restore $project --disable-parallel
+    if ($LASTEXITCODE -ne 0) { throw 'Reliability contract restore failed.' }
+    dotnet test $project --no-restore
     if ($LASTEXITCODE -ne 0) { throw 'Reliability contract tests failed.' }
 }
 

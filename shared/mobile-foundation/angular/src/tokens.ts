@@ -42,3 +42,9 @@ export const HIS_HOPE_TABLE_API_CACHE_NAMESPACE = new InjectionToken<string>(
   "HIS_HOPE_TABLE_API_CACHE_NAMESPACE",
   { factory: () => "admin" },
 );
+
+/** When false, PIN setup and shell lock overlays stay hidden (web preview). */
+export const HIS_HOPE_MOBILE_NATIVE = new InjectionToken<boolean>(
+  "HIS_HOPE_MOBILE_NATIVE",
+  { factory: () => false },
+);

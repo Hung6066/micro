@@ -27,6 +27,7 @@ import { HisHopeTextFieldComponent } from "./his-hope-text-field.component";
         [hint]="hint()"
         [placeholder]="placeholder()"
         [type]="type()"
+        [autocomplete]="autocomplete()"
         [messages]="messages()"
         [appearance]="appearance()"
         [subscriptSizing]="subscriptSizing()"
@@ -44,6 +45,7 @@ export class HisHopeMaterialFormFieldComponent {
   readonly hint = input("");
   readonly placeholder = input("");
   readonly type = input<"text" | "email" | "number" | "password">("text");
+  readonly autocomplete = input("");
   readonly messages = input<Record<string, string>>({});
   readonly appearance = input<"fill" | "outline">("outline");
   readonly subscriptSizing = input<"fixed" | "dynamic">("dynamic");

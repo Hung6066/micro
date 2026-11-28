@@ -9,7 +9,7 @@ Phạm vi: `IdentityService.Api`, domain/persistence, background workers và `ad
 
 Identity Service đã có một bề mặt quản trị Admin-app đủ dùng cho vận hành thường ngày và các capability P0–P2 đã triển khai. Không nên đưa secret, private key, raw SAML assertion, raw device attestation hoặc vendor credential vào trình duyệt. Admin-app chỉ nên gọi các endpoint quản trị đã được `HumanAdmin` + permission bảo vệ và hiển thị trạng thái đã chuẩn hóa.
 
-Tuy nhiên, vẫn còn một số khoảng trống có giá trị vận hành cao. Ưu tiên tiếp theo là bổ sung **incident controls** (thu hồi session/token, reset MFA/passkey có audit), **bulk user lifecycle**, và **outbox operations** (SSF retry, provisioning reconcile). Các chức năng này chưa nên giải quyết bằng cách gọi trực tiếp database hoặc endpoint self-service của người dùng.
+Các khoảng trống incident controls, bulk user lifecycle và outbox operations từng được ghi nhận trong bản audit lịch sử đã được triển khai và xác nhận ở phần **Correction — current worktree verification** bên dưới. Các live gate vendor/PKI/device-lab và coverage production vẫn phải được đánh giá riêng; không suy diễn từ local contract thành production readiness.
 
 ## Ma trận coverage hiện tại
 
@@ -26,16 +26,18 @@ Tuy nhiên, vẫn còn một số khoảng trống có giá trị vận hành ca
 | Device posture P2 | policy, preview, assessments | Identity capabilities | Đã tích hợp ở observe/preview; không phải connector provisioning |
 | mTLS bindings | `/admin/mtls/bindings` | Identity capabilities | Đã tích hợp read/revoke |
 | RADIUS EAP-TLS | `/admin/radius/eap-tls/status` | Identity capabilities | Đã tích hợp status-only |
-| SCIM/SSF/provisioning health | jobs/status/outbox endpoints | Identity capabilities | Có status/queue/retry provisioning; SSF retry còn thiếu |
+| SCIM/SSF/provisioning health | jobs/status/outbox endpoints | Identity capabilities | Có status/queue/retry provisioning và SSF retry |
 | Mobile device operations | `/admin/mobile/devices`, delivery summary | Mobile operations | Đã tích hợp list/revoke/summary |
 | Consents | admin GET `/admin/consents` | Consents page | Đã tích hợp read-only; revoke admin chưa có chủ ý |
 | Bulk user import | `/admin/users/bulk*` | Chỉ có preview API, chưa có workflow UI đầy đủ | Khoảng trống P1 |
-| User session/token incident response | self-service `/auth/account/sessions` | Chưa có admin endpoint | Khoảng trống P0 |
-| Admin reset MFA/passkey | Chỉ có self-service endpoint | Chưa có admin endpoint | Khoảng trống P1 |
-| SSF failed outbox replay | `/admin/security-signals/outbox/{id}/retry` | Chưa có AdminApi/UI action | Khoảng trống P1 |
-| Provisioning full reconcile | `/admin/provisioning/reconcile/{target}` | Chưa có AdminApi/UI action | Khoảng trống P1 |
+| User session/token incident response | `/admin/users/{id}/sessions/*` | Identity Operations | Đã tích hợp, cần live auth E2E |
+| Admin reset MFA/passkey | `/admin/users/{id}/credentials/reset` | Identity Operations | Đã tích hợp, cần live auth E2E |
+| SSF failed outbox replay | `/admin/security-signals/outbox/{id}/retry` | Identity capabilities | Đã tích hợp, cần live auth E2E |
+| Provisioning full reconcile | `/admin/provisioning/reconcile/{target}` | Identity Operations | Đã tích hợp, cần live auth E2E |
 
-## Khoảng trống và đề xuất nâng cấp
+## Khoảng trống còn lại và đề xuất nâng cấp
+
+Các mục P0/P1 dưới đây là backlog lịch sử đã được triển khai; giữ lại như acceptance criteria và không xem là thiếu trong current worktree. Trạng thái thực tế nằm ở phần Correction.
 
 ### P0 — Incident access controls
 
@@ -84,7 +86,7 @@ Giữ thiết kế hiện tại: Admin-app quản lý policy, evidence TTL, prev
 - Route contract dùng chung API/tests: `src/Shared/Contracts/His.Hope.Contracts/Identity/IdentityApiRoutes.cs`.
 - Docker integration runner tái sử dụng: `scripts/run-identity-tests-docker.ps1`; latest isolated baseline **285/285**, chỉ xóa container test của chính invocation.
 - Docker E2E runner: adaptive MFA source/browser contract **7/7 pass**; authenticated SSO smoke yêu cầu `E2E_PASSWORD` qua preflight và hiện `environment-blocked` vì identity container đang chạy không có bootstrap password khớp credential mặc định, không tự ý reset tenant/application containers.
-- Coverage report merged current (fresh Domain/Application/Infrastructure unit + Docker integration reports, bổ sung BulkImport/Directory endpoint 15/15 và IAM control-plane 12/12): **88.30% line / 72.64% branch** sau khi loại compiler-generated classes và composition wiring khỏi mẫu đo; vẫn chưa đạt mục tiêu 90%/80%; không được coi là quality gate pass.
+- Coverage report merged current (`artifacts/identity-coverage-current`, fresh Domain/Application/Infrastructure unit + Docker integration reports): **90.01% line / 80.03% branch** sau khi loại compiler-generated classes và composition wiring khỏi mẫu đo; validator `validate-identity-coverage.ps1` trả `IDENTITY_COVERAGE_GATE_PASS`.
 - Admin-app build/tests/lint: build pass, current IAM/admin validation pass; responsive authenticated menu E2E **3/3 viewport**.
 - Live Google Workspace/Entra/SSF/mTLS/RADIUS/Chrome/Windows gates vẫn cần tenant/PKI/device-lab bên ngoài và phải tiếp tục ghi nhận là `skipped` khi thiếu prerequisite.
 

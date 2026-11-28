@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
     <ProjectReference Include="..\..\Secrets\His.Hope.Secrets\His.Hope.Secrets.csproj" />
     <ProjectReference Include="..\..\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />

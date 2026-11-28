@@ -6,6 +6,40 @@ namespace His.Hope.Configuration.Tests;
 
 public sealed class ServiceEndpointOptionsTests
 {
+    [Theory]
+    [InlineData("rediss://gateway:fixture%2B%2F%3D@redis.internal:6379/2",
+        "redis.internal:6379,user=gateway,password=fixture+/=,defaultDatabase=2,ssl=True")]
+    [InlineData("redis://:fixture%3Avalue@redis.internal:6379",
+        "redis.internal:6379,password=fixture:value")]
+    [InlineData("rediss://gateway%3Atenant:fixture%3Avalue@redis.internal:6379",
+        "redis.internal:6379,user=gateway:tenant,password=fixture:value,ssl=True")]
+    [InlineData("redis://redis.internal:6379", "redis.internal:6379")]
+    public void ToRedisConnectionString_PreservesAclIdentityAndEncodedCredentials(
+        string url, string expected)
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["REDIS_URL"] = url
+        });
+        var endpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(configuration, "ApiGateway");
+
+        var result = RuntimeConfigurationExtensions.ToRedisConnectionString(endpoints.GetRequired("redis"));
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void EventBusKeys_UseCanonicalConfigurationPaths()
+    {
+        Assert.Equal("EventBus:HostName", HisHopeConfigurationKeys.EventBus.HostName);
+        Assert.Equal("EventBus:Port", HisHopeConfigurationKeys.EventBus.Port);
+        Assert.Equal("EventBus:UserName", HisHopeConfigurationKeys.EventBus.UserName);
+        Assert.Equal("EventBus:Password", HisHopeConfigurationKeys.EventBus.Password);
+        Assert.Equal("EventBus:VirtualHost", HisHopeConfigurationKeys.EventBus.VirtualHost);
+        Assert.Equal("EventBus:InternalExchangeName", HisHopeConfigurationKeys.EventBus.InternalExchangeName);
+        Assert.Equal("EventBus:UseSsl", HisHopeConfigurationKeys.EventBus.UseSsl);
+    }
+
     [Fact]
     public void BindServiceEndpoints_BindsLogicalServiceUris_AndNormalizesTrailingSlash()
     {
@@ -66,6 +100,67 @@ public sealed class ServiceEndpointOptionsTests
 
         Assert.Null(endpoints.GetOptional("prometheus"));
         Assert.Null(endpoints.GetOptional("elasticsearch"));
+    }
+
+    [Fact]
+    public void ServicePluginRegistry_ExposesOnlyEnabledPlugins()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Plugins:Items:0:Key"] = "manufacturing",
+            ["Plugins:Items:0:DisplayName"] = "Manufacturing",
+            ["Plugins:Items:0:Enabled"] = "true",
+            ["Plugins:Items:1:Key"] = "patient",
+            ["Plugins:Items:1:DisplayName"] = "Patient",
+            ["Plugins:Items:1:Enabled"] = "false"
+        });
+
+        var registry = new ServicePluginRegistry(configuration);
+
+        Assert.True(registry.IsEnabled("manufacturing"));
+        Assert.False(registry.IsEnabled("patient"));
+        Assert.Single(registry.Enabled);
+        Assert.Equal("manufacturing", registry.Enabled[0].Key);
+    }
+
+    [Fact]
+    public void ServicePluginRegistry_LastDefinitionWinsCaseInsensitively()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Plugins:Items:0:Key"] = "Commerce",
+            ["Plugins:Items:0:DisplayName"] = "Commerce",
+            ["Plugins:Items:0:Enabled"] = "true",
+            ["Plugins:Items:1:Key"] = "commerce",
+            ["Plugins:Items:1:DisplayName"] = "Commerce disabled",
+            ["Plugins:Items:1:Enabled"] = "false"
+        });
+
+        var registry = new ServicePluginRegistry(configuration);
+
+        Assert.False(registry.IsEnabled("COMMERCE"));
+        Assert.Equal("Commerce disabled", registry.Get("commerce")!.DisplayName);
+    }
+
+    [Fact]
+    public void ServicePluginRegistry_NormalizesRuntimeModuleMetadata()
+    {
+        var configuration = CreateConfiguration(new Dictionary<string, string?>
+        {
+            ["Plugins:Items:0:Key"] = " manufacturing ",
+            ["Plugins:Items:0:DisplayName"] = " Manufacturing ",
+            ["Plugins:Items:0:DashboardRoute"] = " dashboard/manufacturing ",
+            ["Plugins:Items:0:Permissions:0"] = " manufacturing.view ",
+            ["Plugins:Items:0:Permissions:1"] = "manufacturing.view"
+        });
+
+        var plugin = new ServicePluginRegistry(configuration).Get("MANUFACTURING")!;
+
+        Assert.Equal("manufacturing", plugin.Key);
+        Assert.Equal("Manufacturing", plugin.DisplayName);
+        Assert.Equal("/dashboard/manufacturing", plugin.DashboardRoute);
+        Assert.Single(plugin.Permissions);
+        Assert.Equal("manufacturing.view", plugin.Permissions[0]);
     }
 
     private static IConfiguration CreateConfiguration(IDictionary<string, string?> values) =>

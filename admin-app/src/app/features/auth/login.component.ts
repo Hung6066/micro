@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Subject, timer } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { finalize, takeUntil } from "rxjs/operators";
 import { MatCardModule } from "@angular/material/card";
 import { MatButtonModule } from "@angular/material/button";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
@@ -36,6 +36,15 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
             <h2>{{ "admin.adminLogin" | hhTranslate }}</h2>
             <p class="subtitle">{{ "admin.signInManageOidc" | hhTranslate }}</p>
           </div>
+          @if (accessDenied) {
+            <p class="access-denied" role="alert">
+              {{
+                "admin.portalAccessDenied"
+                  | hhTranslate
+                    : "This account is signed in but is not allowed to use the admin console (it is not a member of its tenant). Sign in with another account, or ask an administrator to add the tenant."
+              }}
+            </p>
+          }
           <div class="login-buttons">
             <hh-action-button
               [disabled]="checkingAuth"
@@ -104,6 +113,11 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         justify-content: center;
         gap: var(--space-sm);
       }
+      .access-denied {
+        margin: 0 0 var(--space-md);
+        color: var(--color-danger, var(--mat-sys-error));
+        text-align: center;
+      }
       .btn-spinner {
         display: inline-block;
         margin: 0 auto;
@@ -120,14 +134,37 @@ export class LoginComponent implements OnInit, OnDestroy {
     availableMethods: ["passkey", "mobileApproval", "totp"],
   });
   checkingAuth = true;
+  accessDenied = false;
 
   ngOnInit(): void {
+    this.authService.portalAccessDenied$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((denied) => {
+        this.accessDenied = denied;
+        if (denied) this.checkingAuth = false;
+      });
+
     this.authService.isAuthenticated$
       .pipe(takeUntil(this.destroy$))
       .subscribe((isAuth) => {
         this.checkingAuth = false;
-        if (isAuth) this.router.navigate(["/clients"]);
+        if (isAuth) {
+          const returnUrl = this.requestedReturnUrl;
+          void this.router.navigateByUrl(
+            returnUrl && returnUrl.startsWith("/") ? returnUrl : "/clients",
+          );
+        }
       });
+
+    this.authService
+      .checkAuth()
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.checkingAuth = false;
+        }),
+      )
+      .subscribe();
 
     timer(0, 3000)
       .pipe(takeUntil(this.destroy$))

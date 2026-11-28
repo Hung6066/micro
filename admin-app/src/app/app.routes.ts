@@ -1,9 +1,11 @@
 import { Routes } from "@angular/router";
 import { authGuard } from "./core/guards/auth.guard";
 import { adminReadGuard } from "./core/guards/admin-read.guard";
+import { operatorPortalGuard } from "./core/guards/operator-portal.guard";
+import { hqOperatorGuard } from "./core/guards/hq-operator.guard";
 import { capabilityPermissionGuard } from "./core/guards/capability-permission.guard";
 
-const protectedRoute = [authGuard, adminReadGuard] as const;
+const protectedRoute = [authGuard, operatorPortalGuard, adminReadGuard] as const;
 
 const iamWorkbenchRoutes: Routes = [
   {
@@ -207,6 +209,14 @@ const iamWorkbenchRoutes: Routes = [
       ),
   },
   {
+    path: "iam/authorization-change-requests",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/access-governance/authorization-change-requests-page.component").then(
+        (m) => m.AuthorizationChangeRequestsPageComponent,
+      ),
+  },
+  {
     path: "iam/access-reviews",
     canActivate: [...protectedRoute],
     loadComponent: () =>
@@ -228,6 +238,40 @@ const iamWorkbenchRoutes: Routes = [
     loadComponent: () =>
       import("./features/access-governance/break-glass-page.component").then(
         (m) => m.BreakGlassPageComponent,
+      ),
+  },
+  {
+    // Full audit is super-admin only (server-enforced); others see their own activity.
+    path: "iam/infra-audit",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/infra-audit/infra-audit-page.component").then(
+        (m) => m.InfraAuditPageComponent,
+      ),
+  },
+  {
+    // Super-admin only (server-enforced): host integrity drift, sudo, logins and Falco alerts.
+    path: "iam/security",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/host-security/host-security-page.component").then(
+        (m) => m.HostSecurityPageComponent,
+      ),
+  },
+  {
+    // Super-admin only (server-enforced, audited): sign-in risk scores, report-only (ZT 3.5 R0).
+    path: "iam/risk",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/risk/risk-page.component").then((m) => m.RiskPageComponent),
+  },
+  {
+    // Super-admin only (server-enforced): four-eyes root SSH grants for the automation agent.
+    path: "iam/agent-root",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/infra-access/agent-root-grants-page.component").then(
+        (m) => m.AgentRootGrantsPageComponent,
       ),
   },
 ];
@@ -306,7 +350,7 @@ export const routes: Routes = [
   },
   {
     path: "identity-capabilities",
-    canActivate: [...protectedRoute, capabilityPermissionGuard],
+    canActivate: [...protectedRoute, hqOperatorGuard, capabilityPermissionGuard],
     loadComponent: () =>
       import("./features/identity-capabilities/identity-capabilities-page.component").then(
         (m) => m.IdentityCapabilitiesPageComponent,
@@ -322,7 +366,7 @@ export const routes: Routes = [
   },
   {
     path: "security/identity",
-    canActivate: [...protectedRoute, capabilityPermissionGuard],
+    canActivate: [...protectedRoute, hqOperatorGuard, capabilityPermissionGuard],
     loadComponent: () =>
       import("./features/identity-capabilities/identity-capabilities-page.component").then(
         (m) => m.IdentityCapabilitiesPageComponent,
@@ -337,7 +381,7 @@ export const routes: Routes = [
   },
   {
     path: "database-platform",
-    canActivate: [...protectedRoute],
+    canActivate: [...protectedRoute, hqOperatorGuard],
     loadComponent: () =>
       import("./features/database-platform/database-platform-page.component").then(
         (m) => m.DatabasePlatformPageComponent,
@@ -345,7 +389,7 @@ export const routes: Routes = [
   },
   {
     path: "mobile-operations",
-    canActivate: [...protectedRoute],
+    canActivate: [...protectedRoute, hqOperatorGuard],
     loadComponent: () =>
       import("./features/mobile-operations/mobile-operations-page.component").then(
         (m) => m.MobileOperationsPageComponent,

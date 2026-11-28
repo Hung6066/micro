@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { EMPTY, Observable, ReplaySubject, of, throwError, timer } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, ReplaySubject, of, throwError, timer } from 'rxjs';
 import { catchError, exhaustMap, finalize, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
@@ -10,6 +10,8 @@ export interface HisHopeAuthOptions {
   sessionStatusUrl?: string;
   mfaStatusUrl?: string;
   sessionExchangeUrl?: string;
+  /** OIDC client identifier used to resolve the BFF portal/tenant claims. */
+  bffClientId?: string;
   logoutUrl?: string;
   /** Use the server-side HttpOnly session contract instead of browser OIDC tokens. */
   bffOnly?: boolean;
@@ -40,12 +42,22 @@ export class HisHopeAuthCoordinator {
   private readonly defaultReturnUrl: string;
   private readonly loginRoute: string;
   private readonly bffOnly: boolean;
+  private readonly bffClientId?: string;
   private lastAuthenticated = false;
   private ssoLoginInProgress = false;
   private refreshAccessTokenInFlight$?: Observable<boolean>;
   private exchangeBffSessionInFlight$?: Observable<void>;
 
   readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
+
+  /**
+   * True after the BFF session exchange answered 403: the signed-in Identity
+   * account may not use this portal (e.g. not a member of its tenant). The app
+   * stays signed out locally and stops retrying, but keeps the shared Identity
+   * session so other portals in the same browser are not signed out.
+   */
+  private readonly portalAccessDeniedSubject = new BehaviorSubject<boolean>(false);
+  readonly portalAccessDenied$: Observable<boolean> = this.portalAccessDeniedSubject.asObservable();
 
   constructor(
     private readonly oidcSecurityService: OidcSecurityService,
@@ -56,10 +68,11 @@ export class HisHopeAuthCoordinator {
     this.defaultReturnUrl = options.defaultReturnUrl;
     this.loginRoute = options.loginRoute ?? '/auth/login';
     this.bffOnly = options.bffOnly ?? false;
+    this.bffClientId = options.bffClientId;
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     this.sessionStatusUrl =
       options.sessionStatusUrl ??
-      (origin ? `${window.location.protocol}//${window.location.hostname}:5000/api/v1/auth/session-status` : '/api/v1/auth/session-status');
+      (origin ? `${origin}/api/v1/auth/session-status` : '/api/v1/auth/session-status');
     this.sessionExchangeUrl = options.sessionExchangeUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/session/exchange');
     this.mfaStatusUrl = options.mfaStatusUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/mfa/status');
     this.logoutUrl = options.logoutUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/logout');
@@ -106,6 +119,8 @@ export class HisHopeAuthCoordinator {
   }
 
   login(returnUrl?: string): void {
+    // An explicit sign-in (possibly as another account) clears a prior denial.
+    this.portalAccessDeniedSubject.next(false);
     const safeReturnUrl = this.safeReturnUrl(returnUrl);
     if (safeReturnUrl) sessionStorage.setItem(RETURN_URL_KEY, safeReturnUrl);
     else sessionStorage.removeItem(RETURN_URL_KEY);
@@ -113,11 +128,13 @@ export class HisHopeAuthCoordinator {
       this.markSsoLoginInProgress();
       const authorityOrigin = new URL(this.sessionStatusUrl, window.location.origin).origin;
       const target = safeReturnUrl ?? this.defaultReturnUrl;
-      // Return through the SPA login route after Identity authentication so
-      // the coordinator can exchange the Identity cookie for the BFF session
-      // before a protected route guard evaluates the target page.
-      const callbackRoute = `${this.loginRoute}?returnUrl=${encodeURIComponent(target)}`;
-      window.location.assign(`${authorityOrigin}/Account/Login?returnUrl=${encodeURIComponent(callbackRoute)}`);
+      // Return through the SPA origin so Identity redirects back to the Angular app,
+      // not to a non-existent /auth/login route on the Identity host.
+      const callbackRoute = `${window.location.origin}${this.loginRoute}?returnUrl=${encodeURIComponent(target)}`;
+      const loginUrl = new URL(`${authorityOrigin}/Account/Login`);
+      loginUrl.searchParams.set('returnUrl', callbackRoute);
+      loginUrl.searchParams.set('spaOrigin', window.location.origin);
+      window.location.assign(loginUrl.toString());
       return;
     }
     this.oidcLogin();
@@ -155,7 +172,17 @@ export class HisHopeAuthCoordinator {
     // redirect. The SPA returns to /auth/login while the in-progress marker
     // is still present, so that marker must not suppress the cookie exchange.
     // Token-based OIDC flows retain the suppression guard to avoid loops.
-    if ((!this.bffOnly && this.isSsoLoginInProgress()) || this.isSsoSuppressed()) {
+    // BFF login must keep polling after a full-document redirect. A transient
+    // local logout marker can be written while the SPA is bootstrapping; if it
+    // suppressed BFF polling, an authenticated Identity cookie would never be
+    // exchanged into the local hishop session. Suppression remains relevant
+    // only to token-based OIDC flows to prevent redirect loops.
+    if (!this.bffOnly && (this.isSsoLoginInProgress() || this.isSsoSuppressed())) {
+      return of(false);
+    }
+    // The same account was already refused by this portal: polling would only
+    // replay the forbidden exchange.
+    if (this.portalAccessDeniedSubject.value) {
       return of(false);
     }
 
@@ -172,7 +199,9 @@ export class HisHopeAuthCoordinator {
           return this.exchangeBffSession().pipe(
             map(() => true),
             tap(() => {
-              const target = this.safeReturnUrl(returnUrl) ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
+              const target = this.safeReturnUrl(returnUrl)
+                ?? this.safeReturnUrl(sessionStorage.getItem(RETURN_URL_KEY))
+                ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
               this.lastAuthenticated = true;
               this.authenticatedSubject.next(true);
               this.clearSsoLoginInProgress();
@@ -328,14 +357,23 @@ export class HisHopeAuthCoordinator {
     // arrive first, leaving the browser with a stale cookie and downstream
     // APIs returning 401. Share one in-flight exchange across all callers.
     if (!this.exchangeBffSessionInFlight$) {
-      this.exchangeBffSessionInFlight$ = this.http.post<void>(this.sessionExchangeUrl, {}, { withCredentials: true }).pipe(
+      const body = this.bffClientId ? { clientId: this.bffClientId } : {};
+      this.exchangeBffSessionInFlight$ = this.http.post<void>(this.sessionExchangeUrl, body, { withCredentials: true }).pipe(
         map(() => void 0),
         catchError((error: unknown) => {
           // A restarted Identity service can invalidate development tokens (or
           // a revoked session can reach this path). Never leave the UI marked
           // authenticated while every API request is guaranteed to return 401.
-          if (error instanceof HttpErrorResponse && error.status === 401) {
-            this.forceLocalLogout();
+          if (error instanceof HttpErrorResponse && error.status === 403) {
+            // The authenticated Identity account may not use this portal client
+            // (for example, a HQ or tech account opening the manufacturing
+            // console). Sign out of this app only and stop retrying. Never call
+            // /auth/logout here: it ends the shared Identity session and signs
+            // the user out of every other portal open in the browser.
+            this.denyPortalAccess();
+          } else if (error instanceof HttpErrorResponse && error.status === 401) {
+            // The Identity session itself is gone or revoked: end it everywhere.
+            this.logout();
           }
           // Preserve the failure so the surrounding auth flow publishes
           // `false`; swallowing a 401 here made the caller continue with
@@ -372,6 +410,18 @@ export class HisHopeAuthCoordinator {
   private forceLocalLogout(): void {
     this.markSsoLogout();
     this.broadcastLogout();
+    sessionStorage.removeItem(RETURN_URL_KEY);
+    if (!this.bffOnly) this.oidcSecurityService.logoffLocal();
+    this.lastAuthenticated = false;
+    this.authenticatedSubject.next(false);
+    if (!this.router.url.includes(this.loginRoute)) {
+      this.router.navigate([this.loginRoute]);
+    }
+  }
+
+  private denyPortalAccess(): void {
+    this.portalAccessDeniedSubject.next(true);
+    this.clearSsoLoginInProgress();
     sessionStorage.removeItem(RETURN_URL_KEY);
     if (!this.bffOnly) this.oidcSecurityService.logoffLocal();
     this.lastAuthenticated = false;

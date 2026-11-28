@@ -105,7 +105,7 @@ public sealed class PasskeyEndpointTests(IdentityServiceTestFixture fixture)
             });
 
         Assert.Equal((HttpStatusCode)422, response.StatusCode);
-        Assert.Contains("not enrolled", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"errorCode\":\"passkey_not_enrolled\"", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

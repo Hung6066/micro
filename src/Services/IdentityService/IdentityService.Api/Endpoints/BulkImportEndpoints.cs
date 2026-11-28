@@ -1,7 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using System.IO.Compression;
 using System.Xml.Linq;
+using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.Contracts;
+using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -12,31 +15,79 @@ public static class BulkImportEndpoints
     public static RouteGroupBuilder MapBulkImportEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/users/bulk", BulkImportUsers)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
         group.MapPost("/users/bulk/csv", BulkImportCsv)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
         group.MapPost("/users/bulk/file", BulkImportFile)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)
+            .WithTenantMutationScope();
         group.MapPost("/users/bulk/preview", PreviewImport)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         return group;
     }
 
+    /// <summary>
+    /// The import matches existing accounts by user name or e-mail across every
+    /// tenant and would overwrite their e-mail and active flag. Only a super
+    /// admin may update existing accounts through an import; everyone else can
+    /// only create new ones.
+    /// </summary>
+    private static BulkImportRequest RestrictExistingUserUpdates(BulkImportRequest request, HttpContext http) =>
+        string.Equals(
+            http.User.FindFirst(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.SuperAdmin)?.Value,
+            "true",
+            StringComparison.OrdinalIgnoreCase)
+            ? request
+            : request with { SkipExisting = true };
+
+    /// <summary>Imported roles are held to the same rules as a manual role assignment.</summary>
+    private static async Task<string?> GovernImportAsync(
+        BulkImportRequest request, IdentityDbContext db, HttpContext http, CancellationToken ct)
+    {
+        var requested = request.Users
+            .Select(user => user.Role)
+            .Where(role => !string.IsNullOrWhiteSpace(role))
+            .Select(role => role!.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requested.Length == 0)
+            return null;
+
+        // Unknown role names are ignored by the importer, so only existing roles matter.
+        var existing = await db.Roles.AsNoTracking()
+            .Where(role => role.NormalizedName != null && requested.Contains(role.NormalizedName))
+            .Select(role => role.Name!)
+            .ToArrayAsync(ct);
+        return existing.Length == 0
+            ? null
+            : await His.Hope.IdentityService.Api.Authorization.RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
+                db, http.User, Guid.Empty, existing, ct);
+    }
+
     private static async Task<Results<Ok<BulkImportResult>, ProblemHttpResult>> BulkImportUsers(
-        BulkImportRequest request, BulkUserImportService importService, CancellationToken ct)
+        BulkImportRequest request, IdentityDbContext db, BulkUserImportService importService, HttpContext http, CancellationToken ct)
     {
         if (request.Users.Count == 0)
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkUsersRequired });
         if (request.Users.Count > 10000)
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkUsersLimitExceeded });
 
-        var result = await importService.ImportAsync(request, ct);
+        _ = IamTenantHttpContext.RequireFilter(http);
+
+        if (await GovernImportAsync(request, db, http, ct) is { } governanceError)
+            return TypedResults.Problem(statusCode: 403, detail: governanceError,
+                extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
+        var result = await importService.ImportAsync(RestrictExistingUserUpdates(request, http), ct);
         return TypedResults.Ok(result);
     }
 
     private static async Task<Results<Ok<BulkImportResult>, ProblemHttpResult>> BulkImportCsv(
-        HttpRequest httpRequest, BulkUserImportService importService, CancellationToken ct)
+        HttpRequest httpRequest, IdentityDbContext db, BulkUserImportService importService, HttpContext http, CancellationToken ct)
     {
+        _ = IamTenantHttpContext.RequireFilter(http);
+
         using var reader = new StreamReader(httpRequest.Body);
         var csvContent = await reader.ReadToEndAsync();
 
@@ -45,12 +96,17 @@ public static class BulkImportEndpoints
             return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkImportNoValidRecords });
 
         var request = new BulkImportRequest(users, SendWelcomeEmail: false, SkipExisting: true);
-        var result = await importService.ImportAsync(request, ct);
+        if (await GovernImportAsync(request, db, http, ct) is { } governanceError)
+            return TypedResults.Problem(statusCode: 403, detail: governanceError,
+                extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
+        var result = await importService.ImportAsync(RestrictExistingUserUpdates(request, http), ct);
         return TypedResults.Ok(result);
     }
 
-    private static async Task<IResult> BulkImportFile(HttpRequest httpRequest, BulkUserImportService importService, CancellationToken ct)
+    private static async Task<IResult> BulkImportFile(HttpRequest httpRequest, IdentityDbContext db, BulkUserImportService importService, HttpContext http, CancellationToken ct)
     {
+        _ = IamTenantHttpContext.RequireFilter(http);
+
         try
         {
             var users = await ParseImportAsync(httpRequest, ct);
@@ -84,7 +140,7 @@ public static class BulkImportEndpoints
             throw new InvalidOperationException("Import is limited to 10 MB.");
 
         var isXlsx = request.ContentType?.Contains("spreadsheetml", StringComparison.OrdinalIgnoreCase) == true ||
-                     request.Headers.ContentDisposition.Any(value => value.Contains(".xlsx", StringComparison.OrdinalIgnoreCase));
+                     request.Headers.ContentDisposition.ToString().Contains(".xlsx", StringComparison.OrdinalIgnoreCase);
         if (isXlsx)
         {
             using var buffer = new MemoryStream();

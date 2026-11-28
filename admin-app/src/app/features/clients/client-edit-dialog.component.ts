@@ -1,4 +1,4 @@
-import { Component, ElementRef, Inject, inject } from "@angular/core";
+import { ChangeDetectorRef, Component, ElementRef, Inject, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
   AbstractControl,
@@ -13,7 +13,7 @@ import { MatChipsModule } from "@angular/material/chips";
 import { MatIconModule } from "@angular/material/icon";
 import { OidcClient } from "../../core/contracts/admin.contracts";
 import { ClientsApiService } from "../../core/services/clients-api.service";
-import { catchError, map } from "rxjs/operators";
+import { catchError, finalize, map } from "rxjs/operators";
 import { of } from "rxjs";
 import {
   HisHopeActionButtonComponent,
@@ -33,6 +33,25 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * A redirect URI must be HTTPS, except a loopback address over HTTP, which
+ * native and CLI clients (kubelogin, the Vault CLI) listen on per RFC 8252
+ * section 7.3. Fragments and embedded credentials are never allowed.
+ */
+export function isAllowedRedirectUri(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.hash || url.username || url.password) return false;
+  if (url.protocol === "https:") return true;
+  return url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname.toLowerCase());
+}
+
 function httpsUriLinesValidator(
   control: AbstractControl,
 ): ValidationErrors | null {
@@ -40,13 +59,7 @@ function httpsUriLinesValidator(
     .split("\n")
     .map((value) => value.trim())
     .filter(Boolean);
-  const invalid = values.some((value) => {
-    try {
-      return new URL(value).protocol !== "https:";
-    } catch {
-      return true;
-    }
-  });
+  const invalid = values.some((value) => !isAllowedRedirectUri(value));
   return invalid ? { httpsUri: true } : null;
 }
 
@@ -170,7 +183,8 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
                 [messages]="{
                   httpsUri:
                     ('admin.clientRedirectUrisHttpsInvalid'
-                    | hhTranslate: 'Use HTTPS redirect URIs.'),
+                    | hhTranslate
+                      : 'Use HTTPS redirect URIs (HTTP only for localhost / 127.0.0.1 in CLI clients).'),
                   redirectUriRequired:
                     ('admin.clientRedirectUriRequired'
                     | hhTranslate
@@ -201,18 +215,7 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
                   [label]="'admin.scopes' | hhTranslate"
                   kind="select"
                   [multiple]="true"
-                  [options]="[
-                    { value: 'openid', label: 'openid' },
-                    { value: 'profile', label: 'profile' },
-                    { value: 'email', label: 'email' },
-                    { value: 'roles', label: 'roles' },
-                    {
-                      value: 'hishop:permissions',
-                      label: 'hishop:permissions',
-                    },
-                    { value: 'hishop:admin', label: 'hishop:admin' },
-                    { value: 'offline_access', label: 'offline_access' },
-                  ]"
+                  [options]="scopeOptions"
                 />
                 <hh-mat-form-field
                   [control]="formGroup.controls['grantTypes']"
@@ -338,6 +341,7 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
   ],
 })
 export class ClientEditDialogComponent {
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly api = inject(ClientsApiService);
   private readonly dialogRef = inject(
@@ -347,6 +351,13 @@ export class ClientEditDialogComponent {
   private readonly i18n = inject(HisHopeI18nService);
 
   readonly isEdit: boolean;
+  /**
+   * Scopes come from IdentityService (GET /clients/scopes: server-registered scopes plus
+   * openiddict_scopes), so a scope added by a backend migration shows up here without a
+   * frontend change. Until the list loads, or if it fails, only the standard OIDC scopes and
+   * the client's current scopes are offered; the backend rejects unknown scopes anyway.
+   */
+  scopeOptions: { value: string; label: string }[] = [];
   readonly formGroup: FormGroup;
   private readonly initialClient: OidcClient | null;
   saving = false;
@@ -392,6 +403,17 @@ export class ClientEditDialogComponent {
       },
       { validators: [clientFormValidator] },
     );
+    this.scopeOptions = toScopeOptions([], data?.scopes ?? []);
+    this.api
+      .getAvailableScopes()
+      .pipe(catchError(() => of([])))
+      .subscribe((scopes) => {
+        this.scopeOptions = toScopeOptions(
+          scopes.map((scope) => scope.name),
+          data?.scopes ?? [],
+        );
+        this.changeDetector.markForCheck();
+      });
   }
 
   save(): void {
@@ -440,13 +462,16 @@ export class ClientEditDialogComponent {
 
     saveRequest
       .pipe(
-        catchError((err) => {
+        catchError(() => {
           this.toast.error(
             this.i18n.t("admin.saveClientFailed", "Failed to save client"),
             { duration: 3000 },
           );
-          this.saving = false;
           return of(null);
+        }),
+        finalize(() => {
+          this.saving = false;
+          this.changeDetector.markForCheck();
         }),
       )
       .subscribe((result) => {
@@ -459,7 +484,6 @@ export class ClientEditDialogComponent {
           ) {
             this.createdSecret = result.clientSecret;
             this.formGroup.disable();
-            this.saving = false;
             this.toast.success(
               this.i18n.t(
                 "admin.clientCreated",
@@ -473,7 +497,6 @@ export class ClientEditDialogComponent {
             this.i18n.t("admin.clientSaved", "Client saved successfully"),
             { duration: 2000 },
           );
-          this.saving = false;
           this.dialogRef.close(true);
         }
       });
@@ -497,4 +520,20 @@ export class ClientEditDialogComponent {
   cancel(): void {
     this.dialogRef.close();
   }
+}
+
+const STANDARD_SCOPES = ["openid", "profile", "email", "roles", "offline_access"];
+
+/** Server scopes (or the standard OIDC set when none loaded) plus the client's own scopes. */
+export function toScopeOptions(
+  serverScopes: readonly string[],
+  clientScopes: readonly string[],
+): { value: string; label: string }[] {
+  const names = new Set<string>(
+    serverScopes.length > 0 ? serverScopes : STANDARD_SCOPES,
+  );
+  for (const scope of clientScopes) names.add(scope);
+  return [...names]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ value: name, label: name }));
 }

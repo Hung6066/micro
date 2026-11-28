@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using His.Hope.Bff.Core.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.Redis;
 using StackExchange.Redis;
 using Xunit;
@@ -23,12 +24,13 @@ public class DashboardBffEndToEndTests : IAsyncLifetime
         await _redis.StartAsync();
 
         Environment.SetEnvironmentVariable("ConnectionStrings__Redis", _redis.GetConnectionString());
-        Environment.SetEnvironmentVariable("Services__Patient", "http://localhost:5099");
-        Environment.SetEnvironmentVariable("Services__Clinical", "http://localhost:5099");
-        Environment.SetEnvironmentVariable("Services__Lab", "http://localhost:5099");
-        Environment.SetEnvironmentVariable("Services__Billing", "http://localhost:5099");
-        Environment.SetEnvironmentVariable("Services__Pharmacy", "http://localhost:5099");
-        Environment.SetEnvironmentVariable("Services__Appointment", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("REDIS_URL", $"redis://{_redis.GetConnectionString()}");
+        Environment.SetEnvironmentVariable("SERVICE_PATIENT_GRPC_URL", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("SERVICE_CLINICAL_GRPC_URL", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("SERVICE_LAB_GRPC_URL", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("SERVICE_BILLING_GRPC_URL", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("SERVICE_PHARMACY_GRPC_URL", "http://localhost:5099");
+        Environment.SetEnvironmentVariable("SERVICE_APPOINTMENT_API_URL", "http://localhost:5099");
 
         _bff = new WebApplicationFactory<Program>();
         _client = _bff.CreateClient();
@@ -36,15 +38,15 @@ public class DashboardBffEndToEndTests : IAsyncLifetime
 
     private async Task SeedSessionAsync(string sessionId, string csrfToken = "csrf-test")
     {
-        var redis = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
+        var redis = _bff.Services.GetRequiredService<IConnectionMultiplexer>();
         var db = redis.GetDatabase();
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt-token",
+            Jwt = string.Empty,
             Permissions = new[] { "dashboard.view" },
             CsrfToken = csrfToken,
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         };
@@ -52,7 +54,7 @@ public class DashboardBffEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetDashboardStats_WithValidSession_Returns200()
+    public async Task GetDashboardStats_WithValidSession_ReturnsPartialSuccessWhenDownstreamUnavailable()
     {
         await SeedSessionAsync("stats-test-sid");
 
@@ -78,15 +80,15 @@ public class DashboardBffEndToEndTests : IAsyncLifetime
     [Fact]
     public async Task GetDashboardStats_WithExpiredSession_Returns401()
     {
-        var redis = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
+        var redis = _bff.Services.GetRequiredService<IConnectionMultiplexer>();
         var db = redis.GetDatabase();
         var session = new SessionData
         {
             UserId = "usr_test",
-            Jwt = "test-jwt",
+            Jwt = string.Empty,
             Permissions = Array.Empty<string>(),
             CsrfToken = "csrf",
-            UserAgentHash = ComputeSha256("test-agent"),
+            UserAgentHash = ComputeSha256("test-agent/1.0"),
             IssuedAt = DateTimeOffset.UtcNow.AddHours(-2),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1)
         };
@@ -102,7 +104,7 @@ public class DashboardBffEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetRecentEncounters_WithValidSession_Returns200()
+    public async Task GetRecentEncounters_WithValidSession_ReturnsPartialSuccessWhenDownstreamUnavailable()
     {
         await SeedSessionAsync("encounters-test-sid");
 
@@ -116,7 +118,7 @@ public class DashboardBffEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetUpcomingAppointments_WithValidSession_Returns200()
+    public async Task GetUpcomingAppointments_WithValidSession_ReturnsPartialSuccessWhenDownstreamUnavailable()
     {
         await SeedSessionAsync("appointments-test-sid");
 
@@ -134,12 +136,19 @@ public class DashboardBffEndToEndTests : IAsyncLifetime
         _client.Dispose();
         await _bff.DisposeAsync();
         await _redis.DisposeAsync();
+        Environment.SetEnvironmentVariable("REDIS_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_PATIENT_GRPC_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_CLINICAL_GRPC_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_LAB_GRPC_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_BILLING_GRPC_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_PHARMACY_GRPC_URL", null);
+        Environment.SetEnvironmentVariable("SERVICE_APPOINTMENT_API_URL", null);
     }
 
     private static string ComputeSha256(string input)
     {
         var bytes = System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }

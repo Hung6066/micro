@@ -2,10 +2,15 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using His.Hope.Contracts.Identity;
+using His.Hope.IdentityService.Api.Jobs;
+using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.IdentityService.Testing;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -19,7 +24,9 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
         using var session = await LoginAsync();
 
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminPolicies)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminPolicies}/bundle")).StatusCode);
+        // A signed bundle is fail-closed until the release pipeline publishes
+        // one; a fresh integration database must not synthesize an artifact.
+        Assert.Equal(HttpStatusCode.NotFound, (await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminPolicies}/bundle")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminAccessRequests)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminAccessReviews)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminBreakGlassRequests)).StatusCode);
@@ -103,6 +110,10 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
             (HttpMethod.Get, IdentityApiRoutes.AdminAccessReviews),
             (HttpMethod.Get, IdentityApiRoutes.AdminBreakGlassRequests),
             (HttpMethod.Post, IdentityApiRoutes.AdminBreakGlassRequests),
+            (HttpMethod.Get, IdentityApiRoutes.AdminAuthorizationChangeRequests),
+            (HttpMethod.Post, IdentityApiRoutes.AdminAuthorizationChangeRequests),
+            (HttpMethod.Post, $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/approve"),
+            (HttpMethod.Post, $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/reject"),
             (HttpMethod.Get, IdentityApiRoutes.AdminAuthorizationChanges)
         };
 
@@ -115,6 +126,31 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
             var response = await fixture.AnonymousClient.SendAsync(request);
             Assert.Contains(response.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Redirect });
         }
+    }
+
+    [Fact]
+    public async Task Authorization_change_requests_require_step_up_for_mutations()
+    {
+        using var session = await LoginAsync();
+
+        Assert.Equal(HttpStatusCode.OK,
+            (await session.GetWithCookiesAsync(IdentityApiRoutes.AdminAuthorizationChangeRequests)).StatusCode);
+
+        var request = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminAuthorizationChangeRequests, new
+        {
+            resourceType = "Role",
+            resourceId = Guid.NewGuid(),
+            action = "role.publish",
+            reason = "Validate step-up protection"
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, request.StatusCode);
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await session.PostWithCookiesAsync(
+                $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/approve", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await session.PostWithCookiesAsync(
+                $"{IdentityApiRoutes.AdminAuthorizationChangeRequests}/{Guid.NewGuid():D}/reject", new { })).StatusCode);
     }
 
     [Fact]
@@ -418,13 +454,11 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
         using var session = await LoginAsync();
 
         var bundle = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminPolicies}/bundle");
-        Assert.Equal(HttpStatusCode.OK, bundle.StatusCode);
-        var bundleBody = await bundle.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("authorization-policy-bundle.v1", bundleBody.GetProperty("schemaVersion").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(bundleBody.GetProperty("hash").GetString()));
-        Assert.True(bundleBody.TryGetProperty("signature", out _));
-        Assert.True(bundleBody.TryGetProperty("policies", out var policies));
-        Assert.Equal(JsonValueKind.Array, policies.ValueKind);
+        // The endpoint deliberately returns 404 when no durable signed
+        // artifact has been published for this database.
+        Assert.Equal(HttpStatusCode.NotFound, bundle.StatusCode);
+        // The response body is intentionally not part of the fail-closed
+        // contract; status is the stable signal consumed by the release gate.
 
         var key = $"integration-policy-artifact-{Guid.NewGuid():N}";
         var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminPolicies, new
@@ -498,6 +532,119 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
     }
 
     [Fact]
+    public async Task Access_review_listing_surfaces_overdue_pending_reviews()
+    {
+        using var session = await LoginAsync();
+        var users = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminUsers}?page=1&pageSize=1&isActive=true");
+        var subjectUserId = (await users.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("items").EnumerateArray().First().GetProperty("id").GetGuid();
+        var roles = await session.GetWithCookiesAsync(IdentityApiRoutes.Roles);
+        var roleId = (await roles.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("items").EnumerateArray().First().GetProperty("id").GetGuid();
+
+        var created = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminAccessReviews, new
+        {
+            subjectUserId,
+            roleIds = new[] { roleId.ToString("D") },
+            dueDays = 1
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var reviewId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var review = await db.AccessReviews.SingleAsync(item => item.Id == reviewId);
+            review.DueAt = DateTime.UtcNow.AddMinutes(-1);
+            await db.SaveChangesAsync();
+        }
+
+        var response = await session.GetWithCookiesAsync(IdentityApiRoutes.AdminAccessReviews);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var reviews = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var listed = reviews.EnumerateArray().Single(item => item.GetProperty("id").GetGuid() == reviewId);
+        Assert.Equal("overdue", listed.GetProperty("status").GetString());
+
+        await using var cleanupScope = fixture.Services.CreateAsyncScope();
+        var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var cleanupReview = await cleanupDb.AccessReviews.SingleAsync(item => item.Id == reviewId);
+        cleanupDb.AccessReviews.Remove(cleanupReview);
+        await cleanupDb.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Access_review_expiry_worker_revokes_roles_and_marks_review_expired()
+    {
+        var roleName = $"review-expiry-{Guid.NewGuid():N}";
+        var subjectEmail = $"review-expiry-{Guid.NewGuid():N}@example.test";
+        var reviewId = Guid.NewGuid();
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var role = new Role { Name = roleName };
+            Assert.True((await roleManager.CreateAsync(role)).Succeeded);
+            var subject = new User
+            {
+                UserName = subjectEmail,
+                Email = subjectEmail,
+                EmailConfirmed = true
+            };
+            Assert.True((await userManager.CreateAsync(subject, "ReviewExpiry!12345")).Succeeded);
+            Assert.True((await userManager.AddToRoleAsync(subject, roleName)).Succeeded);
+
+            var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            db.AccessReviews.Add(new AccessReview
+            {
+                Id = reviewId,
+                SubjectUserId = subject.Id,
+                Reviewer = "different-reviewer",
+                RoleIdsJson = JsonSerializer.Serialize(new[] { role.Id.ToString() }),
+                DueAt = DateTime.UtcNow.AddMinutes(-1)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var worker = new AccessReviewExpiryWorker(
+            fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            fixture.Services.GetRequiredService<IdentityRedisLock>(),
+            NullLogger<AccessReviewExpiryWorker>.Instance);
+        var expired = await worker.ExpireReviewsAsync(CancellationToken.None);
+
+        Assert.Equal(1, expired);
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var review = await db.AccessReviews.SingleAsync(item => item.Id == reviewId);
+            Assert.Equal("expired", review.Status);
+            Assert.NotNull(review.DecidedAt);
+            Assert.Contains("automatically", review.DecisionReason, StringComparison.OrdinalIgnoreCase);
+
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var subject = await userManager.FindByEmailAsync(subjectEmail);
+            Assert.NotNull(subject);
+            Assert.False(await userManager.IsInRoleAsync(subject!, roleName));
+        }
+    }
+
+    [Fact]
+    public async Task Access_review_expiry_worker_skips_when_another_replica_holds_sweep_lock()
+    {
+        var distributedLock = fixture.Services.GetRequiredService<IdentityRedisLock>();
+        await using var heldLease = await distributedLock.TryAcquireAsync(
+            "identity:access-review-expiry:sweep",
+            TimeSpan.FromMinutes(1));
+        Assert.NotNull(heldLease);
+
+        var worker = new AccessReviewExpiryWorker(
+            fixture.Services.GetRequiredService<IServiceScopeFactory>(),
+            distributedLock,
+            NullLogger<AccessReviewExpiryWorker>.Instance);
+
+        Assert.Equal(0, await worker.ExpireReviewsAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Break_glass_invalid_permission_and_approval_require_mfa()
     {
         using var session = await LoginAsync();
@@ -532,6 +679,125 @@ public sealed class AccessGovernanceEndpointTests(IdentityServiceTestFixture fix
             (await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/revoke", new { })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict,
             (await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/revoke", new { })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Break_glass_requester_cannot_approve_their_own_request()
+    {
+        using var session = await LoginAsync();
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync(["pwd", "otp"]));
+        var subjectUserId = await CreateSubjectUserAsync();
+
+        var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminBreakGlassRequests, new
+        {
+            subjectUserId,
+            permissionCode = "openship.console.write",
+            facilityId = "facility-a",
+            reason = "Self-approval must be rejected by four-eyes rule",
+            durationMinutes = 10
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var approve = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/approve", new { });
+        Assert.Equal(HttpStatusCode.Forbidden, approve.StatusCode);
+        Assert.Equal(His.Hope.IdentityService.Api.Endpoints.AccessGovernanceEndpoints.BreakGlassSelfApprovalErrorCode,
+            (await approve.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errorCode").GetString());
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        Assert.Equal("pending", (await db.BreakGlassRequests.AsNoTracking().SingleAsync(item => item.Id == id)).Status);
+        Assert.True(await db.AuditLogs.AsNoTracking().AnyAsync(item =>
+            item.Action == "AUTHZ_BREAK_GLASS_REQUEST" && item.ResourceId == id.ToString() && item.AfterJson != null));
+    }
+
+    [Fact]
+    public async Task Break_glass_subject_cannot_approve_a_request_for_themselves()
+    {
+        using var session = await LoginAsync();
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync(["pwd", "otp"]));
+        var id = await SeedPendingBreakGlassAsync(IdentityTestData.AdminId, requestedBy: Guid.NewGuid().ToString());
+
+        var approve = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/approve", new { });
+
+        Assert.Equal(HttpStatusCode.Forbidden, approve.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("otp")]
+    [InlineData("passkey")]
+    public async Task Break_glass_approval_accepts_oidc_second_factor_amr(string secondFactor)
+    {
+        using var session = await LoginAsync();
+        session.SetBearerToken(await fixture.CreateFreshMfaAdminTokenAsync(["pwd", secondFactor]));
+        var subjectUserId = await CreateSubjectUserAsync();
+        var id = await SeedPendingBreakGlassAsync(subjectUserId, requestedBy: Guid.NewGuid().ToString());
+
+        var approve = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminBreakGlassRequests}/{id:D}/approve", new { });
+
+        Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
+        Assert.Equal("approved", (await approve.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var stored = await db.BreakGlassRequests.AsNoTracking().SingleAsync(item => item.Id == id);
+        Assert.Equal(IdentityTestData.AdminId.ToString(), stored.ApprovedBy, ignoreCase: true);
+        var audit = await db.AuditLogs.AsNoTracking().SingleAsync(item => item.Action == "AUTHZ_BREAK_GLASS_APPROVE" && item.ResourceId == id.ToString());
+        Assert.Contains("pending", audit.BeforeJson);
+        Assert.Contains("approved", audit.AfterJson);
+    }
+
+    [Fact]
+    public async Task Break_glass_duration_is_still_capped_at_thirty_minutes()
+    {
+        using var session = await LoginAsync();
+        var subjectUserId = await CreateSubjectUserAsync();
+
+        var create = await session.PostWithCookiesAsync(IdentityApiRoutes.AdminBreakGlassRequests, new
+        {
+            subjectUserId,
+            permissionCode = "openship.console.write",
+            facilityId = "facility-a",
+            reason = "Duration cap regression coverage for console write",
+            durationMinutes = 240
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var stored = await db.BreakGlassRequests.AsNoTracking().SingleAsync(item => item.Id == id);
+        Assert.Equal(TimeSpan.FromMinutes(30), stored.ExpiresAt - stored.RequestedAt);
+    }
+
+    private async Task<Guid> CreateSubjectUserAsync()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var email = $"break-glass-{Guid.NewGuid():N}@example.test";
+        var subject = new User { UserName = email, Email = email, EmailConfirmed = true, FirstName = "Break", LastName = "Glass" };
+        Assert.True((await userManager.CreateAsync(subject, "BreakGlass!12345")).Succeeded);
+        return subject.Id;
+    }
+
+    private async Task<Guid> SeedPendingBreakGlassAsync(Guid subjectUserId, string requestedBy)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var item = new BreakGlassRequest
+        {
+            Id = Guid.NewGuid(),
+            SubjectUserId = subjectUserId,
+            PermissionCode = "openship.console.write",
+            FacilityId = "facility-a",
+            Reason = "Seeded pending request from another operator",
+            Status = "pending",
+            RequestedBy = requestedBy,
+            RequestedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10)
+        };
+        db.BreakGlassRequests.Add(item);
+        await db.SaveChangesAsync();
+        return item.Id;
     }
 
     private async Task<SessionClient> LoginAsync()

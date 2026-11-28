@@ -1,7 +1,7 @@
 import { Injectable, OnDestroy, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject, interval, Subject, firstValueFrom } from 'rxjs';
-import { switchMap, tap, catchError, map, shareReplay, take, takeUntil, filter, startWith } from 'rxjs/operators';
+import { switchMap, tap, catchError, map, take, takeUntil, filter, startWith } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { Alert } from '../models/alert.model';
 import * as signalR from '@microsoft/signalr';

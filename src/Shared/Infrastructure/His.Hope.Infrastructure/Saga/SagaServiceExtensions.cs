@@ -2,6 +2,8 @@ using His.Hope.Infrastructure.Locking;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace His.Hope.Infrastructure.Saga;
 
@@ -37,13 +39,50 @@ public static class SagaServiceExtensions
         return services;
     }
 
+    public static IServiceCollection AddSagaPersistence(
+        this IServiceCollection services,
+        Action<IServiceProvider, DbContextOptionsBuilder> configure)
+    {
+        services.AddDbContextFactory<SagaDbContext>((sp, options) => configure(sp, options));
+        services.TryAddScoped<ISagaStateStore, EfSagaStateStore>();
+        return services;
+    }
+
+    public static IServiceCollection AddSagaOptions(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddOptions<SagaOptions>()
+            .Bind(configuration.GetSection(SagaOptions.SectionName))
+            .Validate(options =>
+            {
+                try { options.Validate(); return true; }
+                catch (OptionsValidationException) { return false; }
+            }, "Saga timing and batch options must be greater than zero.")
+            .ValidateOnStart();
+        return services;
+    }
+
     /// <summary>
     /// Registers <see cref="PersistentSagaOrchestrator{TData}"/> as a scoped service.
     /// </summary>
     public static IServiceCollection AddSagaOrchestrator<TData>(
         this IServiceCollection services)
     {
-        services.AddScoped<PersistentSagaOrchestrator<TData>>();
+        services.AddScoped(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<SagaOptions>>().Value;
+            var orchestrator = new PersistentSagaOrchestrator<TData>(
+                sp.GetRequiredService<ISagaStateStore>(),
+                sp.GetRequiredService<ILockManager>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PersistentSagaOrchestrator<TData>>>());
+            orchestrator.PerStepTimeout = TimeSpan.FromSeconds(options.PerStepTimeoutSeconds);
+            orchestrator.HeartbeatInterval = TimeSpan.FromSeconds(options.HeartbeatIntervalSeconds);
+            orchestrator.LockTtl = TimeSpan.FromSeconds(options.LockTtlSeconds);
+            foreach (var step in sp.GetServices<ISagaStep<TData>>())
+                orchestrator.AddStep(step);
+            return orchestrator;
+        });
         return services;
     }
 

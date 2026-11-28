@@ -1,6 +1,8 @@
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
+using His.Hope.Messaging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace His.Hope.EventBusRabbitMQ.Implementations;
@@ -14,6 +16,7 @@ public static class EventBusServiceExtensions
         var options = new EventBusOptions();
         configureOptions(options);
         services.AddSingleton(options);
+        services.TryAddSingleton<EventSchemaRegistry>();
 
         services.AddSingleton<RabbitMQConnection>(sp =>
         {
@@ -26,7 +29,8 @@ public static class EventBusServiceExtensions
             var connection = sp.GetRequiredService<RabbitMQConnection>();
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var logger = sp.GetRequiredService<ILogger<RabbitMQEventBus>>();
-            return new RabbitMQEventBus(connection, options, scopeFactory, logger);
+            var schemaRegistry = sp.GetRequiredService<EventSchemaRegistry>();
+            return new RabbitMQEventBus(connection, options, scopeFactory, logger, schemaRegistry);
         });
         services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<RabbitMQEventBus>());
         services.AddSingleton<IExternalEventPublisher>(sp => sp.GetRequiredService<RabbitMQEventBus>());

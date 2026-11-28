@@ -22,6 +22,7 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { IamRevocationEditDialogComponent } from "./iam-revocation-edit-dialog.component";
 import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 
@@ -49,6 +50,7 @@ import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 })
 export class IamRevocationsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -115,18 +117,19 @@ export class IamRevocationsPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load(): void {
     this.state.load(
       this.api.getIamRevocations().pipe(
-        catchError(() => {
-          this.error = this.i18n.t(
-            "admin.iamLoadFailed",
-            "Unable to load revocations.",
-          );
-          return of({ schemaVersion: "", evaluatedAt: "", revocations: [] });
-        }),
-      ),
+          catchError(() => {
+            this.error = this.i18n.t(
+              "admin.iamLoadFailed",
+              "Unable to load revocations.",
+            );
+            return of({ schemaVersion: "", evaluatedAt: "", revocations: [] });
+          }),
+        ),
     );
   }
   openCreate(): void {

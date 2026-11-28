@@ -1,12 +1,52 @@
 using System.Security.Cryptography;
 using FluentAssertions;
 using His.Hope.IdentityService.Api.Configuration;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace His.Hope.IdentityService.Infrastructure.Tests;
 
 public sealed class PushProviderOptionsTests
 {
+    [Fact]
+    public void Unconfigured_providers_are_allowed_when_push_is_optional()
+    {
+        new PushProviderOptions().Validate(allowUnconfigured: true).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Optional_push_still_rejects_partial_or_invalid_configuration()
+    {
+        new PushProviderOptions { FirebaseCredentialsFile = "missing-credentials.json" }
+            .Validate(allowUnconfigured: true).Should().NotBeEmpty();
+        new PushProviderOptions { FirebaseCredentialsJson = "${FIREBASE_CREDENTIALS_JSON}" }
+            .Validate(allowUnconfigured: true).Should().NotBeEmpty();
+        new PushProviderOptions { ApnsKeyId = "ABCDEFGHIJ" }
+            .Validate(allowUnconfigured: true).Should().NotBeEmpty();
+        new PushProviderOptions { FirebaseCredentialsJson = "invalid", FirebaseCredentialsSecretPath = "secret/push" }
+            .Validate(allowUnconfigured: true).Should().NotBeEmpty();
+        new PushProviderOptions { FirebaseCredentialsSecretPath = "${FIREBASE_SECRET_PATH}" }
+            .Validate(allowUnconfigured: true).Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void Production_defaults_allow_startup_without_push_credentials()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.Production.json"))
+            .Build();
+
+        configuration.GetSection("PushProviders").Get<PushProviderOptions>()!
+            .Validate(allowUnconfigured: true).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Firebase_can_be_configured_before_apns()
+    {
+        new PushProviderOptions { FirebaseCredentialsJson = ValidFirebaseCredentials() }
+            .Validate(allowUnconfigured: true).Should().BeEmpty();
+    }
+
     [Fact]
     public void Disabled_apns_still_requires_valid_https_endpoint_and_firebase_credentials()
     {

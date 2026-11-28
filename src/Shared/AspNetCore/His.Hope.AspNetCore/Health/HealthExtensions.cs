@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using His.Hope.SharedKernel.Protocol;
 
 namespace His.Hope.AspNetCore.Health;
 
@@ -14,7 +15,7 @@ public static class HealthExtensions
 
     public static IEndpointConventionBuilder MapHisHopeHealthChecks(
         this IEndpointRouteBuilder endpoints,
-        string path = "/health",
+        string path = HisHopeProtocolConstants.Routes.Health,
         Func<HealthCheckRegistration, bool>? predicate = null)
     {
         return endpoints.MapHealthChecks(path, new HealthCheckOptions
@@ -28,7 +29,7 @@ public static class HealthExtensions
     {
         public static Task WriteAsync(HttpContext context, HealthReport report)
         {
-            context.Response.ContentType = "application/json";
+            context.Response.ContentType = HisHopeProtocolConstants.MediaTypes.Json;
             return context.Response.WriteAsJsonAsync(new
             {
                 status = report.Status.ToString().ToLowerInvariant(),

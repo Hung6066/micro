@@ -30,6 +30,11 @@ export interface CreateUserRequest {
   role?: string;
 }
 
+export interface UserTenantMemberships {
+  memberships: string[];
+  tenants: { key: string; displayName: string; canManage: boolean }[];
+}
+
 export interface UpdateUserRequest {
   firstName?: string;
   lastName?: string;
@@ -88,6 +93,7 @@ export class UsersApiService {
   }
 
   getTableViews(_resource: "users"): Observable<AdminTableView[]> {
+    void _resource;
     return this.tableApi.getViews("users");
   }
 
@@ -116,6 +122,52 @@ export class UsersApiService {
 
   deactivateUser(id: string): Observable<void> {
     return this.setActive(id, false);
+  }
+
+  /** Administrator-verified email (fresh MFA required; not for your own account). */
+  verifyUserEmail(
+    id: string,
+  ): Observable<{ id: string; emailConfirmed: boolean; changed: boolean }> {
+    return this.http
+      .put<{ id: string; emailConfirmed: boolean; changed: boolean }>(
+        `${this.baseUrl}/users/${encodeURIComponent(id)}/verify-email`,
+        {},
+      )
+      .pipe(tap(() => this.requestCache.invalidate("admin:users:")));
+  }
+
+  /**
+   * Administrator-set password (fresh MFA required; not for your own account).
+   * Enforces the password policy and history, then signs the user out everywhere.
+   */
+  setUserPassword(id: string, newPassword: string): Observable<void> {
+    return this.http
+      .put<void>(`${this.baseUrl}/users/${encodeURIComponent(id)}/password`, {
+        newPassword,
+      })
+      .pipe(tap(() => this.requestCache.invalidate("admin:users:")));
+  }
+
+  getTenantMemberships(id: string): Observable<UserTenantMemberships> {
+    return this.http.get<UserTenantMemberships>(
+      `${this.baseUrl}/users/${encodeURIComponent(id)}/tenant-memberships`,
+    );
+  }
+
+  /**
+   * Grant or revoke a tenant membership (fresh MFA required; not for your own
+   * account). Signs the user out everywhere so the change applies now.
+   */
+  setTenantMembership(
+    id: string,
+    tenantKey: string,
+    member: boolean,
+  ): Observable<{ changed: boolean }> {
+    const url = `${this.baseUrl}/users/${encodeURIComponent(id)}/tenant-memberships/${encodeURIComponent(tenantKey)}`;
+    const request = member
+      ? this.http.put<{ changed: boolean }>(url, {})
+      : this.http.delete<{ changed: boolean }>(url);
+    return request.pipe(tap(() => this.requestCache.invalidate("admin:users:")));
   }
 
   private setActive(id: string, active: boolean): Observable<void> {

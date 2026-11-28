@@ -32,7 +32,7 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                     b.Property<string>("CausationId")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
-                        .HasColumnName("causationid");
+                        .HasColumnName("causation_id");
 
                     b.Property<string>("ClaimedBy")
                         .HasMaxLength(100)
@@ -47,24 +47,50 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                     b.Property<string>("CorrelationId")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
-                        .HasColumnName("correlationid");
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<DateTime?>("DeadLetteredOn")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("dead_lettered_on");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Error")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("error");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<DateTime?>("LastRetryOn")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("lastretryon");
+                        .HasColumnName("last_retry_on");
 
                     b.Property<DateTime?>("LockExpiresAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("lockexpiresat");
+                        .HasColumnName("lock_expires_at");
 
                     b.Property<DateTime?>("NextAttemptAt")
                         .HasColumnType("timestamp with time zone")
@@ -72,15 +98,15 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("OccurredOn")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("occurredon");
+                        .HasColumnName("occurred_on");
 
                     b.Property<DateTime?>("ProcessedOn")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("processedon");
+                        .HasColumnName("processed_on");
 
                     b.Property<int>("RetryCount")
                         .HasColumnType("integer")
-                        .HasColumnName("retrycount");
+                        .HasColumnName("retry_count");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -94,11 +120,20 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("type");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Status", "OccurredOn");
 
-                    b.ToTable("OutboxMessages", (string)null);
+                    b.ToTable("outbox_messages", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.LabService.Domain.Aggregates.LabOrder", b =>
@@ -108,8 +143,24 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("createdat");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<Guid?>("EncounterId")
                         .HasColumnType("uuid")
@@ -119,6 +170,12 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("facilityid");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
@@ -151,7 +208,12 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updatedat");
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -171,7 +233,31 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                     b.HasIndex("FacilityId", "Status", "OrderDate")
                         .HasDatabaseName("IX_LabOrders_Facility_Status_Date_Id");
 
-                    b.ToTable("LabOrders", (string)null);
+                    b.ToTable("lab_orders", null, t =>
+                        {
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("EncounterId")
+                                .HasColumnName("encounter_id");
+
+                            t.Property("FacilityId")
+                                .HasColumnName("facility_id");
+
+                            t.Property("OrderDate")
+                                .HasColumnName("order_date");
+
+                            t.Property("PatientId")
+                                .HasColumnName("patient_id");
+
+                            t.Property("ProviderId")
+                                .HasColumnName("provider_id");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
+                        });
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.LabService.Domain.Entities.CriticalAlert", b =>
@@ -196,8 +282,30 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnName("acknowledgedbyuserid");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("createdat");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("LabOrderId")
                         .HasColumnType("uuid")
@@ -264,7 +372,12 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updatedat");
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -274,7 +387,56 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("status <> 'RESOLVED'");
 
-                    b.ToTable("CriticalAlerts", (string)null);
+                    b.ToTable("critical_alerts", null, t =>
+                        {
+                            t.Property("AcknowledgedAt")
+                                .HasColumnName("acknowledged_at");
+
+                            t.Property("AcknowledgedByDisplayName")
+                                .HasColumnName("acknowledged_by_display_name");
+
+                            t.Property("AcknowledgedByUserId")
+                                .HasColumnName("acknowledged_by_user_id");
+
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("LabOrderId")
+                                .HasColumnName("lab_order_id");
+
+                            t.Property("LabResultId")
+                                .HasColumnName("lab_result_id");
+
+                            t.Property("LabTestId")
+                                .HasColumnName("lab_test_id");
+
+                            t.Property("ResolvedAt")
+                                .HasColumnName("resolved_at");
+
+                            t.Property("ResolvedByDisplayName")
+                                .HasColumnName("resolved_by_display_name");
+
+                            t.Property("ResolvedByUserId")
+                                .HasColumnName("resolved_by_user_id");
+
+                            t.Property("ResultUnit")
+                                .HasColumnName("result_unit");
+
+                            t.Property("ResultValue")
+                                .HasColumnName("result_value");
+
+                            t.Property("RuleId")
+                                .HasColumnName("rule_id");
+
+                            t.Property("ThresholdValue")
+                                .HasColumnName("threshold_value");
+
+                            t.Property("TriggerType")
+                                .HasColumnName("trigger_type");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
+                        });
                 });
 
             modelBuilder.Entity("His.Hope.LabService.Domain.Entities.CriticalAlertAuditEntry", b =>
@@ -302,9 +464,35 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("actoruserid");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<Guid>("CriticalAlertId")
                         .HasColumnType("uuid")
                         .HasColumnName("criticalalertid");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
@@ -315,13 +503,35 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("occurredat");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CriticalAlertId");
 
                     b.HasIndex("OccurredAt");
 
-                    b.ToTable("CriticalAlertAuditEntries", (string)null);
+                    b.ToTable("critical_alert_audit_entries", null, t =>
+                        {
+                            t.Property("ActorDisplayName")
+                                .HasColumnName("actor_display_name");
+
+                            t.Property("ActorUserId")
+                                .HasColumnName("actor_user_id");
+
+                            t.Property("CriticalAlertId")
+                                .HasColumnName("critical_alert_id");
+
+                            t.Property("OccurredAt")
+                                .HasColumnName("occurred_at");
+                        });
                 });
 
             modelBuilder.Entity("His.Hope.LabService.Domain.Entities.CriticalAlertRule", b =>
@@ -332,8 +542,15 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("createdat");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<string>("CreatedByDisplayName")
                         .IsRequired()
@@ -347,6 +564,15 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("createdbyuserid");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<decimal?>("HighCriticalValue")
                         .HasColumnType("numeric")
                         .HasColumnName("highcriticalvalue");
@@ -354,6 +580,12 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("isactive");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<decimal?>("LowCriticalValue")
                         .HasColumnType("numeric")
@@ -378,7 +610,12 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updatedat");
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id");
 
@@ -386,7 +623,35 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TestCode", "IsActive");
 
-                    b.ToTable("CriticalAlertRules", (string)null);
+                    b.ToTable("critical_alert_rules", null, t =>
+                        {
+                            t.Property("CreatedAt")
+                                .HasColumnName("created_at");
+
+                            t.Property("CreatedByDisplayName")
+                                .HasColumnName("created_by_display_name");
+
+                            t.Property("CreatedByUserId")
+                                .HasColumnName("created_by_user_id");
+
+                            t.Property("HighCriticalValue")
+                                .HasColumnName("high_critical_value");
+
+                            t.Property("IsActive")
+                                .HasColumnName("is_active");
+
+                            t.Property("LowCriticalValue")
+                                .HasColumnName("low_critical_value");
+
+                            t.Property("TestCode")
+                                .HasColumnName("test_code");
+
+                            t.Property("TestName")
+                                .HasColumnName("test_name");
+
+                            t.Property("UpdatedAt")
+                                .HasColumnName("updated_at");
+                        });
                 });
 
             modelBuilder.Entity("His.Hope.LabService.Domain.Aggregates.LabOrder", b =>
@@ -406,8 +671,30 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                                 .HasColumnName("completedat");
 
                             b1.Property<DateTime>("CreatedAt")
+                                .ValueGeneratedOnAdd()
                                 .HasColumnType("timestamp with time zone")
-                                .HasColumnName("createdat");
+                                .HasColumnName("created_at")
+                                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                            b1.Property<string>("CreatedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("created_by");
+
+                            b1.Property<DateTime?>("DeletedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("deleted_at");
+
+                            b1.Property<string>("DeletedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("deleted_by");
+
+                            b1.Property<bool?>("IsDeleted")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("boolean")
+                                .HasDefaultValue(false)
+                                .HasColumnName("is_deleted");
 
                             b1.Property<Guid>("LabOrderId")
                                 .HasColumnType("uuid")
@@ -442,13 +729,46 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
 
                             b1.Property<DateTime?>("UpdatedAt")
                                 .HasColumnType("timestamp with time zone")
-                                .HasColumnName("updatedat");
+                                .HasColumnName("updated_at");
+
+                            b1.Property<string>("UpdatedBy")
+                                .HasMaxLength(256)
+                                .HasColumnType("character varying(256)")
+                                .HasColumnName("updated_by");
 
                             b1.HasKey("Id");
 
                             b1.HasIndex("LabOrderId");
 
-                            b1.ToTable("LabTests", (string)null);
+                            b1.ToTable("lab_tests", null, t =>
+                                {
+                                    t.Property("CollectedAt")
+                                        .HasColumnName("collected_at");
+
+                                    t.Property("CompletedAt")
+                                        .HasColumnName("completed_at");
+
+                                    t.Property("CreatedAt")
+                                        .HasColumnName("created_at");
+
+                                    t.Property("LabOrderId")
+                                        .HasColumnName("lab_order_id");
+
+                                    t.Property("OrderedAt")
+                                        .HasColumnName("ordered_at");
+
+                                    t.Property("SpecimenType")
+                                        .HasColumnName("specimen_type");
+
+                                    t.Property("TestCode")
+                                        .HasColumnName("test_code");
+
+                                    t.Property("TestName")
+                                        .HasColumnName("test_name");
+
+                                    t.Property("UpdatedAt")
+                                        .HasColumnName("updated_at");
+                                });
 
                             b1.WithOwner()
                                 .HasForeignKey("LabOrderId");
@@ -464,6 +784,32 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                                         .HasMaxLength(20)
                                         .HasColumnType("character varying(20)")
                                         .HasColumnName("abnormalflag");
+
+                                    b2.Property<DateTime?>("CreatedAt")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("timestamp with time zone")
+                                        .HasColumnName("created_at")
+                                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                                    b2.Property<string>("CreatedBy")
+                                        .HasMaxLength(256)
+                                        .HasColumnType("character varying(256)")
+                                        .HasColumnName("created_by");
+
+                                    b2.Property<DateTime?>("DeletedAt")
+                                        .HasColumnType("timestamp with time zone")
+                                        .HasColumnName("deleted_at");
+
+                                    b2.Property<string>("DeletedBy")
+                                        .HasMaxLength(256)
+                                        .HasColumnType("character varying(256)")
+                                        .HasColumnName("deleted_by");
+
+                                    b2.Property<bool?>("IsDeleted")
+                                        .ValueGeneratedOnAdd()
+                                        .HasColumnType("boolean")
+                                        .HasDefaultValue(false)
+                                        .HasColumnName("is_deleted");
 
                                     b2.Property<Guid>("LabResultId")
                                         .HasColumnType("uuid")
@@ -503,6 +849,15 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                                         .HasColumnType("character varying(50)")
                                         .HasColumnName("unit");
 
+                                    b2.Property<DateTime?>("UpdatedAt")
+                                        .HasColumnType("timestamp with time zone")
+                                        .HasColumnName("updated_at");
+
+                                    b2.Property<string>("UpdatedBy")
+                                        .HasMaxLength(256)
+                                        .HasColumnType("character varying(256)")
+                                        .HasColumnName("updated_by");
+
                                     b2.Property<string>("Value")
                                         .IsRequired()
                                         .HasMaxLength(500)
@@ -514,7 +869,29 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                                     b2.HasIndex("LabTestId")
                                         .IsUnique();
 
-                                    b2.ToTable("LabResults", (string)null);
+                                    b2.ToTable("lab_results", null, t =>
+                                        {
+                                            t.Property("AbnormalFlag")
+                                                .HasColumnName("abnormal_flag");
+
+                                            t.Property("LabResultId")
+                                                .HasColumnName("lab_result_id");
+
+                                            t.Property("LabTestId")
+                                                .HasColumnName("lab_test_id");
+
+                                            t.Property("PerformedBy")
+                                                .HasColumnName("performed_by");
+
+                                            t.Property("ReferenceRange")
+                                                .HasColumnName("reference_range");
+
+                                            t.Property("ResultStatus")
+                                                .HasColumnName("result_status");
+
+                                            t.Property("ResultedAt")
+                                                .HasColumnName("resulted_at");
+                                        });
 
                                     b2.WithOwner()
                                         .HasForeignKey("LabTestId");

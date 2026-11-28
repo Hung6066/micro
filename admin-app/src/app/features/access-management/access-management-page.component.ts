@@ -1,6 +1,5 @@
 import {
   ChangeDetectionStrategy,
-  ChangeDetectorRef,
   Component,
   DestroyRef,
   OnInit,
@@ -24,6 +23,7 @@ import {
   User,
 } from "../../core/contracts/admin.contracts";
 import { AccessGovernanceApiService } from "../../core/services/access-governance-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { catchError, forkJoin, of, tap, timeout } from "rxjs";
 import {
   HisHopeI18nService,
@@ -380,6 +380,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
 })
 export class AccessManagementPageComponent implements OnInit {
   private readonly api = inject(AccessGovernanceApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly permissionService = inject(HisHopePermissionService);
   private readonly destroyRef = inject(DestroyRef);
@@ -464,6 +465,11 @@ export class AccessManagementPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadAccessManagement();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadAccessManagement());
+  }
+
+  private loadAccessManagement(): void {
     this.state.load(
       forkJoin({
         permissions: this.api.getPermissions(),

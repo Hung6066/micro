@@ -4,6 +4,7 @@ using His.Hope.Observability;
 using His.Hope.Resilience;
 using His.Hope.Validation;
 using His.Hope.Secrets;
+using His.Hope.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Localization;
@@ -32,7 +33,7 @@ public static class ServiceDefaultsExtensions
             configuration,
             serviceName,
             redisConnectionString
-                ?? configuration.GetValue<string>("Redis:ConnectionString")
+                ?? configuration.GetValue<string>(HisHopeConfigurationKeys.RedisConnectionString)
                 ?? "localhost:6379");
 
         return services;
@@ -45,6 +46,8 @@ public static class ServiceDefaultsExtensions
     {
         services.AddHisHopeAspNetCore();
         services.AddHisHopeVault(configuration);
+        services.AddHisHopeExternalProviderBindings(configuration);
+        services.AddHisHopeServiceToServiceAuthentication(configuration);
         services.Configure<HisHopeInternationalizationOptions>(
             configuration.GetSection(HisHopeInternationalizationOptions.SectionName));
         services.AddSingleton<IConfigureOptions<RequestLocalizationOptions>, HisHopeRequestLocalizationOptionsSetup>();
@@ -86,17 +89,17 @@ public static class ServiceDefaultsExtensions
 
     public static IEndpointRouteBuilder MapHisHopeHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+        endpoints.MapHealthChecks(HisHopeHealthRoutes.Root, new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains("live")
         }).AllowAnonymous();
 
-        endpoints.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+        endpoints.MapHealthChecks(HisHopeHealthRoutes.Live, new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains("live")
         }).AllowAnonymous();
 
-        endpoints.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+        endpoints.MapHealthChecks(HisHopeHealthRoutes.Ready, new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains("ready")
         }).AllowAnonymous();

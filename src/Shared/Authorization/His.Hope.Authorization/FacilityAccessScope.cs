@@ -26,7 +26,7 @@ public sealed record FacilityAccessScope(
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var isCrossFacility = principal.FindAll("permissions")
+        var isCrossFacility = principal.FindAll(His.Hope.SharedKernel.Protocol.HisHopeProtocolConstants.Claims.Permissions)
             .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Any(permission => string.Equals(permission, His.Hope.SharedKernel.Authorization.HisHopePermissions.Facilities.Cross, StringComparison.OrdinalIgnoreCase));
 

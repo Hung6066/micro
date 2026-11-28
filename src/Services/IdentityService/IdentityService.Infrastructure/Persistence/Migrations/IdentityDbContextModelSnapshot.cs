@@ -34,13 +34,39 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("approved_by");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<DateTime?>("DecidedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("decided_at");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Reason")
                         .IsRequired()
@@ -74,6 +100,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("subject_user_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_access_requests");
 
@@ -91,8 +126,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<DateTime?>("DecidedAt")
                         .HasColumnType("timestamp with time zone")
@@ -103,9 +145,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("decision_reason");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<DateTime>("DueAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("due_at");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Reviewer")
                         .IsRequired()
@@ -129,6 +186,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("subject_user_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_access_reviews");
 
@@ -136,6 +202,328 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_access_reviews_subject_user_id_status_due_at");
 
                     b.ToTable("access_reviews", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AgentRootCertificate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Certificate")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("certificate");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("device_name");
+
+                    b.Property<Guid>("GrantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("grant_id");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("Serial")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("serial");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime>("ValidBefore")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("valid_before");
+
+                    b.HasKey("Id")
+                        .HasName("pk_agent_root_certificates");
+
+                    b.HasIndex("GrantId")
+                        .HasDatabaseName("ix_agent_root_certificates_grant_id");
+
+                    b.HasIndex("DeviceId", "ValidBefore")
+                        .HasDatabaseName("ix_agent_root_certificates_device_id_valid_before");
+
+                    b.ToTable("agent_root_certificates", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AgentRootDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("added_at");
+
+                    b.Property<Guid>("AddedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("added_by");
+
+                    b.Property<string>("AddedByEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("added_by_email");
+
+                    b.Property<string>("ClientId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<DateTime?>("DisabledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("disabled_at");
+
+                    b.Property<Guid?>("DisabledBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("disabled_by");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("LastFetchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_fetched_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("public_key");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_agent_root_devices");
+
+                    b.HasIndex("ClientId")
+                        .HasDatabaseName("ix_agent_root_devices_client_id");
+
+                    b.HasIndex("Fingerprint")
+                        .IsUnique()
+                        .HasDatabaseName("ix_agent_root_devices_fingerprint");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_agent_root_devices_name");
+
+                    b.ToTable("agent_root_devices", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AgentRootGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AgentId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("agent_id");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("approved_by");
+
+                    b.Property<string>("ApprovedByEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("approved_by_email");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_minutes");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<Guid>("RequestedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by");
+
+                    b.Property<string>("RequestedByEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("requested_by_email");
+
+                    b.Property<string>("RequestedDeviceIds")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("requested_device_ids");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<Guid?>("RevokedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("revoked_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime?>("ValidBefore")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("valid_before");
+
+                    b.HasKey("Id")
+                        .HasName("pk_agent_root_grants");
+
+                    b.HasIndex("AgentId", "Status")
+                        .HasDatabaseName("ix_agent_root_grants_agent_id_status");
+
+                    b.ToTable("agent_root_grants", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AuditLog", b =>
@@ -167,20 +555,60 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(128)")
                         .HasColumnName("correlation_id");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Details")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("details");
+
+                    b.Property<string>("IntegrityHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("integrity_hash");
+
+                    b.Property<long?>("IntegritySequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("integrity_sequence");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("ip_address");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("Outcome")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("outcome");
+
+                    b.Property<string>("PreviousIntegrityHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("previous_integrity_hash");
 
                     b.Property<string>("ResourceId")
                         .HasMaxLength(100)
@@ -201,6 +629,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("UserAgent")
                         .HasMaxLength(500)
@@ -227,6 +664,10 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.HasIndex("CorrelationId")
                         .HasDatabaseName("ix_audit_logs_correlation_id");
 
+                    b.HasIndex("IntegritySequence")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_logs_integrity_sequence");
+
                     b.HasIndex("ResourceType")
                         .HasDatabaseName("ix_audit_logs_resource_type");
 
@@ -236,7 +677,215 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_audit_logs_user_id");
 
+                    b.HasIndex("UserId", "Timestamp")
+                        .HasDatabaseName("ix_audit_logs_user_timeline");
+
+                    b.HasIndex("ResourceType", "ResourceId", "Timestamp")
+                        .HasDatabaseName("ix_audit_logs_resource_lookup");
+
                     b.ToTable("audit_logs", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AuthorizationChangeRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("approved_by");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<DateTime?>("ExecutedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("executed_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("requested_by");
+
+                    b.Property<Guid>("ResourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("resource_type");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_authorization_change_requests");
+
+                    b.HasIndex("Status", "ExpiresAt")
+                        .HasDatabaseName("ix_authorization_change_requests_status_expires_at");
+
+                    b.HasIndex("ResourceType", "ResourceId", "Action", "Status")
+                        .HasDatabaseName("ix_authorization_change_requests_resource_type_resource_id_act");
+
+                    b.ToTable("authorization_change_requests", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AuthorizationPolicyBundleArtifact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("hash");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("KeyId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("key_id");
+
+                    b.Property<string>("PoliciesJson")
+                        .IsRequired()
+                        .HasMaxLength(120000)
+                        .HasColumnType("character varying(120000)")
+                        .HasColumnName("policies_json");
+
+                    b.Property<string>("SchemaVersion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("schema_version");
+
+                    b.Property<string>("Signature")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("character varying(12000)")
+                        .HasColumnName("signature");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_authorization_policy_bundle_artifacts");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_authorization_policy_bundle_artifacts_created_at");
+
+                    b.HasIndex("Hash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_authorization_policy_bundle_artifacts_hash");
+
+                    b.ToTable("authorization_policy_bundle_artifacts", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AuthorizationPolicyDefinition", b =>
@@ -247,19 +896,36 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("description");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -294,6 +960,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(12000)")
                         .HasColumnName("rules_json");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
@@ -306,6 +981,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_authorization_policy_definitions_key_version");
 
                     b.ToTable("authorization_policy_definitions", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.BreakGlassRequest", b =>
@@ -324,6 +1001,26 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("approved_by");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
@@ -333,6 +1030,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)")
                         .HasColumnName("facility_id");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("PermissionCode")
                         .IsRequired()
@@ -380,6 +1083,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("subject_user_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_break_glass_requests");
 
@@ -406,6 +1118,26 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("client_id");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
@@ -418,6 +1150,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("revoked_at");
@@ -427,24 +1165,35 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("scopes");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
-                        .HasName("pk_openiddict_consents");
+                        .HasName("pk_client_consents");
 
                     b.HasIndex("ClientId")
-                        .HasDatabaseName("ix_openiddict_consents_client_id");
+                        .HasDatabaseName("ix_client_consents_client_id");
 
                     b.HasIndex("UserId")
-                        .HasDatabaseName("ix_openiddict_consents_user_id");
+                        .HasDatabaseName("ix_client_consents_user_id");
 
                     b.HasIndex("UserId", "ClientId")
                         .IsUnique()
-                        .HasDatabaseName("ix_openiddict_consents_user_id_client_id");
+                        .HasDatabaseName("ix_client_consents_user_id_client_id");
 
-                    b.ToTable("openiddict_consents", (string)null);
+                    b.ToTable("client_consents", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.DevicePostureAssessment", b =>
@@ -460,14 +1209,30 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("correlation_id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<string>("Decision")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("decision");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DeviceId")
                         .IsRequired()
@@ -484,6 +1249,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime>("ObservedAt")
                         .HasColumnType("timestamp with time zone")
@@ -515,6 +1286,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("signals_json");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
@@ -539,9 +1319,35 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<int>("EvidenceTtlSeconds")
                         .HasColumnType("integer")
                         .HasColumnName("evidence_ttl_seconds");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Mode")
                         .IsRequired()
@@ -598,14 +1404,36 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("ExternalId")
                         .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)")
                         .HasColumnName("external_id");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("ResourceId")
                         .IsRequired()
@@ -628,6 +1456,11 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id")
                         .HasName("pk_directory_provisioning_bindings");
@@ -663,13 +1496,35 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("completed_at");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("ExternalId")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)")
                         .HasColumnName("external_id");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)
@@ -714,6 +1569,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("target");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_directory_provisioning_outbox");
 
@@ -737,12 +1601,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -754,6 +1630,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -764,6 +1646,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("scope_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_iam_groups");
 
@@ -772,6 +1663,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_groups_scope_id_key");
 
                     b.ToTable("iam_groups", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamGroupMembership", b =>
@@ -782,16 +1675,43 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<Guid>("GroupId")
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -808,6 +1728,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_group_memberships_group_id_user_id");
 
                     b.ToTable("iam_group_memberships", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionBoundary", b =>
@@ -824,16 +1746,34 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("allowed_permissions_json");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("PrincipalId")
                         .HasColumnType("uuid")
@@ -855,6 +1795,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("scope_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_iam_permission_boundaries");
 
@@ -866,6 +1815,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_permission_boundaries_principal_id_principal_type_scope");
 
                     b.ToTable("iam_permission_boundaries", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionSet", b =>
@@ -876,18 +1827,36 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("display_name");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -915,6 +1884,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("scope_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
@@ -927,6 +1905,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_permission_sets_scope_id_key");
 
                     b.ToTable("iam_permission_sets", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionSetAssignment", b =>
@@ -937,16 +1917,34 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("PermissionSetId")
                         .HasColumnType("uuid")
@@ -972,6 +1970,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("status");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_iam_permission_set_assignments");
 
@@ -986,6 +1993,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_permission_set_assignments_principal_id_scope_id_status");
 
                     b.ToTable("iam_permission_set_assignments", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamResourcePolicy", b =>
@@ -996,12 +2005,30 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
-                        .HasColumnType("text")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("LifecycleStatus")
                         .IsRequired()
@@ -1035,6 +2062,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(32000)")
                         .HasColumnName("statements_json");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
@@ -1047,6 +2083,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_resource_policies_scope_id_service_key_resource_pattern");
 
                     b.ToTable("iam_resource_policies", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamScope", b =>
@@ -1057,8 +2095,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -1069,6 +2123,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -1086,6 +2146,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("parent_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_iam_scopes");
 
@@ -1097,6 +2166,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_scopes_kind_key");
 
                     b.ToTable("iam_scopes", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamServiceDefinition", b =>
@@ -1107,8 +2178,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -1119,6 +2206,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -1138,6 +2231,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(128)")
                         .HasColumnName("permission_prefix");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_iam_service_definitions");
 
@@ -1146,6 +2248,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_service_definitions_key");
 
                     b.ToTable("iam_service_definitions", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamWorkloadRole", b =>
@@ -1162,8 +2266,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("audience");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -1174,6 +2294,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Key")
                         .IsRequired()
@@ -1201,6 +2327,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(16000)")
                         .HasColumnName("trust_policy_json");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_iam_workload_roles");
 
@@ -1209,6 +2344,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_iam_workload_roles_scope_id_key");
 
                     b.ToTable("iam_workload_roles", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.InAppNotification", b =>
@@ -1225,13 +2362,35 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("body");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<string>("DataJson")
                         .HasMaxLength(8000)
                         .HasColumnType("character varying(8000)")
                         .HasColumnName("data_json");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime?>("ReadAt")
                         .HasColumnType("timestamp with time zone")
@@ -1242,6 +2401,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("title");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -1272,10 +2440,45 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("key");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("ScopeId", "Key")
                         .HasName("pk_localization_resources");
@@ -2326,6 +3529,216 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                             ScopeId = "global",
                             Key = "app.theme.toggle",
                             Description = "His-Hope shell: toggle theme"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorFieldOperations",
+                            Description = "Operator shell title"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorOnline",
+                            Description = "Operator online status"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorTenant",
+                            Description = "Operator tenant label"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorNoTenantClaim",
+                            Description = "Operator missing tenant claim"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorIdentity",
+                            Description = "Operator identity label"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorProduction",
+                            Description = "Operator production navigation"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorTraceability",
+                            Description = "Operator traceability navigation"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorQuality",
+                            Description = "Operator quality navigation"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorMaintenance",
+                            Description = "Operator maintenance navigation"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorSync",
+                            Description = "Operator sync navigation"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorAccountMenu",
+                            Description = "Operator account menu"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorProductionTitle",
+                            Description = "Operator production title"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorProductionDescription",
+                            Description = "Operator production description"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorBatch",
+                            Description = "Operator batch label"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorChooseBatch",
+                            Description = "Operator batch selector"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorOutputQuantity",
+                            Description = "Operator output quantity"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorRecordOperation",
+                            Description = "Operator record operation action"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorMaintenanceEyebrow",
+                            Description = "Operator maintenance eyebrow"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorMaintenanceTitle",
+                            Description = "Operator maintenance title"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorMaintenanceDescription",
+                            Description = "Operator maintenance description"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorMachineId",
+                            Description = "Operator machine identifier"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorWorkOrderId",
+                            Description = "Operator work order identifier"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorTechnician",
+                            Description = "Operator technician label"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorIsolationChecklist",
+                            Description = "Operator isolation checklist"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorCompleteWorkOrder",
+                            Description = "Operator complete work order action"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorQualityEyebrow",
+                            Description = "Operator quality eyebrow"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorQualityTitle",
+                            Description = "Operator quality title"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorQualityDescription",
+                            Description = "Operator quality description"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorLotId",
+                            Description = "Operator lot identifier"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorLotPlaceholder",
+                            Description = "Operator lot placeholder"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorInspector",
+                            Description = "Operator inspector label"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorInspectorPlaceholder",
+                            Description = "Operator inspector placeholder"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorMoisture",
+                            Description = "Operator moisture label"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorStatus",
+                            Description = "Operator status label"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            Key = "mobile.operatorSaveInspection",
+                            Description = "Operator save inspection action"
                         });
                 });
 
@@ -2347,6 +3760,41 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(35)
                         .HasColumnType("character varying(35)")
                         .HasColumnName("locale");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("Value")
                         .IsRequired()
@@ -2740,6 +4188,496 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                             ResourceKey = "mobile.providers.saml",
                             Locale = "en-US",
                             Value = "SAML SSO"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorFieldOperations",
+                            Locale = "vi-VN",
+                            Value = "Vận hành hiện trường"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorFieldOperations",
+                            Locale = "en-US",
+                            Value = "Field operations"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorOnline",
+                            Locale = "vi-VN",
+                            Value = "Trực tuyến"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorOnline",
+                            Locale = "en-US",
+                            Value = "Online"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorTenant",
+                            Locale = "vi-VN",
+                            Value = "Tenant"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorTenant",
+                            Locale = "en-US",
+                            Value = "Tenant"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorNoTenantClaim",
+                            Locale = "vi-VN",
+                            Value = "Chưa có tenant claim"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorNoTenantClaim",
+                            Locale = "en-US",
+                            Value = "No tenant claim"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorIdentity",
+                            Locale = "vi-VN",
+                            Value = "Operator"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorIdentity",
+                            Locale = "en-US",
+                            Value = "Operator"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorProduction",
+                            Locale = "vi-VN",
+                            Value = "Sản xuất"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorProduction",
+                            Locale = "en-US",
+                            Value = "Production"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorTraceability",
+                            Locale = "vi-VN",
+                            Value = "Truy xuất"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorTraceability",
+                            Locale = "en-US",
+                            Value = "Traceability"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQuality",
+                            Locale = "vi-VN",
+                            Value = "Chất lượng"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQuality",
+                            Locale = "en-US",
+                            Value = "Quality"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenance",
+                            Locale = "vi-VN",
+                            Value = "Bảo trì"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenance",
+                            Locale = "en-US",
+                            Value = "Maintenance"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorSync",
+                            Locale = "vi-VN",
+                            Value = "Đồng bộ"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorSync",
+                            Locale = "en-US",
+                            Value = "Sync"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorAccountMenu",
+                            Locale = "vi-VN",
+                            Value = "Menu tài khoản"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorAccountMenu",
+                            Locale = "en-US",
+                            Value = "Account menu"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorProductionTitle",
+                            Locale = "vi-VN",
+                            Value = "Vận hành sản xuất"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorProductionTitle",
+                            Locale = "en-US",
+                            Value = "Production work"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorProductionDescription",
+                            Locale = "vi-VN",
+                            Value = "Ghi nhận sản lượng tại điểm làm việc. Bản ghi ngoại tuyến sẽ chờ đồng bộ."
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorProductionDescription",
+                            Locale = "en-US",
+                            Value = "Record output at the point of work. Offline entries remain queued until synchronised."
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorBatch",
+                            Locale = "vi-VN",
+                            Value = "Lô sản xuất"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorBatch",
+                            Locale = "en-US",
+                            Value = "Batch"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorChooseBatch",
+                            Locale = "vi-VN",
+                            Value = "Chọn lô đã bắt đầu"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorChooseBatch",
+                            Locale = "en-US",
+                            Value = "Choose a started batch"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorOutputQuantity",
+                            Locale = "vi-VN",
+                            Value = "Sản lượng"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorOutputQuantity",
+                            Locale = "en-US",
+                            Value = "Output quantity"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorRecordOperation",
+                            Locale = "vi-VN",
+                            Value = "Ghi nhận vận hành"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorRecordOperation",
+                            Locale = "en-US",
+                            Value = "Record operation"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenanceEyebrow",
+                            Locale = "vi-VN",
+                            Value = "BẢO DƯỠNG THIẾT BỊ"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenanceEyebrow",
+                            Locale = "en-US",
+                            Value = "ASSET CARE"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenanceTitle",
+                            Locale = "vi-VN",
+                            Value = "Hoàn tất bảo trì"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenanceTitle",
+                            Locale = "en-US",
+                            Value = "Complete maintenance"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenanceDescription",
+                            Locale = "vi-VN",
+                            Value = "Hoàn tất lệnh công việc với checklist và bằng chứng tại hiện trường, online hoặc offline."
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMaintenanceDescription",
+                            Locale = "en-US",
+                            Value = "Complete assigned work orders with a checklist and field evidence, online or offline."
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMachineId",
+                            Locale = "vi-VN",
+                            Value = "Mã máy"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMachineId",
+                            Locale = "en-US",
+                            Value = "Machine ID"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorWorkOrderId",
+                            Locale = "vi-VN",
+                            Value = "Mã lệnh công việc"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorWorkOrderId",
+                            Locale = "en-US",
+                            Value = "Work order ID"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorTechnician",
+                            Locale = "vi-VN",
+                            Value = "Kỹ thuật viên"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorTechnician",
+                            Locale = "en-US",
+                            Value = "Technician"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorIsolationChecklist",
+                            Locale = "vi-VN",
+                            Value = "Đã hoàn tất checklist cô lập"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorIsolationChecklist",
+                            Locale = "en-US",
+                            Value = "Isolation checklist complete"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorCompleteWorkOrder",
+                            Locale = "vi-VN",
+                            Value = "Hoàn tất lệnh công việc"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorCompleteWorkOrder",
+                            Locale = "en-US",
+                            Value = "Complete work order"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQualityEyebrow",
+                            Locale = "vi-VN",
+                            Value = "KIỂM SOÁT CHẤT LƯỢNG"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQualityEyebrow",
+                            Locale = "en-US",
+                            Value = "QUALITY CONTROL"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQualityTitle",
+                            Locale = "vi-VN",
+                            Value = "Ghi nhận kiểm tra"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQualityTitle",
+                            Locale = "en-US",
+                            Value = "Record inspection"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQualityDescription",
+                            Locale = "vi-VN",
+                            Value = "Ghi nhận kết quả theo lô. Bản ghi chờ đồng bộ vẫn hiển thị."
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorQualityDescription",
+                            Locale = "en-US",
+                            Value = "Capture a result against a lot. Pending records remain visible until synchronised."
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorLotId",
+                            Locale = "vi-VN",
+                            Value = "Mã lô"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorLotId",
+                            Locale = "en-US",
+                            Value = "Lot ID"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorLotPlaceholder",
+                            Locale = "vi-VN",
+                            Value = "Mã nhận diện lô"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorLotPlaceholder",
+                            Locale = "en-US",
+                            Value = "Lot identifier"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorInspector",
+                            Locale = "vi-VN",
+                            Value = "Người kiểm tra"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorInspector",
+                            Locale = "en-US",
+                            Value = "Inspector"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorInspectorPlaceholder",
+                            Locale = "vi-VN",
+                            Value = "Tên của bạn"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorInspectorPlaceholder",
+                            Locale = "en-US",
+                            Value = "Your name"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMoisture",
+                            Locale = "vi-VN",
+                            Value = "Độ ẩm %"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorMoisture",
+                            Locale = "en-US",
+                            Value = "Moisture %"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorStatus",
+                            Locale = "vi-VN",
+                            Value = "Trạng thái"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorStatus",
+                            Locale = "en-US",
+                            Value = "Status"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorSaveInspection",
+                            Locale = "vi-VN",
+                            Value = "Lưu kiểm tra"
+                        },
+                        new
+                        {
+                            ScopeId = "global",
+                            ResourceKey = "mobile.operatorSaveInspection",
+                            Locale = "en-US",
+                            Value = "Save inspection"
                         });
                 });
 
@@ -2749,6 +4687,32 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime>("LastSeenAt")
                         .HasColumnType("timestamp with time zone")
@@ -2779,6 +4743,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)")
                         .HasColumnName("token_hash");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -2818,8 +4791,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("correlation_id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<double?>("DurationMs")
                         .HasColumnType("double precision")
@@ -2830,6 +4819,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("event_type");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Message")
                         .HasMaxLength(2000)
@@ -2863,6 +4858,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(8000)")
                         .HasColumnName("stack");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_mobile_telemetry_events");
 
@@ -2880,14 +4884,36 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
 
                     b.Property<string>("CredentialId")
                         .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)")
                         .HasColumnName("credential_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime>("LastUsedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2902,6 +4928,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<long>("SignatureCounter")
                         .HasColumnType("bigint")
                         .HasColumnName("signature_counter");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -2931,8 +4966,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("code");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Description")
                         .HasMaxLength(500)
@@ -2944,6 +4995,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("group");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<bool>("IsSystem")
                         .ValueGeneratedOnAdd()
@@ -2957,13 +5014,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Code")
-                        .HasName("pk_permissions");
+                        .HasName("pk_iam_permissions");
 
                     b.HasIndex("Group")
-                        .HasDatabaseName("ix_permissions_group");
+                        .HasDatabaseName("ix_iam_permissions_group");
 
-                    b.ToTable("permissions", (string)null);
+                    b.ToTable("iam_permissions", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.PushDeliveryAttempt", b =>
@@ -2974,8 +5042,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<Guid>("DeviceId")
                         .HasColumnType("uuid")
@@ -2985,6 +5069,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("error_code");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<Guid>("OutboxId")
                         .HasColumnType("uuid")
@@ -3001,6 +5091,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
                         .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id")
                         .HasName("pk_push_delivery_attempts");
@@ -3039,8 +5138,30 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("body");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)
@@ -3064,6 +5185,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("title");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -3102,13 +5232,35 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("concurrency_stamp");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<bool>("IsSystem")
                         .ValueGeneratedOnAdd()
@@ -3165,6 +5317,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDefaultValue("standard")
                         .HasColumnName("risk_tier");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_asp_net_roles");
 
@@ -3173,6 +5334,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("RoleNameIndex");
 
                     b.ToTable("asp_net_roles", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.RolePermission", b =>
@@ -3185,6 +5348,41 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("permission_code");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("RoleId", "PermissionCode")
                         .HasName("pk_role_permissions");
 
@@ -3192,6 +5390,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_role_permissions_permission_code");
 
                     b.ToTable("role_permissions", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.RoleTemplateVersion", b =>
@@ -3202,18 +5402,35 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
                         .HasColumnName("created_by");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("LifecycleStatus")
                         .IsRequired()
@@ -3262,6 +5479,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("role_id");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<int>("Version")
                         .HasColumnType("integer")
                         .HasColumnName("version");
@@ -3274,6 +5500,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_role_template_versions_role_id_version");
 
                     b.ToTable("role_template_versions", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.SecurityEvent", b =>
@@ -3283,6 +5511,26 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Details")
                         .HasMaxLength(2000)
@@ -3310,6 +5558,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("ip_address");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("Severity")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -3321,6 +5575,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("timestamp");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("UserAgent")
                         .HasMaxLength(500)
@@ -3370,8 +5633,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("available_at");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTime?>("DispatchedAt")
                         .HasColumnType("timestamp with time zone")
@@ -3382,6 +5661,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)")
                         .HasColumnName("event_type");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)
@@ -3408,6 +5693,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("subject");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_security_signal_outbox");
 
@@ -3418,6 +5712,105 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_security_signal_outbox_dispatched_at_lease_until_available_");
 
                     b.ToTable("security_signal_outbox", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.SupportElevation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("approved_by");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<Guid>("OperatorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operator_user_id");
+
+                    b.Property<string>("PermissionsJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("permissions_json");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("requested_by");
+
+                    b.Property<string>("SourceTenant")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("source_tenant");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TargetTenant")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("target_tenant");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_support_elevations");
+
+                    b.HasIndex("OperatorUserId", "TargetTenant", "Status", "ExpiresAt")
+                        .HasDatabaseName("ix_support_elevations_operator_user_id_target_tenant_status_ex");
+
+                    b.ToTable("support_elevations", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.SystemSetting", b =>
@@ -3439,18 +5832,44 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("category");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
                     b.Property<string>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("updated_by");
 
                     b.Property<string>("Value")
@@ -3466,6 +5885,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_system_settings_category");
 
                     b.ToTable("system_settings", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.TableView", b =>
@@ -3476,8 +5897,30 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -3501,18 +5944,25 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
-                        .HasName("pk_admin_table_views");
+                        .HasName("pk_user_table_views");
 
                     b.HasIndex("UserId", "Resource", "Name")
                         .IsUnique()
-                        .HasDatabaseName("ix_admin_table_views_user_id_resource_name");
+                        .HasDatabaseName("ix_user_table_views_user_id_resource_name");
 
-                    b.ToTable("admin_table_views", (string)null);
+                    b.ToTable("user_table_views", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.User", b =>
@@ -3532,8 +5982,24 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("concurrency_stamp");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Email")
                         .HasMaxLength(256)
@@ -3559,6 +6025,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone")
@@ -3640,6 +6112,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("two_factor_enabled");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
@@ -3655,7 +6136,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
+                    b.HasIndex("CreatedAt", "Id")
+                        .HasDatabaseName("ix_asp_net_users_created_at_id");
+
+                    b.HasIndex("IsActive", "CreatedAt", "Id")
+                        .HasDatabaseName("ix_asp_net_users_active_created_at_id");
+
                     b.ToTable("asp_net_users", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserClientCertificate", b =>
@@ -3666,8 +6155,30 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<DateTime>("NotAfter")
                         .HasColumnType("timestamp with time zone")
@@ -3688,6 +6199,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(128)")
                         .HasColumnName("thumbprint");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
@@ -3702,6 +6222,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_user_client_certificates_thumbprint_revoked_at");
 
                     b.ToTable("user_client_certificates", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserFacility", b =>
@@ -3716,12 +6238,34 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("facility_id");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<bool>("IsPrimary")
                         .HasColumnType("boolean")
@@ -3730,6 +6274,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("revoked_at");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("UserId", "FacilityId")
                         .HasName("pk_user_facilities");
@@ -3741,6 +6294,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_user_facilities_user_id_is_primary");
 
                     b.ToTable("user_facilities", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserMfa", b =>
@@ -3756,12 +6311,34 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnName("backup_codes_used");
 
                     b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<DateTime?>("EnrolledAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("enrolled_at");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<bool>("IsEnabled")
                         .ValueGeneratedOnAdd()
@@ -3784,10 +6361,17 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("UserId")
                         .HasName("pk_user_mfa");
 
                     b.ToTable("user_mfa", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserPasswordHistory", b =>
@@ -3801,11 +6385,46 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("changed_at");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)")
                         .HasColumnName("password_hash");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -3818,6 +6437,161 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_user_password_history_user_id_changed_at");
 
                     b.ToTable("user_password_history", (string)null);
+
+                    b.HasAnnotation("HisHope:SoftDelete", true);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Infrastructure.Provisioning.TenantProvisioningEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DataRegion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("data_region");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("idempotency_key");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("state");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("tenant_key");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenant_provisioning");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tenant_provisioning_idempotency_key");
+
+                    b.HasIndex("TenantKey", "State")
+                        .HasDatabaseName("ix_tenant_provisioning_tenant_key_state");
+
+                    b.ToTable("tenant_provisioning", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Infrastructure.Provisioning.TenantProvisioningOutboxEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<DateTimeOffset?>("ProcessedOn")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_on");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenant_provisioning_outbox");
+
+                    b.HasIndex("ProcessedOn")
+                        .HasDatabaseName("ix_tenant_provisioning_outbox_processed_on");
+
+                    b.ToTable("tenant_provisioning_outbox", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -3837,9 +6611,44 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("claim_value");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<Guid>("RoleId")
                         .HasColumnType("uuid")
                         .HasColumnName("role_id");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.HasKey("Id")
                         .HasName("pk_asp_net_role_claims");
@@ -3867,6 +6676,41 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("claim_value");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
@@ -3890,9 +6734,44 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("provider_key");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("ProviderDisplayName")
                         .HasColumnType("text")
                         .HasColumnName("provider_display_name");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -3917,6 +6796,41 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("role_id");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("UserId", "RoleId")
                         .HasName("pk_asp_net_user_roles");
 
@@ -3939,6 +6853,41 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("text")
                         .HasColumnName("name");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
 
                     b.Property<string>("Value")
                         .HasColumnType("text")
@@ -3980,6 +6929,26 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("consent_type");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<string>("DisplayName")
                         .HasColumnType("text")
                         .HasColumnName("display_name");
@@ -3987,6 +6956,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<string>("DisplayNames")
                         .HasColumnType("text")
                         .HasColumnName("display_names");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("JsonWebKeySet")
                         .HasColumnType("text")
@@ -4016,8 +6991,21 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("settings");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_openiddict_applications");
+
+                    b.HasIndex("ClientId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_openiddict_applications_client_id");
 
                     b.ToTable("openiddict_applications", (string)null);
                 });
@@ -4036,9 +7024,35 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("concurrency_token");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<DateTime?>("CreationDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("creation_date");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Properties")
                         .HasColumnType("text")
@@ -4060,11 +7074,23 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("type");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_openiddict_authorizations");
 
                     b.HasIndex("ApplicationId")
                         .HasDatabaseName("ix_openiddict_authorizations_application_id");
+
+                    b.HasIndex("Subject", "Status")
+                        .HasDatabaseName("ix_openiddict_authorizations_subject_status");
 
                     b.ToTable("openiddict_authorizations", (string)null);
                 });
@@ -4078,6 +7104,26 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<string>("ConcurrencyToken")
                         .HasColumnType("text")
                         .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
 
                     b.Property<string>("Description")
                         .HasColumnType("text")
@@ -4095,6 +7141,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("display_names");
 
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
+
                     b.Property<string>("Name")
                         .HasColumnType("text")
                         .HasColumnName("name");
@@ -4107,8 +7159,20 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("resources");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_openiddict_scopes");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_openiddict_scopes_name");
 
                     b.ToTable("openiddict_scopes", (string)null);
                 });
@@ -4131,13 +7195,39 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("concurrency_token");
 
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
                     b.Property<DateTime?>("CreationDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("creation_date");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("deleted_by");
+
                     b.Property<DateTime?>("ExpirationDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expiration_date");
+
+                    b.Property<bool?>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_deleted");
 
                     b.Property<string>("Payload")
                         .HasColumnType("text")
@@ -4167,6 +7257,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("type");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
                     b.HasKey("Id")
                         .HasName("pk_openiddict_tokens");
 
@@ -4175,6 +7274,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
 
                     b.HasIndex("AuthorizationId")
                         .HasDatabaseName("ix_openiddict_tokens_authorization_id");
+
+                    b.HasIndex("Status", "ExpirationDate")
+                        .HasDatabaseName("ix_openiddict_tokens_status_expiration");
+
+                    b.HasIndex("Subject", "Status", "ExpirationDate")
+                        .HasDatabaseName("ix_openiddict_tokens_subject_status_expiration");
 
                     b.ToTable("openiddict_tokens", (string)null);
                 });

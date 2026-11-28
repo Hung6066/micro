@@ -13,7 +13,7 @@ namespace His.Hope.PatientService.Infrastructure.Projections.Migrations
     [DbContext(typeof(PatientReadDbContext))]
     partial class PatientReadDbContextModelSnapshot : ModelSnapshot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+    protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,7 +22,7 @@ namespace His.Hope.PatientService.Infrastructure.Projections.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("His.Hope.PatientService.Infrastructure.Projections.PatientProjection", b =>
+        modelBuilder.Entity("His.Hope.PatientService.Infrastructure.Projections.PatientProjection", b =>
                 {
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid")
@@ -85,7 +85,16 @@ namespace His.Hope.PatientService.Infrastructure.Projections.Migrations
                         .HasDatabaseName("ix_patient_read_models_last_visit_date");
 
                     b.ToTable("patient_read_models", (string)null);
-                });
+        });
+
+        modelBuilder.Entity("His.Hope.PatientService.Infrastructure.Projections.ProcessedProjectionEvent", b =>
+        {
+            b.Property<Guid>("EventId").HasColumnName("event_id");
+            b.Property<string>("ProjectionName").HasMaxLength(200).HasColumnName("projection_name");
+            b.Property<DateTimeOffset>("ProcessedAt").HasColumnName("processed_at");
+            b.HasKey("EventId", "ProjectionName");
+            b.ToTable("patient_processed_projection_events");
+        });
 #pragma warning restore 612, 618
         }
     }

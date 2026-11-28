@@ -29,9 +29,12 @@ public static class ScimEndpoints
         scimMetadata.MapGet("/ServiceProviderConfig", GetServiceProviderConfig).AllowAnonymous();
         scimMetadata.MapGet("/ResourceTypes", GetResourceTypes).AllowAnonymous();
 
-        var scim = app.MapGroup(IdentityApiRoutes.ScimV2).RequireAuthorization("ScimM2M").RequireRateLimiting("scim");
-        var scimRead = scim.RequireAuthorization("ScimM2MRead");
-        var scimWrite = scim.RequireAuthorization("ScimM2MWrite");
+        // RequireAuthorization returns the same builder, so read and write need
+        // their own groups; sharing one made every GET require the write scope.
+        RouteGroupBuilder ScimGroup() =>
+            app.MapGroup(IdentityApiRoutes.ScimV2).RequireAuthorization("ScimM2M").RequireRateLimiting("scim");
+        var scimRead = ScimGroup().RequireAuthorization("ScimM2MRead");
+        var scimWrite = ScimGroup().RequireAuthorization("ScimM2MWrite");
 
         // Users
         scimRead.MapGet("/Users", GetUsers);
@@ -61,6 +64,33 @@ public static class ScimEndpoints
         var usersQuery = db.Users.AsNoTracking();
         if (scope.IsEnforced && !scope.IsCrossFacility)
             usersQuery = usersQuery.Where(user => user.FacilityMemberships.Any(membership => membership.IsActive && scope.FacilityIds.Contains(membership.FacilityId)));
+
+        // Directories look an account up with a filter before creating it. Ignoring
+        // the filter returned the whole (unfiltered) page, so the wrong account could
+        // be matched. Supported: userName / emails.value / id / externalId "eq".
+        if (!string.IsNullOrWhiteSpace(query.Filter))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                query.Filter.Trim(),
+                "^(userName|emails\\.value|emails\\[type eq \"work\"\\]\\.value|id|externalId)\\s+eq\\s+\"([^\"]*)\"$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(200));
+            if (!match.Success)
+                return TypedResults.Problem(statusCode: 400, detail: "Unsupported SCIM filter.",
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation, ["scimType"] = "invalidFilter" });
+            var attribute = match.Groups[1].Value.ToLowerInvariant();
+            var operand = match.Groups[2].Value;
+            var normalized = operand.ToUpperInvariant();
+            if (attribute == "username")
+                usersQuery = usersQuery.Where(user => user.NormalizedUserName == normalized);
+            else if (attribute.StartsWith("emails", StringComparison.Ordinal))
+                usersQuery = usersQuery.Where(user => user.NormalizedEmail == normalized);
+            else if (Guid.TryParse(operand, out var requestedId))
+                usersQuery = usersQuery.Where(user => user.Id == requestedId);
+            else
+                usersQuery = usersQuery.Where(user => false);
+        }
+
         var users = await usersQuery
             .OrderBy(u => u.UserName)
             .Skip(query.StartIndex - 1)
@@ -119,13 +149,25 @@ public static class ScimEndpoints
                 statusCode: duplicateEmail ? 409 : 400);
         }
 
+        // SECURITY: a provisioning credential must not be able to mint an
+        // administrator. Roles carrying any admin.* permission are assigned only
+        // through the governed admin API.
+        var administrativeRoles = (await db.RolePermissions.AsNoTracking()
+                .Where(link => link.PermissionCode.StartsWith("admin."))
+                .Select(link => link.Role.Name!)
+                .Distinct()
+                .ToListAsync(ct))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         if (request.Roles is not null)
-            foreach (var role in request.Roles)
+            foreach (var role in request.Roles.Where(item => !administrativeRoles.Contains(item.Value)))
                 await userManager.AddToRoleAsync(user, role.Value);
 
         if (request.Entitlements is not null)
-            foreach (var ent in request.Entitlements)
+            foreach (var ent in request.Entitlements.Where(item => !administrativeRoles.Contains(item.Value)))
                 await userManager.AddToRoleAsync(user, ent.Value);
+
+        await AfterUserWriteAsync(httpContext, user, user.IsActive, "SCIM_CREATE", ct);
 
         if (!string.IsNullOrWhiteSpace(request.HisHopeExtension?.FacilityId))
         {
@@ -161,6 +203,7 @@ public static class ScimEndpoints
         var scope = ScimScope.Resolve(httpContext, configuration);
         if (!scope.IsValid || !await scope.CanAccessUserAsync(db, user.Id, ct) || !scope.CanWrite(request.HisHopeExtension?.FacilityId)) return TypedResults.NotFound();
 
+        var wasActive = user.IsActive;
         user.UserName = request.UserName;
         user.FirstName = request.Name?.GivenName ?? user.FirstName;
         user.LastName = request.Name?.FamilyName ?? user.LastName;
@@ -173,6 +216,7 @@ public static class ScimEndpoints
             user.Email = email;
 
         await userManager.UpdateAsync(user);
+        await AfterUserWriteAsync(httpContext, user, wasActive, "SCIM_UPDATE", ct);
 
         return TypedResults.Ok(MapToScimUser(user));
     }
@@ -185,12 +229,21 @@ public static class ScimEndpoints
         var scope = ScimScope.Resolve(httpContext, configuration);
         if (!scope.IsValid || !await scope.CanAccessUserAsync(db, user.Id, ct)) return TypedResults.NotFound();
 
-        foreach (var op in patch.Operations)
+        var wasActive = user.IsActive;
+        foreach (var op in patch.Operations.Where(item => !string.IsNullOrWhiteSpace(item.Op)))
         {
             switch (op.Op.ToLower())
             {
                 case "replace" when op.Path == "active" && op.Value is JsonElement el:
-                    user.IsActive = el.GetBoolean();
+                    // Directories send booleans and the strings "True"/"False"; a
+                    // deprovisioning call must not fail on the latter.
+                    user.IsActive = el.ValueKind switch
+                    {
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        JsonValueKind.String when bool.TryParse(el.GetString(), out var parsed) => parsed,
+                        _ => user.IsActive
+                    };
                     break;
                 case "replace" when op.Path == "name.givenName" && op.Value is JsonElement gn:
                     user.FirstName = gn.GetString() ?? user.FirstName;
@@ -202,6 +255,7 @@ public static class ScimEndpoints
         }
 
         await userManager.UpdateAsync(user);
+        await AfterUserWriteAsync(httpContext, user, wasActive, "SCIM_PATCH", ct);
         return TypedResults.Ok(MapToScimUser(user));
     }
 
@@ -213,9 +267,25 @@ public static class ScimEndpoints
         var scope = ScimScope.Resolve(httpContext, configuration);
         if (!scope.IsValid || !await scope.CanAccessUserAsync(db, user.Id, ct)) return TypedResults.NotFound();
 
+        var wasActive = user.IsActive;
         user.IsActive = false;
         await userManager.UpdateAsync(user);
+        await AfterUserWriteAsync(httpContext, user, wasActive, "SCIM_DELETE", ct);
         return TypedResults.NoContent();
+    }
+
+    /// <summary>Deprovisioning ends the user's sessions; every SCIM user write is audited.</summary>
+    private static async Task AfterUserWriteAsync(
+        HttpContext http, User user, bool wasActive, string action, CancellationToken ct)
+    {
+        // RequestServices is always set for a real request; direct handler
+        // invocation (unit-style tests) has no scope to resolve from.
+        if (http.RequestServices is not { } services)
+            return;
+        if (wasActive && !user.IsActive)
+            await His.Hope.IdentityService.Api.Services.UserSessionRevocation.RevokeAllAsync(services, user.Id, ct);
+        if (services.GetService<His.Hope.Infrastructure.Audit.IAuditService>() is { } audit)
+            await AdminAudit.LogAsync(audit, http, action, "User", user.Id.ToString(), ct);
     }
 
     // ─── Groups (Roles) ───
@@ -282,7 +352,9 @@ public static class ScimEndpoints
         string id, RoleManager<Role> roleManager, CancellationToken ct)
     {
         var role = await roleManager.FindByIdAsync(id);
-        if (role is null) return TypedResults.NotFound();
+        // System roles are not SCIM-managed groups; deleting one would strip the
+        // role from every holder.
+        if (role is null || role.IsSystem) return TypedResults.NotFound();
 
         await roleManager.DeleteAsync(role);
         return TypedResults.NoContent();
@@ -377,7 +449,13 @@ public static class ScimEndpoints
 
         public static ScimScope Resolve(HttpContext httpContext, IConfiguration configuration)
         {
-            var enforced = configuration.GetValue("Scim:RequireFacilityScope", false);
+            // SECURITY: outside Development/Testing a SCIM client is confined to the
+            // facilities carried by its token unless configuration says otherwise.
+            // The old default (off) let every SCIM client read and write every tenant.
+            var environment = httpContext.RequestServices?.GetService<IHostEnvironment>();
+            var enforced = configuration.GetValue(
+                "Scim:RequireFacilityScope",
+                environment is not null && !environment.IsDevelopment() && !environment.IsEnvironment("Testing"));
             var principal = httpContext.User;
             var scope = FacilityAccessScope.FromPrincipal(principal);
             // Machine clients do not have a human user's memberships. Allow

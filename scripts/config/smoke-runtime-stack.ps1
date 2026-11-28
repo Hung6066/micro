@@ -13,7 +13,10 @@ $checks = @(
 $failures = @()
 foreach ($check in $checks) {
     try {
-        $response = Invoke-WebRequest -Uri $check.Url -Method Get -TimeoutSec 10 -SkipHttpErrorCheck
+        # Keep this compatible with Windows PowerShell 5.1 as well as pwsh.
+        # These smoke checks expect successful responses, so terminating on
+        # non-success is sufficient and avoids SkipHttpErrorCheck (pwsh-only).
+        $response = Invoke-WebRequest -Uri $check.Url -Method Get -TimeoutSec 10 -UseBasicParsing -ErrorAction Stop
         if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 400) { throw "HTTP $($response.StatusCode)" }
         Write-Output ("SMOKE_PASS {0} status={1}" -f $check.Name, $response.StatusCode)
     } catch {

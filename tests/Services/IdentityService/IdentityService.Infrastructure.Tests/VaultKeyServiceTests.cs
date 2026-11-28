@@ -41,7 +41,8 @@ public sealed class VaultKeyServiceTests
             new ConfigurationBuilder().AddInMemoryCollection().Build(),
             NullLogger<VaultKeyService>.Instance,
             new TestHostEnvironment(Environments.Production),
-            Mock.Of<IVaultTokenProvider>());
+            Mock.Of<IVaultTokenProvider>(),
+            TestHttpClientFactory.Instance);
 
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*persistent RSA key*");
@@ -72,9 +73,52 @@ public sealed class VaultKeyServiceTests
             }).Build(),
             NullLogger<VaultKeyService>.Instance,
             new TestHostEnvironment(Environments.Development),
-            Mock.Of<IVaultTokenProvider>());
+            Mock.Of<IVaultTokenProvider>(),
+            TestHttpClientFactory.Instance);
 
         (await service.IsHealthyAsync()).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Vault_health_uses_the_shared_vault_client_configured_for_mtls()
+    {
+        var factory = new TestHttpClientFactory(new HttpClient(new SuccessfulHandler()));
+        using var service = new VaultKeyService(
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:EnableTransit"] = "true",
+                ["Vault:Address"] = "https://vault.test"
+            }).Build(),
+            NullLogger<VaultKeyService>.Instance,
+            new TestHostEnvironment(Environments.Development),
+            Mock.Of<IVaultTokenProvider>(),
+            factory);
+
+        (await service.IsHealthyAsync()).Should().BeTrue();
+
+        factory.CreatedClientNames.Should().ContainSingle().Which.Should().Be("vault");
+    }
+
+    [Fact]
+    public async Task Vault_health_disposes_the_response_and_releases_its_connection()
+    {
+        var content = new TrackingContent();
+        var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content };
+        var factory = new TestHttpClientFactory(new HttpClient(new SuccessfulHandler(response)));
+        using var service = new VaultKeyService(
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Vault:EnableTransit"] = "true",
+                ["Vault:Address"] = "https://vault.test"
+            }).Build(),
+            NullLogger<VaultKeyService>.Instance,
+            new TestHostEnvironment(Environments.Development),
+            Mock.Of<IVaultTokenProvider>(),
+            factory);
+
+        (await service.IsHealthyAsync()).Should().BeTrue();
+
+        content.IsDisposed.Should().BeTrue();
     }
 
     [Fact]
@@ -90,7 +134,8 @@ public sealed class VaultKeyServiceTests
             NullLogger<VaultKeyService>.Instance,
             new TestHostEnvironment(Environments.Development),
             Mock.Of<IVaultTokenProvider>(provider => provider.GetTokenAsync(It.IsAny<CancellationToken>())
-                == Task.FromResult("test-token")));
+                == Task.FromResult("test-token")),
+            TestHttpClientFactory.Instance);
 
         await Assert.ThrowsAnyAsync<Exception>(() => service.RotateKeyAsync());
         (await service.GetJwksAsync()).Should().HaveCount(2);
@@ -113,7 +158,41 @@ public sealed class VaultKeyServiceTests
         }).Build(),
         NullLogger<VaultKeyService>.Instance,
         new TestHostEnvironment(Environments.Development),
-        Mock.Of<IVaultTokenProvider>());
+        Mock.Of<IVaultTokenProvider>(),
+        TestHttpClientFactory.Instance);
+
+    private sealed class TestHttpClientFactory(HttpClient? client = null) : IHttpClientFactory
+    {
+        public static TestHttpClientFactory Instance { get; } = new();
+        public List<string> CreatedClientNames { get; } = [];
+
+        public HttpClient CreateClient(string name)
+        {
+            CreatedClientNames.Add(name);
+            return client ?? new HttpClient();
+        }
+    }
+
+    private sealed class SuccessfulHandler(HttpResponseMessage? response = null) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) => Task.FromResult(
+                response ?? new HttpResponseMessage(System.Net.HttpStatusCode.OK));
+    }
+
+    private sealed class TrackingContent : ByteArrayContent
+    {
+        public TrackingContent() : base([]) { }
+
+        public bool IsDisposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
+        }
+    }
 
     private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
     {

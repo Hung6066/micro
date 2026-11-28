@@ -63,7 +63,7 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
             if (user is not null)
             {
                 roles = (await _userManager.GetRolesAsync(user)).ToList();
-                permissions = await GetUserPermissionsAsync(userId);
+                permissions = await GetUserPermissionsAsync(userId, context?.CancellationToken ?? CancellationToken.None);
             }
         }
 
@@ -94,7 +94,7 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
             throw new RpcException(new Status(StatusCode.NotFound, "User not found"));
 
         var roles = await _userManager.GetRolesAsync(user);
-        var permissions = await GetUserPermissionsAsync(user.Id);
+        var permissions = await GetUserPermissionsAsync(user.Id, context?.CancellationToken ?? CancellationToken.None);
 
         return new GetUserResponse
         {
@@ -116,7 +116,7 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
         if (!Guid.TryParse(request.UserId, out var userId))
             return new CheckPermissionResponse { HasPermission = false };
 
-        var permissions = await GetUserPermissionsAsync(userId);
+        var permissions = await GetUserPermissionsAsync(userId, context?.CancellationToken ?? CancellationToken.None);
         var hasPermission = permissions.Contains(request.PermissionCode, StringComparer.OrdinalIgnoreCase);
 
         return new CheckPermissionResponse { HasPermission = hasPermission };
@@ -128,7 +128,7 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
         if (!Guid.TryParse(request.UserId, out var userId))
             return new CheckAnyPermissionResponse { HasAny = false };
 
-        var permissions = await GetUserPermissionsAsync(userId);
+        var permissions = await GetUserPermissionsAsync(userId, context?.CancellationToken ?? CancellationToken.None);
         var hasAny = request.PermissionCodes.Any(pc =>
             permissions.Contains(pc, StringComparer.OrdinalIgnoreCase));
 
@@ -159,35 +159,39 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
         return new RevokeUserTokensResponse { TokensRevoked = 1 };
     }
 
-    private async Task<List<string>> GetUserPermissionsAsync(Guid userId)
+    private async Task<List<string>> GetUserPermissionsAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var permissions = await _db.RolePermissions
+        var permissions = await _db.RolePermissions.AsNoTracking()
+            .TagWith("Identity.Grpc.ResolveRolePermissions")
             .Where(rp => _db.UserRoles
                 .Where(ur => ur.UserId == userId)
                 .Select(ur => ur.RoleId)
                 .Contains(rp.RoleId))
             .Select(rp => rp.PermissionCode)
             .Distinct()
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         var now = DateTime.UtcNow;
-        var groupIds = await _db.IamGroupMemberships
+        var groupIds = await _db.IamGroupMemberships.AsNoTracking()
+            .TagWith("Identity.Grpc.ResolveUserGroups")
             .Where(membership => membership.UserId == userId)
             .Select(membership => membership.GroupId)
-            .ToListAsync();
-        var assignedSetJson = await _db.IamPermissionSetAssignments
+            .ToListAsync(cancellationToken);
+        var assignedSetJson = await _db.IamPermissionSetAssignments.AsNoTracking()
+            .TagWith("Identity.Grpc.ResolvePermissionSets")
             .Where(assignment => assignment.Status == "active" &&
                 (assignment.ExpiresAt == null || assignment.ExpiresAt > now) &&
                 ((assignment.PrincipalType == "human" && assignment.PrincipalId == userId) ||
                  (assignment.PrincipalType == "group" && groupIds.Contains(assignment.PrincipalId))))
-            .Join(_db.IamPermissionSets.Where(set => set.LifecycleStatus == "published"),
+            .Join(_db.IamPermissionSets.AsNoTracking().Where(set => set.LifecycleStatus == "published"),
                 assignment => assignment.PermissionSetId,
                 set => set.Id,
                 (_, set) => set.PermissionsJson)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         var registeredPrefixes = await _db.IamServiceDefinitions.AsNoTracking()
+            .TagWith("Identity.Grpc.ResolveServicePrefixes")
             .Where(item => item.IsActive).Select(item => item.PermissionPrefix)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         foreach (var permissionsJson in assignedSetJson)
         {
             try
@@ -201,15 +205,17 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
             }
         }
 
-        permissions.AddRange(await _db.BreakGlassRequests
+        permissions.AddRange(await _db.BreakGlassRequests.AsNoTracking()
+            .TagWith("Identity.Grpc.ResolveBreakGlassPermissions")
             .Where(request => request.SubjectUserId == userId && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > now)
             .Select(request => request.PermissionCode)
-            .ToListAsync());
+            .ToListAsync(cancellationToken));
 
-        var boundaries = await _db.IamPermissionBoundaries
+        var boundaries = await _db.IamPermissionBoundaries.AsNoTracking()
+            .TagWith("Identity.Grpc.ResolvePermissionBoundaries")
             .Where(boundary => boundary.IsActive && boundary.PrincipalType == "human" && boundary.PrincipalId == userId)
             .Select(boundary => boundary.AllowedPermissionsJson)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         foreach (var allowedJson in boundaries)
         {
             try

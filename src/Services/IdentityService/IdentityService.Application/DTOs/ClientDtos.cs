@@ -70,3 +70,6 @@ public record DynamicClientRegistrationResponse(
     string[] GrantTypes,
     string[] Scopes,
     string TokenEndpointAuthMethod);
+
+/// <summary>An OAuth scope a client may be granted (server-registered or stored in openiddict_scopes).</summary>
+public record AvailableScopeResponse(string Name, string? DisplayName, string? Description);

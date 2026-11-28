@@ -13,6 +13,8 @@ import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
+import { MatTabsModule } from "@angular/material/tabs";
+import { HttpErrorResponse } from "@angular/common/http";
 import {
   AccessGovernanceApiService,
   BreakGlassRequest,
@@ -34,6 +36,11 @@ import {
   HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import {
+  InfraAuditApiService,
+  InfraAuditGrantTimeline,
+} from "../../core/services/infra-audit-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -48,6 +55,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatTabsModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -107,7 +115,18 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   >{{ permission.name }} · {{ permission.code }}</mat-option
                 ></mat-select
               ></mat-form-field
-            ><mat-form-field appearance="outline"
+            >@if (
+              formGroup.controls.permissionCode.value ===
+              openshipConsoleWritePermission
+            ) {
+              <p class="hint">
+                {{
+                  "admin.breakGlassOpenshipConsoleWriteHint"
+                    | hhTranslate
+                      : "Grants write access to OpenShip consoles for at most 30 minutes; another administrator must approve."
+                }}
+              </p>
+            }<mat-form-field appearance="outline"
               ><mat-label>{{
                 "admin.facility" | hhTranslate: "Facility"
               }}</mat-label
@@ -138,12 +157,15 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
             /></form></mat-card-content
       ></mat-card>
       <mat-card class="table-card"
-        ><mat-card-header
-          ><mat-card-title>{{
-            "admin.breakGlassRequests" | hhTranslate: "Break-glass requests"
-          }}</mat-card-title></mat-card-header
         ><mat-card-content
-          ><hh-data-table
+          ><mat-tab-group
+            [selectedIndex]="selectedTab"
+            (selectedIndexChange)="selectedTab = $event"
+            ><mat-tab
+              [label]="
+                'admin.breakGlassRequests' | hhTranslate: 'Break-glass requests'
+              "
+              ><hh-data-table
             [label]="'admin.breakGlassRequests' | hhTranslate"
             [columns]="columns"
             [rows]="rows"
@@ -168,16 +190,90 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   [label]="'admin.revoke' | hhTranslate: 'Revoke'"
                   [disabled]="busy || !canWrite"
                   (pressed)="revokeByRow(row)"
-                /></div></ng-template></hh-data-table></mat-card-content
+                />
+                <hh-action-button
+                  *ngIf="row['status'] !== 'pending'"
+                  kind="secondary"
+                  mode="icon-only"
+                  icon="history"
+                  [label]="'admin.breakGlassActivity' | hhTranslate: 'Activity'"
+                  (pressed)="showActivityByRow(row)"
+                /></div></ng-template></hh-data-table></mat-tab
+            ><mat-tab
+              [label]="'admin.breakGlassActivity' | hhTranslate: 'Activity'"
+              ><div class="activity">
+                @if (!activityGrant) {
+                  <p class="hint">
+                    {{
+                      "admin.breakGlassActivityChoose"
+                        | hhTranslate
+                          : "Choose Activity on a grant to see what its holder did on the infrastructure while it was active."
+                    }}
+                  </p>
+                } @else {
+                  <div class="activity-head">
+                    <p>
+                      <strong>{{ displayUser(activityGrant.subjectUserId) }}</strong>
+                      · {{ activityGrant.permissionCode }}
+                      @if (timeline) {
+                        · {{ timeline.from | date: "medium" }} –
+                        {{ timeline.to | date: "medium" }}
+                      }
+                    </p>
+                    <hh-action-button
+                      [disabled]="activityLoading"
+                      (pressed)="loadActivity()"
+                      kind="secondary"
+                      icon="refresh"
+                      [label]="'admin.refresh' | hhTranslate: 'Refresh'"
+                    />
+                  </div>
+                  @if (timeline?.expired) {
+                    <p class="hint">
+                      {{
+                        "admin.breakGlassActivityExpired"
+                          | hhTranslate
+                            : "This grant is older than the 90-day audit retention; its activity is no longer kept."
+                      }}
+                    </p>
+                  }
+                  @if (timeline?.truncated) {
+                    <p class="hint">
+                      {{
+                        "admin.breakGlassActivityTruncated"
+                          | hhTranslate
+                            : "Showing the newest events only. Open Infrastructure audit for the full list."
+                      }}
+                    </p>
+                  }
+                  <hh-data-table
+                    [label]="'admin.breakGlassActivity' | hhTranslate: 'Activity'"
+                    [columns]="activityColumns"
+                    [rows]="activityRows"
+                    [loading]="activityLoading"
+                    [error]="activityError"
+                    [empty]="!activityLoading && !activityError && !activityRows.length"
+                    [emptyMessage]="
+                      'admin.breakGlassActivityEmpty'
+                        | hhTranslate
+                          : 'No infrastructure activity while this grant was active.'
+                    "
+                  />
+                }
+              </div></mat-tab
+            ></mat-tab-group
+          ></mat-card-content
       ></mat-card>
     </hh-page-layout>
   `,
   styles: [
-    ":host{display:block}.form-grid{display:grid;gap:var(--space-md)}.warning{padding:var(--space-md);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-lg)}.action-cell{display:flex;gap:var(--space-sm)}",
+    ":host{display:block}.form-grid{display:grid;gap:var(--space-md)}.warning{padding:var(--space-md);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.hint{margin:0;color:var(--text-secondary)}.table-card{margin-top:var(--space-lg)}.action-cell{display:flex;gap:var(--space-sm)}.activity{display:grid;gap:var(--space-md);padding-top:var(--space-md)}.activity-head{display:flex;flex-wrap:wrap;gap:var(--space-md);align-items:center;justify-content:space-between}.activity-head p{margin:0}",
   ],
 })
 export class BreakGlassPageComponent implements OnInit {
   private readonly api = inject(AccessGovernanceApiService);
+  private readonly infraAudit = inject(InfraAuditApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly permissionsService = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly toast = inject(HisHopeToastService);
@@ -193,10 +289,18 @@ export class BreakGlassPageComponent implements OnInit {
     loadErrorMessageKey: "admin.loadAccessGovernanceFailed",
     loadErrorFallback: "Unable to load break-glass data.",
   });
+  readonly openshipConsoleWritePermission = "openship.console.write";
   users: User[] = [];
   permissions: PermissionDefinition[] = [];
   requests: BreakGlassRequest[] = [];
   busy = false;
+  /** 0 = requests, 1 = activity of the selected grant. */
+  selectedTab = 0;
+  activityGrant: BreakGlassRequest | null = null;
+  timeline: InfraAuditGrantTimeline | null = null;
+  activityRows: Record<string, unknown>[] = [];
+  activityLoading = false;
+  activityError = "";
   get error(): string {
     return this.state.error;
   }
@@ -255,8 +359,20 @@ export class BreakGlassPageComponent implements OnInit {
       },
     ];
   }
+  get activityColumns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      { key: "timestamp", label: this.i18n.t("admin.time", "Time"), format: "dateTime" },
+      { key: "source", label: this.i18n.t("admin.infraAuditSource", "Source") },
+      { key: "action", label: this.i18n.t("admin.action", "Action") },
+      { key: "target", label: this.i18n.t("admin.target", "Target") },
+      { key: "result", label: this.i18n.t("admin.infraAuditResult", "Result") },
+      { key: "sourceIp", label: this.i18n.t("admin.sourceIp", "Source IP") },
+    ];
+  }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load(): void {
     this.error = "";
@@ -268,7 +384,22 @@ export class BreakGlassPageComponent implements OnInit {
       }).pipe(
         tap((state) => {
           this.users = state.users;
-          this.permissions = state.permissions;
+          // The server validates break-glass codes against the code catalog, not this
+          // table; keep the OpenShip console write grant selectable even where the
+          // permission row has not been seeded yet.
+          this.permissions = state.permissions.some(
+            (permission) => permission.code === this.openshipConsoleWritePermission,
+          )
+            ? state.permissions
+            : [
+                ...state.permissions,
+                {
+                  code: this.openshipConsoleWritePermission,
+                  name: "OpenShip console write",
+                  group: "OpenShip",
+                  isSystem: true,
+                },
+              ];
           this.requests = state.requests;
           this.cdr.markForCheck();
         }),
@@ -318,6 +449,47 @@ export class BreakGlassPageComponent implements OnInit {
       "Break-glass request revoked.",
     );
   }
+  /** Opens the Activity tab for one grant and loads its infrastructure timeline. */
+  showActivity(item: BreakGlassRequest): void {
+    this.activityGrant = item;
+    this.selectedTab = 1;
+    this.loadActivity();
+  }
+  showActivityByRow(row: Record<string, unknown>): void {
+    const item = this.requests.find((request) => request.id === row["id"]);
+    if (item) {
+      this.showActivity(item);
+    }
+  }
+  loadActivity(): void {
+    const grant = this.activityGrant;
+    if (!grant) return;
+    this.activityLoading = true;
+    this.activityError = "";
+    this.timeline = null;
+    this.activityRows = [];
+    this.cdr.markForCheck();
+    this.infraAudit.getGrantTimeline(grant.id).subscribe({
+      next: (timeline) => {
+        if (this.activityGrant?.id !== grant.id) return;
+        this.timeline = timeline;
+        this.activityRows = timeline.items.map((item, index) => ({
+          ...item,
+          id: `${item.timestamp}|${index}`,
+          target: item.target ?? "",
+          sourceIp: item.sourceIp ?? "",
+        }));
+        this.activityLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: (error: HttpErrorResponse) => {
+        if (this.activityGrant?.id !== grant.id) return;
+        this.activityLoading = false;
+        this.activityError = this.describeActivityError(error);
+        this.cdr.markForCheck();
+      },
+    });
+  }
   approveByRow(row: Record<string, unknown>): void {
     const item = this.requests.find((request) => request.id === row["id"]);
     if (item) {
@@ -349,6 +521,21 @@ export class BreakGlassPageComponent implements OnInit {
       },
       error: () => this.fail("admin.breakGlassMutationFailed", fallback),
     });
+  }
+  private describeActivityError(error: HttpErrorResponse): string {
+    if (error.status === 403)
+      return this.i18n.t(
+        "admin.breakGlassActivityForbidden",
+        "Only super-admins can view infrastructure activity.",
+      );
+    if (error.status === 404)
+      return this.i18n.t("admin.breakGlassActivityNotFound", "This grant no longer exists.");
+    if ((error.error as { errorCode?: string } | null)?.errorCode === "infra_audit_unavailable")
+      return this.i18n.t(
+        "admin.infraAuditUnavailable",
+        "The audit log store is unreachable right now. Try again shortly.",
+      );
+    return this.i18n.t("admin.breakGlassActivityFailed", "Unable to load the grant's activity.");
   }
   private fail(key: string, fallback: string): void {
     this.error = this.i18n.t(key, fallback);

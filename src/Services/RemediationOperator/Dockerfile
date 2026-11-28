@@ -27,7 +27,7 @@ FROM curlimages/curl:8.12.1 AS curl
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:b0beb9cc1dee1c1b0749796110d4734292071b814207ad0d4f40611f7db04f7b AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:ea721098d6ea2894ff9bd8387821a1659d4765d6c014b8d648bb1da16f016f5a AS runtime
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 9090
@@ -42,7 +42,7 @@ COPY --from=build /app/publish .
 COPY --from=curl /usr/bin/curl /usr/bin/curl
 
 # Create app user and log directory
-RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && apt-get install -y --no-install-recommends curl && \
     adduser --disabled-password --gecos '' appuser && \
     mkdir -p /var/log/remediation-operator && \
     chown -R appuser:appuser /app /var/log/remediation-operator

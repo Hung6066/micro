@@ -24,16 +24,15 @@ COPY shared/frontend-foundation/query ./shared/frontend-foundation/query
 COPY shared/frontend-foundation/ui ./shared/frontend-foundation/ui
 RUN cd shared/frontend-foundation && npm install --legacy-peer-deps --ignore-scripts && npm run build
 WORKDIR /workspace/src/Frontend/his-hope-app
-# Copy package files and install dependencies with cache
-# The application lockfile is intentionally not committed in this legacy
-# workspace; install from the manifest while the shared foundation remains
-# lockfile-pinned above.
-COPY src/Frontend/his-hope-app/package.json ./
+# Copy the application lockfile and the local workspace dependency before
+# installing. The foundation is private and is intentionally resolved from
+# the repository, not from the public npm registry.
+COPY src/Frontend/his-hope-app/package.json src/Frontend/his-hope-app/package-lock.json ./
+COPY shared /workspace/shared
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+    npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
 # Copy the app and the shared design system used by its Sass entrypoints.
-COPY shared /workspace/shared
 COPY src/Frontend/his-hope-app .
 
 # The application consumes the foundation through a local file dependency.

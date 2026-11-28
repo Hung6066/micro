@@ -1,0 +1,357 @@
+# Production-oriented application stack for a dedicated Docker Swarm.
+# PostgreSQL, Redis and RabbitMQ are external stateful dependencies. The
+# Swarm owns stateless APIs and the bounded Manufacturing worker.
+services:
+  identityservice:
+    image: ${IDENTITY_IMAGE:?IDENTITY_IMAGE is required}
+    environment:
+      APP_NAME: identity
+      ASPNETCORE_URLS: http://+:5003
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      DB_HOST: ${MANUFACTURING_DB_HOST:?MANUFACTURING_DB_HOST is required}
+      DB_PORT: ${MANUFACTURING_DB_PORT:-5432}
+      REDIS_URL: ${MANUFACTURING_REDIS_URL:?MANUFACTURING_REDIS_URL is required}
+      OIDC_ISSUER: ${MANUFACTURING_OIDC_ISSUER:?MANUFACTURING_OIDC_ISSUER is required}
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:?MANUFACTURING_JWT_ISSUER is required}
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Jwt__AllowHttp: "false"
+      Jwt__RsaPrivateKeyPath: /run/secrets/identity_jwt_private_key
+      Jwt__RsaPublicKeyPath: /run/secrets/identity_jwt_public_key
+      Jwt__RsaEncryptionPrivateKeyPath: /run/secrets/identity_jwt_encryption_private_key
+      OpenIddict__Issuer: ${MANUFACTURING_OIDC_ISSUER:?MANUFACTURING_OIDC_ISSUER is required}
+      OpenIddict__Signing__PrivateKeyPath: /run/secrets/identity_jwt_private_key
+      OpenIddict__Encryption__PrivateKeyPath: /run/secrets/identity_jwt_encryption_private_key
+      Persistence__RunMigrationsOnStartup: "true"
+      TenantPlacement__Enabled: "false"
+      TenantPlacement__Services__identity__DefaultConnectionName: IdentityDb
+      Vault__Address: ${MANUFACTURING_VAULT_ADDRESS:-https://vault.example.internal:8200}
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: ${MANUFACTURING_VAULT_AUTH_MOUNT:-jwt-spiffe}
+      Vault__Role: ${MANUFACTURING_IDENTITY_VAULT_ROLE:-identity-service}
+      Vault__SpiffeJwtTokenFile: /run/secrets/manufacturing_vault_jwt
+      Vault__SpiffeAudience: ${MANUFACTURING_VAULT_AUDIENCE:-vault}
+      Vault__Database__Enabled: "true"
+      Vault__RequireVault: ${MANUFACTURING_VAULT_REQUIRE:-true}
+      Vault__AllowStaticToken: "false"
+    entrypoint: ["/usr/local/bin/swarm-entrypoint.sh"]
+    command: ["IdentityService.Api.dll"]
+    configs:
+      - source: manufacturing_swarm_entrypoint
+        target: /usr/local/bin/swarm-entrypoint.sh
+        mode: 0555
+    secrets:
+      - manufacturing_postgres_user
+      - manufacturing_postgres_password
+      - identity_jwt_private_key
+      - identity_jwt_public_key
+      - identity_jwt_encryption_private_key
+      - manufacturing_vault_jwt
+    networks: [manufacturing]
+    ports:
+      - target: 5003
+        published: ${MANUFACTURING_IDENTITY_PORT:-5001}
+        protocol: tcp
+        mode: ingress
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/5003 && printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && head -n 1 <&3 | grep -q " 200 "'
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    deploy:
+      replicas: 2
+      update_config: { parallelism: 1, order: start-first, failure_action: rollback, monitor: 60s }
+      rollback_config: { parallelism: 1, order: stop-first }
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 5, window: 120s }
+      resources: { reservations: { cpus: "0.25", memory: 256M }, limits: { cpus: "1.0", memory: 1G } }
+
+  commerceservice:
+    image: ${COMMERCE_IMAGE:?COMMERCE_IMAGE is required}
+    environment:
+      APP_NAME: commerce
+      ASPNETCORE_URLS: http://+:5015
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      DB_HOST: ${MANUFACTURING_DB_HOST:?MANUFACTURING_DB_HOST is required}
+      DB_PORT: ${MANUFACTURING_DB_PORT:-5432}
+      REDIS_URL: ${MANUFACTURING_REDIS_URL:?MANUFACTURING_REDIS_URL is required}
+      RABBIT_HOST: ${MANUFACTURING_RABBIT_HOST:?MANUFACTURING_RABBIT_HOST is required}
+      SERVICE_IDENTITY_URL: ${MANUFACTURING_IDENTITY_INTERNAL_URL:-http://identityservice:5003}
+      Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-https://identity.example.com}
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:?MANUFACTURING_JWT_ISSUER is required}
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Jwt__RequireHttpsMetadata: ${MANUFACTURING_JWT_REQUIRE_HTTPS_METADATA:-true}
+      Jwt__AllowHttp: ${MANUFACTURING_JWT_ALLOW_HTTP:-false}
+      Outbox__Enabled: "true"
+      Persistence__RunMigrationsOnStartup: "true"
+      TenantPlacement__Enabled: "false"
+      TenantPlacement__Services__commerce__DefaultConnectionName: CommerceDb
+      DataProtection__CertificatePath: /run/secrets/commerce_data_protection_pfx
+      Vault__Address: ${MANUFACTURING_VAULT_ADDRESS:-https://vault.example.internal:8200}
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: ${MANUFACTURING_VAULT_AUTH_MOUNT:-jwt-spiffe}
+      Vault__Role: ${MANUFACTURING_COMMERCE_VAULT_ROLE:-commerce-service}
+      Vault__SpiffeJwtTokenFile: /run/secrets/manufacturing_vault_jwt
+      Vault__SpiffeAudience: ${MANUFACTURING_VAULT_AUDIENCE:-vault}
+      Vault__Database__Enabled: "true"
+      Vault__RequireVault: ${MANUFACTURING_VAULT_REQUIRE:-true}
+      Vault__AllowStaticToken: "false"
+    entrypoint: ["/usr/local/bin/swarm-entrypoint.sh"]
+    command: ["CommerceService.Api.dll"]
+    configs:
+      - source: manufacturing_swarm_entrypoint
+        target: /usr/local/bin/swarm-entrypoint.sh
+        mode: 0555
+    secrets: [manufacturing_postgres_user, manufacturing_postgres_password, manufacturing_rabbitmq_user, manufacturing_rabbitmq_password, commerce_data_protection_pfx, commerce_data_protection_password, manufacturing_vault_jwt]
+    networks: [manufacturing]
+    ports:
+      - target: 5015
+        published: ${MANUFACTURING_COMMERCE_PORT:-5015}
+        protocol: tcp
+        mode: ingress
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/5015 && printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && head -n 1 <&3 | grep -q " 200 "'
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      replicas: 2
+      update_config: { parallelism: 1, order: start-first, failure_action: rollback, monitor: 60s }
+      rollback_config: { parallelism: 1, order: stop-first }
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 5, window: 120s }
+      resources: { reservations: { cpus: "0.25", memory: 256M }, limits: { cpus: "1.0", memory: 1G } }
+
+  contentservice:
+    image: ${CONTENT_IMAGE:?CONTENT_IMAGE is required}
+    environment:
+      APP_NAME: content
+      ASPNETCORE_URLS: http://+:5016
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      DB_HOST: ${MANUFACTURING_DB_HOST:?MANUFACTURING_DB_HOST is required}
+      DB_PORT: ${MANUFACTURING_DB_PORT:-5432}
+      REDIS_URL: ${MANUFACTURING_REDIS_URL:?MANUFACTURING_REDIS_URL is required}
+      SERVICE_IDENTITY_URL: ${MANUFACTURING_IDENTITY_INTERNAL_URL:-http://identityservice:5003}
+      Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-https://identity.example.com}
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:?MANUFACTURING_JWT_ISSUER is required}
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Jwt__RequireHttpsMetadata: ${MANUFACTURING_JWT_REQUIRE_HTTPS_METADATA:-true}
+      Jwt__AllowHttp: ${MANUFACTURING_JWT_ALLOW_HTTP:-false}
+      DataProtection__CertificatePath: /run/secrets/content_data_protection_pfx
+      Persistence__RunMigrationsOnStartup: "true"
+      TenantPlacement__Enabled: "false"
+      TenantPlacement__Services__content__DefaultConnectionName: ContentDb
+      Vault__Address: ${MANUFACTURING_VAULT_ADDRESS:-https://vault.example.internal:8200}
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: ${MANUFACTURING_VAULT_AUTH_MOUNT:-jwt-spiffe}
+      Vault__Role: ${MANUFACTURING_CONTENT_VAULT_ROLE:-content-service}
+      Vault__SpiffeJwtTokenFile: /run/secrets/manufacturing_vault_jwt
+      Vault__SpiffeAudience: ${MANUFACTURING_VAULT_AUDIENCE:-vault}
+      Vault__Database__Enabled: "true"
+      Vault__RequireVault: ${MANUFACTURING_VAULT_REQUIRE:-true}
+      Vault__AllowStaticToken: "false"
+    entrypoint: ["/usr/local/bin/swarm-entrypoint.sh"]
+    command: ["ContentService.Api.dll"]
+    configs:
+      - source: manufacturing_swarm_entrypoint
+        target: /usr/local/bin/swarm-entrypoint.sh
+        mode: 0555
+    secrets: [manufacturing_postgres_user, manufacturing_postgres_password, content_data_protection_pfx, content_data_protection_password, manufacturing_vault_jwt]
+    networks: [manufacturing]
+    ports:
+      - target: 5016
+        published: ${MANUFACTURING_CONTENT_PORT:-5016}
+        protocol: tcp
+        mode: ingress
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/5016 && printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && head -n 1 <&3 | grep -q " 200 "'
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      replicas: 2
+      update_config: { parallelism: 1, order: start-first, failure_action: rollback, monitor: 60s }
+      rollback_config: { parallelism: 1, order: stop-first }
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 5, window: 120s }
+      resources: { reservations: { cpus: "0.25", memory: 256M }, limits: { cpus: "1.0", memory: 1G } }
+
+  manufacturingservice:
+    image: ${MANUFACTURING_IMAGE:?MANUFACTURING_IMAGE is required}
+    environment:
+      APP_NAME: manufacturing
+      ASPNETCORE_URLS: http://+:5050
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      DB_HOST: ${MANUFACTURING_DB_HOST:?MANUFACTURING_DB_HOST is required}
+      DB_PORT: ${MANUFACTURING_DB_PORT:-5432}
+      REDIS_URL: ${MANUFACTURING_REDIS_URL:?MANUFACTURING_REDIS_URL is required}
+      TenantPlacement__Enabled: "false"
+      TenantPlacement__Services__manufacturing__DefaultConnectionName: ManufacturingDb
+      Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-https://identity.example.com}
+      Jwt__MetadataAddress: ${MANUFACTURING_JWT_METADATA_ADDRESS:-https://identity.example.com/.well-known/openid-configuration}
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:?MANUFACTURING_JWT_ISSUER is required}
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Jwt__RequireHttpsMetadata: ${MANUFACTURING_JWT_REQUIRE_HTTPS_METADATA:-true}
+      Jwt__AllowHttp: ${MANUFACTURING_JWT_ALLOW_HTTP:-false}
+      DataProtection__CertificatePath: /run/secrets/manufacturing_data_protection_pfx
+      Outbox__Enabled: "false"
+      Consumers__AnalyticsEnabled: "false"
+      Consumers__CommerceOrdersEnabled: "false"
+      Manufacturing__Automation__Enabled: "false"
+      Persistence__RunMigrationsOnStartup: "true"
+      Vault__Address: ${MANUFACTURING_VAULT_ADDRESS:-https://vault.example.internal:8200}
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: ${MANUFACTURING_VAULT_AUTH_MOUNT:-jwt-spiffe}
+      Vault__Role: ${MANUFACTURING_MANUFACTURING_VAULT_ROLE:-manufacturing-service}
+      Vault__SpiffeJwtTokenFile: /run/secrets/manufacturing_vault_jwt
+      Vault__SpiffeAudience: ${MANUFACTURING_VAULT_AUDIENCE:-vault}
+      Vault__Database__Enabled: "true"
+      Vault__RequireVault: ${MANUFACTURING_VAULT_REQUIRE:-true}
+      Vault__AllowStaticToken: "false"
+    entrypoint: ["/usr/local/bin/swarm-entrypoint.sh"]
+    command: ["ManufacturingService.Api.dll"]
+    configs:
+      - source: manufacturing_swarm_entrypoint
+        target: /usr/local/bin/swarm-entrypoint.sh
+        mode: 0555
+    secrets: [manufacturing_postgres_user, manufacturing_postgres_password, manufacturing_data_protection_pfx, manufacturing_data_protection_password, manufacturing_vault_jwt]
+    networks: [manufacturing]
+    ports:
+      - target: 5050
+        published: ${MANUFACTURING_API_PORT:-5050}
+        protocol: tcp
+        mode: ingress
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/5050 && printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && head -n 1 <&3 | grep -q " 200 "'
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    deploy:
+      replicas: ${MANUFACTURING_API_REPLICAS:-3}
+      update_config: { parallelism: 1, order: start-first, failure_action: rollback, monitor: 60s }
+      rollback_config: { parallelism: 1, order: stop-first }
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 5, window: 120s }
+      resources: { reservations: { cpus: "0.5", memory: 512M }, limits: { cpus: "1.5", memory: 2G } }
+
+  manufacturing-worker:
+    image: ${MANUFACTURING_IMAGE:?MANUFACTURING_IMAGE is required}
+    environment:
+      APP_NAME: manufacturing
+      ASPNETCORE_URLS: http://+:5050
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      DB_HOST: ${MANUFACTURING_DB_HOST:?MANUFACTURING_DB_HOST is required}
+      DB_PORT: ${MANUFACTURING_DB_PORT:-5432}
+      REDIS_URL: ${MANUFACTURING_REDIS_URL:?MANUFACTURING_REDIS_URL is required}
+      RABBIT_HOST: ${MANUFACTURING_RABBIT_HOST:?MANUFACTURING_RABBIT_HOST is required}
+      Jwt__Authority: ${MANUFACTURING_JWT_AUTHORITY:-https://identity.example.com}
+      Jwt__MetadataAddress: ${MANUFACTURING_JWT_METADATA_ADDRESS:-https://identity.example.com/.well-known/openid-configuration}
+      Jwt__Issuer: ${MANUFACTURING_JWT_ISSUER:?MANUFACTURING_JWT_ISSUER is required}
+      Jwt__Audience: ${MANUFACTURING_JWT_AUDIENCE:-manufacturing-api}
+      Jwt__RequireHttpsMetadata: ${MANUFACTURING_JWT_REQUIRE_HTTPS_METADATA:-true}
+      Jwt__AllowHttp: ${MANUFACTURING_JWT_ALLOW_HTTP:-false}
+      DataProtection__CertificatePath: /run/secrets/manufacturing_data_protection_pfx
+      TenantPlacement__Enabled: "false"
+      TenantPlacement__Services__manufacturing__DefaultConnectionName: ManufacturingDb
+      Outbox__Enabled: "true"
+      Consumers__AnalyticsEnabled: "true"
+      Consumers__CommerceOrdersEnabled: "true"
+      Manufacturing__Automation__Enabled: "true"
+      Persistence__RunMigrationsOnStartup: "true"
+      Vault__Address: ${MANUFACTURING_VAULT_ADDRESS:-https://vault.example.internal:8200}
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: ${MANUFACTURING_VAULT_AUTH_MOUNT:-jwt-spiffe}
+      Vault__Role: ${MANUFACTURING_MANUFACTURING_VAULT_ROLE:-manufacturing-service}
+      Vault__SpiffeJwtTokenFile: /run/secrets/manufacturing_vault_jwt
+      Vault__SpiffeAudience: ${MANUFACTURING_VAULT_AUDIENCE:-vault}
+      Vault__Database__Enabled: "true"
+      Vault__RequireVault: ${MANUFACTURING_VAULT_REQUIRE:-true}
+      Vault__AllowStaticToken: "false"
+    entrypoint: ["/usr/local/bin/swarm-entrypoint.sh"]
+    command: ["ManufacturingService.Api.dll"]
+    configs:
+      - source: manufacturing_swarm_entrypoint
+        target: /usr/local/bin/swarm-entrypoint.sh
+        mode: 0555
+    secrets: [manufacturing_postgres_user, manufacturing_postgres_password, manufacturing_rabbitmq_user, manufacturing_rabbitmq_password, manufacturing_data_protection_pfx, manufacturing_data_protection_password, manufacturing_vault_jwt]
+    networks: [manufacturing]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -c 'exec 3<>/dev/tcp/127.0.0.1/5050 && printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && head -n 1 <&3 | grep -q " 200 "'
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
+    deploy:
+      replicas: 1
+      update_config: { parallelism: 1, order: stop-first, failure_action: rollback, monitor: 60s }
+      rollback_config: { parallelism: 1, order: stop-first }
+      restart_policy: { condition: on-failure, delay: 5s, max_attempts: 5, window: 120s }
+      resources: { reservations: { cpus: "0.25", memory: 384M }, limits: { cpus: "1.0", memory: 1G } }
+
+configs:
+  manufacturing_swarm_entrypoint:
+    file: ./swarm-entrypoint.sh
+
+secrets:
+  manufacturing_postgres_user:
+    external: true
+    name: ${MANUFACTURING_POSTGRES_USER_SECRET:-manufacturing-postgres-user}
+  manufacturing_postgres_password:
+    external: true
+    name: ${MANUFACTURING_POSTGRES_PASSWORD_SECRET:-manufacturing-postgres-password}
+  manufacturing_rabbitmq_user:
+    external: true
+    name: ${MANUFACTURING_RABBITMQ_USER_SECRET:-manufacturing-rabbitmq-user}
+  manufacturing_rabbitmq_password:
+    external: true
+    name: ${MANUFACTURING_RABBITMQ_PASSWORD_SECRET:-manufacturing-rabbitmq-password}
+  identity_jwt_private_key:
+    external: true
+    name: ${IDENTITY_JWT_PRIVATE_KEY_SECRET:-manufacturing-identity-jwt-private-key}
+  identity_jwt_public_key:
+    external: true
+    name: ${IDENTITY_JWT_PUBLIC_KEY_SECRET:-manufacturing-identity-jwt-public-key}
+  identity_jwt_encryption_private_key:
+    external: true
+    name: ${IDENTITY_JWT_ENCRYPTION_PRIVATE_KEY_SECRET:-manufacturing-identity-jwt-encryption-private-key}
+  commerce_data_protection_pfx:
+    external: true
+    name: ${COMMERCE_DATA_PROTECTION_PFX_SECRET:-manufacturing-commerce-data-protection-pfx}
+  commerce_data_protection_password:
+    external: true
+    name: ${COMMERCE_DATA_PROTECTION_PASSWORD_SECRET:-manufacturing-commerce-data-protection-password}
+  content_data_protection_pfx:
+    external: true
+    name: ${CONTENT_DATA_PROTECTION_PFX_SECRET:-manufacturing-content-data-protection-pfx}
+  content_data_protection_password:
+    external: true
+    name: ${CONTENT_DATA_PROTECTION_PASSWORD_SECRET:-manufacturing-content-data-protection-password}
+  manufacturing_data_protection_pfx:
+    external: true
+    name: ${MANUFACTURING_DATA_PROTECTION_PFX_SECRET:-manufacturing-data-protection-pfx}
+  manufacturing_data_protection_password:
+    external: true
+    name: ${MANUFACTURING_DATA_PROTECTION_PASSWORD_SECRET:-manufacturing-data-protection-password}
+  manufacturing_vault_jwt:
+    external: true
+    name: ${MANUFACTURING_VAULT_JWT_SECRET:-manufacturing-vault-jwt}
+
+networks:
+  manufacturing:
+    name: ${MANUFACTURING_SWARM_NETWORK:-manufacturing_swarm}
+    driver: overlay
+    attachable: true

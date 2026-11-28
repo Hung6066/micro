@@ -44,7 +44,9 @@ public sealed class RecentEncountersHandler : IAggregationHandler
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to fetch recent encounters");
-            return AggregationResult.Failed("Clinical service unavailable");
+            return AggregationResult.Partial(
+                new { encounters = Array.Empty<object>() },
+                new[] { new DegradedField("encounters", "Clinical service unavailable", "unknown") });
         }
     }
 

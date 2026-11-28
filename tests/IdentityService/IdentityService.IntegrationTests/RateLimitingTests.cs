@@ -19,6 +19,7 @@ public class RateLimitingTests
     public async Task AuthEndpoint_RateLimitExceeded_Returns429()
     {
         var client = _fixture.AnonymousClient;
+        var rateLimitKey = $"integration-auth-rate-limit-{Guid.NewGuid():N}";
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 130; i++)
         {
@@ -26,7 +27,7 @@ public class RateLimitingTests
             {
                 Content = JsonContent.Create(new { email = $"rl-test-{i}@test.test", password = $"TestPass{i}!" })
             };
-            request.Headers.Add("X-RateLimit-Key", "integration-auth-rate-limit");
+            request.Headers.Add("X-RateLimit-Key", rateLimitKey);
             lastResponse = await client.SendAsync(request);
             if ((int)lastResponse.StatusCode == 429) break;
         }
@@ -38,6 +39,7 @@ public class RateLimitingTests
     public async Task ScimEndpoint_RateLimitExceeded_Returns429()
     {
         var client = _fixture.AnonymousClient;
+        var rateLimitKey = $"integration-scim-rate-limit-{Guid.NewGuid():N}";
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 70; i++)
         {
@@ -45,7 +47,7 @@ public class RateLimitingTests
             {
                 Content = JsonContent.Create(new { schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:User" }, userName = $"scim-rl-{i}@test.test" })
             };
-            request.Headers.Add("X-RateLimit-Key", "integration-scim-rate-limit");
+            request.Headers.Add("X-RateLimit-Key", rateLimitKey);
             lastResponse = await client.SendAsync(request);
             if ((int)lastResponse.StatusCode == 429) break;
         }
@@ -57,8 +59,12 @@ public class RateLimitingTests
     public async Task MfaEndpoint_RateLimitExceeded_Returns429()
     {
         var session = _fixture.CreateSessionClient();
+        session.RateLimitKey = $"integration-mfa-rate-limit-{Guid.NewGuid():N}";
         var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+
+        var enrollResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaEnroll);
+        Assert.Equal(HttpStatusCode.OK, enrollResponse.StatusCode);
 
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 10; i++)
