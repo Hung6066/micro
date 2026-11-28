@@ -727,6 +727,8 @@ public static class IdentityServiceRegistrationExtensions
             His.Hope.IdentityService.Api.HostSecurity.AuditLogHostSecurityAckStore>();
         builder.Services.AddScoped<His.Hope.IdentityService.Application.HostSecurity.HostSecurityService>();
         builder.Services.AddScoped<His.Hope.IdentityService.Api.HostSecurity.HostIntegrityApprovalStore>();
+        // Zero Trust 3.5 R0: report-only sign-in risk score (events only, never blocks).
+        His.Hope.IdentityService.Api.Risk.RiskScoringRegistration.AddSignInRiskScoring(builder.Services, builder.Configuration);
 
         // Agent root SSH grants: four-eyes approval, then Vault SSH CA signs the agent key.
         builder.Services.AddOptions<His.Hope.IdentityService.Application.InfraAccess.AgentRootOptions>()

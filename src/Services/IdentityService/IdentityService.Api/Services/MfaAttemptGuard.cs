@@ -23,6 +23,13 @@ public sealed class MfaAttemptGuard(IConnectionMultiplexer redis)
         return value.HasValue && (long)value >= MaxFailedAttempts;
     }
 
+    /// <summary>Failed second-factor attempts in the current 15-minute window (risk signal).</summary>
+    public async Task<int> GetFailureCountAsync(Guid userId)
+    {
+        var value = await redis.GetDatabase().StringGetAsync(FailureKey(userId));
+        return value.HasValue && value.TryParse(out int count) ? count : 0;
+    }
+
     public async Task RecordFailureAsync(Guid userId)
     {
         var db = redis.GetDatabase();

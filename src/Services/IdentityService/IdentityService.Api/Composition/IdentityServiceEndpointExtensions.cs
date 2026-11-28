@@ -1292,6 +1292,9 @@ body{{
             if (user == null || !user.IsActive || LoginAttemptGuard.IsLockedOut(user))
             {
                 LoginAttemptGuard.VerifyDummyPassword(password);
+                // Zero Trust 3.5 R0: report-only risk event; the response stays identical.
+                if (user is not null)
+                    await completion.RecordPrimaryFailureAsync(httpContext, user, ["pwd"], user.IsActive ? "locked_out" : "inactive", detached: true);
                 return Results.Redirect(LoginErrorRedirect());
             }
 
@@ -1302,6 +1305,7 @@ body{{
             {
                 if (!result.IsNotAllowed)
                     await loginGuard.RecordFailureAsync(user, httpContext.RequestAborted);
+                await completion.RecordPrimaryFailureAsync(httpContext, user, ["pwd"], result.IsNotAllowed ? "not_allowed" : "invalid_password");
                 return Results.Redirect(LoginErrorRedirect());
             }
             await loginGuard.RecordSuccessAsync(user, httpContext.RequestAborted);

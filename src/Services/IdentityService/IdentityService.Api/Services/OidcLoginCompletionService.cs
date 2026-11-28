@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Api.Composition;
+using His.Hope.IdentityService.Api.Risk;
+using His.Hope.IdentityService.Application.Risk;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
@@ -124,7 +126,10 @@ public sealed class OidcLoginCompletionService(
         // passkey, mTLS) ends here, so a disabled or locked account is refused
         // centrally instead of relying on each caller to remember the check.
         if (!user.IsActive || LoginAttemptGuard.IsLockedOut(user))
+        {
+            await RecordRiskAsync(context, user, new(RiskEventTypes.LoginFailed, authenticationMethods, Outcome: "rejected"));
             return new(false, "/Account/Login?error=invalid_credentials", Rejected: true);
+        }
 
         var mfaEnabled = user.TwoFactorEnabled || await db.UserMfas
             .AsNoTracking()
@@ -143,6 +148,8 @@ public sealed class OidcLoginCompletionService(
                 sessionBinding.SessionId,
                 GetUserAgentHash(context));
             await redisDb.StringSetAsync(GetPendingMfaKey(pendingId), pending.ToJson(), PendingMfaLifetime);
+            if (RiskRecorder(context) is { } riskRecorder)
+                await riskRecorder.RememberPendingPrimaryAsync(pendingId, user.FailedLoginAttempts, PendingMfaLifetime);
 
             var protectedState = protector.Protect(JsonSerializer.Serialize(new PendingMfaCookieState(pendingId)));
             context.Response.Cookies.Append(CookieName, protectedState, new CookieOptions
@@ -159,6 +166,15 @@ public sealed class OidcLoginCompletionService(
         }
 
         await SignInAsync(user, authenticationMethods);
+        if (RiskRecorder(context) is { } recorder)
+        {
+            // The entity still holds the pre-reset failure count of this password sign-in.
+            await recorder.RecordAsync(SignInRiskOrigin.From(context), user, new(
+                RiskEventTypes.LoginSuccess,
+                authenticationMethods,
+                FailedPasswordAttempts: user.FailedLoginAttempts,
+                UnfamiliarDevice: IsUnfamiliarDevice(context, user, await HasRecognizedBrowserSessionAsync(context, user))));
+        }
         return new(false, safeReturnUrl);
     }
 
@@ -213,6 +229,8 @@ public sealed class OidcLoginCompletionService(
         if (await mfaGuard.IsBlockedAsync(pending.UserId))
         {
             await DeletePendingMfaAsync(context, pending.PendingId);
+            await RecordRiskAsync(context, user, new(RiskEventTypes.MfaFailed, [.. pending.AuthenticationMethods, "otp"],
+                UnfamiliarDevice: pending.IsUnfamiliarDevice, Outcome: "mfa_blocked"));
             return new(PendingMfaCompletionStatus.Unauthorized, null);
         }
 
@@ -221,11 +239,14 @@ public sealed class OidcLoginCompletionService(
             !await mfaGuard.TryConsumeTotpStepAsync(pending.UserId, totpStep))
         {
             await mfaGuard.RecordFailureAsync(pending.UserId);
+            await RecordRiskAsync(context, user, new(RiskEventTypes.MfaFailed, [.. pending.AuthenticationMethods, "otp"],
+                UnfamiliarDevice: pending.IsUnfamiliarDevice, Outcome: "invalid_code"));
             return new(PendingMfaCompletionStatus.InvalidCode, null);
         }
+        var mfaFailures = await mfaGuard.GetFailureCountAsync(pending.UserId);
         await mfaGuard.ResetAsync(pending.UserId);
 
-        var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "otp");
+        var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "otp", mfaFailures);
         return new(PendingMfaCompletionStatus.Success, redirectUrl);
     }
 
@@ -248,6 +269,8 @@ public sealed class OidcLoginCompletionService(
         if (await mfaGuard.IsBlockedAsync(pending.UserId))
         {
             await DeletePendingMfaAsync(context, pending.PendingId);
+            await RecordRiskAsync(context, user, new(RiskEventTypes.MfaFailed, [.. pending.AuthenticationMethods, "recovery_code"],
+                UnfamiliarDevice: pending.IsUnfamiliarDevice, Outcome: "mfa_blocked"));
             return new(PendingMfaCompletionStatus.Unauthorized, null);
         }
 
@@ -279,12 +302,17 @@ public sealed class OidcLoginCompletionService(
         if (consumeStatus != PendingMfaCompletionStatus.Success)
         {
             if (consumeStatus == PendingMfaCompletionStatus.InvalidRecoveryCode)
+            {
                 await mfaGuard.RecordFailureAsync(pending.UserId);
+                await RecordRiskAsync(context, user, new(RiskEventTypes.MfaFailed, [.. pending.AuthenticationMethods, "recovery_code"],
+                    UnfamiliarDevice: pending.IsUnfamiliarDevice, Outcome: "invalid_recovery_code"));
+            }
             return new(consumeStatus, null);
         }
+        var mfaFailures = await mfaGuard.GetFailureCountAsync(pending.UserId);
         await mfaGuard.ResetAsync(pending.UserId);
 
-        var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "recovery_code");
+        var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "recovery_code", mfaFailures);
         return new(PendingMfaCompletionStatus.Success, redirectUrl);
     }
 
@@ -380,16 +408,65 @@ public sealed class OidcLoginCompletionService(
         HttpContext context,
         PendingMfaContext pending,
         User user,
-        string authenticationMethod)
+        string authenticationMethod,
+        int? failedMfaAttempts = null)
     {
         await DeletePendingMfaAsync(context, pending.PendingId);
-        await SignInAsync(
-            user,
-            pending.AuthenticationMethods
-                .Append(authenticationMethod)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray());
+        var methods = pending.AuthenticationMethods
+            .Append(authenticationMethod)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        await SignInAsync(user, methods);
+        var riskRecorder = RiskRecorder(context);
+        if (riskRecorder is not null)
+            await riskRecorder.RecordAsync(SignInRiskOrigin.From(context), user, new(
+                RiskEventTypes.LoginSuccess,
+                methods,
+                FailedPasswordAttempts: await riskRecorder.TakePendingPrimaryAsync(pending.PendingId),
+                FailedMfaAttempts: failedMfaAttempts,
+                UnfamiliarDevice: pending.IsUnfamiliarDevice));
         return pending.ReturnUrl;
+    }
+
+    // Zero Trust 3.5 R0 (report-only): score the attempt and write the risk event.
+    // The recorder never throws, so the sign-in outcome cannot change.
+    private static ISignInRiskRecorder? RiskRecorder(HttpContext context) =>
+        context.RequestServices?.GetService<ISignInRiskRecorder>();
+
+    private static Task RecordRiskAsync(HttpContext context, User user, SignInRiskAttempt attempt) =>
+        RiskRecorder(context)?.RecordAsync(SignInRiskOrigin.From(context), user, attempt) ?? Task.CompletedTask;
+
+    /// <summary>
+    /// Risk event for a primary failure the password endpoint rejected before reaching this
+    /// service. <paramref name="detached"/> keeps the response time independent of the account.
+    /// </summary>
+    public Task RecordPrimaryFailureAsync(
+        HttpContext context, User user, IReadOnlyCollection<string> authenticationMethods, string outcome, bool detached = false)
+    {
+        var attempt = new SignInRiskAttempt(RiskEventTypes.LoginFailed, authenticationMethods, Outcome: outcome);
+        if (!detached)
+            return RecordRiskAsync(context, user, attempt);
+        RiskRecorder(context)?.RecordDetached(SignInRiskOrigin.From(context), user, attempt);
+        return Task.CompletedTask;
+    }
+
+    private async Task<bool> HasRecognizedBrowserSessionAsync(HttpContext context, User user)
+    {
+        var sessionId = context.Request.Cookies[BrowserSessionCookieName];
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return false;
+        try
+        {
+            var session = await TryGetLiveSessionAsync(sessionId);
+            return session is not null
+                && string.Equals(session.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)
+                && string.Equals(session.UserAgentHash, GetUserAgentHash(context), StringComparison.Ordinal);
+        }
+        catch (Exception exception) when (exception is RedisException or TimeoutException)
+        {
+            // Risk signal only: an unreadable session counts as not recognized, sign-in continues.
+            return false;
+        }
     }
 
     private string ResolveSafeReturnUrl(HttpContext context, string? value) =>

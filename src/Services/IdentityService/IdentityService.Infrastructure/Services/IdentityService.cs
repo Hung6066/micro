@@ -625,31 +625,7 @@ public partial class IdentityService : IIdentityService
     {
         try
         {
-            _context.SecurityEvents.Add(new SecurityEvent
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                UserName = userName,
-                EventType = eventType,
-                Severity = severity ?? "info",
-                IpAddress = ipAddress,
-                UserAgent = userAgent,
-                DeviceInfo = deviceInfo,
-                Details = details,
-                Timestamp = DateTime.UtcNow
-            });
-            _context.SecuritySignalOutbox.Add(new SecuritySignalOutbox
-            {
-                EventType = eventType,
-                Subject = userId?.ToString() ?? userName ?? "unknown",
-                PayloadJson = JsonSerializer.Serialize(new
-                {
-                    eventType,
-                    subject = userId?.ToString() ?? "unknown",
-                    severity = severity ?? "info",
-                    occurredAt = DateTime.UtcNow
-                })
-            });
+            SecurityEventWriter.Stage(_context, userId, userName, eventType, severity, ipAddress, userAgent, deviceInfo, details);
             await _context.SaveChangesAsync(default);
         }
         catch (Exception ex)

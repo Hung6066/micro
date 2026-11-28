@@ -99,6 +99,7 @@ public sealed class RedisRefreshTokenStore
             "Refresh token reuse detected atomically: FamilyId={FamilyId}, UserId={UserId}, Generation={Generation}",
             record.FamilyId, record.UserId, record.Generation);
         await RevokeFamilyAsync(record.FamilyId, ct);
+        await MarkReuseForRiskAsync(record);
         return (record, true);
     }
 
@@ -171,10 +172,26 @@ public sealed class RedisRefreshTokenStore
                 record.DeviceInfo, record.IpAddress);
 
             await RevokeFamilyAsync(record.FamilyId, ct);
+            await MarkReuseForRiskAsync(record);
             return (true, record.FamilyId);
         }
 
         return (false, record.FamilyId);
+    }
+
+    /// <summary>Zero Trust 3.5: the user's next sign-in scores the reuse (report-only in R0).</summary>
+    private async Task MarkReuseForRiskAsync(RefreshTokenRecord record)
+    {
+        try
+        {
+            await RedisSignInRiskSignalStore.MarkRefreshTokenReuseAsync(
+                _redis.GetDatabase(), record.UserId, TimeSpan.FromHours(24));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Fail open: the reuse is already handled (family revoked); only the risk marker is lost.
+            _logger.LogWarning(ex, "Could not record refresh token reuse for the risk score.");
+        }
     }
 
     public async Task RevokeFamilyAsync(string familyId, CancellationToken ct = default)
