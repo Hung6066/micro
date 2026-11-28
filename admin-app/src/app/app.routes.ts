@@ -259,6 +259,13 @@ const iamWorkbenchRoutes: Routes = [
       ),
   },
   {
+    // Super-admin only (server-enforced, audited): sign-in risk scores, report-only (ZT 3.5 R0).
+    path: "iam/risk",
+    canActivate: [...protectedRoute],
+    loadComponent: () =>
+      import("./features/risk/risk-page.component").then((m) => m.RiskPageComponent),
+  },
+  {
     // Super-admin only (server-enforced): four-eyes root SSH grants for the automation agent.
     path: "iam/agent-root",
     canActivate: [...protectedRoute],

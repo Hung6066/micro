@@ -318,6 +318,14 @@ export class AppComponent {
           permission: "admin.roles.read",
         },
         {
+          id: "risk",
+          route: "/iam/risk",
+          icon: "speed",
+          labelKey: "admin.risk",
+          fallback: "Risk",
+          permission: "admin.roles.read",
+        },
+        {
           id: "agent-root",
           route: "/iam/agent-root",
           icon: "admin_panel_settings",
